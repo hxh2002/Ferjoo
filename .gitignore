@@ -1,0 +1,9 @@
+# knowledge 子项目仅保留本地，不上传
+knowledge/
+
+# 系统与通用
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
