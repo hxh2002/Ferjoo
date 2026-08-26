@@ -7,3 +7,7 @@ Thumbs.db
 
 # Node
 node_modules/
+.vercel
+
+# Vercel 本地凭据（勿上传）
+.vercel-global/
