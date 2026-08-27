@@ -2,7 +2,7 @@
   'use strict';
   const D = window.StarterDoctor;
   const $ = (id) => document.getElementById(id);
-  const state = { stage:'mature', ratio:'1:1:1', height:null, temp:null };
+  const state = { stage:'mature', ratio:'1:1:1', height:null, temp:null, elapsed:null };
 
   function choose(containerId, value) {
     const el = $(containerId);
@@ -22,13 +22,28 @@
 
   function updateTempUi() {
     const custom = $('tempToggle').checked;
-    $('tempControl').classList.toggle('is-hidden', !custom);
-    $('tempDefault').classList.toggle('is-hidden', custom);
+    $('tempRange').disabled = !custom;
     state.temp = custom ? Number($('tempRange').value) : null;
     if (custom) {
       const t = D.normalizeTemp(state.temp);
       $('tempValue').textContent = state.temp;
       $('tempNote').textContent = t ? t.note : '';
+    } else {
+      $('tempValue').textContent = '25–28';
+      $('tempNote').textContent = '未提供时默认';
+    }
+  }
+
+  function updateElapsedUi() {
+    const custom = $('elapsedToggle').checked;
+    $('elapsedRange').disabled = !custom;
+    state.elapsed = custom ? Number($('elapsedRange').value) : null;
+    if (custom) {
+      $('elapsedValue').textContent = state.elapsed;
+      $('elapsedNote').textContent = '已提供';
+    } else {
+      $('elapsedValue').textContent = '1';
+      $('elapsedNote').textContent = '未提供时默认';
     }
   }
 
@@ -38,7 +53,7 @@
       ratio: state.ratio,
       height: state.height,
       temp: state.temp,
-      elapsedHours: $('elapsedHours').value === '' ? undefined : Number($('elapsedHours').value),
+      elapsedHours: state.elapsed,
       smell: $('smell').value,
       color: $('color').value,
       notes: $('notes').value
@@ -157,17 +172,22 @@
       if (tempNum != null) $('tempRange').value = Math.min(40, Math.max(8, tempNum));
       updateTempUi(); n++;
     }
-    if (parsed.elapsedHours != null) { $('elapsedHours').value = parsed.elapsedHours; n++; }
+    if (parsed.elapsedHours != null) {
+      $('elapsedToggle').checked = true;
+      $('elapsedRange').value = Math.min(48, Math.max(0, parsed.elapsedHours));
+      updateElapsedUi(); n++;
+    }
     if (parsed.ph != null) { $('phValue').value = parsed.ph; n++; }
     $('parseFeedback').textContent = n ? `已识别并填入 ${n} 项信息，你可以继续手动调整。` : '没有识别到明确的阶段/比例/高度/温度，请改用下面的选项填写。';
   }
 
   function reset() {
-    state.stage = 'mature'; state.ratio = '1:1:1'; state.height = null; state.temp = null;
+    state.stage = 'mature'; state.ratio = '1:1:1'; state.height = null; state.temp = null; state.elapsed = null;
     choose('stageChoices','mature'); choose('ratioChoices','1:1:1');
     $('heightChoices').querySelectorAll('.selected').forEach(x => x.classList.remove('selected'));
     $('tempToggle').checked = false; $('tempRange').value = 26; updateTempUi();
-    ['naturalInput','elapsedHours','phValue','notes'].forEach(id => $(id).value = '');
+    $('elapsedToggle').checked = false; $('elapsedRange').value = 1; updateElapsedUi();
+    ['naturalInput','phValue','notes'].forEach(id => $(id).value = '');
     $('smell').value = ''; $('color').value = '';
     $('parseFeedback').textContent = '';
     $('validationMessage').textContent = '';
@@ -198,10 +218,30 @@
   bindChoice('heightChoices','height');
   $('tempToggle').addEventListener('change', updateTempUi);
   $('tempRange').addEventListener('input', updateTempUi);
+  $('elapsedToggle').addEventListener('change', updateElapsedUi);
+  $('elapsedRange').addEventListener('input', updateElapsedUi);
   $('parseBtn').addEventListener('click', parseNatural);
   $('naturalInput').addEventListener('keydown', e => { if (e.key === 'Enter') parseNatural(); });
   $('diagnoseBtn').addEventListener('click', diagnose);
   $('resetBtn').addEventListener('click', reset);
   $('copyBtn').addEventListener('click', copyReport);
+
+  const howModal = $('howModal');
+  function openHow() { howModal.classList.remove('is-hidden'); document.body.style.overflow = 'hidden'; }
+  function closeHow() { howModal.classList.add('is-hidden'); document.body.style.overflow = ''; }
+  $('howEntry').addEventListener('click', openHow);
+  $('howClose').addEventListener('click', closeHow);
+  howModal.addEventListener('click', (e) => { if (e.target === howModal) closeHow(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !howModal.classList.contains('is-hidden')) closeHow(); });
+
+  const aboutModal = $('aboutModal');
+  function openAbout() { aboutModal.classList.remove('is-hidden'); document.body.style.overflow = 'hidden'; }
+  function closeAbout() { aboutModal.classList.add('is-hidden'); document.body.style.overflow = ''; }
+  $('aboutEntry').addEventListener('click', openAbout);
+  $('aboutClose').addEventListener('click', closeAbout);
+  aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) closeAbout(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !aboutModal.classList.contains('is-hidden')) closeAbout(); });
+
   updateTempUi();
+  updateElapsedUi();
 })();

@@ -15,16 +15,19 @@
         <img class="brand-cn" src="assets/logo-df-cn.png" alt="酵种医生">
         <img class="brand-en" src="assets/logo-df-en.png" alt="Dr. Ferjoo">
       </div>
-      <div class="privacy-chip">本地运行 · 不上传数据</div>
+      <div class="brand-actions">
+        <button class="how-entry" id="howEntry" type="button">HOW IT THINKS</button>
+        <button class="how-entry" id="aboutEntry" type="button">ABOUT US</button>
+      </div>
     </header>
 
     <main>
       <section class="hero">
         <div>
           <p class="eyebrow">SOURDOUGH STARTER DIAGNOSTIC</p>
-          <h1>把“感觉不对”变成<br><span>可执行的下一步。</span></h1>
+          <h1>让每一次发酵，<br><span>都有迹可循。</span></h1>
           <p class="hero-copy">
-            用当前阶段、喂养比例、高度状态与温度建立规则判断；再结合经过时间、气味、表面颜色与 pH（可选）补充安全和成熟度提示。
+            记录一次喂养，看懂一次变化。用清晰的阶段、比例、高度与温度，把“感觉不对”变成可以执行的下一步。
           </p>
         </div>
         <div class="hero-facts" aria-label="诊断维度">
@@ -85,8 +88,7 @@
               <button type="button" class="pill" data-value="1:3:3">1:3:3 <small>温和</small></button>
               <button type="button" class="pill" data-value="1:5:5">1:5:5 <small>降酸</small></button>
               <button type="button" class="pill" data-value="deep_reset">1:10:10 <small>深度重置</small></button>
-              <button type="button" class="pill special" data-value="stiff">硬种 <small>&lt;70%</small></button>
-              <button type="button" class="pill special" data-value="liquid">液种 <small>≥100%</small></button>
+              <button type="button" class="pill" data-value="1:2:1">1:2:1 <small>硬种</small></button>
             </div>
           </fieldset>
 
@@ -113,44 +115,36 @@
                   <span></span>
                 </label>
               </div>
-              <div id="tempDefault" class="default-chip">未提供 → 按 25–28℃</div>
-              <div class="temp-control is-hidden" id="tempControl">
-                <div class="temp-readout"><span id="tempValue">26</span>℃ <em id="tempNote">标准</em></div>
-                <input id="tempRange" type="range" min="8" max="40" value="26" step="1">
+              <div class="temp-control" id="tempControl">
+                <div class="temp-readout"><span id="tempValue">25–28</span>℃ <em id="tempNote">未提供时默认</em></div>
+                <input id="tempRange" type="range" min="8" max="40" value="26" step="1" disabled>
                 <div class="range-labels"><span>8℃</span><span>24℃</span><span>40℃</span></div>
               </div>
             </div>
 
             <div class="field-card">
-              <label for="elapsedHours">喂养后经过时间 <small>可选</small></label>
-              <div class="number-field">
-                <input id="elapsedHours" type="number" min="0" max="168" step="0.5" placeholder="例如 6">
-                <span>小时</span>
+              <div class="field-topline">
+                <label for="elapsedToggle">喂养后经过时间</label>
+                <label class="switch">
+                  <input id="elapsedToggle" type="checkbox">
+                  <span></span>
+                </label>
               </div>
-              <p class="field-note">可避免“刚喂完还没涨”被误判为活性不足。</p>
+              <div class="temp-control" id="elapsedControl">
+                <div class="temp-readout"><span id="elapsedValue">1</span> 小时 <em id="elapsedNote">未提供时默认</em></div>
+                <input id="elapsedRange" type="range" min="0" max="48" value="1" step="1" disabled>
+                <div class="range-labels"><span>0h</span><span>24h</span><span>48h</span></div>
+              </div>
             </div>
           </div>
 
-          <details class="advanced-card">
-            <summary>
-              <span>安全与专业补充项</span>
-              <small>气味 / 表面颜色 / pH / 备注</small>
-            </summary>
-            <div class="advanced-grid">
-              <label>气味
-                <select id="smell">
-                  <option value="">未提供</option>
-                  <option value="正常酸香">正常酸香</option>
-                  <option value="果香">果香</option>
-                  <option value="酒精味">酒精味</option>
-                  <option value="腐臭">腐臭</option>
-                  <option value="氨味">氨味</option>
-                  <option value="霉味">霉味</option>
-                </select>
-              </label>
-              <label>表面颜色
+          <fieldset class="field-group">
+            <legend>表面颜色 / 气味 <span>必选</span></legend>
+            <div class="two-col">
+              <div class="field-card">
+                <label for="color">表面颜色</label>
                 <select id="color">
-                  <option value="">未提供</option>
+                  <option value="" selected>默认</option>
                   <option value="正常米白">正常米白</option>
                   <option value="灰白液层">灰白液层</option>
                   <option value="粉红">粉红</option>
@@ -159,7 +153,28 @@
                   <option value="绿色斑点">绿色斑点</option>
                   <option value="发霉长毛">发霉长毛</option>
                 </select>
-              </label>
+              </div>
+              <div class="field-card">
+                <label for="smell">气味</label>
+                <select id="smell">
+                  <option value="" selected>默认</option>
+                  <option value="正常酸香">正常酸香</option>
+                  <option value="果香">果香</option>
+                  <option value="酒精味">酒精味</option>
+                  <option value="腐臭">腐臭</option>
+                  <option value="氨味">氨味</option>
+                  <option value="霉味">霉味</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <details class="advanced-card">
+            <summary>
+              <span>专业补充项</span>
+              <small>pH / 备注</small>
+            </summary>
+            <div class="advanced-grid">
               <label>pH <small>可选参考</small>
                 <input id="phValue" type="number" min="2.5" max="7" step="0.1" placeholder="例如 3.8">
               </label>
@@ -227,47 +242,51 @@
         </aside>
       </section>
 
-      <section class="framework-section">
-        <div class="section-heading">
-          <p class="eyebrow">HOW IT THINKS</p>
-          <h2>酵种医生的判断顺序</h2>
-          <p>安全信号先于活性；阶段先于高度；温度和比例用于解释“为什么快或慢”。</p>
-        </div>
-        <div class="framework-grid">
-          <article><span>01</span><h3>先排污染</h3><p>异色、绒毛状霉变、腐臭/氨味等信号直接进入弃用与消毒建议。</p></article>
-          <article><span>02</span><h3>识别阶段</h3><p>起种、稳定、复活、冷藏和成熟期使用不同的基线，避免用成熟种标准误判幼种。</p></article>
-          <article><span>03</span><h3>看高度曲线</h3><p>从不涨、上升、翻倍、过峰到回落，高度是当前活性与发酵位置的核心代理指标。</p></article>
-          <article><span>04</span><h3>用温度校时</h3><p>预期时间按喂养比例 × 温度系数估算；填写经过时间后再判断是否真的“慢”。</p></article>
-        </div>
-      </section>
-
-      <section class="knowledge-section">
-        <div class="knowledge-card">
-          <p class="eyebrow">KNOWLEDGE BOUNDARY</p>
-          <h2>专业版做了两层知识标记</h2>
-          <div class="knowledge-columns">
-            <div>
-              <h3>规则库直接采用</h3>
-              <p>阶段、比例、高度、温度区间、预期翻倍时间、污染优先级及对应操作建议沿用你提供的规则引擎。</p>
-            </div>
-            <div>
-              <h3>审校后降级为经验框架</h3>
-              <p>“地域/原产地决定菌群”“固定 pH 黄金点”“高温只代表酵母”等不应作为绝对科学结论；网页只把它们当作品牌经验或参考，不参与安全判定。</p>
-            </div>
-          </div>
-          <details class="science-note">
-            <summary>查看科学边界说明</summary>
-            <p>大规模酵种微生物研究发现，维护方式与微生物相互作用的重要性很高，地理位置并不能稳定预测酵种菌群；较早的小样本研究则观察到环境/地域相关性。温度会同时影响酵母与乳酸菌群落和代谢，并非“高温一定只有酵母在工作”。</p>
-            <p>pH 3.3–3.8 可保留为你的品牌目标区间，但不应等同于通用成熟标准；食品安全层面更适合把“快速酸化到 pH 4.6 以下”作为参考线之一，同时仍需结合卫生、污染迹象与充分烘烤。</p>
-          </details>
-        </div>
-      </section>
     </main>
 
     <footer>
       <img src="assets/logo-df-en.png" alt="Dr. Ferjoo">
-      <p>酵种医生 · rule-based starter guidance · v1.0</p>
+      <p>Powered by Ferjoo · v0.1</p>
     </footer>
+  </div>
+
+  <div class="modal-backdrop is-hidden" id="howModal" role="dialog" aria-modal="true" aria-labelledby="howModalTitle">
+    <div class="modal-card">
+      <header class="modal-head">
+        <div>
+          <p class="eyebrow">HOW IT THINKS</p>
+          <h2 id="howModalTitle">酵种医生的判断顺序</h2>
+        </div>
+        <button class="modal-close" id="howClose" type="button" aria-label="关闭">×</button>
+      </header>
+      <p class="modal-lede">安全信号先于活性；阶段先于高度；温度和比例用于解释“为什么快或慢”。</p>
+
+      <div class="think-flow">
+        <article><span>01</span><div><h3>先排污染</h3><p>异色、绒毛状霉变、腐臭/氨味等信号直接进入弃用与消毒建议，优先级最高。</p></div></article>
+        <article><span>02</span><div><h3>识别阶段</h3><p>起种、稳定、复活、冷藏和成熟期使用不同基线，避免用成熟种标准误判幼种。</p></div></article>
+        <article><span>03</span><div><h3>看高度曲线</h3><p>从不涨、上升、翻倍、过峰到回落，高度是当前活性与发酵位置的核心代理指标。</p></div></article>
+        <article><span>04</span><div><h3>用温度校时</h3><p>预期时间按喂养比例 × 温度系数估算；填写经过时间后再判断是否真的“慢”。</p></div></article>
+        <article><span>05</span><div><h3>补交叉验证</h3><p>气味、表面颜色与可选 pH 作为辅助证据，不单独下结论，只用于补充成熟度与安全提示。</p></div></article>
+        <article><span>06</span><div><h3>给出下一步</h3><p>把观察转化为可执行动作：继续等待、规律喂养、降温控酸、或弃用与消毒。</p></div></article>
+      </div>
+
+      <div class="think-principles">
+        <h3>三条原则</h3>
+        <ul>
+          <li><strong>安全优先</strong>：任何疑似污染的信号都先于活性判断。</li>
+          <li><strong>阶段匹配</strong>：不同阶段用各自基线，不套用单一“标准”。</li>
+          <li><strong>可解释</strong>：每条建议都能追溯到具体输入与规则，不给出黑箱结论。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop is-hidden" id="aboutModal" role="dialog" aria-modal="true" aria-labelledby="aboutModalTitle">
+    <div class="modal-card about-card">
+      <button class="modal-close" id="aboutClose" type="button" aria-label="关闭">×</button>
+      <img class="about-logo" src="assets/logo-brand.png" alt="Dr. Ferjoo">
+      <h2 id="aboutModalTitle">让每一次发酵，都有迹可循。</h2>
+    </div>
   </div>
 
   <script src="starter-doctor.browser.js"></script>
