@@ -1,0 +1,15 @@
+{
+  "name": "dr-ferjoo",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Traceable sourdough starter diagnosis rules and finite scenario audit tools",
+  "scripts": {
+    "test": "node tests/rule-engine.test.js && node tests/v0.4-regressions.test.js && node tests/v0.5-user-facing.test.js && node tests/enumerate-scenarios.test.js && node tests/review-queue.test.js && node tests/ui-baseline.test.js",
+    "audit": "node scripts/enumerate-scenarios.js --self-check",
+    "enumerate": "node scripts/enumerate-scenarios.js --pretty -o reports/scenarios.json",
+    "review-queue": "node scripts/build-review-queue.js -o reports/review-queue.json"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

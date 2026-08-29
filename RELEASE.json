@@ -1,0 +1,9 @@
+{
+  "name": "Ferjoo",
+  "version": "0.5.0",
+  "base": "v0.4.0",
+  "ui_strategy": "retain-v0.2-design-polish-user-facing-copy",
+  "reference_strategy": "public-literature-cards-in-ui-internal-trace-hidden",
+  "research_cutoff": "2026-08-29",
+  "reference_cards": 30
+}

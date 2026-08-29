@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ff8c43">
-  <meta name="description" content="酵种医生：基于阶段、喂养比例、高度状态、温度与安全观察的天然酵种规则诊断工具。">
+  <meta name="description" content="酵种医生：结合阶段、喂养比例、涨幅、温度与时间，帮助家庭烘焙者判断天然酵种状态并获得下一步建议。">
   <title>酵种医生 · Dr. Ferjoo</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,7 +16,7 @@
         <img class="brand-en" src="assets/logo-df-en.png" alt="Dr. Ferjoo">
       </div>
       <div class="brand-actions">
-        <button class="how-entry" id="howEntry" type="button">HOW IT THINKS</button>
+        <button class="how-entry" id="howEntry" type="button">HOW IT WORKS</button>
         <button class="how-entry" id="aboutEntry" type="button">ABOUT US</button>
       </div>
     </header>
@@ -235,8 +235,16 @@
               <ul id="safetyList"></ul>
             </div>
 
+            <section class="report-section reference-section" id="evidenceSection">
+              <div class="reference-heading">
+                <h3>参考文献</h3>
+                <span>与本次判断相关</span>
+              </div>
+              <div id="evidenceList" class="reference-list"></div>
+            </section>
+
             <p class="result-disclaimer">
-              这是基于规则库与可选观测数据的判断，不是微生物实验室检测。出现有色/绒毛状霉变或明显腐败异味时，安全规则优先。
+              仅供家庭烘焙参考。出现有色或绒毛状霉变、明显腐败异味时请直接弃用；生酵种请勿试吃。
             </p>
           </div>
         </aside>
@@ -246,7 +254,7 @@
 
     <footer>
       <img src="assets/logo-df-en.png" alt="Dr. Ferjoo">
-      <p>Powered by Ferjoo · v0.1</p>
+      <p>Powered by Ferjoo · v0.5</p>
     </footer>
   </div>
 
@@ -254,29 +262,23 @@
     <div class="modal-card">
       <header class="modal-head">
         <div>
-          <p class="eyebrow">HOW IT THINKS</p>
-          <h2 id="howModalTitle">酵种医生的判断顺序</h2>
+          <p class="eyebrow">HOW IT WORKS</p>
+          <h2 id="howModalTitle">它如何判断你的酵种</h2>
         </div>
         <button class="modal-close" id="howClose" type="button" aria-label="关闭">×</button>
       </header>
-      <p class="modal-lede">安全信号先于活性；阶段先于高度；温度和比例用于解释“为什么快或慢”。</p>
+      <p class="modal-lede">它会把你看到的变化放回发酵过程里理解，而不是只盯着某一个数字。</p>
 
       <div class="think-flow">
-        <article><span>01</span><div><h3>先排污染</h3><p>异色、绒毛状霉变、腐臭/氨味等信号直接进入弃用与消毒建议，优先级最高。</p></div></article>
-        <article><span>02</span><div><h3>识别阶段</h3><p>起种、稳定、复活、冷藏和成熟期使用不同基线，避免用成熟种标准误判幼种。</p></div></article>
-        <article><span>03</span><div><h3>看高度曲线</h3><p>从不涨、上升、翻倍、过峰到回落，高度是当前活性与发酵位置的核心代理指标。</p></div></article>
-        <article><span>04</span><div><h3>用温度校时</h3><p>预期时间按喂养比例 × 温度系数估算；填写经过时间后再判断是否真的“慢”。</p></div></article>
-        <article><span>05</span><div><h3>补交叉验证</h3><p>气味、表面颜色与可选 pH 作为辅助证据，不单独下结论，只用于补充成熟度与安全提示。</p></div></article>
-        <article><span>06</span><div><h3>给出下一步</h3><p>把观察转化为可执行动作：继续等待、规律喂养、降温控酸、或弃用与消毒。</p></div></article>
+        <article><span>01</span><div><h3>先看是否安全</h3><p>先检查异常颜色、绒毛状霉变和明显腐败异味；有这些情况时不建议继续使用。</p></div></article>
+        <article><span>02</span><div><h3>确认所处阶段</h3><p>新起种、成熟种、冷藏后的复活期节奏不同，同一种表现可能代表不同状态。</p></div></article>
+        <article><span>03</span><div><h3>结合涨幅与时间</h3><p>把体积变化和已经过的时间一起看，再结合温度与喂养比例判断是“还早”还是“确实偏慢”。</p></div></article>
+        <article><span>04</span><div><h3>给你下一步</h3><p>根据当前状态建议继续等待、按节奏喂养、调整温度，或在不安全时停止使用。</p></div></article>
       </div>
 
-      <div class="think-principles">
-        <h3>三条原则</h3>
-        <ul>
-          <li><strong>安全优先</strong>：任何疑似污染的信号都先于活性判断。</li>
-          <li><strong>阶段匹配</strong>：不同阶段用各自基线，不套用单一“标准”。</li>
-          <li><strong>可解释</strong>：每条建议都能追溯到具体输入与规则，不给出黑箱结论。</li>
-        </ul>
+      <div class="think-tip">
+        <strong>一个更有用的观察习惯</strong>
+        <p>连续记录 2–3 个喂养周期，比只看某一次是否翻倍更能说明你的酵种是否稳定。</p>
       </div>
     </div>
   </div>

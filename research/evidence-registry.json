@@ -1,0 +1,461 @@
+{
+  "schema": "dr-ferjoo/evidence-registry/v1",
+  "generatedAt": "2026-08-29",
+  "researchCutoff": "2026-08-29",
+  "cardCount": 30,
+  "countsByDomain": {
+    "food-safety": 16,
+    "fermentation": 14
+  },
+  "note": "Reviewed and expanded for v0.5. User-facing citations are intentionally concise; rawCard preserves the fuller developer/research audit context.",
+  "cards": [
+    {
+      "id": "FS-01",
+      "domain": "food-safety",
+      "title": "Colorado State University Extension：酵种专门安全指导",
+      "citation": "Colorado State University Extension. *Sourdough Starter Best Practices*. FoodSmart Colorado / CSU Extension. Reviewed October 2025; 检索于 2026-08-29。",
+      "evidenceGrade": "大学 Extension 直接酵种食品安全指导，A。",
+      "urls": [
+        "https://extension.colostate.edu/resource/sourdough-starter-best-practices/",
+        "https://foodsmartcolorado.colostate.edu/food-safety/safe-preparation-handling-and-storage/sourdough-starter-best-practices/"
+      ],
+      "majorPoints": [
+        "面粉是生的农业产品，不是即食食品；不要在烘烤前品尝生酵种。",
+        "发酵产生酸，有助于限制致病菌；烘烤是最终杀灭步骤。",
+        "乳酸菌使 pH 降至 4.6 以下，快速酸化有助限制有害微生物，包括霉菌。",
+        "任何有色和/或绒毛状霉菌都意味着酵种不可使用；应丢弃污染酵种并彻底清洗、冲净容器后重建。",
+        "酒精气味的液层是酵母代谢副产物，可倒掉或搅回。",
+        "冰箱久置酵种的液层上可能出现安全酵母形成的白色小团，需与霉菌区分。",
+        "传统酸面团、含奶/糖的 Amish Friendship Bread 和仅用商业酵母的 no-knead bread 具有不同安全边界；后两者不能直接套用传统酵种规则。"
+      ],
+      "ruleMapping": "`visible_mold -> DISCARD_ALL`；`raw_starter -> DO_NOT_TASTE`；`alcoholic_liquid_layer -> HOOCH`；`friendship_or_yeast_only -> OUT_OF_STANDARD_MODEL`；`pH_below_4_6 -> ACIDIFICATION_BARRIER`。 ---",
+      "rawCard": "**完整引用：** Colorado State University Extension. *Sourdough Starter Best Practices*. FoodSmart Colorado / CSU Extension. Reviewed October 2025；检索于 2026-08-29。\n**URL：** <https://extension.colostate.edu/resource/sourdough-starter-best-practices/>；镜像页面 <https://foodsmartcolorado.colostate.edu/food-safety/safe-preparation-handling-and-storage/sourdough-starter-best-practices/>\n**证据类型/等级：** 大学 Extension 直接酵种食品安全指导，A。\n\n**主要观点：**\n\n- 面粉是生的农业产品，不是即食食品；不要在烘烤前品尝生酵种。\n- 发酵产生酸，有助于限制致病菌；烘烤是最终杀灭步骤。\n- 乳酸菌使 pH 降至 4.6 以下，快速酸化有助限制有害微生物，包括霉菌。\n- 任何有色和/或绒毛状霉菌都意味着酵种不可使用；应丢弃污染酵种并彻底清洗、冲净容器后重建。\n- 酒精气味的液层是酵母代谢副产物，可倒掉或搅回。\n- 冰箱久置酵种的液层上可能出现安全酵母形成的白色小团，需与霉菌区分。\n- 传统酸面团、含奶/糖的 Amish Friendship Bread 和仅用商业酵母的 no-knead bread 具有不同安全边界；后两者不能直接套用传统酵种规则。\n\n**适用边界：** 面向家庭传统酵种的专家指导，不是按菌种和毒素进行的挑战试验。其“pH 4.6 以下”应解释为有利的酸化屏障，不能被改写为“可以生吃”或“排除所有风险”。\n\n**可映射规则：** `visible_mold -> DISCARD_ALL`；`raw_starter -> DO_NOT_TASTE`；`alcoholic_liquid_layer -> HOOCH`；`friendship_or_yeast_only -> OUT_OF_STANDARD_MODEL`；`pH_below_4_6 -> ACIDIFICATION_BARRIER`。\n\n---"
+    },
+    {
+      "id": "FS-02",
+      "domain": "food-safety",
+      "title": "University of California Agriculture and Natural Resources：深色 hooch 例外",
+      "citation": "University of California Agriculture and Natural Resources, Master Food Preserver Program of San Luis Obispo and Santa Barbara Counties. (2020, May 6). *Can This Sourdough Starter be Saved? Or is this Starter a Goner?* 检索于 2026-08-28。",
+      "evidenceGrade": "大学 Extension 体系的家庭食品保藏实务案例，A−。",
+      "urls": [
+        "https://ucanr.edu/blog/master-food-preserver-slo/sb-counties/article/can-sourdough-starter-be-saved-or-starter-goner"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`dark_color + liquid_layer + no_growth + alcoholic_or_tangy -> FEED_AND_OBSERVE`；若形态不明，先追问 `liquid_vs_spot_or_fuzz`。 ---",
+      "rawCard": "**完整引用：** University of California Agriculture and Natural Resources, Master Food Preserver Program of San Luis Obispo and Santa Barbara Counties. (2020, May 6). *Can This Sourdough Starter be Saved? Or is this Starter a Goner?* 检索于 2026-08-28。\n**URL：** <https://ucanr.edu/blog/master-food-preserver-slo/sb-counties/article/can-sourdough-starter-be-saved-or-starter-goner>\n**证据类型/等级：** 大学 Extension 体系的家庭食品保藏实务案例，A−。\n\n**主要观点：** 冰箱久置的酵种可形成深色、可流动的液层（hooch）；在没有霉菌且气味正常/酸香的前提下，该液层本身不是必须丢弃的污染证据，可搅回后通过连续喂养恢复。\n\n**适用边界：** 这是单一实务案例而非挑战试验。只有在输入明确为“液层、可流动、无绒毛/固体色斑、无腐败气味”时才能使用；不能推导为“任何黑色都安全”。\n\n**可映射规则：** `dark_color + liquid_layer + no_growth + alcoholic_or_tangy -> FEED_AND_OBSERVE`；若形态不明，先追问 `liquid_vs_spot_or_fuzz`。\n\n---"
+    },
+    {
+      "id": "FS-03",
+      "domain": "food-safety",
+      "title": "U.S. FDA：面粉是生食材",
+      "citation": "U.S. Food and Drug Administration. (2023, December 5). *Flour Is a Raw Food and Other Safety Facts*. 检索于 2026-08-28。",
+      "evidenceGrade": "国家监管机构消费者安全指导，A。",
+      "urls": [
+        "https://www.fda.gov/consumers/consumer-updates/flour-raw-food-and-other-safety-facts"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "所有结果页常驻 `do_not_taste_raw_starter_or_dough`；接触后洗手和清洁器具；若面粉处于召回批次，直接丢弃相关酵种和产品。 ---",
+      "rawCard": "**完整引用：** U.S. Food and Drug Administration. (2023, December 5). *Flour Is a Raw Food and Other Safety Facts*. 检索于 2026-08-28。\n**URL：** <https://www.fda.gov/consumers/consumer-updates/flour-raw-food-and-other-safety-facts>\n**证据类型/等级：** 国家监管机构消费者安全指导，A。\n\n**主要观点：** 多数面粉未经杀菌处理；田间或制粉过程中可能引入 *Salmonella* 或致病性 *E. coli*。烹饪/烘烤才是杀灭步骤；不要吃或品尝生面粉、生面团或面糊。\n\n**适用边界：** 直接证明原料风险与禁止生食，未测试每一种成熟酵种。不能以“酵种很酸”删除此警示。\n\n**可映射规则：** 所有结果页常驻 `do_not_taste_raw_starter_or_dough`；接触后洗手和清洁器具；若面粉处于召回批次，直接丢弃相关酵种和产品。\n\n---"
+    },
+    {
+      "id": "FS-04",
+      "domain": "food-safety",
+      "title": "U.S. CDC：生面粉与交叉污染",
+      "citation": "Centers for Disease Control and Prevention. (2025, November 24). *Raw Flour and Dough*. 检索于 2026-08-28。",
+      "evidenceGrade": "国家公共卫生机构消费者安全指导，A。",
+      "urls": [
+        "https://www.cdc.gov/food-safety/foods/no-raw-dough.html"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`raw_consumption -> STOP`；每次涉及儿童、孕妇、老年人或免疫功能低下者时强化同一警示，但不暗示其他成年人可以生食。 ---",
+      "rawCard": "**完整引用：** Centers for Disease Control and Prevention. (2025, November 24). *Raw Flour and Dough*. 检索于 2026-08-28。\n**URL：** <https://www.cdc.gov/food-safety/foods/no-raw-dough.html>\n**证据类型/等级：** 国家公共卫生机构消费者安全指导，A。\n\n**主要观点：** 未烹调面粉和生蛋可带来食源性疾病风险；不应品尝生面团/面糊；处理后要清洗手、碗、器具和台面，并按配方充分加热。\n\n**适用边界：** 一般面粉/面团指导，不是酵种微生物挑战研究；用于卫生底线而非判定某罐酵种是否污染。\n\n**可映射规则：** `raw_consumption -> STOP`；每次涉及儿童、孕妇、老年人或免疫功能低下者时强化同一警示，但不暗示其他成年人可以生食。\n\n---"
+    },
+    {
+      "id": "FS-05",
+      "domain": "food-safety",
+      "title": "USDA FSIS：多孔食品出现霉菌时整份丢弃",
+      "citation": "U.S. Department of Agriculture, Food Safety and Inspection Service. (2013, August 22; current web version). *Molds on Food: Are They Dangerous?* 检索于 2026-08-28。",
+      "evidenceGrade": "国家监管机构一般霉菌处置指导，C（对酵种为间接，但处置高度相关）。",
+      "urls": [
+        "https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/molds-food-are-they-dangerous"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`visible_mold -> DISCARD_ALL_NO_SALVAGE`；禁止输出“取底部一勺重新喂养”。 ---",
+      "rawCard": "**完整引用：** U.S. Department of Agriculture, Food Safety and Inspection Service. (2013, August 22; current web version). *Molds on Food: Are They Dangerous?* 检索于 2026-08-28。\n**URL：** <https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/molds-food-are-they-dangerous>\n**证据类型/等级：** 国家监管机构一般霉菌处置指导，C（对酵种为间接，但处置高度相关）。\n\n**主要观点：** 面包和烘焙食品属于多孔食品；可见霉菌以下可能已有污染，故应整份丢弃，而不是切掉/刮掉表面继续使用。\n\n**适用边界：** 表格直接针对面包和烘焙食品，不专门研究液态酵种。与 CSU 的酵种直接指导方向一致，可加强“不能只刮表层”的保守规则。\n\n**可映射规则：** `visible_mold -> DISCARD_ALL_NO_SALVAGE`；禁止输出“取底部一勺重新喂养”。\n\n---"
+    },
+    {
+      "id": "FS-06",
+      "domain": "food-safety",
+      "title": "WHO：霉菌毒素可能耐加工",
+      "citation": "World Health Organization. (2023, October 2). *Mycotoxins*. 检索于 2026-08-28。",
+      "evidenceGrade": "国际公共卫生机构事实说明，C。",
+      "urls": [
+        "https://www.who.int/news-room/fact-sheets/detail/mycotoxins"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`mold + user_plans_to_bake -> still DISCARD_ALL`；解释语使用“部分霉菌可能产生耐加工毒素”，避免断言“这罐一定有毒素”。 ---",
+      "rawCard": "**完整引用：** World Health Organization. (2023, October 2). *Mycotoxins*. 检索于 2026-08-28。\n**URL：** <https://www.who.int/news-room/fact-sheets/detail/mycotoxins>\n**证据类型/等级：** 国际公共卫生机构事实说明，C。\n\n**主要观点：** 某些霉菌能在谷物等食品上产生霉菌毒素；健康影响可从急性中毒到长期免疫损害和癌症；多数霉菌毒素化学稳定，可能在食品加工后仍存在。\n\n**适用边界：** 可见霉菌不等于一定产生了某种霉菌毒素，家庭也无法从颜色判断毒素。该来源支持“存在霉菌时不能以烘烤作为补救”，不支持给某个酵种计算毒素概率。\n\n**可映射规则：** `mold + user_plans_to_bake -> still DISCARD_ALL`；解释语使用“部分霉菌可能产生耐加工毒素”，避免断言“这罐一定有毒素”。\n\n---"
+    },
+    {
+      "id": "FS-07",
+      "domain": "food-safety",
+      "title": "FDA Food Code：pH 必须与水活度、热处理状态一起解释",
+      "citation": "U.S. Food and Drug Administration. (2023). *Food Code 2022: Recommendations of the United States Public Health Service, Food and Drug Administration*. January 18, 2023 version. 另参见 FDA *Job Aid: Time and Temperature Control for Safety Foods*. 检索于 2026-08-28。",
+      "evidenceGrade": "监管模型规范与判定辅助，A（通用食品安全边界；非酵种专门标准）。",
+      "urls": [
+        "https://www.fda.gov/media/164194/download",
+        "https://www.fda.gov/media/101004/download"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`pH<=4.6 -> barrier_present`，不得映射为 `safe_raw=true`；若项目未来要对商业销售或室温储存作合规判断，必须增加水活度、配方、热处理和挑战试验字段。 ---",
+      "rawCard": "**完整引用：** U.S. Food and Drug Administration. (2023). *Food Code 2022: Recommendations of the United States Public Health Service, Food and Drug Administration*. January 18, 2023 version. 另参见 FDA *Job Aid: Time and Temperature Control for Safety Foods*. 检索于 2026-08-28。\n**URL：** <https://www.fda.gov/media/164194/download>；辅助表 <https://www.fda.gov/media/101004/download>\n**证据类型/等级：** 监管模型规范与判定辅助，A（通用食品安全边界；非酵种专门标准）。\n\n**主要观点：** 对未热处理/未包装食品，是否需要时间—温度控制不能只看 pH；FDA 辅助表把 pH 与水活度共同使用。在 `a_w > 0.92` 时，`pH < 4.2` 落入非 TCS 区，而 `pH 4.2–4.6` 仍落入需要产品评估的区域。\n\n**适用边界：** Food Code 是零售/餐饮监管模型，不是家庭酵种成熟指南；酵种的实际水活度在项目中通常没有测量。因此它最重要的作用是阻止错误表述：不能把 4.6 当成所有湿酵种的单一“绝对安全线”。\n\n**可映射规则：** `pH<=4.6 -> barrier_present`，不得映射为 `safe_raw=true`；若项目未来要对商业销售或室温储存作合规判断，必须增加水活度、配方、热处理和挑战试验字段。\n\n---"
+    },
+    {
+      "id": "FS-08",
+      "domain": "food-safety",
+      "title": "McKenney et al.：新酵种存在可重复的微生物演替阶段",
+      "citation": "McKenney, E. A., Nichols, L. M., Alvarado, S., Hardy, S., Kemp, K., Polmanteer, R., Shoemaker, A., & Dunn, R. R. (2023). Sourdough starters exhibit similar succession patterns but develop flour-specific climax communities. *PeerJ, 11*, e16163.",
+      "evidenceGrade": "同行评议原始研究；40 份酵种、10 种面粉、14 天、16S rRNA 测序与功能/气味测量，B。",
+      "urls": [
+        "https://doi.org/10.7717/peerj.16163",
+        "https://news.ncsu.edu/2023/10/flour-sourdough-bacteria/"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`age_days < 10` 只能作为“可能仍在演替”的提示而非自动丢弃；`pH<=4 + repeatable_rise + no_contamination` 可标记为 `functional_maturity_candidate`；单次早期暴涨不能标记成熟。 ---",
+      "rawCard": "**完整引用：** McKenney, E. A., Nichols, L. M., Alvarado, S., Hardy, S., Kemp, K., Polmanteer, R., Shoemaker, A., & Dunn, R. R. (2023). Sourdough starters exhibit similar succession patterns but develop flour-specific climax communities. *PeerJ, 11*, e16163.\n**DOI/URL：** <https://doi.org/10.7717/peerj.16163>；NC State 研究摘要 <https://news.ncsu.edu/2023/10/flour-sourdough-bacteria/>\n**证据类型/等级：** 同行评议原始研究；40 份酵种、10 种面粉、14 天、16S rRNA 测序与功能/气味测量，B。\n\n**主要观点：** 研究识别出 6 个演替阶段。第 1 天由面粉/植物相关微生物占主导；第 2–6 天多样性达到高峰并由机会型/广适细菌转向专门化群落；第 10–14 天形成酸耐受的成熟群落。该实验中，功能成熟约需 10 天，成熟标志包括 pH≤4 以及乳酸菌/醋酸菌类群富集。\n\n**适用边界：** 这是特定喂养协议下的 40 份实验酵种，不证明“所有酵种第 10 天必然安全”，也没有通过病原挑战来验证家庭食用安全。其价值在于支持“新酵种不是从第 1 天就稳定”和“成熟要结合时间、pH、连续活性而非单次冒泡”。\n\n**可映射规则：** `age_days < 10` 只能作为“可能仍在演替”的提示而非自动丢弃；`pH<=4 + repeatable_rise + no_contamination` 可标记为 `functional_maturity_candidate`；单次早期暴涨不能标记成熟。\n\n---"
+    },
+    {
+      "id": "FS-09",
+      "domain": "food-safety",
+      "title": "Forghani et al.：致病菌可在干面粉中长期存活",
+      "citation": "Forghani, F., den Bakker, M., Liao, J.-Y., Payton, A. S., Futral, A. N., & Diez-Gonzalez, F. (2019). Salmonella and enterohemorrhagic *Escherichia coli* serogroups O45, O121, O145 in wheat flour: Effects of long-term storage and thermal treatments. *Frontiers in Microbiology, 10*, 323.",
+      "evidenceGrade": "同行评议原始挑战试验，B。",
+      "urls": [
+        "https://doi.org/10.3389/fmicb.2019.00323"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "强化 `raw_flour_not_RTE`；不能使用“面粉存放很久”作为安全依据；烘烤是独立控制点。 ---",
+      "rawCard": "**完整引用：** Forghani, F., den Bakker, M., Liao, J.-Y., Payton, A. S., Futral, A. N., & Diez-Gonzalez, F. (2019). Salmonella and enterohemorrhagic *Escherichia coli* serogroups O45, O121, O145 in wheat flour: Effects of long-term storage and thermal treatments. *Frontiers in Microbiology, 10*, 323.\n**DOI/URL：** <https://doi.org/10.3389/fmicb.2019.00323>\n**证据类型/等级：** 同行评议原始挑战试验，B。\n\n**主要观点：** 在约 23°C 储存时，接种的 EHEC 和 *Salmonella* 可在面粉中长时间存活；EHEC 可培养计数至 84 天且富集检测至 168 天，*Salmonella* 可计数至 112 天且富集检测至 365 天。研究还量化了 55–70°C 下的热失活动力学，显示低水活度面粉中的热抗性不应被低估。\n\n**适用边界：** 研究对象是干面粉而不是酸化酵种；它证明“原料不是无菌”和“久放面粉不会自动变安全”，不能直接预测致病菌在每罐酵种中的生长/死亡曲线。\n\n**可映射规则：** 强化 `raw_flour_not_RTE`；不能使用“面粉存放很久”作为安全依据；烘烤是独立控制点。\n\n---"
+    },
+    {
+      "id": "FS-10",
+      "domain": "food-safety",
+      "title": "Dinardo et al.：酸化是排除肠杆菌科的重要因素，但效果依赖基质",
+      "citation": "Dinardo, F. R., Minervini, F., De Angelis, M., Gobbetti, M., & Gänzle, M. G. (2019). Dynamics of Enterobacteriaceae and lactobacilli in model sourdoughs are driven by pH and concentrations of sucrose and ferulic acid. *LWT—Food Science and Technology, 114*, 108394.",
+      "evidenceGrade": "同行评议模型酸面团挑战研究，B。",
+      "urls": [
+        "https://doi.org/10.1016/j.lwt.2019.108394",
+        "https://bia.unibz.it/esploro/outputs/journalArticle/Dynamics-of-Enterobacteriaceae-and-lactobacilli-in/991006161909001241"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`acidification_trend` 应成为成熟核验字段；`high_bran_or_buffered_formula` 降低对固定天数/pH 速度的置信度；规则表述用“抑制/排除能力增强”，避免“灭菌”。 ---",
+      "rawCard": "**完整引用：** Dinardo, F. R., Minervini, F., De Angelis, M., Gobbetti, M., & Gänzle, M. G. (2019). Dynamics of Enterobacteriaceae and lactobacilli in model sourdoughs are driven by pH and concentrations of sucrose and ferulic acid. *LWT—Food Science and Technology, 114*, 108394.\n**DOI/URL：** <https://doi.org/10.1016/j.lwt.2019.108394>；机构记录 <https://bia.unibz.it/esploro/outputs/journalArticle/Dynamics-of-Enterobacteriaceae-and-lactobacilli-in/991006161909001241>\n**证据类型/等级：** 同行评议模型酸面团挑战研究，B。\n\n**主要观点：** 在接种 *Cronobacter sakazakii*、*Klebsiella pneumoniae* 与乳酸菌的模型中，肠杆菌科在白面粉和全麦酸面团的数次发酵循环后消失，但在磷酸盐缓冲或麦麸体系中可持续存在。研究结论是 pH 是谷物发酵中排除肠杆菌科的关键因素，同时基质组成和缓冲能力会改变结果。\n\n**适用边界：** 研究使用指定菌株和模型配方；“数次循环后消失”不能外推成家庭酵种的固定天数，也不能证明所有病原体均被杀灭。麦麸/高缓冲配方提示不能只用同一时间表覆盖所有面粉。\n\n**可映射规则：** `acidification_trend` 应成为成熟核验字段；`high_bran_or_buffered_formula` 降低对固定天数/pH 速度的置信度；规则表述用“抑制/排除能力增强”，避免“灭菌”。\n\n---"
+    },
+    {
+      "id": "FS-11",
+      "domain": "food-safety",
+      "title": "Oshiro et al.：低 pH 推动乳酸菌群落演替，但并非唯一因素",
+      "citation": "Oshiro, M., Tanaka, M., Zendo, T., & Nakayama, J. (2020). Impact of pH on succession of sourdough lactic acid bacteria communities and their fermentation properties. *Bioscience of Microbiota, Food and Health, 39*(3), 152–159.",
+      "evidenceGrade": "同行评议原始研究，B。",
+      "urls": [
+        "https://doi.org/10.12938/bmfh.2019-038"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "pH 必须与喂养次数、温度、面粉、活性和污染信号联合；不得在 pH 正常时覆盖霉菌/异常颜色。 ---",
+      "rawCard": "**完整引用：** Oshiro, M., Tanaka, M., Zendo, T., & Nakayama, J. (2020). Impact of pH on succession of sourdough lactic acid bacteria communities and their fermentation properties. *Bioscience of Microbiota, Food and Health, 39*(3), 152–159.\n**DOI/URL：** <https://doi.org/10.12938/bmfh.2019-038>\n**证据类型/等级：** 同行评议原始研究，B。\n\n**主要观点：** 在设定 pH 6.7、5.5、4.5 的模型培养基及天然酸面团连续转接中，较低 pH 有利于群落最终向 *Lactobacillus* 优势转变；作者同时指出 pH 之外仍有其他影响群落演替的因素。\n\n**适用边界：** 研究关注乳酸菌群落而非家庭病原挑战。它支持 pH 作为重要轴，不支持把 pH 当作唯一成熟/安全判断。\n\n**可映射规则：** pH 必须与喂养次数、温度、面粉、活性和污染信号联合；不得在 pH 正常时覆盖霉菌/异常颜色。\n\n---"
+    },
+    {
+      "id": "FS-12",
+      "domain": "food-safety",
+      "title": "University of Illinois Extension：腐败/腐烂与黏滑的保守处置",
+      "citation": "University of Illinois Extension. (2025, May; modified). *Fermenting Foods*. College of Agricultural, Consumer and Environmental Sciences.",
+      "evidenceGrade": "大学 Extension 家庭发酵一般指导，C（并非酵种专门页）。",
+      "urls": [
+        "https://extension.illinois.edu/media/6878/download?inline="
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`slimy + putrid_or_rotten -> DISCARD_ALL`；`viscous_only -> ASK_HYDRATION_AND_FLOUR_TYPE`。 ---",
+      "rawCard": "**完整引用：** University of Illinois Extension. (2025, May; modified). *Fermenting Foods*. College of Agricultural, Consumer and Environmental Sciences.\n**URL：** <https://extension.illinois.edu/media/6878/download?inline=>\n**证据类型/等级：** 大学 Extension 家庭发酵一般指导，C（并非酵种专门页）。\n\n**主要观点：** 家庭发酵产品若黏滑或闻起来已经腐败/腐烂，应丢弃并清洁、消毒容器；正常发酵通常应是令人可接受的轻微酸香。\n\n**适用边界：** 文件重点是蔬菜乳酸发酵，不能把蔬菜的“黏滑”标准机械套给所有高水合或黑麦酵种，因为谷物多糖/面筋本身会改变黏度。用于规则时，“黏滑”应与腐败气味、异常颜色或突变性状组合，不宜单独成为硬丢弃条件。\n\n**可映射规则：** `slimy + putrid_or_rotten -> DISCARD_ALL`；`viscous_only -> ASK_HYDRATION_AND_FLOUR_TYPE`。\n\n---"
+    },
+    {
+      "id": "FS-13",
+      "domain": "food-safety",
+      "title": "USDA/CDC：感官正常不能证明没有致病菌",
+      "citation": "U.S. Department of Agriculture, Food Safety and Inspection Service. (2022, September 1). *Food Safety Education Month: Preventing Cross-Contamination*. 另参见 CDC (2024, October 4), *How Salmonella Infections Happen*. 检索于 2026-08-28。",
+      "evidenceGrade": "国家公共卫生一般指导，C。",
+      "urls": [
+        "https://www.fsis.usda.gov/news-events/events-meetings/food-safety-education-month-preventing-cross-contamination",
+        "https://www.cdc.gov/salmonella/spread/index.html"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "禁止输出“闻起来正常，所以安全”；应输出“未发现明显腐败信号，但感官不能保证微生物安全”，随后给出卫生与烘烤措施。 ---",
+      "rawCard": "**完整引用：** U.S. Department of Agriculture, Food Safety and Inspection Service. (2022, September 1). *Food Safety Education Month: Preventing Cross-Contamination*. 另参见 CDC (2024, October 4), *How Salmonella Infections Happen*. 检索于 2026-08-28。\n**URL：** <https://www.fsis.usda.gov/news-events/events-meetings/food-safety-education-month-preventing-cross-contamination>；<https://www.cdc.gov/salmonella/spread/index.html>\n**证据类型/等级：** 国家公共卫生一般指导，C。\n\n**主要观点：** 引起疾病的有害细菌通常不能凭视觉、气味或味道识别；受 *Salmonella* 等污染的食品往往看起来、闻起来和尝起来都正常。\n\n**适用边界：** 一般食品安全原则，不意味着家用酵种普遍高风险；用于限制模型的过度保证。\n\n**可映射规则：** 禁止输出“闻起来正常，所以安全”；应输出“未发现明显腐败信号，但感官不能保证微生物安全”，随后给出卫生与烘烤措施。\n\n---"
+    },
+    {
+      "id": "FS-14",
+      "domain": "food-safety",
+      "title": "Pao et al.：商业酵母长时间发酵不是酸面团安全模型",
+      "citation": "Pao, S., Kim, C., Jordan, L., Long, W., Inserra, P., & Sayre, B. (2011). Growth of *Salmonella enterica* and *Staphylococcus aureus* in no-knead bread dough during prolonged yeast fermentation. *Journal of Food Protection, 74*(2), 285–288.",
+      "evidenceGrade": "同行评议挑战试验，D（配方使用商业酵母，不是乳酸菌酸化的传统酸面团）。",
+      "urls": [
+        "https://doi.org/10.4315/0362-028X.JFP-10-319",
+        "https://pubmed.ncbi.nlm.nih.gov/21333150/"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "先问“是否由成熟酸酵种发酵，还是只有商业酵母”；后者不得获得 `low_pH_sourdough_protection`。含奶、蛋等配方还需额外的温控和经验证配方，项目当前若无专门证据应转出标准诊断。 ---",
+      "rawCard": "**完整引用：** Pao, S., Kim, C., Jordan, L., Long, W., Inserra, P., & Sayre, B. (2011). Growth of *Salmonella enterica* and *Staphylococcus aureus* in no-knead bread dough during prolonged yeast fermentation. *Journal of Food Protection, 74*(2), 285–288.\n**DOI/URL：** <https://doi.org/10.4315/0362-028X.JFP-10-319>；PubMed <https://pubmed.ncbi.nlm.nih.gov/21333150/>\n**证据类型/等级：** 同行评议挑战试验，D（配方使用商业酵母，不是乳酸菌酸化的传统酸面团）。\n\n**主要观点：** 在面粉、水、盐和商业酵母的无揉面面团中，接种的 *S. enterica* 与 *S. aureus* 在 21–38°C 的长时间发酵中显著增长；增长随温度和时间增加。作者据此警告，长时间发酵可能损害家庭厨房卫生与食品安全。\n\n**适用边界：** 不能用来说明成熟酸面团必然有同样增长，因为其缺乏乳酸菌酸化；正因为体系不同，应作为“禁止错误迁移规则”的证据。\n\n**可映射规则：** 先问“是否由成熟酸酵种发酵，还是只有商业酵母”；后者不得获得 `low_pH_sourdough_protection`。含奶、蛋等配方还需额外的温控和经验证配方，项目当前若无专门证据应转出标准诊断。\n\n---"
+    },
+    {
+      "id": "FS-15",
+      "domain": "food-safety",
+      "title": "Mahlen：粉/橙/红颜色不能在家庭条件下等同于单一菌种",
+      "citation": "Mahlen, S. D. (2011). Serratia infections: From military experiments to current practice. *Clinical Microbiology Reviews, 24*(4), 755–791.",
+      "evidenceGrade": "同行评议临床微生物学综述，C（用于鉴定边界，不是酵种处置研究）。",
+      "urls": [
+        "https://doi.org/10.1128/CMR.00017-11"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "结果文案写“粉红/橙/红色是异常污染信号，家庭条件不能可靠确定菌种”；禁止写“这就是沙雷氏菌”或罗列未经检测的毒素。 ---",
+      "rawCard": "**完整引用：** Mahlen, S. D. (2011). Serratia infections: From military experiments to current practice. *Clinical Microbiology Reviews, 24*(4), 755–791.\n**DOI/URL：** <https://doi.org/10.1128/CMR.00017-11>\n**证据类型/等级：** 同行评议临床微生物学综述，C（用于鉴定边界，不是酵种处置研究）。\n\n**主要观点：** *S. marcescens* 的 prodigiosin 色素受温度、pH、光、氧和营养影响；同一菌株在不同条件下可呈红、粉、洋红或橙色，临床还常见不显色菌株。其他 *Serratia* 及其他生物也可产类似色素，可靠物种鉴定需要实验室表型/分子方法，而不是看颜色。\n\n**适用边界：** 不证明粉红酵种必然含 *Serratia*，也不负责给出家庭食用处置。处置仍由 CSU 的“异常有色/霉菌生长应丢弃”规则承担。\n\n**可映射规则：** 结果文案写“粉红/橙/红色是异常污染信号，家庭条件不能可靠确定菌种”；禁止写“这就是沙雷氏菌”或罗列未经检测的毒素。\n\n---"
+    },
+    {
+      "id": "FS-16",
+      "domain": "food-safety",
+      "title": "Landis et al. 与 Calvert et al.：家庭酵种群落和宏观表现高度多样",
+      "citation": null,
+      "evidenceGrade": "大样本同行评议原始研究（500 份家庭酵种）+ 结构化综述，B。",
+      "urls": [
+        "https://doi.org/10.7554/eLife.61644",
+        "https://doi.org/10.7717/peerj.11389"
+      ],
+      "majorPoints": [],
+      "ruleMapping": "`vinegar_aroma + slow_rise` 不自动判污染；多轴联合判断；低置信度时明确说明证据缺口并请求照片、形态、pH、阶段和喂养记录。",
+      "rawCard": "**完整引用 1：** Landis, E. A., Oliverio, A. M., McKenney, E. A., Nichols, L. M., Kfoury, N., Biango-Daniels, M., Shell, L. K., Madden, A. A., Shapiro, L., Sakunala, S., Drake, K., Robbat, A., Booker, M., Dunn, R. R., Fierer, N., & Wolfe, B. E. (2021). The diversity and function of sourdough starter microbiomes. *eLife, 10*, e61644. <https://doi.org/10.7554/eLife.61644>\n**完整引用 2：** Calvert, M. D., Madden, A. A., Nichols, L. M., Haddad, N. M., Lahne, J., Dunn, R. R., & McKenney, E. A. (2021). A review of sourdough starters: Ecology, practices, and sensory quality with applications for baking and recommendations for future research. *PeerJ, 9*, e11389. <https://doi.org/10.7717/peerj.11389>\n**证据类型/等级：** 大样本同行评议原始研究（500 份家庭酵种）+ 结构化综述，B。\n\n**主要观点：** 500 份家庭酵种具有明显微生物多样性；醋酸菌丰度可显著影响醋味和起发速度。综述指出，利用气泡、体积、气味和味道等宏观观察定义成熟酵种，在科学文献中仍缺乏良好标准化。\n\n**适用边界：** 这些研究不是食品安全挑战试验。它们支持“气味/起发速度存在正常多样性”和“不要用单一感官词做过度精确诊断”，而不削弱可见霉菌等硬停止规则。\n\n**可映射规则：** `vinegar_aroma + slow_rise` 不自动判污染；多轴联合判断；低置信度时明确说明证据缺口并请求照片、形态、pH、阶段和喂养记录。"
+    },
+    {
+      "id": "F01",
+      "domain": "fermentation",
+      "title": "Gänzle, Ehmann & Hammes (1998)：温度、pH 与代谢物的单菌模型",
+      "citation": "Gänzle, M. G., Ehmann, M., & Hammes, W. P. (1998). Modeling of Growth of *Lactobacillus sanfranciscensis* and *Candida milleri* in Response to Process Parameters of Sourdough Fermentation. *Applied and Environmental Microbiology, 64*(7), 2616–2623. [DOI: 10.1128/AEM.64.7.2616-2623.1998](https://doi.org/10.1128/AEM.64.7.2616-2623.1998)",
+      "evidenceGrade": "C（模型培养基、少数代表菌株；但温度曲线定量且为后续真实面团研究验证基础）。",
+      "urls": [
+        "https://doi.org/10.1128/AEM.64.7.2616-2623.1998"
+      ],
+      "majorPoints": [
+        "常见酵母和代表性乳酸菌的最适温度不同；高于 27–28°C 后二者响应不再同步。论文明确指出 20–26°C 相对有利于酵母，*C. milleri/S. exiguus* 在 35°C 以上不生长。",
+        "两株乳酸菌最适温度约 32°C、33°C；酵母最适约 27°C。乳酸菌无可见生长上限约 41°C，酵母约 36°C。酵母在 pH 3.5–7 范围生长未见显著直接影响；乳酸菌生长范围约 pH 3.9–6.7，低于约 3.8–4.0 受限。酵母对未解离乙酸更敏感，约 150 mmol/L 完全抑制；4% NaCl 完全抑制乳酸菌而酵母可耐受至 8%。"
+      ],
+      "ruleMapping": "支持删除 `>32°C = 继续线性加速`；支持 `≥35°C` 酵母抑制保护边界；支持 pH 不可直接代表酵母活性。",
+      "rawCard": "- **完整引用**：Gänzle, M. G., Ehmann, M., & Hammes, W. P. (1998). Modeling of Growth of *Lactobacillus sanfranciscensis* and *Candida milleri* in Response to Process Parameters of Sourdough Fermentation. *Applied and Environmental Microbiology, 64*(7), 2616–2623. [DOI: 10.1128/AEM.64.7.2616-2623.1998](https://doi.org/10.1128/AEM.64.7.2616-2623.1998)\n- **证据层级**：C（模型培养基、少数代表菌株；但温度曲线定量且为后续真实面团研究验证基础）。\n- **对象/设计**：2 株 *L. sanfranciscensis* 与 1 株 *C. milleri*；分别改变温度、pH、盐、乳酸、乙酸和乙醇，建立生长模型。\n- **定量结果**：两株乳酸菌最适温度约 32°C、33°C；酵母最适约 27°C。乳酸菌无可见生长上限约 41°C，酵母约 36°C。酵母在 pH 3.5–7 范围生长未见显著直接影响；乳酸菌生长范围约 pH 3.9–6.7，低于约 3.8–4.0 受限。酵母对未解离乙酸更敏感，约 150 mmol/L 完全抑制；4% NaCl 完全抑制乳酸菌而酵母可耐受至 8%。\n- **关键观点**：常见酵母和代表性乳酸菌的最适温度不同；高于 27–28°C 后二者响应不再同步。论文明确指出 20–26°C 相对有利于酵母，*C. milleri/S. exiguus* 在 35°C 以上不生长。\n- **局限**：单菌培养基结果不能给出家庭复合酵种的峰值小时数；菌株差异、面粉缓冲、含水量和群落互作均会改变表型。\n- **规则映射**：支持删除 `>32°C = 继续线性加速`；支持 `≥35°C` 酵母抑制保护边界；支持 pH 不可直接代表酵母活性。"
+    },
+    {
+      "id": "F02",
+      "domain": "fermentation",
+      "title": "Brandt, Hammes & Gänzle (2004)：真实黑麦共培养中的温度、pH 和接种量",
+      "citation": "Brandt, M. J., Hammes, W. P., & Gänzle, M. G. (2004). Effects of process parameters on growth and metabolism of *Lactobacillus sanfranciscensis* and *Candida humilis* during rye sourdough fermentation. *European Food Research and Technology, 218*, 333–338. [DOI: 10.1007/s00217-003-0867-0](https://doi.org/10.1007/s00217-003-0867-0)",
+      "evidenceGrade": "B（真实黑麦面团共培养，直接测试温度、pH、接种量与盐）。",
+      "urls": [
+        "https://doi.org/10.1007/s00217-003-0867-0"
+      ],
+      "majorPoints": [
+        "温度升高可以让乳酸菌接近最适，却同时降低酵母数量；接种比例还通过初始 pH/酸负荷改变群落增殖，不是单纯改变“需要几小时”。",
+        "酵母最适约 25–28°C，乳酸菌最适约 32°C；酵母最大群体密度从 25°C 到 35°C 降低约 1 个数量级，并在 35°C 受抑。乳酸菌在 pH 4.0 时最大生长速率下降约 90%，pH 3.5 时受抑；酵母在 pH 3.5–5.5 影响较小。2–5% 接种量在该体系使两者增殖倍数较接近；50% 接种对应初始 pH 约 4.1，乳酸菌受抑而酵母约增殖 3.5 倍。"
+      ],
+      "ruleMapping": "为温度非单调模型、35°C 高风险覆盖、比例需拆分为接种量与酸稀释提供直接证据。",
+      "rawCard": "- **完整引用**：Brandt, M. J., Hammes, W. P., & Gänzle, M. G. (2004). Effects of process parameters on growth and metabolism of *Lactobacillus sanfranciscensis* and *Candida humilis* during rye sourdough fermentation. *European Food Research and Technology, 218*, 333–338. [DOI: 10.1007/s00217-003-0867-0](https://doi.org/10.1007/s00217-003-0867-0)\n- **证据层级**：B（真实黑麦面团共培养，直接测试温度、pH、接种量与盐）。\n- **对象/设计**：*F. sanfranciscensis* LTH2581 与 *K./C. humilis* LTH H198 共培养；参考条件约为 5% 酵种、28°C、2% 盐；跟踪 24 h 内细胞数、乳酸/乙酸/乙醇和 CO₂。\n- **定量结果**：酵母最适约 25–28°C，乳酸菌最适约 32°C；酵母最大群体密度从 25°C 到 35°C 降低约 1 个数量级，并在 35°C 受抑。乳酸菌在 pH 4.0 时最大生长速率下降约 90%，pH 3.5 时受抑；酵母在 pH 3.5–5.5 影响较小。2–5% 接种量在该体系使两者增殖倍数较接近；50% 接种对应初始 pH 约 4.1，乳酸菌受抑而酵母约增殖 3.5 倍。\n- **关键观点**：温度升高可以让乳酸菌接近最适，却同时降低酵母数量；接种比例还通过初始 pH/酸负荷改变群落增殖，不是单纯改变“需要几小时”。\n- **局限**：只有两个定义菌株和黑麦面团；论文接种百分比的分母不可直接等同 UI 的 `旧种:水:粉`；含盐体系也不同于多数家庭续种。\n- **规则映射**：为温度非单调模型、35°C 高风险覆盖、比例需拆分为接种量与酸稀释提供直接证据。"
+    },
+    {
+      "id": "F03",
+      "domain": "fermentation",
+      "title": "Vrancken et al. (2011)：23/30/37°C 与 24/48 h 回接的连续实验",
+      "citation": "Vrancken, G., Rimaux, T., Weckx, S., Leroy, F., & De Vuyst, L. (2011). Influence of Temperature and Backslopping Time on the Microbiota of a Type I Propagated Laboratory Wheat Sourdough Fermentation. *Applied and Environmental Microbiology, 77*(8), 2716–2726. [DOI: 10.1128/AEM.02470-10](https://doi.org/10.1128/AEM.02470-10)",
+      "evidenceGrade": "B（真实小麦液态酵种、10 次连续回接；直接比较高温）。",
+      "urls": [
+        "https://doi.org/10.1128/AEM.02470-10"
+      ],
+      "majorPoints": [
+        "37°C 可保持强酸化/乳酸菌，却丢失大部分酵母；“酸化快”不能等价为“膨松强”。温度和回接间隔共同选择群落。",
+        "通常 LAB 为 `8–9 log CFU/g`、酵母约 `8 log CFU/g`；但 37°C/24 h 组几乎检测不到酵母，仅第 8–10 天出现且不超过 `5 log CFU/g`。稳定终点 pH 多为 3.3–3.4，23°C/24 h 组约 3.7。23°C、30°C、37°C 和 30°C/48 h 形成不同优势 LAB 群落；最高乳酸/乙酸见于 30 和 37°C，最高乙醇见于 30°C。"
+      ],
+      "ruleMapping": "高温分支必须同时提示酵母抑制和群落改变；pH/酸味不能覆盖高度/产气指标。",
+      "rawCard": "- **完整引用**：Vrancken, G., Rimaux, T., Weckx, S., Leroy, F., & De Vuyst, L. (2011). Influence of Temperature and Backslopping Time on the Microbiota of a Type I Propagated Laboratory Wheat Sourdough Fermentation. *Applied and Environmental Microbiology, 77*(8), 2716–2726. [DOI: 10.1128/AEM.02470-10](https://doi.org/10.1128/AEM.02470-10)\n- **证据层级**：B（真实小麦液态酵种、10 次连续回接；直接比较高温）。\n- **对象/设计**：面团得率 DY400 的液态小麦酵种；23、30、37°C，24 h 回接，另设 30°C/48 h；每次以 800 g 熟酵种接入 7.2 kg 新混合物，连续 10 天。\n- **定量结果**：通常 LAB 为 `8–9 log CFU/g`、酵母约 `8 log CFU/g`；但 37°C/24 h 组几乎检测不到酵母，仅第 8–10 天出现且不超过 `5 log CFU/g`。稳定终点 pH 多为 3.3–3.4，23°C/24 h 组约 3.7。23°C、30°C、37°C 和 30°C/48 h 形成不同优势 LAB 群落；最高乳酸/乙酸见于 30 和 37°C，最高乙醇见于 30°C。\n- **关键观点**：37°C 可保持强酸化/乳酸菌，却丢失大部分酵母；“酸化快”不能等价为“膨松强”。温度和回接间隔共同选择群落。\n- **局限**：高度液态、搅拌、8 kg 发酵器与家庭罐装酵种差异大；群落未出现 *F. sanfranciscensis*，不可据此规定所有酵种的优势物种。\n- **规则映射**：高温分支必须同时提示酵母抑制和群落改变；pH/酸味不能覆盖高度/产气指标。"
+    },
+    {
+      "id": "F04",
+      "domain": "fermentation",
+      "title": "Oshiro et al. (2020)：pH、TTA 与群落演替并非一回事",
+      "citation": "Oshiro, M., Tanaka, M., Zendo, T., & Nakayama, J. (2020). Impact of pH on succession of sourdough lactic acid bacteria communities and their fermentation properties. *Bioscience of Microbiota, Food and Health, 39*(3), 152–159. [DOI: 10.12938/bmfh.2019-038](https://doi.org/10.12938/bmfh.2019-038)",
+      "evidenceGrade": "B/C（包含自然酵种连续传代，也包含 pH 调节模拟培养基）。",
+      "urls": [
+        "https://doi.org/10.12938/bmfh.2019-038"
+      ],
+      "majorPoints": [
+        "相同终点 pH 可以对应非常不同的总酸量；较低 pH 促进最终由耐酸 Lactobacillus 类群占优，但作者明确指出仍有 pH 之外的因素。",
+        "第 4 代后，各初始 pH 处理终点均约 pH 4.0；但 pH 6.7 组 TTA 约为 pH 4.5 组 4 倍、pH 5.5 组 2 倍。各组 LAB 超过 `9 log CFU/mL` 并稳定约 `9.5 log CFU/mL`。乳酸在 pH 6.7 组第 4 代达 99 mM；pH 5.5、4.5 组末代约 72、55 mM。"
+      ],
+      "ruleMapping": "pH 与 TTA 分字段；pH 约 4 可用作阶段证据，不能单独判活性、酸总量或群落健康。",
+      "rawCard": "- **完整引用**：Oshiro, M., Tanaka, M., Zendo, T., & Nakayama, J. (2020). Impact of pH on succession of sourdough lactic acid bacteria communities and their fermentation properties. *Bioscience of Microbiota, Food and Health, 39*(3), 152–159. [DOI: 10.12938/bmfh.2019-038](https://doi.org/10.12938/bmfh.2019-038)\n- **证据层级**：B/C（包含自然酵种连续传代，也包含 pH 调节模拟培养基）。\n- **对象/设计**：由 152 个酵种样品组成 LAB 混合接种源；pH 6.7、5.5、4.5 模拟培养基和自然酵种，20% 接种、30°C 发酵 8 h + 4°C 16 h，连续 10 代；测 pH、TTA、代谢物、qPCR 和 16S。\n- **定量结果**：第 4 代后，各初始 pH 处理终点均约 pH 4.0；但 pH 6.7 组 TTA 约为 pH 4.5 组 4 倍、pH 5.5 组 2 倍。各组 LAB 超过 `9 log CFU/mL` 并稳定约 `9.5 log CFU/mL`。乳酸在 pH 6.7 组第 4 代达 99 mM；pH 5.5、4.5 组末代约 72、55 mM。\n- **关键观点**：相同终点 pH 可以对应非常不同的总酸量；较低 pH 促进最终由耐酸 Lactobacillus 类群占优，但作者明确指出仍有 pH 之外的因素。\n- **局限**：混合冻存接种源与家庭开放酵种不同；模拟培养基不具有完整面粉缓冲/结构；重复批次数有限。\n- **规则映射**：pH 与 TTA 分字段；pH 约 4 可用作阶段证据，不能单独判活性、酸总量或群落健康。"
+    },
+    {
+      "id": "F05",
+      "domain": "fermentation",
+      "title": "Ercolini et al. (2013)：新建酵种 5–7 天成熟是特定协议结果",
+      "citation": "Ercolini, D., Pontonio, E., De Filippis, F., Minervini, F., La Storia, A., Gobbetti, M., & Di Cagno, R. (2013). Microbial Ecology Dynamics during Rye and Wheat Sourdough Preparation. *Applied and Environmental Microbiology, 79*(24), 7827–7836. [DOI: 10.1128/AEM.02955-13](https://doi.org/10.1128/AEM.02955-13)",
+      "evidenceGrade": "B（3 种面粉、三重复、真实连续回接，结合培养和测序）。",
+      "urls": [
+        "https://doi.org/10.1128/AEM.02955-13"
+      ],
+      "majorPoints": [
+        "成熟是酸化能力、微生物负荷/比例和持续性能共同收敛，不是某一天出现气泡。",
+        "第 5 天 LAB 约 `9.1–9.4 log CFU/g` 并趋稳；LAB:酵母约 100:1，在黑麦和普通小麦第 5 天、硬粒小麦第 6 天稳定；最大且稳定的 ΔpH 分别在第 5、7、6 天出现。Enterobacteriaceae 在第 1–2 天先增加，后期逐步消失。多指标共同显示第 5–7 天成熟。"
+      ],
+      "ruleMapping": "新建酵种需要“日龄 + 多周期功能”判断；早期膨胀仍属于演替阶段。",
+      "rawCard": "- **完整引用**：Ercolini, D., Pontonio, E., De Filippis, F., Minervini, F., La Storia, A., Gobbetti, M., & Di Cagno, R. (2013). Microbial Ecology Dynamics during Rye and Wheat Sourdough Preparation. *Applied and Environmental Microbiology, 79*(24), 7827–7836. [DOI: 10.1128/AEM.02955-13](https://doi.org/10.1128/AEM.02955-13)\n- **证据层级**：B（3 种面粉、三重复、真实连续回接，结合培养和测序）。\n- **对象/设计**：黑麦、硬粒小麦和普通小麦；DY160，25°C，首日 8 h，之后每日发酵 5 h并在 10°C 约 16 h；25% 旧种回接，连续 11 天。\n- **定量结果**：第 5 天 LAB 约 `9.1–9.4 log CFU/g` 并趋稳；LAB:酵母约 100:1，在黑麦和普通小麦第 5 天、硬粒小麦第 6 天稳定；最大且稳定的 ΔpH 分别在第 5、7、6 天出现。Enterobacteriaceae 在第 1–2 天先增加，后期逐步消失。多指标共同显示第 5–7 天成熟。\n- **关键观点**：成熟是酸化能力、微生物负荷/比例和持续性能共同收敛，不是某一天出现气泡。\n- **局限**：严格的温度、回接与冷藏节奏；含水量较低；实验酵种的 5–7 天不可外推为所有家庭酵种硬期限。\n- **规则映射**：新建酵种需要“日龄 + 多周期功能”判断；早期膨胀仍属于演替阶段。"
+    },
+    {
+      "id": "F06",
+      "domain": "fermentation",
+      "title": "McKenney et al. (2023)：10 种面粉、14 天、六个演替阶段",
+      "citation": "McKenney, E. A., Nichols, L. M., Alvarado, S., Hardy, S., Kemp, K., Polmanteer, R., Shoemaker, A., & Dunn, R. R. (2023). Sourdough starters exhibit similar succession patterns but develop flour-specific climax communities. *PeerJ, 11*, e16163. [DOI: 10.7717/peerj.16163](https://doi.org/10.7717/peerj.16163)；[开放数据 DOI: 10.5061/dryad.bk3j9kdh3](https://doi.org/10.5061/dryad.bk3j9kdh3)",
+      "evidenceGrade": "B（真实新建酵种、40 个样本、10 种面粉；但主要分析细菌 16S）。",
+      "urls": [
+        "https://doi.org/10.7717/peerj.16163",
+        "https://doi.org/10.5061/dryad.bk3j9kdh3"
+      ],
+      "majorPoints": [
+        "演替顺序有共性，最终群落依面粉而异；第 2–6 天活跃/多样不等于成熟。",
+        "识别 6 个功能演替阶段；细菌多样性在第 2–6 天达到峰值；第 10–14 天为酸耐受顶极群落。成熟共同标志包括 `pH ≤4`，优势类群平均相对丰度包括 Lactobacillus 48.1%、Pediococcus 22.7% 或 Gluconobacter 19.1%。pH 随时间差异显著（`χ²=158.35, df=6, p<2.2×10⁻16`），高度亦显著（`χ²=121.22, df=6, p<2.2×10⁻16`）。"
+      ],
+      "ruleMapping": "新建阶段不能用单次高度判成熟；换粉后重建基线；pH≤4 仅作为联合证据。",
+      "rawCard": "- **完整引用**：McKenney, E. A., Nichols, L. M., Alvarado, S., Hardy, S., Kemp, K., Polmanteer, R., Shoemaker, A., & Dunn, R. R. (2023). Sourdough starters exhibit similar succession patterns but develop flour-specific climax communities. *PeerJ, 11*, e16163. [DOI: 10.7717/peerj.16163](https://doi.org/10.7717/peerj.16163)；[开放数据 DOI: 10.5061/dryad.bk3j9kdh3](https://doi.org/10.5061/dryad.bk3j9kdh3)\n- **证据层级**：B（真实新建酵种、40 个样本、10 种面粉；但主要分析细菌 16S）。\n- **对象/设计**：5 种含麸质和 5 种无麸质面粉，各 4 个重复；室温、每日测高度/pH/气味并回接，历时 14 天；在第 1、2、3、6、10、14 天测序。\n- **定量结果**：识别 6 个功能演替阶段；细菌多样性在第 2–6 天达到峰值；第 10–14 天为酸耐受顶极群落。成熟共同标志包括 `pH ≤4`，优势类群平均相对丰度包括 Lactobacillus 48.1%、Pediococcus 22.7% 或 Gluconobacter 19.1%。pH 随时间差异显著（`χ²=158.35, df=6, p<2.2×10⁻16`），高度亦显著（`χ²=121.22, df=6, p<2.2×10⁻16`）。\n- **关键观点**：演替顺序有共性，最终群落依面粉而异；第 2–6 天活跃/多样不等于成熟。\n- **局限**：pH 试纸分辨率 0.5；每日一次高度而非连续峰值；未系统分析酵母群落；体积用汤匙，精度低于称重。\n- **规则映射**：新建阶段不能用单次高度判成熟；换粉后重建基线；pH≤4 仅作为联合证据。"
+    },
+    {
+      "id": "F07",
+      "domain": "fermentation",
+      "title": "Landis et al. (2021)：全球酵种群落与膨胀速率差异",
+      "citation": "Landis, E. A., Oliverio, A. M., McKenney, E. A., Nichols, L. M., Kfoury, N., Biango-Daniels, M., Shell, L. K., Madden, A. A., Shapiro, L., Sakunala, S., Drake, K., Robbat, A., Booker, M., Dunn, R. R., Fierer, N., & Wolfe, B. E. (2021). The diversity and function of sourdough starter microbiomes. *eLife, 10*, e61644. [DOI: 10.7554/eLife.61644](https://doi.org/10.7554/eLife.61644)",
+      "evidenceGrade": "B（大样本原始研究：500 个家庭酵种的跨洲调查 + 40 个代表性酵种的统一基质功能实验；观察性关联和实验复苏并存）。",
+      "urls": [
+        "https://doi.org/10.7554/eLife.61644"
+      ],
+      "majorPoints": [
+        "即使统一喂养/基质，酵种之间仍有数量级速度差异；峰值必须从轨迹识别；乙酸菌/酸环境可能压低膨胀。",
+        "膨胀速率约 `0.1–1.5 mm/h`。初始酵种身份解释最大高度差异的调整 `R²=22% (p<0.05)`，解释膨胀速率差异的调整 `R²=42% (p<0.001)`。乙酸菌总相对丰度与膨胀速率负相关（`ρ=-0.51, p<0.001`）。数据处理中，若高度从最大值下降超过 5%，则截断后续曲线。"
+      ],
+      "ruleMapping": "以个体基线替代固定小时表；状态机识别峰值/回落；不把地理来源当主要诊断变量。",
+      "rawCard": "- **完整引用**：Landis, E. A., Oliverio, A. M., McKenney, E. A., Nichols, L. M., Kfoury, N., Biango-Daniels, M., Shell, L. K., Madden, A. A., Shapiro, L., Sakunala, S., Drake, K., Robbat, A., Booker, M., Dunn, R. R., Fierer, N., & Wolfe, B. E. (2021). The diversity and function of sourdough starter microbiomes. *eLife, 10*, e61644. [DOI: 10.7554/eLife.61644](https://doi.org/10.7554/eLife.61644)\n- **证据层级**：B（大样本原始研究：500 个家庭酵种的跨洲调查 + 40 个代表性酵种的统一基质功能实验；观察性关联和实验复苏并存）。\n- **对象/设计**：对 500 个酵种测序；选 40 个进行共同花园实验，2 分钟一次影像记录 36 h 高度，并拟合 logistic 曲线；测挥发物与感官。\n- **定量结果**：膨胀速率约 `0.1–1.5 mm/h`。初始酵种身份解释最大高度差异的调整 `R²=22% (p<0.05)`，解释膨胀速率差异的调整 `R²=42% (p<0.001)`。乙酸菌总相对丰度与膨胀速率负相关（`ρ=-0.51, p<0.001`）。数据处理中，若高度从最大值下降超过 5%，则截断后续曲线。\n- **关键观点**：即使统一喂养/基质，酵种之间仍有数量级速度差异；峰值必须从轨迹识别；乙酸菌/酸环境可能压低膨胀。\n- **局限**：家庭样本的原始维护信息自报；功能实验从甘油存储复苏并使用灭菌面粉；相关性不证明乙酸菌单独致因；5% 是分析阈值而非烘焙成熟标准。\n- **规则映射**：以个体基线替代固定小时表；状态机识别峰值/回落；不把地理来源当主要诊断变量。"
+    },
+    {
+      "id": "F08",
+      "domain": "fermentation",
+      "title": "Reese et al. (2020)：同配方仍产生不同群落与酸度",
+      "citation": "Reese, A. T., Madden, A. A., Joossens, M., Lacaze, G., & Dunn, R. R. (2020). Influences of Ingredients and Bakers on the Bacteria and Fungi in Sourdough Starters and Bread. *mSphere, 5*(1), e00950-19. [DOI: 10.1128/mSphere.00950-19](https://doi.org/10.1128/mSphere.00950-19)",
+      "evidenceGrade": "B（18 位烘焙者、14 个国家、统一面粉和配方的真实酵种实验）。",
+      "urls": [
+        "https://doi.org/10.1128/mSphere.00950-19"
+      ],
+      "majorPoints": [
+        "控制配方和原料后仍有显著个体差异；用户可见输入相同并不保证同一微生物结果。",
+        "酵种平均 `pH 4.50±0.38`、`TTA 9.68±1.51`。酵种与面粉群落最相似；面粉中 59% 的 ASV 至少进入一个酵种。两个酵种 pH 越相近，群落组成越相似（`p=0.019, R²=0.16`）；Lactobacillales 组成与酸味关联（`p=0.004, R²=0.21`）。"
+      ],
+      "ruleMapping": "固定规则输出必须带置信度；需要用户自己的周期数据；面粉/环境变化触发重新校准。",
+      "rawCard": "- **完整引用**：Reese, A. T., Madden, A. A., Joossens, M., Lacaze, G., & Dunn, R. R. (2020). Influences of Ingredients and Bakers on the Bacteria and Fungi in Sourdough Starters and Bread. *mSphere, 5*(1), e00950-19. [DOI: 10.1128/mSphere.00950-19](https://doi.org/10.1128/mSphere.00950-19)\n- **证据层级**：B（18 位烘焙者、14 个国家、统一面粉和配方的真实酵种实验）。\n- **对象/设计**：对酵种、面粉、手部和环境做 16S/ITS 测序，测酵种 pH/TTA 与面包风味。\n- **定量结果**：酵种平均 `pH 4.50±0.38`、`TTA 9.68±1.51`。酵种与面粉群落最相似；面粉中 59% 的 ASV 至少进入一个酵种。两个酵种 pH 越相近，群落组成越相似（`p=0.019, R²=0.16`）；Lactobacillales 组成与酸味关联（`p=0.004, R²=0.21`）。\n- **关键观点**：控制配方和原料后仍有显著个体差异；用户可见输入相同并不保证同一微生物结果。\n- **局限**：每位烘焙者一个酵种、复制有限；扩增子测序不能给出活性或精细菌株；来源追踪存在未知源偏差。\n- **规则映射**：固定规则输出必须带置信度；需要用户自己的周期数据；面粉/环境变化触发重新校准。"
+    },
+    {
+      "id": "F09",
+      "domain": "fermentation",
+      "title": "Verheyen et al. (2015)：产气与膨胀/留气不可等同",
+      "citation": "Verheyen, C., Albrecht, A., Elgeti, D., Jekle, M., & Becker, T. (2015). Impact of gas formation kinetics on dough development and bread quality. *Food Research International, 76*(Pt 3), 860–866. [DOI: 10.1016/j.foodres.2015.08.013](https://doi.org/10.1016/j.foodres.2015.08.013)",
+      "evidenceGrade": "C（小麦、商业酵母面团；不是自然酵种，但直接分离产气与结构/留气机制）。",
+      "urls": [
+        "https://doi.org/10.1016/j.foodres.2015.08.013"
+      ],
+      "majorPoints": [
+        "表观膨胀不仅由微生物产气决定；基质结构与留气会让“多泡但不高”成为真实组合。",
+        "压缩酵母组的开始漏气时间与当时气体体积依赖产气速率；即发干酵母组虽发酵中延展性更好，最终面包比体积仍低 21%。最大产气速率增加会显著影响面团结构完整性。"
+      ],
+      "ruleMapping": "气泡与高度必须作为两个轴；多泡不涨先考虑留气/含水量/面粉，不直接判死亡。",
+      "rawCard": "- **完整引用**：Verheyen, C., Albrecht, A., Elgeti, D., Jekle, M., & Becker, T. (2015). Impact of gas formation kinetics on dough development and bread quality. *Food Research International, 76*(Pt 3), 860–866. [DOI: 10.1016/j.foodres.2015.08.013](https://doi.org/10.1016/j.foodres.2015.08.013)\n- **证据层级**：C（小麦、商业酵母面团；不是自然酵种，但直接分离产气与结构/留气机制）。\n- **对象/设计**：改变压缩酵母与即发干酵母浓度，用 Rheofermentometer 测 CO₂ 形成、逸出和面团结构，比较面包体积。\n- **定量结果**：压缩酵母组的开始漏气时间与当时气体体积依赖产气速率；即发干酵母组虽发酵中延展性更好，最终面包比体积仍低 21%。最大产气速率增加会显著影响面团结构完整性。\n- **关键观点**：表观膨胀不仅由微生物产气决定；基质结构与留气会让“多泡但不高”成为真实组合。\n- **局限**：商业酵母面包面团不能直接量化酵种罐内峰值；含盐、面筋形成和揉面条件不同。\n- **规则映射**：气泡与高度必须作为两个轴；多泡不涨先考虑留气/含水量/面粉，不直接判死亡。"
+    },
+    {
+      "id": "F10",
+      "domain": "fermentation",
+      "title": "Arora & Di Cagno (2024)：pH 与 TTA 的可复现测量",
+      "citation": "Arora, K., & Di Cagno, R. (2024). Determination of pH and titratable acidity. In C. G. Rizzello & M. Gobbetti (Eds.), *Methods and Protocols in Food Science* (pp. 55–60). Humana. [DOI: 10.1007/978-1-0716-3706-7_5](https://doi.org/10.1007/978-1-0716-3706-7_5)；[Free University of Bozen-Bolzano record](https://hdl.handle.net/10863/50636)",
+      "evidenceGrade": "D（同行评议方法章节/大学机构记录）。",
+      "urls": [
+        "https://doi.org/10.1007/978-1-0716-3706-7_5",
+        "https://hdl.handle.net/10863/50636"
+      ],
+      "majorPoints": [
+        "方法学而非生理阈值研究。",
+        "pH 表示氢离子状态；TTA 表示缓冲/可滴定酸负荷；电极选择和取样位置会影响重复性；最低约 10 g 样品即可按方法测量 pH 与 TTA。"
+      ],
+      "ruleMapping": "记录仪器类型、精度/试纸档位、校准和取样时点；pH 与 TTA 永不互相推算。",
+      "rawCard": "- **完整引用**：Arora, K., & Di Cagno, R. (2024). Determination of pH and titratable acidity. In C. G. Rizzello & M. Gobbetti (Eds.), *Methods and Protocols in Food Science* (pp. 55–60). Humana. [DOI: 10.1007/978-1-0716-3706-7_5](https://doi.org/10.1007/978-1-0716-3706-7_5)；[Free University of Bozen-Bolzano record](https://hdl.handle.net/10863/50636)\n- **证据层级**：D（同行评议方法章节/大学机构记录）。\n- **方法要点**：pH 表示氢离子状态；TTA 表示缓冲/可滴定酸负荷；电极选择和取样位置会影响重复性；最低约 10 g 样品即可按方法测量 pH 与 TTA。\n- **定量结果**：方法学而非生理阈值研究。\n- **局限**：不提供健康/成熟阈值；家庭 pH 试纸和不校准电极未必达到实验室精度。\n- **规则映射**：记录仪器类型、精度/试纸档位、校准和取样时点；pH 与 TTA 永不互相推算。"
+    },
+    {
+      "id": "F11",
+      "domain": "fermentation",
+      "title": "Van Kerrebroeck, Maes & De Vuyst (2017)：物种与工艺条件元分析",
+      "citation": "Van Kerrebroeck, S., Maes, D., & De Vuyst, L. (2017). Sourdoughs as a function of their species diversity and process conditions, a meta-analysis. *Trends in Food Science & Technology, 68*, 152–159. [DOI: 10.1016/j.tifs.2017.08.016](https://doi.org/10.1016/j.tifs.2017.08.016)",
+      "evidenceGrade": "A（文献数据元分析；主要回答群落—工艺关联，不是家庭诊断准确性研究）。",
+      "urls": [
+        "https://doi.org/10.1016/j.tifs.2017.08.016"
+      ],
+      "majorPoints": [
+        "温度、时间、含水量必须作为相互作用的工艺上下文，而非独立线性乘数；“地域决定酵种”不应成为强规则。"
+      ],
+      "ruleMapping": "用于组合分箱和解释性上下文；不用于生成峰值小时数。",
+      "rawCard": "- **完整引用**：Van Kerrebroeck, S., Maes, D., & De Vuyst, L. (2017). Sourdoughs as a function of their species diversity and process conditions, a meta-analysis. *Trends in Food Science & Technology, 68*, 152–159. [DOI: 10.1016/j.tifs.2017.08.016](https://doi.org/10.1016/j.tifs.2017.08.016)\n- **证据层级**：A（文献数据元分析；主要回答群落—工艺关联，不是家庭诊断准确性研究）。\n- **综合结果**：温度、面团得率/含水量和发酵时间与酵母物种多样性存在差异；地域来源未显示相同影响。低于/高于 30°C、低于/高于 12 h、较硬/较液态工艺形成不同物种组合。\n- **关键观点**：温度、时间、含水量必须作为相互作用的工艺上下文，而非独立线性乘数；“地域决定酵种”不应成为强规则。\n- **局限**：纳入研究方法和采样不均一；历史文献偏向特定地区/工业工艺；关联不能推断单个用户酵种的因果。\n- **规则映射**：用于组合分箱和解释性上下文；不用于生成峰值小时数。"
+    },
+    {
+      "id": "F12",
+      "domain": "fermentation",
+      "title": "De Vuyst et al. (2009)：酵种生态由原料、工艺与微生物互作共同决定",
+      "citation": "De Vuyst, L., Vrancken, G., Ravyts, F., Rimaux, T., & Weckx, S. (2009). Biodiversity, ecological determinants, and metabolic exploitation of sourdough microbiota. *Food Microbiology, 26*(7), 666–675. DOI: 10.1016/j.fm.2009.07.012.",
+      "evidenceGrade": "A−（同行评议综述；覆盖酵种群落、生态条件与代谢互作，但不是家庭诊断准确性试验）。",
+      "urls": [
+        "https://doi.org/10.1016/j.fm.2009.07.012"
+      ],
+      "majorPoints": [
+        "成熟酵种是乳酸菌与酵母构成的动态生态系统，物种和代谢表现受面粉、温度、pH、含水量、刷新频率与微生物互作共同影响。",
+        "相同类别的酵种也可能因原料和工艺环境不同形成不同的稳定群落，不能用单一变量解释全部活性差异。"
+      ],
+      "ruleMapping": "作为多因素解释背景；不生成固定峰值小时数，也不把任何单一微生物物种作为家庭诊断必需条件。",
+      "rawCard": "- **完整引用**：De Vuyst, L., Vrancken, G., Ravyts, F., Rimaux, T., & Weckx, S. (2009). Biodiversity, ecological determinants, and metabolic exploitation of sourdough microbiota. *Food Microbiology, 26*(7), 666–675. DOI: 10.1016/j.fm.2009.07.012.\n- **证据层级**：A−（同行评议综述）。\n- **关键观点**：酵种生态由原料、温度、pH、含水量、刷新节奏和微生物互作共同决定；成熟酵种之间仍可存在显著群落与代谢差异。\n- **局限**：综述主要解释生态与代谢，不提供单个家庭酵种的诊断阈值。\n- **规则映射**：用于多因素解释背景，不用于生成固定峰值小时数。"
+    },
+    {
+      "id": "F13",
+      "domain": "fermentation",
+      "title": "Minervini et al. (2014)：稳定工艺不等于完全相同的酵种表现",
+      "citation": "Minervini, F., De Angelis, M., Di Cagno, R., & Gobbetti, M. (2014). Ecological parameters influencing microbial diversity and stability of traditional sourdough. *International Journal of Food Microbiology, 171*, 136–146. DOI: 10.1016/j.ijfoodmicro.2013.11.021.",
+      "evidenceGrade": "A−（同行评议综述；系统讨论传统酵种的生态参数与稳定性）。",
+      "urls": [
+        "https://doi.org/10.1016/j.ijfoodmicro.2013.11.021"
+      ],
+      "majorPoints": [
+        "发酵时间、温度、回接量、面粉组成以及环境微生物都会影响传统酵种的多样性和稳定性。",
+        "即使技术参数保持一致，也不能保证微生物群落长期完全不变；性能应结合连续周期观察。"
+      ],
+      "ruleMapping": "支持“连续记录优于一次阈值”的用户建议，并限制把温度或比例单独解释为确定性结果。",
+      "rawCard": "- **完整引用**：Minervini, F., De Angelis, M., Di Cagno, R., & Gobbetti, M. (2014). Ecological parameters influencing microbial diversity and stability of traditional sourdough. *International Journal of Food Microbiology, 171*, 136–146. DOI: 10.1016/j.ijfoodmicro.2013.11.021.\n- **证据层级**：A−（同行评议综述）。\n- **关键观点**：时间、温度、回接量、面粉和环境微生物共同影响酵种稳定性；固定工艺并不等同于固定微生物群落。\n- **局限**：研究对象横跨不同传统工艺，不能直接提供家庭酵种的统一时间表。\n- **规则映射**：支持连续周期观察和多因素解释。"
+    },
+    {
+      "id": "F14",
+      "domain": "fermentation",
+      "title": "Gänzle (2014)：发酵表现来自微生物代谢与面粉酶系共同作用",
+      "citation": "Gänzle, M. G. (2014). Enzymatic and bacterial conversions during sourdough fermentation. *Food Microbiology, 37*, 2–10. DOI: 10.1016/j.fm.2013.04.007.",
+      "evidenceGrade": "A−（同行评议综述；聚焦酸面团中的微生物代谢与谷物酶作用）。",
+      "urls": [
+        "https://doi.org/10.1016/j.fm.2013.04.007"
+      ],
+      "majorPoints": [
+        "酸化、氧消耗和微生物代谢会改变谷物酶活性，而谷物酶又为微生物提供底物。",
+        "酵种表现不是单一“酵母速度”变量，面粉组成、酶活性和细菌代谢会共同影响最终发酵。"
+      ],
+      "ruleMapping": "作为“不要把单次涨幅解释成单一微生物活性”的机理背景；不用于生成安全阈值。",
+      "rawCard": "- **完整引用**：Gänzle, M. G. (2014). Enzymatic and bacterial conversions during sourdough fermentation. *Food Microbiology, 37*, 2–10. DOI: 10.1016/j.fm.2013.04.007.\n- **证据层级**：A−（同行评议综述）。\n- **关键观点**：微生物代谢、酸化和谷物酶活动相互影响，发酵表现由多个过程共同形成。\n- **局限**：机理综述不提供家庭酵种成熟或安全的单一阈值。\n- **规则映射**：用于解释多因素发酵机理，不生成固定时间或安全阈值。"
+    }
+  ]
+}
