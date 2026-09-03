@@ -30,13 +30,14 @@ test('elapsed time distinguishes early, within-window, and late observations', (
   assert.equal(late.level, 'danger');
 });
 
-test('temperatures above 32C stop linear timing extrapolation', () => {
+test('temperatures at or above 35C stop precise timing extrapolation', () => {
   const result = nodeEntry.diagnoseStarter({
-    stage:'mature', ratio:'1:1:1', height:'double', temp:35, elapsedHours:2
+    stage:'mature', ratio:'1:1:1', height:'none', temp:35, elapsedHours:2
   });
   assert.equal(result.expectedReliable, false);
   assert.equal(result.expectedMin, null);
-  assert.match(result.expectedHours, /不建议估时|不提供.*估时/);
+  assert.match(result.expectedHours, /不提供.*估时/);
+  assert.equal(result.timing.status, 'temperature-out-of-domain');
   assert.ok(result.ruleTrace.some(item => item.ruleId === 'TEMP.HIGH_NONLINEAR'));
   assert.ok(result.evidenceRefs.includes('BRANDT-2004'));
 });

@@ -65,26 +65,46 @@
     const el = $('timingInsight');
     el.className = 'insight-card is-hidden';
     if (result.elapsedHours == null) return;
+    const timing = result.timing;
+    if (!timing) return;
     const e = result.elapsedHours;
     let msg = '', cls = '';
-    if (!result.expectedReliable) {
-      if (result.expectedReason === 'high-temperature-nonlinear') {
-        msg = `已观察 <b>${e} 小时</b>，但当前温度过高，不适合继续按常规时间估算；先降温后重新计时。`;
+    switch (timing.status) {
+      case 'forecast':
+        if (timing.basis === 'lower-bound-correction') {
+          msg = `已观察 <b>${e} 小时</b>仍未明显上升，算法已把本轮预测向后修正；按当前温度继续保持，预计还需约 ${round1(timing.remainingHours)} 小时。`;
+          cls = ' warn';
+        } else if (timing.lowHours != null && timing.highHours != null) {
+          msg = `按当前比例、温度和已观察到的涨幅，预计本轮约 ${round1(timing.lowHours)}–${round1(timing.highHours)} 小时达到首次翻倍；按当前温度继续保持，预计还需约 ${round1(timing.remainingHours)} 小时。`;
+          cls = ' ok';
+        } else {
+          msg = `按当前比例和温度，预计本轮约 ${timing.display} 达到首次翻倍。`;
+        }
+        break;
+      case 'crossed':
+        msg = `本轮已在约 ${round1(timing.totalHours)} 小时达到翻倍；这一观测可用于后续个体校准。`;
+        cls = ' ok';
+        break;
+      case 'crossed-before-now':
+        msg = `当前已经超过翻倍，说明首次 2x 发生在已观察的 ${e} 小时以内；没有连续高度记录时不反推出伪精确时刻。`;
+        break;
+      case 'trajectory-insufficient':
+        msg = `当前已经回落，但单次状态无法确定本轮第一次经过 2x 的时刻；未来接入连续高度传感器后可以自动识别。`;
+        break;
+      case 'temperature-out-of-domain':
+        msg = `已观察 <b>${e} 小时</b>，但当前温度不适合提供精确翻倍时间；先调整到更稳定的温度环境后重新计时。`;
         cls = ' warn';
-      } else {
-        msg = `已记录 <b>${e} 小时</b>；当前阶段使用阶段专属判断，不套用成熟种的统一翻倍时间表。`;
-      }
-    } else if (e < result.expectedMin) {
-      msg = `已观察 <b>${e} 小时</b>：还没到常见时间范围的起点（约 ${result.expectedMin} 小时）。现在更适合继续观察，而不是急着加餐。`;
-    } else if (e <= result.expectedMax) {
-      msg = `已观察 <b>${e} 小时</b>：正落在该比例与温度的常见时间范围（约 ${result.expectedMin}–${result.expectedMax} 小时）。`;
-      cls = ' ok';
-    } else {
-      msg = `已观察 <b>${e} 小时</b>：已经超过常见时间范围上限（约 ${result.expectedMax} 小时），若仍未明显上升，偏慢判断更可信。`;
-      cls = ' warn';
+        break;
+      default:
+        return;
     }
     el.className = `insight-card${cls}`;
     el.innerHTML = msg;
+  }
+
+  function round1(n) {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return Math.round(n * 10) / 10;
   }
 
   function phInsight(result) {
@@ -107,7 +127,7 @@
     $('stateTitle').textContent = result.state;
     $('stageMetric').textContent = result.stageLabel;
     $('ratioMetric').textContent = result.ratioLabel;
-    $('hoursMetric').textContent = result.expectedHours;
+    $('hoursMetric').textContent = result.timing ? result.timing.display : result.expectedHours;
     $('tempMetric').textContent = result.tempLabel + (result.tempNote ? ` · ${result.tempNote}` : '');
     $('reasonsList').innerHTML = result.reasons.map(x => `<li>${escapeHtml(x)}</li>`).join('');
     $('actionsList').innerHTML = result.actions.map(x => `<li>${escapeHtml(x)}</li>`).join('');

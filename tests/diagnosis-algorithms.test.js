@@ -117,52 +117,45 @@ test('assessPh classifies all five bands plus invalid input', () => {
 
 /* ------------------------- 5. 预期翻倍时间 ------------------------- */
 
-test('expectedRange multiplies ratio base hours by temperature coefficient', () => {
-  assert.deepEqual(
-    pick(D.expectedRange('1:1:1', { value: 't_25_28', coef: 1.0 })),
-    { min: 4, max: 6, reliable: true }
-  );
-  assert.deepEqual(
-    pick(D.expectedRange('1:1:1', { value: 't_lt15', coef: 2.5 })),
-    { min: 10, max: 15, reliable: true }
-  );
-  assert.deepEqual(
-    pick(D.expectedRange('1:1:1', { value: 't_28_32', coef: 0.7 })),
-    { min: 2.8, max: 4.2, reliable: true }
-  );
+test('expectedRange delegates to the online predictor and returns uncertainty bounds', () => {
+  const r = D.expectedRange('1:1:1', { value: 't_25_28', coef: 1.0 });
+  assert.equal(r.reliable, true);
+  assert.equal(r.reason, 'ratio-temp-prior');
+  assert.ok(r.min > 0 && r.min < 5);
+  assert.ok(r.max > 5);
 });
 
-test('expectedRange covers every ratio baseline', () => {
-  const coef1 = { value: 't_25_28', coef: 1.0 };
-  assert.deepEqual(pick(D.expectedRange('1:2:2', coef1)), { min: 6, max: 8, reliable: true });
-  assert.deepEqual(pick(D.expectedRange('1:3:3', coef1)), { min: 8, max: 12, reliable: true });
-  assert.deepEqual(pick(D.expectedRange('1:5:5', coef1)), { min: 12, max: 24, reliable: true });
-  assert.deepEqual(pick(D.expectedRange('deep_reset', coef1)), { min: 12, max: 36, reliable: true });
-  assert.deepEqual(pick(D.expectedRange('1:2:1', coef1)), { min: 8, max: 12, reliable: true });
+test('ratio prior bio-hours cover every canonical ratio', () => {
+  assert.equal(D.getRatioPriorBioHours('1:1:1'), 5);
+  assert.equal(D.getRatioPriorBioHours('1:2:2'), 7);
+  assert.equal(D.getRatioPriorBioHours('1:3:3'), 10);
+  assert.equal(D.getRatioPriorBioHours('1:5:5'), 18);
+  assert.equal(D.getRatioPriorBioHours('deep_reset'), 24);
+  assert.equal(D.getRatioPriorBioHours('1:2:1'), 10);
 });
 
-test('expectedRange stops above 32C and on missing coefficient', () => {
-  assert.deepEqual(pick(D.expectedRange('1:1:1', { value: 't_gt32', coef: null })), {
-    min: null, max: null, reliable: false
-  });
-  assert.equal(D.expectedRange('1:1:1', { value: 't_gt32', coef: null }).reason, 'high-temperature-nonlinear');
-  assert.deepEqual(pick(D.expectedRange('1:1:1', { value: 't_25_28', coef: null })), {
-    min: null, max: null, reliable: false
-  });
-  assert.equal(D.expectedRange('1:1:1', { value: 't_25_28', coef: null }).reason, 'missing-temperature-coefficient');
+test('expectedRange reports out-of-domain temperature as non-reliable', () => {
+  const r = D.expectedRange('1:1:1', { value: 't_gt32', coef: null });
+  assert.equal(r.reliable, false);
+  assert.equal(r.min, null);
+  assert.equal(r.max, null);
+  assert.equal(r.reason, 'ratio-temp-prior');
 });
 
-test('expectedHours renders readable ranges or the high-temperature guard', () => {
-  assert.equal(D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'double', temp: 26 }).expectedHours, '4 小时~6 小时');
-  assert.equal(D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'double', temp: 35 }).expectedHours, '高温下不建议估时（先降至 ≤32℃）');
+test('expectedHours reflects timing display and marks out-of-domain temperature', () => {
+  const normal = D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'double', temp: 26 });
+  assert.equal(normal.expectedHours, normal.timing.display);
+  assert.ok(normal.expectedHours.length > 0);
+
+  const hot = D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'none', temp: 35 });
+  assert.match(hot.expectedHours, /不提供.*估时/);
 });
 
-test('non-mature stages never use unified doubling estimates', () => {
-  const result = D.diagnoseStarter({ stage: 'start_d1', ratio: '1:1:1', height: 'none', temp: 26 });
-  assert.equal(result.expectedHours, '当前阶段不使用统一翻倍估时');
-  assert.equal(result.expectedReliable, false);
-  assert.equal(result.expectedMin, null);
-  assert.equal(result.expectedReason, 'stage-specific-baseline');
+test('stage no longer gates timing: same physical inputs give the same timing', () => {
+  const mature = D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'none', temp: 26 });
+  const start = D.diagnoseStarter({ stage: 'start_d1', ratio: '1:1:1', height: 'none', temp: 26 });
+  assert.deepEqual(mature.timing, start.timing);
+  assert.equal(mature.expectedHours, mature.timing.display);
 });
 
 /* ------------------------- 6. 成熟期活性判断 ------------------------- */
@@ -218,9 +211,10 @@ test('elapsed time separates early, within-window, late and unknown observations
 /* --------------------------- 9. 温度上下文 --------------------------- */
 
 test('temperature above 32C downgrades optimism and adds high-temperature evidence', () => {
-  const result = D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'double', temp: 35, elapsedHours: 2 });
+  const result = D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'none', temp: 35, elapsedHours: 2 });
   assert.equal(result.expectedReliable, false);
   assert.equal(result.level, 'warn');
+  assert.equal(result.timing.status, 'temperature-out-of-domain');
   assert.ok(result.ruleTrace.some((x) => x.ruleId === 'TEMP.HIGH_NONLINEAR'));
   assert.ok(result.evidenceRefs.includes('BRANDT-2004'));
   assert.ok(result.evidenceRefs.includes('VRANCKEN-2011'));
@@ -248,20 +242,17 @@ test('formatAdvice renders a readable report without internal ids', () => {
   const result = D.diagnoseStarter({ stage: 'mature', ratio: '1:1:1', height: 'double', temp: 26, elapsedHours: 5 });
   const report = D.formatAdvice(result);
   assert.match(report, /酵种医生 · 诊断报告/);
-  assert.match(report, /预期翻倍时间：4 小时~6 小时/);
+  assert.match(report, /预期翻倍时间：约 5 小时/);
   assert.match(report, /参考文献：/);
   assert.doesNotMatch(report, /FERJOO-EXP-/);
 });
 
-test('formatAdvice marks non-applicable stage timing correctly', () => {
+test('formatAdvice uses unified timing display for every stage', () => {
   const result = D.diagnoseStarter({ stage: 'start_d1', ratio: '1:1:1', height: 'none', temp: 26 });
   const report = D.formatAdvice(result);
-  assert.match(report, /预期翻倍时间：当前阶段不使用统一翻倍估时/);
+  assert.match(report, /预期翻倍时间：约 /);
+  assert.doesNotMatch(report, /当前阶段不使用统一翻倍估时/);
 });
-
-function pick(obj) {
-  return { min: obj.min, max: obj.max, reliable: obj.reliable };
-}
 
 let passed = 0;
 for (const { name, fn } of tests) {

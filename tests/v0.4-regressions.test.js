@@ -58,11 +58,11 @@ test('ordinary diagnoses carry an explicit diversity/uncertainty trace', () => {
   assert.ok(result.evidenceRefs.includes('LANDIS-2021'));
 });
 
-test('formatAdvice does not prefix non-applicable stage timing with an extra approximation marker', () => {
+test('formatAdvice no longer gates timing by stage', () => {
   const result = D.diagnoseStarter({ stage:'start_d1', ratio:'1:1:1', height:'none', temp:26 });
   const report = D.formatAdvice(result);
-  assert.match(report, /预期翻倍时间：当前阶段不使用统一翻倍估时/);
-  assert.doesNotMatch(report, /预期翻倍时间：约 当前阶段/);
+  assert.match(report, /预期翻倍时间：约 /);
+  assert.doesNotMatch(report, /当前阶段不使用统一翻倍估时/);
 });
 
 let passed = 0;

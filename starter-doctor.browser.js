@@ -53,6 +53,17 @@
     '1:2:1': { min: 8, max: 12 }
   };
 
+  // 26℃ 参考温度下，尚未个体校准的酵种达到首次 2x 所需的“先验等效生物小时”。
+  // 这是项目经验先验，不是论文原始数值；论文只负责修正温度响应方式。
+  const RATIO_PRIOR_BIO_HOURS_26C = {
+    '1:1:1': 5,
+    '1:2:2': 7,
+    '1:3:3': 10,
+    '1:5:5': 18,
+    deep_reset: 24,
+    '1:2:1': 10
+  };
+
   // Runtime citations are deliberately small. The complete, reviewable source
   // library lives under research/; these records are the subset needed to make
   // every diagnosis traceable without a network request.
@@ -186,6 +197,19 @@
       url: 'https://doi.org/10.1016/j.fm.2013.04.007',
       supports: 'Microbial metabolism, cereal enzymes, acidification, oxygen consumption, and substrate availability interact during sourdough fermentation.',
       displayNote: '用于理解发酵并非单一“酵母速度”问题，而是微生物代谢与面粉环境共同作用。'
+    },
+    'GANZLE-1998': {
+      type: 'primary-research',
+      public: true,
+      kind: '原始研究',
+      authorsShort: 'Gänzle et al.',
+      source: 'Applied and Environmental Microbiology',
+      year: '1998',
+      title: 'Modeling of Growth of Lactobacillus sanfranciscensis and Candida milleri in Response to Process Parameters of Sourdough Fermentation',
+      citation: 'Gänzle MG, Ehmann M, Hammes WP. Modeling of Growth of Lactobacillus sanfranciscensis and Candida milleri in Response to Process Parameters of Sourdough Fermentation. Appl Environ Microbiol. 1998;64(7):2616–2623.',
+      url: null,
+      supports: '支持温度响应非线性；支持 C. milleri 最适温度约 27℃；支持接近 35–36℃ 的高温抑制保护边界；不支持直接声称家庭酵种固定翻倍小时数。',
+      displayNote: '把论文温度响应当作相对生物时钟速度，而不是把菌株生长率直接当成罐中高度翻倍时间。'
     },
     'FERJOO-EXP-TIME-001': {
       type: 'brand-experience-needs-calibration',
@@ -325,30 +349,405 @@
     return badSmell || badColor;
   }
 
-  function expectedRange(ratioValue, tempOrCoef) {
-    const base = RATIO_BASE_HOURS[ratioValue] || RATIO_BASE_HOURS['1:1:1'];
-    if (tempOrCoef && typeof tempOrCoef === 'object' && tempOrCoef.value === 't_gt32') {
-      return { min:null, max:null, reliable:false, reason:'high-temperature-nonlinear' };
-    }
-    const coef = typeof tempOrCoef === 'number' ? tempOrCoef : tempOrCoef && tempOrCoef.coef;
-    if (!Number.isFinite(coef) || coef <= 0) {
-      return { min:null, max:null, reliable:false, reason:'missing-temperature-coefficient' };
-    }
-    return {
-      min: Math.round(base.min * coef * 10) / 10,
-      max: Math.round(base.max * coef * 10) / 10,
-      reliable: true,
-      reason: 'brand-empirical-prior'
-    };
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
   }
+
   function formatHours(h) {
+    if (h == null) return null;
     if (h < 1) return `${Math.round(h * 60)} 分钟`;
     return `${h} 小时`;
   }
-  function expectedHours(ratioValue, tempOrCoef) {
-    const r = expectedRange(ratioValue, tempOrCoef);
-    if (!r.reliable) return '高温下不建议估时（先降至 ≤32℃）';
-    return `${formatHours(r.min)}~${formatHours(r.max)}`;
+
+  function roundDisplay(hours) {
+    if (hours == null) return null;
+    if (hours < 6) return Math.round(hours * 2) / 2;
+    if (hours <= 24) return Math.round(hours);
+    return Math.round(hours / 2) * 2;
+  }
+
+  // Gänzle, Ehmann & Hammes (1998) Table 2, Model 1a, C. milleri LTH H198.
+  // 只用温度响应形状作为“相对生物时钟速度”，不做罐体高度动力学声明。
+  function rawPaperYeastRate(tempC) {
+    const Tmax = 35.9;
+    const aPrime = 0.029;
+    const b = 3.0;
+    const c = 0.34;
+
+    const x = Tmax - tempC;
+    if (x <= 0) return 0;
+    return aPrime * Math.pow(x, b) * Math.exp(-c * x);
+  }
+
+  const PAPER_RATE_AT_26 = rawPaperYeastRate(26);
+
+  function getTemperatureResponse(tempC) {
+    if (!Number.isFinite(tempC)) {
+      return { factor: 1, reliable: false, confidencePenalty: 0.10, reason: 'temperature-defaulted-to-26' };
+    }
+    if (tempC <= 8) {
+      return { factor: null, reliable: false, confidencePenalty: 0.30, reason: 'below-paper-practical-domain' };
+    }
+    if (tempC >= 35) {
+      return { factor: null, reliable: false, confidencePenalty: 0.35, reason: 'high-temperature-yeast-inhibition-zone' };
+    }
+    const factor = rawPaperYeastRate(tempC) / PAPER_RATE_AT_26;
+    return {
+      factor: Math.max(0.03, Math.min(1.05, factor)),
+      reliable: tempC >= 18 && tempC <= 32,
+      confidencePenalty: (tempC >= 18 && tempC <= 32) ? 0 : 0.18,
+      reason: (tempC >= 18 && tempC <= 32)
+        ? 'paper-temperature-model'
+        : 'paper-temperature-model-low-confidence-edge'
+    };
+  }
+
+  function getRatioPriorBioHours(ratio) {
+    return RATIO_PRIOR_BIO_HOURS_26C[ratio] != null ? RATIO_PRIOR_BIO_HOURS_26C[ratio] : RATIO_PRIOR_BIO_HOURS_26C['1:1:1'];
+  }
+
+  function integrateTemperatureSeries(samples) {
+    let bioHours = 0;
+    if (!Array.isArray(samples) || samples.length < 2) return 0;
+    for (let i = 1; i < samples.length; i++) {
+      const a = samples[i - 1];
+      const b = samples[i];
+      const fa = a && Number.isFinite(Number(a.tempC)) ? getTemperatureResponse(Number(a.tempC)).factor : null;
+      const fb = b && Number.isFinite(Number(b.tempC)) ? getTemperatureResponse(Number(b.tempC)).factor : null;
+      if (fa == null || fb == null) continue;
+      const dt = Number(b.tHours) - Number(a.tHours);
+      if (!Number.isFinite(dt) || dt < 0) continue;
+      bioHours += ((fa + fb) / 2) * dt;
+    }
+    return bioHours;
+  }
+
+  function detectFirstDoubleCrossing(samples) {
+    if (!Array.isArray(samples) || samples.length < 2) return null;
+    for (let i = 1; i < samples.length; i++) {
+      const a = samples[i - 1];
+      const b = samples[i];
+      if (a.ratio < 2 && b.ratio >= 2) {
+        const f = (2 - a.ratio) / (b.ratio - a.ratio);
+        return { tHours: Number(a.tHours) + f * (Number(b.tHours) - Number(a.tHours)) };
+      }
+    }
+    return null;
+  }
+
+  function geometricBlend(prior, observed, weight) {
+    return Math.exp((1 - weight) * Math.log(prior) + weight * Math.log(observed));
+  }
+
+  function clampObservedBioHours(value, prior) {
+    return Math.max(prior * 0.40, Math.min(prior * 4.00, value));
+  }
+
+  function noRiseWeight({ elapsedHours, priorPhysicalHours }) {
+    const lateness = elapsedHours / Math.max(priorPhysicalHours, 0.1);
+    return clamp((lateness - 0.60) / 1.40, 0, 0.70);
+  }
+
+  const BUCKET_TEMP_REPRESENTATIVE = {
+    t_lt15: 12, t_15_18: 17, t_18_22: 20, t_22_25: 24,
+    t_25_28: 26, t_28_32: 30, t_gt32: 35
+  };
+
+  function extractTemp(tempOrCoef) {
+    if (typeof tempOrCoef === 'number' && Number.isFinite(tempOrCoef)) return tempOrCoef;
+    if (typeof tempOrCoef === 'string') {
+      const trimmed = tempOrCoef.trim();
+      if (trimmed === '') return null;
+      const n = Number(trimmed);
+      if (Number.isFinite(n)) return n;
+      if (BUCKET_TEMP_REPRESENTATIVE[trimmed] != null) return BUCKET_TEMP_REPRESENTATIVE[trimmed];
+      return null;
+    }
+    if (tempOrCoef && typeof tempOrCoef === 'object') {
+      if (tempOrCoef.num != null && Number.isFinite(Number(tempOrCoef.num))) return Number(tempOrCoef.num);
+      if (tempOrCoef.value && BUCKET_TEMP_REPRESENTATIVE[tempOrCoef.value] != null) {
+        return BUCKET_TEMP_REPRESENTATIVE[tempOrCoef.value];
+      }
+    }
+    return null;
+  }
+
+  function getCurrentTemperature(temp, temperatureSeries) {
+    if (Array.isArray(temperatureSeries) && temperatureSeries.length > 0) {
+      const last = temperatureSeries[temperatureSeries.length - 1];
+      const n = last && last.tempC;
+      if (Number.isFinite(Number(n))) return Number(n);
+    }
+    return extractTemp(temp);
+  }
+
+  function sanitizeElapsed(elapsedHours) {
+    if (elapsedHours == null || elapsedHours === '') return null;
+    const n = Number(elapsedHours);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  }
+
+  function priorPhysicalWindow(ratioValue, tempResponse) {
+    const base = RATIO_BASE_HOURS[ratioValue] || RATIO_BASE_HOURS['1:1:1'];
+    const factor = tempResponse ? tempResponse.factor : null;
+    if (factor == null) {
+      return { min: null, max: null, reliable: false, reason: 'temperature-out-of-domain' };
+    }
+    return {
+      min: base.min / factor,
+      max: base.max / factor,
+      reliable: true,
+      reason: 'ratio-temp-prior'
+    };
+  }
+
+  function computeUncertainty({ height, ratio, tempResponse }) {
+    let u = 0.18;
+    if (height == null) u += 0.15;
+    else if (height === 'none') u += 0.18;
+    else if (height === 'slight') u += 0.12;
+    else if (height === 'near') u += 0.06;
+    else if (height === 'double') u += 0.03;
+    if (tempResponse && tempResponse.reliable === false) u += 0.18;
+    if (ratio === 'deep_reset' || ratio === '1:2:1') u += 0.08;
+    return clamp(u, 0.18, 0.48);
+  }
+
+  function inferConfidence({ status, basis, height, tempResponse, elapsed }) {
+    if (basis === 'sensor-crossing') return 'high';
+    if (height === 'double' || height === 'peak_plus' || height === 'over3') return 'medium';
+    if (status === 'crossed' || status === 'crossed-before-now') return 'medium';
+    if (height === 'near' && elapsed != null && tempResponse && tempResponse.reliable) return 'medium';
+    return 'low';
+  }
+
+  function buildDisplay({ status, totalHours, remainingHours, low, high, elapsed }) {
+    switch (status) {
+      case 'crossed':
+        return `约 ${roundDisplay(totalHours)} 小时`;
+      case 'crossed-before-now':
+        return `本轮已在 ${roundDisplay(elapsed)} 小时以内达到翻倍`;
+      case 'trajectory-insufficient':
+        return '已回落；单次高度无法反推出本轮首次翻倍时刻';
+      case 'temperature-out-of-domain':
+        return '当前温度超出有效域，不提供精确估时';
+      case 'forecast':
+      default: {
+        if (low != null && high != null && Number.isFinite(low) && Number.isFinite(high)) {
+          return `约 ${roundDisplay(low)}–${roundDisplay(high)} 小时`;
+        }
+        if (totalHours != null && Number.isFinite(totalHours)) {
+          return `约 ${roundDisplay(totalHours)} 小时`;
+        }
+        return '无法提供精确翻倍时间';
+      }
+    }
+  }
+
+  function buildForecast({ ratio, height, tempResponse, totalHours, remainingHours, elapsed, basis, bioHoursElapsed, status }) {
+    status = status || 'forecast';
+    const confidence = inferConfidence({ status, basis, height, tempResponse, elapsed });
+    let low = null;
+    let high = null;
+    if (totalHours != null && Number.isFinite(totalHours)) {
+      const u = computeUncertainty({ height, ratio, tempResponse });
+      low = totalHours * (1 - u);
+      high = totalHours * (1 + u);
+      if (status === 'forecast' && elapsed != null) low = Math.max(low, elapsed);
+    }
+    const display = buildDisplay({ status, totalHours, remainingHours, low, high, elapsed });
+    return {
+      totalHours: totalHours == null ? null : totalHours,
+      remainingHours: remainingHours == null ? null : remainingHours,
+      lowHours: low,
+      highHours: high,
+      confidence,
+      status,
+      basis,
+      bioHoursElapsed: bioHoursElapsed == null ? null : bioHoursElapsed,
+      tempFactorNow: tempResponse ? tempResponse.factor : null,
+      display,
+      trace: [
+        { id: `timing:${basis}`, note: `totalHours=${totalHours == null ? 'null' : Number(totalHours).toFixed(2)}; status=${status}` }
+      ]
+    };
+  }
+
+  function makeObservedCrossingResult(crossing, bioHoursElapsed) {
+    const totalHours = crossing.tHours;
+    return {
+      totalHours,
+      remainingHours: 0,
+      lowHours: totalHours * 0.9,
+      highHours: totalHours * 1.1,
+      confidence: 'high',
+      status: 'crossed',
+      basis: 'sensor-crossing',
+      bioHoursElapsed,
+      tempFactorNow: null,
+      display: `约 ${roundDisplay(totalHours)} 小时`,
+      trace: [{ id: 'timing:sensor-crossing', note: `首次 2x 检测于 ${Number(totalHours).toFixed(2)}h` }]
+    };
+  }
+
+  function predictDoublingTime({ ratio, temp, height, elapsedHours, temperatureSeries = null, heightSeries = null }) {
+    const Bprior = getRatioPriorBioHours(ratio);
+
+    const tempNow = getCurrentTemperature(temp, temperatureSeries);
+    const tempResponse = getTemperatureResponse(tempNow);
+
+    const crossing = detectFirstDoubleCrossing(heightSeries);
+    if (crossing) {
+      const bioHoursElapsed = integrateTemperatureSeries(temperatureSeries);
+      return makeObservedCrossingResult(crossing, bioHoursElapsed);
+    }
+
+    const elapsed = sanitizeElapsed(elapsedHours);
+
+    const Belapsed = (Array.isArray(temperatureSeries) && temperatureSeries.length >= 2)
+      ? integrateTemperatureSeries(temperatureSeries)
+      : ((tempResponse.factor == null || elapsed == null) ? null : elapsed * tempResponse.factor);
+
+    if (height === 'double' && elapsed != null) {
+      return {
+        totalHours: elapsed,
+        remainingHours: 0,
+        lowHours: Math.max(0, elapsed - 0.5),
+        highHours: elapsed + 0.5,
+        confidence: 'medium',
+        status: 'crossed',
+        basis: 'observed-double',
+        bioHoursElapsed: Belapsed,
+        tempFactorNow: tempResponse.factor,
+        display: `约 ${roundDisplay(elapsed)} 小时`,
+        trace: [{ id: 'timing:observed-double', note: `用户在 ${elapsed}h 观测到翻倍` }]
+      };
+    }
+
+    if ((height === 'peak_plus' || height === 'over3') && elapsed != null) {
+      return {
+        totalHours: null,
+        remainingHours: 0,
+        lowHours: null,
+        highHours: elapsed,
+        confidence: 'medium',
+        status: 'crossed-before-now',
+        basis: 'observed-double',
+        bioHoursElapsed: Belapsed,
+        tempFactorNow: tempResponse.factor,
+        display: `本轮已在 ${roundDisplay(elapsed)} 小时以内达到翻倍`,
+        trace: [{ id: 'timing:crossed-before-now', note: `已超过 2x，首次 crossing ≤ ${elapsed}h` }]
+      };
+    }
+
+    if (height === 'fallen' && !(Array.isArray(heightSeries) && heightSeries.length)) {
+      return {
+        totalHours: null,
+        remainingHours: null,
+        lowHours: null,
+        highHours: null,
+        confidence: 'low',
+        status: 'trajectory-insufficient',
+        basis: 'ratio-temp-prior',
+        bioHoursElapsed: Belapsed,
+        tempFactorNow: tempResponse.factor,
+        display: '已回落；单次高度无法反推出本轮首次翻倍时刻',
+        trace: [{ id: 'timing:trajectory-insufficient', note: '单点回落不足以反推 crossing' }]
+      };
+    }
+
+    if (tempResponse.factor == null) {
+      return {
+        totalHours: null,
+        remainingHours: null,
+        lowHours: null,
+        highHours: null,
+        confidence: 'low',
+        status: 'temperature-out-of-domain',
+        basis: 'ratio-temp-prior',
+        bioHoursElapsed: Belapsed,
+        tempFactorNow: null,
+        display: '当前温度超出有效域，不提供精确估时',
+        trace: [{ id: 'timing:temperature-out-of-domain', note: tempResponse.reason }]
+      };
+    }
+
+    if (elapsed == null || Belapsed == null) {
+      const priorPhysical = Bprior / tempResponse.factor;
+      return buildForecast({
+        ratio,
+        height,
+        tempResponse,
+        totalHours: priorPhysical,
+        remainingHours: null,
+        elapsed: null,
+        basis: 'ratio-temp-prior',
+        bioHoursElapsed: null,
+        status: 'forecast'
+      });
+    }
+
+    let Bhat = Bprior;
+    let basis = 'ratio-temp-prior';
+
+    if (height === 'none') {
+      const pMax = Math.log2(1.20);
+      const lowerBound = Belapsed / pMax;
+      const priorPhysical = Bprior / tempResponse.factor;
+      const weight = noRiseWeight({ elapsedHours: elapsed, priorPhysicalHours: priorPhysical });
+      if (lowerBound > Bprior && weight > 0) {
+        Bhat = geometricBlend(Bprior, clampObservedBioHours(lowerBound, Bprior), weight);
+        basis = 'lower-bound-correction';
+      }
+    } else if (height === 'slight') {
+      const p = Math.log2(1.35);
+      const Bobs = Belapsed / p;
+      Bhat = geometricBlend(Bprior, clampObservedBioHours(Bobs, Bprior), 0.35);
+      basis = 'partial-height-correction';
+    } else if (height === 'near') {
+      const p = Math.log2(1.70);
+      const Bobs = Belapsed / p;
+      Bhat = geometricBlend(Bprior, clampObservedBioHours(Bobs, Bprior), 0.70);
+      basis = 'partial-height-correction';
+    }
+
+    if (height !== 'double' && height !== 'peak_plus' && height !== 'over3') {
+      Bhat = Math.max(Bhat, Belapsed * 1.03);
+    }
+
+    const Bremaining = Math.max(0, Bhat - Belapsed);
+    const remaining = Bremaining / tempResponse.factor;
+    const total = elapsed + remaining;
+
+    return buildForecast({
+      ratio,
+      height,
+      tempResponse,
+      totalHours: total,
+      remainingHours: remaining,
+      elapsed,
+      basis,
+      bioHoursElapsed: Belapsed,
+      status: 'forecast'
+    });
+  }
+
+  function expectedRange(ratioValue, tempOrCoef, context = {}) {
+    const timing = predictDoublingTime({
+      ratio: ratioValue,
+      temp: extractTemp(tempOrCoef),
+      height: context.height ?? null,
+      elapsedHours: context.elapsedHours ?? null,
+      temperatureSeries: context.temperatureSeries ?? null,
+      heightSeries: context.heightSeries ?? null
+    });
+    return {
+      min: timing.lowHours,
+      max: timing.highHours,
+      reliable: timing.status !== 'temperature-out-of-domain' && timing.status !== 'trajectory-insufficient',
+      reason: timing.basis
+    };
   }
 
   function addTrace(result, ruleId, evidenceRefs, note) {
@@ -620,7 +1019,7 @@
     addTrace(result, `ACTIVITY.${String(hv).toUpperCase()}`, ['FERJOO-EXP-STAGE-001'], `成熟期高度分支=${hv}`);
   }
 
-  function applyElapsedContext(result, input, temp) {
+  function applyElapsedContext(result, input, temp, ratioValue, tempResponse) {
     if (input.elapsedHours == null || input.elapsedHours === '') {
       if (result.stage === 'mature' && (result.height === 'none' || result.height === 'slight')) {
         result.state = '观察时间未知';
@@ -636,35 +1035,32 @@
     result.elapsedHours = elapsed;
     const hv = result.height;
 
-    if (!result.expectedReliable) {
-      if (result.expectedReason === 'high-temperature-nonlinear') {
-        addTrace(result, 'TIME.SKIPPED_UNRELIABLE_RANGE', ['BRANDT-2004','VRANCKEN-2011'], '高温段不进行线性时间比较');
-      } else {
-        addTrace(result, 'TIME.NOT_APPLICABLE_TO_STAGE', ['FERJOO-EXP-STAGE-001'], `stage=${result.stage}`);
-      }
+    const prior = priorPhysicalWindow(ratioValue, tempResponse);
+    if (!prior.reliable) {
+      addTrace(result, 'TIME.NOT_APPLICABLE_TO_RANGE', ['GANZLE-1998'], `timing.status=${result.timing ? result.timing.status : 'unknown'}`);
       return result;
     }
 
     // Key professional correction: do not call a starter "weak" before its expected window.
-    if ((hv === 'none' || hv === 'slight') && elapsed < result.expectedMin && result.stage === 'mature') {
+    if ((hv === 'none' || hv === 'slight') && elapsed < prior.min && result.stage === 'mature') {
       result.state = hv === 'none' ? '观察时间尚早' : '正常观察中';
       result.level = 'info';
       result.reasons = [
-        `目前只经过 ${elapsed} 小时，还没有到该组合的经验最早翻倍时间（约 ${formatHours(result.expectedMin)}）。`,
+        `目前只经过 ${elapsed} 小时，还没有到该组合的经验最早翻倍时间（约 ${formatHours(prior.min)}）。`,
         hv === 'none' ? '此时几乎无变化并不能单独证明活性不足。' : '已经有轻微上升，先继续观察更有信息量。'
       ];
       result.actions = [
-        `先观察到约 ${formatHours(result.expectedMin)}，尽量不要中途再次喂养打断曲线。`,
+        `先观察到约 ${formatHours(prior.min)}，尽量不要中途再次喂养打断曲线。`,
         '记录顶部形态、气泡和体积；到预期窗口后再根据是否接近翻倍决定下一步。'
       ];
       addTrace(result, 'TIME.BEFORE_EXPECTED_MIN', ['FERJOO-EXP-TIME-001'], `elapsed=${elapsed}`);
-    } else if ((hv === 'none' || hv === 'slight') && elapsed <= result.expectedMax && result.stage === 'mature') {
+    } else if ((hv === 'none' || hv === 'slight') && elapsed <= prior.max && result.stage === 'mature') {
       result.state = hv === 'none' ? '仍在经验观察窗口' : '正常观察中';
       result.level = 'info';
-      result.reasons = [`目前经过 ${elapsed} 小时，仍在该组合的经验窗口（约 ${formatHours(result.expectedMin)}–${formatHours(result.expectedMax)}）。`];
+      result.reasons = [`目前经过 ${elapsed} 小时，仍在该组合的经验窗口（约 ${formatHours(prior.min)}–${formatHours(prior.max)}）。`];
       result.actions = ['继续观察到窗口上限，并记录顶部形态、气泡和体积；到时仍无明显上升再进入活性排查。'];
       addTrace(result, 'TIME.WITHIN_EXPECTED_RANGE', ['FERJOO-EXP-TIME-001'], `elapsed=${elapsed}`);
-    } else if ((hv === 'none' || hv === 'slight') && elapsed > result.expectedMax && result.stage === 'mature') {
+    } else if ((hv === 'none' || hv === 'slight') && elapsed > prior.max && result.stage === 'mature') {
       if (hv === 'none') {
         result.state = '活性偏慢';
         result.level = 'danger';
@@ -672,7 +1068,7 @@
         result.actions = [];
         weakReasons({ ...temp, coef:temp.coef == null ? 1 : temp.coef }, result);
       }
-      result.reasons.unshift(`已经观察 ${elapsed} 小时，超过该组合的经验翻倍上限（约 ${formatHours(result.expectedMax)}），因此“偏慢”的判断更有依据。`);
+      result.reasons.unshift(`已经观察 ${elapsed} 小时，超过该组合的经验翻倍上限（约 ${formatHours(prior.max)}），因此“偏慢”的判断更有依据。`);
       addTrace(result, 'TIME.AFTER_EXPECTED_MAX', ['FERJOO-EXP-TIME-001'], `elapsed=${elapsed}`);
     } else {
       addTrace(result, 'TIME.WITHIN_OR_NOT_APPLICABLE', ['FERJOO-EXP-TIME-001'], `elapsed=${elapsed}`);
@@ -694,22 +1090,34 @@
     const ratio = resolve(input.ratio, RATIOS) || RATIOS.find(r => r.value === '1:1:1');
     const height = resolve(input.height, HEIGHTS);
     const temp = normalizeTemp(input.temp) || TEMPS.find(t => t.value === 't_25_28');
-    const range = stage.value === 'mature'
-      ? expectedRange(ratio.value, temp)
-      : { min:null, max:null, reliable:false, reason:'stage-specific-baseline' };
+
+    // 数值预测只允许由 ratio / temperature / height / elapsed 决定；
+    // stage / smell / color / pH / notes 不进入 predictDoublingTime。
+    const timing = predictDoublingTime({
+      ratio: ratio.value,
+      temp,
+      height: height ? height.value : null,
+      elapsedHours: input.elapsedHours,
+      temperatureSeries: input.temperatureSeries,
+      heightSeries: input.heightSeries
+    });
 
     const result = {
       stage:stage.value, stageLabel:stage.label,
       ratio:ratio.value, ratioLabel:ratio.label,
       height:height ? height.value : null, heightLabel:height ? height.label : null,
       temp:temp.value, tempLabel:temp.label, tempNote:temp.note,
-      expectedMin:range.min, expectedMax:range.max,
-      expectedReliable:range.reliable,
-      expectedReason:range.reason,
-      expectedHours:stage.value === 'mature' ? expectedHours(ratio.value, temp) : '当前阶段不使用统一翻倍估时',
+      timing,
+      expectedMin: timing.lowHours,
+      expectedMax: timing.highHours,
+      expectedReliable: timing.status !== 'temperature-out-of-domain' && timing.status !== 'trajectory-insufficient',
+      expectedReason: timing.basis,
+      expectedHours: timing.display,
       state:'', level:'info', reasons:[], actions:[], safety:[],
       ruleTrace:[], evidenceRefs:[], citations:[]
     };
+
+    addTrace(result, 'TIMING.BIOCLOCK_PREDICTOR', ['GANZLE-1998'], `basis=${timing.basis};status=${timing.status}`);
 
     result.phAssessment = assessPh(input.ph);
     if (result.phAssessment) {
@@ -737,7 +1145,8 @@
     if (!applyStageOverride(stage.value, height, temp, result)) {
       applyActivityJudgment(height, ratio, temp, result);
     }
-    applyElapsedContext(result, input, temp);
+    const tempResponse = getTemperatureResponse(getCurrentTemperature(temp, input.temperatureSeries));
+    applyElapsedContext(result, input, temp, ratio.value, tempResponse);
     applyTemperatureContext(result, temp);
     addTrace(result, 'TIME.EMPIRICAL_RANGE', ['FERJOO-EXP-TIME-001'], `ratio=${ratio.value};temp=${temp.value}`);
     addTrace(result, 'UNCERTAINTY.DIVERSITY', ['LANDIS-2021','MINERVINI-2014'], '不同酵种与维护环境存在显著个体差异');
@@ -789,8 +1198,11 @@
   }
 
   return {
-    STAGES, RATIOS, HEIGHTS, TEMPS, RATIO_BASE_HOURS, EVIDENCE_CATALOG,
+    STAGES, RATIOS, HEIGHTS, TEMPS, RATIO_BASE_HOURS, RATIO_PRIOR_BIO_HOURS_26C, EVIDENCE_CATALOG,
     normalizeStage, normalizeRatio, normalizeHeight, normalizeTemp,
-    parseStarterInput, diagnoseStarter, formatAdvice, expectedRange, assessPh, isContaminated
+    parseStarterInput, diagnoseStarter, formatAdvice, expectedRange, assessPh, isContaminated,
+    rawPaperYeastRate, getTemperatureResponse, getRatioPriorBioHours,
+    integrateTemperatureSeries, detectFirstDoubleCrossing, predictDoublingTime,
+    geometricBlend, clampObservedBioHours, noRiseWeight, roundDisplay
   };
 });
