@@ -534,6 +534,11 @@
         return '当前温度超出有效域，不提供精确估时';
       case 'forecast':
       default: {
+        // 有已观察时长时，用户关心的是“从现在起还剩多久”，而不是“本轮总共多久”。
+        if (remainingHours != null && Number.isFinite(remainingHours)) {
+          if (remainingHours < 0.5) return '预计即将翻倍';
+          return `预计还需约 ${roundDisplay(remainingHours)} 小时`;
+        }
         if (low != null && high != null && Number.isFinite(low) && Number.isFinite(high)) {
           return `约 ${roundDisplay(low)}–${roundDisplay(high)} 小时`;
         }

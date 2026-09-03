@@ -72,10 +72,13 @@
     switch (timing.status) {
       case 'forecast':
         if (timing.basis === 'lower-bound-correction') {
-          msg = `已观察 <b>${e} 小时</b>仍未明显上升，算法已把本轮预测向后修正；按当前温度继续保持，预计还需约 ${round1(timing.remainingHours)} 小时。`;
+          msg = `已观察 <b>${e} 小时</b>仍未明显上升，算法已把本轮预测向后修正；预计还需约 ${round1(timing.remainingHours)} 小时翻倍。`;
           cls = ' warn';
-        } else if (timing.lowHours != null && timing.highHours != null) {
-          msg = `按当前比例、温度和已观察到的涨幅，预计本轮约 ${round1(timing.lowHours)}–${round1(timing.highHours)} 小时达到首次翻倍；按当前温度继续保持，预计还需约 ${round1(timing.remainingHours)} 小时。`;
+        } else if (Number.isFinite(timing.remainingHours) && timing.remainingHours < 0.5) {
+          msg = `按当前涨速，预计即将翻倍（本轮累计约 ${round1(timing.totalHours)} 小时）。`;
+          cls = ' ok';
+        } else if (timing.remainingHours != null) {
+          msg = `按当前涨速，预计还需约 ${round1(timing.remainingHours)} 小时翻倍（本轮累计约 ${round1(timing.totalHours)} 小时）。`;
           cls = ' ok';
         } else {
           msg = `按当前比例和温度，预计本轮约 ${timing.display} 达到首次翻倍。`;
