@@ -1,23 +1,28 @@
 # 酵种医生 · Dr. Ferjoo
 
+Vue 3 + Vite + Supabase 的酵种诊断应用：有限场景诊断算法 + 剩余翻倍时间估算 + 证据追踪 + 账号与设备 10 分钟测量历史，视觉为大更新前最后一版的**经典 UI**（橙色整页背景、磨砂玻璃卡片、双品牌 Logo、顶部居中页签切换）。
+
 ## 目录
 
 ```text
 .
 ├── src/
-│   ├── algorithms/          # 所有算法 + 2,016组合 + 审核工具
-│   ├── references/          # 全部参考文献、证据库、引用schema
+│   ├── algorithms/          # 诊断/解析/时间预测算法 + 2,016 场景枚举
+│   ├── assets/              # 经典 UI 样式 main.css
+│   ├── constants/           # 经典资产常量（固定提交基线）
+│   ├── references/          # 运行时证据目录 + 参考文献资料库
 │   ├── components/          # Vue 展示组件
-│   ├── views/               # 路由页面
+│   ├── views/               # 路由页面（诊断 / 登录 / 注册 / 历史）
 │   ├── services/            # UI 与算法/数据库之间的调用边界
 │   ├── composables/         # 登录会话状态
 │   ├── lib/                 # Supabase 客户端
 │   └── router/
+├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
 │   └── migrations/001_initial.sql
 ├── docs/
 ├── tests/
-└── public/assets/
+└── public/assets/           # 经典 PNG 资产（固定在提交 0a8d43b）
 ```
 
 ## 本地运行
@@ -25,7 +30,7 @@
 要求 Node.js 20.19+。
 
 ```bash
-npm install
+npm install        # 自动校验/补齐 public/assets 下的经典 PNG
 cp .env.example .env
 npm run dev
 ```
@@ -64,11 +69,23 @@ npm run dev
 ## 测试
 
 ```bash
-npm test
-npm run audit
+npm test           # 诊断行为测试 + 2,016 场景结构自检
+npm run audit      # 仅运行 2,016 场景枚举自检
 ```
 
-`npm run audit` 必须完整遍历 6 × 6 × 8 × 7 = **2,016** 组合并保持结构异常为 0。
+`npm run audit` 必须完整遍历 6 × 6 × 8 × 7 = **2,016** 组合并保持无异常。
+
+说明：`tests/` 下其余 `*.test.js` 为上一轮算法架构（规则引擎 / 审核队列）留存的归档用例，不属于当前 `npm test` 范围，单独运行可能失败。
+
+## 部署
+
+Vercel：
+
+- Build command: `npm run build`
+- Output: `dist`
+- `vercel.json` 已包含 SPA rewrite
+
+也可部署到任意能托管 Vite 静态产物的平台。
 
 更多说明见：
 
@@ -76,3 +93,4 @@ npm run audit
 - `docs/DATABASE.md`
 - `docs/MIGRATION.md`
 - `supabase/README.md`
+- `public/assets/CLASSIC_ASSETS.md`（经典资产固定基线说明）
