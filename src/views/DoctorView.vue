@@ -81,10 +81,7 @@ function runDiagnosis() {
     <div class="hero-copy">
       <p class="eyebrow">SOURDOUGH STARTER DIAGNOSTIC</p>
       <h1>让每一次发酵，<br><span>都有迹可循。</span></h1>
-      <p class="hero-lead">
-        不再只问“它为什么不翻倍”。把阶段、比例、温度、时间与高度放在一起，
-        用一套可追溯的发酵时钟理解你的酵种。
-      </p>
+      <p class="hero-lead">Ferment with joy.</p>
     </div>
     <div class="hero-facts" aria-label="功能概览">
       <div><strong>4</strong><span>核心观察维度</span></div>
