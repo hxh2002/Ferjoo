@@ -1,17 +1,18 @@
 {
   "name": "dr-ferjoo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
-  "description": "Vue + Supabase sourdough diagnosis application with traceable finite-scenario algorithms",
+  "description": "Dr. Ferjoo sourdough diagnosis — classic UI on Vue 3 + Vite + Supabase",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/doubling-predictor.test.js && node tests/rule-engine.test.js && node tests/diagnosis-algorithms.test.js && node tests/v0.4-regressions.test.js && node tests/enumerate-scenarios.test.js && node tests/review-queue.test.js && node tests/architecture.test.js",
+    "test": "node tests/diagnosis.test.js && node src/algorithms/enumerate-scenarios.js --self-check",
     "audit": "node src/algorithms/enumerate-scenarios.js --self-check",
     "enumerate": "node src/algorithms/enumerate-scenarios.js --pretty -o src/algorithms/scenario-catalog.json",
-    "review-queue": "node src/algorithms/build-review-queue.js -o src/algorithms/review-queue.json"
+    "assets:classic": "node scripts/fetch-classic-assets.mjs",
+    "postinstall": "node scripts/fetch-classic-assets.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",

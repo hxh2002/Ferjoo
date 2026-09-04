@@ -1,87 +1,81 @@
-import { requireSupabase } from '../lib/supabase.js';
+import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
 
-function cleanNumber(value) {
-  if (value === '' || value == null) return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+function requireClient() {
+  if (!hasSupabaseConfig || !supabase) {
+    throw new Error('Supabase 尚未配置。');
+  }
+  return supabase;
 }
 
-export function toTenMinuteBucket(value) {
-  const date = value ? new Date(value) : new Date();
-  const bucketMs = Math.floor(date.getTime() / 600_000) * 600_000;
-  return new Date(bucketMs).toISOString();
+export function toTenMinuteBucket(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  const bucketMs = 10 * 60 * 1000;
+  return new Date(Math.floor(date.getTime() / bucketMs) * bucketMs).toISOString();
 }
 
 export async function listDevices() {
-  const client = requireSupabase();
+  const client = requireClient();
   const { data, error } = await client
     .from('devices')
-    .select('device_id, name, model, firmware_version, last_seen_at, created_at')
-    .order('created_at', { ascending: true });
+    .select('*')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return data || [];
 }
 
-export async function createDevice({ deviceId, name, model = '', firmwareVersion = '' }) {
-  const client = requireSupabase();
+export async function createDevice({ name }) {
+  const client = requireClient();
+  const { data: authData, error: authError } = await client.auth.getUser();
+  if (authError) throw authError;
+  if (!authData.user) throw new Error('请先登录。');
+
   const { data, error } = await client
     .from('devices')
-    .insert({
-      device_id: deviceId.trim(),
-      name: name.trim() || null,
-      model: model.trim() || null,
-      firmware_version: firmwareVersion.trim() || null
-    })
-    .select('device_id, name, model, firmware_version, last_seen_at, created_at')
+    .insert({ owner_id: authData.user.id, name: name?.trim() || 'Ferjoo Sensor' })
+    .select()
     .single();
-
   if (error) throw error;
   return data;
 }
 
-export async function listMeasurements(deviceId, { limit = 200, from = null, to = null } = {}) {
-  const client = requireSupabase();
+export async function listMeasurements(deviceId, { limit = 120, from, to } = {}) {
+  const client = requireClient();
   let query = client
     .from('device_measurements')
-    .select('id, device_id, recorded_at, bucket_start, temperature_c, height_mm, height_delta_mm, humidity_percent, battery_percent, payload')
+    .select('*')
     .eq('device_id', deviceId)
-    .order('bucket_start', { ascending: false })
+    .order('recorded_at', { ascending: false })
     .limit(limit);
-
-  if (from) query = query.gte('bucket_start', new Date(from).toISOString());
-  if (to) query = query.lte('bucket_start', new Date(to).toISOString());
-
+  if (from) query = query.gte('recorded_at', from);
+  if (to) query = query.lte('recorded_at', to);
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  return data || [];
 }
 
-export async function addMeasurement({
-  deviceId,
-  recordedAt,
-  temperatureC,
-  heightMm,
-  heightDeltaMm,
-  humidityPercent,
-  batteryPercent,
-  payload = {}
-}) {
-  const client = requireSupabase();
+export async function addMeasurement(deviceId, measurement) {
+  const client = requireClient();
+  const payload = {
+    device_id: deviceId,
+    recorded_at: measurement.recordedAt || new Date().toISOString(),
+    temperature_c: finiteOrNull(measurement.temperatureC),
+    height_mm: finiteOrNull(measurement.heightMm),
+    height_delta_mm: finiteOrNull(measurement.heightDeltaMm),
+    humidity_percent: finiteOrNull(measurement.humidityPercent),
+    battery_percent: finiteOrNull(measurement.batteryPercent),
+    payload: measurement.payload || {}
+  };
   const { data, error } = await client
     .from('device_measurements')
-    .insert({
-      device_id: deviceId,
-      recorded_at: toTenMinuteBucket(recordedAt),
-      temperature_c: cleanNumber(temperatureC),
-      height_mm: cleanNumber(heightMm),
-      height_delta_mm: cleanNumber(heightDeltaMm),
-      humidity_percent: cleanNumber(humidityPercent),
-      battery_percent: cleanNumber(batteryPercent),
-      payload
-    })
-    .select('id, device_id, recorded_at, bucket_start, temperature_c, height_mm, height_delta_mm, humidity_percent, battery_percent, payload')
+    .upsert(payload, { onConflict: 'device_id,bucket_start' })
+    .select()
     .single();
-
   if (error) throw error;
   return data;
+}
+
+function finiteOrNull(value) {
+  if (value === '' || value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }

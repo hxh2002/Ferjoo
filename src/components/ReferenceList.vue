@@ -5,22 +5,16 @@ defineProps({
 </script>
 
 <template>
-  <section v-if="citations.length" class="result-section">
-    <h3>参考文献</h3>
-    <div class="reference-list">
-      <article
-        v-for="item in citations.filter((x) => x && x.public !== false && x.type !== 'unresolved')"
-        :key="item.key"
-        class="reference-card"
-      >
-        <div class="reference-meta">
-          <span>{{ item.kind || '资料' }}</span>
-          <span>{{ [item.authorsShort, item.source, item.year].filter(Boolean).join(' · ') }}</span>
-        </div>
-        <strong>{{ item.title || item.citation || item.key }}</strong>
-        <p v-if="item.displayNote">{{ item.displayNote }}</p>
-        <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">查看原文 ↗</a>
-      </article>
-    </div>
-  </section>
+  <div class="references" v-if="citations.length">
+    <h4>参考与证据</h4>
+    <article v-for="ref in citations" :key="ref.key" class="reference-row">
+      <div>
+        <span class="reference-kind">{{ ref.kind || (ref.public === false ? 'Ferjoo 经验先验' : ref.type) }}</span>
+        <strong>{{ ref.title || ref.citation || ref.key }}</strong>
+        <p v-if="ref.displayNote">{{ ref.displayNote }}</p>
+      </div>
+      <a v-if="ref.url" :href="ref.url" target="_blank" rel="noreferrer">SOURCE ↗</a>
+      <span v-else class="internal-ref">INTERNAL</span>
+    </article>
+  </div>
 </template>

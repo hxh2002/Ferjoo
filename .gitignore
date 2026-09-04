@@ -1,12 +1,16 @@
 # knowledge 子项目仅保留本地，不上传
 knowledge/
 
+# Classic UI 本地副本（已合并回正式版，仅保留本地参考）
+Ferjoo-Classic-UI/
+
 # 系统与通用
 .DS_Store
 Thumbs.db
 
 # Node
 node_modules/
+dist/
 .vercel
 
 # 环境变量（勿上传，保留 .env.example）

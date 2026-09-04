@@ -5,30 +5,24 @@ import RegisterView from '../views/RegisterView.vue';
 import HistoryView from '../views/HistoryView.vue';
 import { useAuth } from '../composables/useAuth.js';
 
+const routes = [
+  { path: '/', name: 'doctor', component: DoctorView },
+  { path: '/login', name: 'login', component: LoginView },
+  { path: '/register', name: 'register', component: RegisterView },
+  { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } }
+];
+
 const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    { path: '/', name: 'doctor', component: DoctorView },
-    { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true } },
-    { path: '/register', name: 'register', component: RegisterView, meta: { guestOnly: true } },
-    { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
-    { path: '/:pathMatch(.*)*', redirect: '/' }
-  ],
+  routes,
   scrollBehavior: () => ({ top: 0 })
 });
 
 router.beforeEach(async (to) => {
+  if (!to.meta.requiresAuth) return true;
   const auth = useAuth();
   await auth.init();
-
-  if (to.meta.requiresAuth && !auth.user.value) {
-    return { name: 'login', query: { redirect: to.fullPath } };
-  }
-
-  if (to.meta.guestOnly && auth.user.value) {
-    return { name: 'doctor' };
-  }
-
+  if (!auth.user.value) return { name: 'login', query: { redirect: to.fullPath } };
   return true;
 });
 

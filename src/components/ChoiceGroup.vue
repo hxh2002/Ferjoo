@@ -1,24 +1,34 @@
 <script setup>
 defineProps({
-  modelValue: { type: [String, Number], default: null },
+  modelValue: { type: String, default: '' },
   options: { type: Array, required: true },
-  columns: { type: Number, default: 3 }
+  label: { type: String, required: true },
+  hint: { type: String, default: '' }
 });
-const emit = defineEmits(['update:modelValue']);
+defineEmits(['update:modelValue']);
 </script>
 
 <template>
-  <div class="choice-grid" :style="{ '--choice-columns': columns }">
-    <button
-      v-for="option in options"
-      :key="option.value"
-      type="button"
-      class="choice"
-      :class="{ selected: modelValue === option.value }"
-      @click="emit('update:modelValue', option.value)"
-    >
-      <span>{{ option.label }}</span>
-      <small v-if="option.note">{{ option.note }}</small>
-    </button>
-  </div>
+  <fieldset class="field-block">
+    <legend>
+      <span>{{ label }}</span>
+      <small v-if="hint">{{ hint }}</small>
+    </legend>
+    <div class="choice-grid">
+      <button
+        v-for="item in options"
+        :key="item.value"
+        class="choice-card"
+        :class="{ selected: item.value === modelValue }"
+        type="button"
+        @click="$emit('update:modelValue', item.value)"
+      >
+        <span class="choice-dot"></span>
+        <span class="choice-copy">
+          <strong>{{ item.label }}</strong>
+          <small v-if="item.description">{{ item.description }}</small>
+        </span>
+      </button>
+    </div>
+  </fieldset>
 </template>

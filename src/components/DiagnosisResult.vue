@@ -1,71 +1,98 @@
 <script setup>
+import { ref } from 'vue';
+import { formatAdvice } from '../algorithms/index.js';
 import ReferenceList from './ReferenceList.vue';
 
-defineProps({
+const props = defineProps({
   result: { type: Object, default: null }
 });
 
-const labels = {
-  ok: '良好',
-  warn: '需注意',
-  danger: '需处理',
-  info: '观察'
-};
+const copied = ref(false);
+
+async function copyReport() {
+  if (!props.result) return;
+  const text = formatAdvice(props.result);
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 1500);
+  } catch {
+    copied.value = false;
+  }
+}
 </script>
 
 <template>
   <section class="panel result-panel">
-    <div v-if="!result" class="empty-state">
-      <span class="empty-icon">↗</span>
-      <h2>等待诊断</h2>
-      <p>填写左侧信息后，诊断结果、翻倍预测、操作建议和参考文献会显示在这里。</p>
+    <div v-if="!result" class="result-empty">
+      <div class="doctor-orbit" aria-hidden="true">
+        <span class="orbit-ring ring-a"></span>
+        <span class="orbit-ring ring-b"></span>
+        <div class="starter-jar">
+          <span class="jar-bubbles">•••</span>
+          <span class="jar-line"></span>
+        </div>
+      </div>
+      <p class="eyebrow dark">YOUR FERMENTATION, EXPLAINED</p>
+      <h2>把今天的状态告诉我。</h2>
+      <p>完成左侧输入后，我会给出当前判断、预计剩余时间、下一步动作与证据来源。</p>
+      <div class="empty-stats">
+        <span><strong>6</strong> 阶段</span>
+        <span><strong>6</strong> 比例</span>
+        <span><strong>2016</strong> 基础组合</span>
+      </div>
     </div>
 
-    <template v-else>
-      <div class="result-heading">
-        <span class="status-badge" :class="result.level">{{ labels[result.level] || result.level }}</span>
-        <div>
-          <p class="eyebrow">当前判断</p>
-          <h2>{{ result.state }}</h2>
+    <div v-else class="result-content">
+      <div class="result-topline">
+        <span class="status-badge" :class="`tone-${result.tone}`">{{ result.badge }}</span>
+        <button class="copy-button" type="button" @click="copyReport">{{ copied ? 'COPIED' : 'COPY REPORT' }}</button>
+      </div>
+
+      <h2>{{ result.title }}</h2>
+      <p class="result-subtitle">{{ result.subtitle }}</p>
+
+      <div class="metric-grid">
+        <div v-for="metric in result.metrics" :key="metric.label" class="metric-card">
+          <span>{{ metric.label }}</span>
+          <strong>{{ metric.value }}</strong>
         </div>
       </div>
 
-      <div class="metric-grid">
-        <div class="metric"><span>阶段</span><strong>{{ result.stageLabel }}</strong></div>
-        <div class="metric"><span>比例</span><strong>{{ result.ratioLabel }}</strong></div>
-        <div class="metric"><span>温度</span><strong>{{ result.tempLabel }}</strong></div>
-        <div class="metric"><span>翻倍预测</span><strong>{{ result.expectedHours }}</strong></div>
+      <div class="insight-card timing-card">
+        <span class="insight-kicker">FERMENTATION CLOCK</span>
+        <strong>{{ result.timing.display }}</strong>
+        <p v-if="result.expected?.baseAt25to28">25–28°C 下的比例经验先验：{{ result.expected.baseAt25to28 }}</p>
       </div>
 
-      <div v-if="result.timing" class="insight-card">
-        <strong>时间模型</strong>
-        <p>
-          {{ result.timing.display }}
-          <template v-if="result.timing.confidence"> · 置信度 {{ result.timing.confidence }}</template>
-        </p>
+      <div class="insight-card">
+        <span class="insight-kicker">ACIDITY</span>
+        <strong>{{ result.ph.label }}</strong>
+        <p>{{ result.ph.message }}</p>
       </div>
 
-      <div v-if="result.phAssessment" class="insight-card">
-        <strong>pH 辅助</strong>
-        <p>{{ result.phAssessment.message }}</p>
+      <div class="advice-grid">
+        <section>
+          <h3>为什么这样判断</h3>
+          <ul><li v-for="item in result.reasons" :key="item">{{ item }}</li></ul>
+        </section>
+        <section>
+          <h3>下一步怎么做</h3>
+          <ol><li v-for="item in result.actions" :key="item">{{ item }}</li></ol>
+        </section>
       </div>
 
-      <section class="result-section">
-        <h3>原因分析</h3>
-        <ul><li v-for="item in result.reasons" :key="item">{{ item }}</li></ul>
-      </section>
+      <div class="safety-note">
+        <strong>食品安全提醒</strong>
+        <span v-for="item in result.safety" :key="item">{{ item }}</span>
+      </div>
 
-      <section class="result-section">
-        <h3>操作建议</h3>
-        <ul><li v-for="item in result.actions" :key="item">{{ item }}</li></ul>
-      </section>
+      <ReferenceList :citations="result.citations" />
 
-      <section v-if="result.safety?.length" class="result-section safety-box">
-        <h3>安全提醒</h3>
-        <ul><li v-for="item in result.safety" :key="item">{{ item }}</li></ul>
-      </section>
-
-      <ReferenceList :citations="result.citations || []" />
-    </template>
+      <details class="trace-details">
+        <summary>查看本次规则追踪</summary>
+        <pre>{{ JSON.stringify(result.trace, null, 2) }}</pre>
+      </details>
+    </div>
   </section>
 </template>

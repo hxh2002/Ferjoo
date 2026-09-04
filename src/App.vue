@@ -1,16 +1,17 @@
 <script setup>
 import AppHeader from './components/AppHeader.vue';
+import { classicAssets } from './constants/classicAssets.js';
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="page-shell">
     <AppHeader />
-    <main class="page-shell">
+    <main>
       <RouterView />
     </main>
-    <footer class="app-footer">
-      <span>Dr. Ferjoo · 仅供家庭烘焙参考</span>
-      <span>生面粉与生酵种请勿试吃，充分烘烤后食用。</span>
+    <footer class="site-footer">
+      <img :src="classicAssets.logoEnglish" alt="Dr. Ferjoo" />
+      <p>Powered by Ferjoo</p>
     </footer>
   </div>
 </template>
