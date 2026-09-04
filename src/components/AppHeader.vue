@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { classicAssets } from '../constants/classicAssets.js';
@@ -29,6 +29,15 @@ const socials = [
 
 onMounted(() => auth.init());
 
+const accountName = computed(
+  () =>
+    auth.profile.value?.display_name ||
+    auth.profile.value?.system_user_id ||
+    auth.user.value?.email ||
+    ''
+);
+const accountInitial = computed(() => (accountName.value.trim().charAt(0) || '?').toUpperCase());
+
 async function logout() {
   busy.value = true;
   try {
@@ -53,11 +62,12 @@ async function logout() {
     </nav>
 
     <div class="header-nav" aria-label="辅助导航">
-      <div v-if="auth.user.value" class="account-row">
-        <span class="user-chip">{{ auth.profile.value?.display_name || auth.profile.value?.system_user_id || auth.user.value.email }}</span>
+      <div v-if="auth.user.value" class="account-group">
+        <span class="account-avatar" aria-hidden="true">{{ accountInitial }}</span>
+        <span class="account-name" :title="accountName">{{ accountName }}</span>
         <button class="logout-button" type="button" :disabled="busy" @click="logout">LOG OUT</button>
       </div>
-      <div class="nav-links">
+      <div class="header-nav-links">
         <button class="nav-link nav-button" type="button" @click="modal = 'how'">HOW IT WORKS</button>
         <button class="nav-link nav-button" type="button" @click="modal = 'about'">ABOUT US</button>
         <RouterLink v-if="!auth.user.value" to="/login" class="nav-link">LOG IN</RouterLink>
