@@ -9,5 +9,10 @@ Thumbs.db
 node_modules/
 .vercel
 
+# 环境变量（勿上传，保留 .env.example）
+.env
+.env.*
+!.env.example
+
 # Vercel 本地凭据（勿上传）
 .vercel-global/

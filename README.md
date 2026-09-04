@@ -1,42 +1,78 @@
 # 酵种医生 · Dr. Ferjoo
 
-“让每一次发酵，都有迹可循。”
+## 目录
 
-## 快速开始
+```text
+.
+├── src/
+│   ├── algorithms/          # 所有算法 + 2,016组合 + 审核工具
+│   ├── references/          # 全部参考文献、证据库、引用schema
+│   ├── components/          # Vue 展示组件
+│   ├── views/               # 路由页面
+│   ├── services/            # UI 与算法/数据库之间的调用边界
+│   ├── composables/         # 登录会话状态
+│   ├── lib/                 # Supabase 客户端
+│   └── router/
+├── supabase/
+│   └── migrations/001_initial.sql
+├── docs/
+├── tests/
+└── public/assets/
+```
 
-直接打开 `index.html` 即可使用。
+## 本地运行
 
-也可以在本目录起一个静态服务：
+要求 Node.js 20.19+。
 
 ```bash
-python -m http.server 8000
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-然后访问 `http://localhost:8000/`。
+没有配置 Supabase 时，核心诊断页仍可使用；登录、注册、设备历史页会提示未配置。
 
-## 目录结构
+## Supabase
 
-```
-.
-├── index.html                 # 页面入口，直接打开即可使用
-├── app.js                     # 前端交互与渲染逻辑
-├── styles.css                 # 样式
-├── starter-doctor.browser.js  # 核心诊断规则引擎（浏览器/Node 共用）
-├── starter-doctor.js          # Node 适配入口
-├── assets/                    # 图标与品牌资源
-├── research/                  # 证据、引用与场景模型
-├── scripts/                   # 场景枚举与审核队列生成脚本
-├── tests/                     # 诊断算法、规则引擎与 UI 回归测试
-└── reports/                   # 生成的场景与审核队列数据
-```
+1. 创建项目。
+2. SQL Editor 执行 `supabase/migrations/001_initial.sql`。
+3. Authentication → Providers → Email：确认 Email 已启用，并保持 **Confirm email** 开启（默认）。
+4. `.env` 填入 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。
+
+开启 Confirm email 后，注册会发送验证邮件，用户需完成邮箱确认后才能登录。
+
+## 用户 ID
+
+普通用户注册后自动分配，例如：
+
+`U26090001`
+
+格式为 `权限(U/A) + 年月(YYMM) + 4位序号`。普通注册固定为 `U`。管理员通过数据库管理员函数提升为 `A`；数据外键始终使用 UUID，因此角色变化不会断开设备历史关系。
+
+## 设备历史
+
+`device_measurements` 保存每台设备的数据，并由数据库强制归一到 **10 分钟时间桶**：
+
+- 温度
+- 高度
+- 高度变化
+- 湿度
+- 电量
+- 任意扩展 `payload`
+- 原始时间戳与 10 分钟桶时间戳
 
 ## 测试
 
-项目不依赖第三方测试库，Node.js 18 及以上即可运行：
-
 ```bash
-npm test          # 运行全部诊断算法、规则引擎、场景遍历与 UI 回归测试
-npm run audit     # 对全部 2,016 个输入组合做结构自检
+npm test
+npm run audit
 ```
 
-`tests/diagnosis-algorithms.test.js` 系统覆盖归一化、自然语言解析、污染检测、pH 分层、预期翻倍时间、阶段覆盖、成熟期活性判断、时间与温度上下文、证据追踪与格式化。
+`npm run audit` 必须完整遍历 6 × 6 × 8 × 7 = **2,016** 组合并保持结构异常为 0。
+
+更多说明见：
+
+- `docs/ARCHITECTURE.md`
+- `docs/DATABASE.md`
+- `docs/MIGRATION.md`
+- `supabase/README.md`

@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-'use strict';
-
-const assert = require('node:assert/strict');
-const D = require('../starter-doctor.js');
+import assert from 'node:assert/strict';
+import * as D from '../src/algorithms/index.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });

@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-'use strict';
-
 // Dr. Ferjoo「翻倍时间预测」改造验收测试。
 // 覆盖：人工字段解耦、非线性温度响应、高度在线校正、负证据、
 //       强观测优先级、高温外推边界、温度历史积分与传感器 crossing。
 
-const assert = require('node:assert/strict');
-const D = require('../starter-doctor.js');
+import assert from 'node:assert/strict';
+import * as D from '../src/algorithms/index.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });

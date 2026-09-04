@@ -1,9 +1,11 @@
 {
   "name": "Ferjoo",
-  "version": "0.5.0",
-  "base": "v0.4.0",
-  "ui_strategy": "retain-v0.2-design-polish-user-facing-copy",
-  "reference_strategy": "public-literature-cards-in-ui-internal-trace-hidden",
+  "version": "1.0.0",
+  "base": "v0.5.0",
+  "ui_strategy": "vue3-vite-componentized",
+  "algorithm_strategy": "single-src-algorithms-boundary-with-2016-scenario-catalog",
+  "reference_strategy": "single-src-references-library-with-public-barrel",
+  "data_strategy": "supabase-auth-rls-device-10min-history",
   "research_cutoff": "2026-08-29",
   "reference_cards": 30
 }

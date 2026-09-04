@@ -1,14 +1,12 @@
 #!/usr/bin/env node
-'use strict';
-
-const assert = require('node:assert/strict');
-const nodeEntry = require('../starter-doctor.js');
-const browserEntry = require('../starter-doctor.browser.js');
+import assert from 'node:assert/strict';
+import * as nodeEntry from '../src/algorithms/index.js';
+import * as browserEntry from '../src/algorithms/index.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 
-test('Node and browser entrypoints share the same rule implementation', () => {
+test('single public algorithm entrypoint is stable across consumers', () => {
   assert.strictEqual(nodeEntry, browserEntry);
 });
 

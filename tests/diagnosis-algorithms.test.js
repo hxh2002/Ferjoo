@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-'use strict';
-
 // 系统性覆盖 starter-doctor.browser.js 中全部诊断算法分支：
 //   归一化、自然语言解析、污染检测、pH 分层、预期翻倍时间、
 //   阶段覆盖、成熟期活性判断、时间上下文、温度上下文、证据追踪与格式化。
 
-const assert = require('node:assert/strict');
-const D = require('../starter-doctor.js');
+import assert from 'node:assert/strict';
+import * as D from '../src/algorithms/index.js';
+import { EVIDENCE_CATALOG } from '../src/references/index.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -232,8 +231,8 @@ test('every diagnosis carries citations, rule trace and the raw-flour baseline',
 });
 
 test('internal Ferjoo evidence ids are marked non-public', () => {
-  assert.equal(D.EVIDENCE_CATALOG['FERJOO-EXP-TIME-001'].public, false);
-  assert.equal(D.EVIDENCE_CATALOG['FERJOO-EXP-STAGE-001'].public, false);
+  assert.equal(EVIDENCE_CATALOG['FERJOO-EXP-TIME-001'].public, false);
+  assert.equal(EVIDENCE_CATALOG['FERJOO-EXP-STAGE-001'].public, false);
 });
 
 /* --------------------------- 11. 格式化 --------------------------- */

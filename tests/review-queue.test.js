@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-'use strict';
-
-const assert = require('node:assert/strict');
-const { buildReviewQueue } = require('../scripts/build-review-queue.js');
+import assert from 'node:assert/strict';
+import { buildReviewQueue } from '../src/algorithms/build-review-queue.js';
 
 const report = buildReviewQueue();
 assert.equal(report.schema, 'dr-ferjoo/review-queue/v1');

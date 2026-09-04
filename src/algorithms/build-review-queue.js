@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-'use strict';
-
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-const doctor = require('../starter-doctor.js');
-const { generateReport } = require('./enumerate-scenarios.js');
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import * as doctor from './index.js';
+import { generateReport } from './enumerate-scenarios.js';
 
 const SCHEMA = 'dr-ferjoo/review-queue/v1';
 
@@ -135,8 +134,8 @@ function buildReviewQueue() {
   return {
     schema:SCHEMA,
     generatedAt:new Date().toISOString(),
-    sourceRuleEngine:'starter-doctor.browser.js',
-    policy:'安全覆盖优先；语义边界代表整数枚举；少见但可能保留；证据缺口不等于不可能；完整 2,016 核心组合另见 scenarios.json。',
+    sourceRuleEngine:'src/algorithms/index.js',
+    policy:'安全覆盖优先；语义边界代表整数枚举；少见但可能保留；证据缺口不等于不可能；完整 2,016 核心组合另见 scenario-catalog.json。',
     summary:{ itemCount:items.length, byKind, byEvidenceStatus, coreNarrativeClassCount:core.summary.narrativeEquivalenceClassCount },
     items
   };
@@ -157,9 +156,10 @@ function main(argv = process.argv.slice(2)) {
   }
 }
 
-if (require.main === module) {
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
   try { main(); }
   catch (error) { process.stderr.write(`Error: ${error.message || String(error)}\n`); process.exitCode = 1; }
 }
 
-module.exports = { SCHEMA, stableId, makeItem, buildReviewQueue, main };
+export { SCHEMA, stableId, makeItem, buildReviewQueue, main };

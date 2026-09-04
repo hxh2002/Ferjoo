@@ -1,18 +1,17 @@
 #!/usr/bin/env node
-'use strict';
-
 /**
  * Dr. Ferjoo finite scenario enumerator.
  *
- * This is deliberately a black-box consumer of starter-doctor.js. It does not
+ * This is deliberately a black-box consumer of the algorithms public barrel. It does not
  * duplicate or mutate diagnosis rules, so it can be used as a regression and
  * coverage harness while the rule engine evolves.
  */
 
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-const doctor = require('../starter-doctor');
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import * as doctor from './index.js';
 
 const REPORT_SCHEMA = 'dr-ferjoo/scenario-enumeration/v1';
 const AXIS_ORDER = ['stage', 'ratio', 'height', 'temp'];
@@ -350,7 +349,7 @@ function generateReport(options = {}) {
   return {
     schema: REPORT_SCHEMA,
     generatedAt: new Date().toISOString(),
-    engine: 'starter-doctor.js',
+    engine: 'src/algorithms/index.js',
     equivalenceDefinition:
       'Exact equality of state, level, reasons, actions, and safety; echoed input labels and expectedHours metadata are excluded.',
     axes,
@@ -480,7 +479,7 @@ function helpText() {
   return `Dr. Ferjoo finite scenario enumerator
 
 Usage:
-  node scripts/enumerate-scenarios.js [options]
+  node src/algorithms/enumerate-scenarios.js [options]
 
 Options:
   --format json|ndjson       Report format (default: json)
@@ -495,10 +494,10 @@ Options:
   -h, --help                 Show this help
 
 Examples:
-  node scripts/enumerate-scenarios.js --self-check
-  node scripts/enumerate-scenarios.js --pretty -o reports/scenarios.json
-  node scripts/enumerate-scenarios.js --format ndjson -o reports/scenarios.ndjson
-  node scripts/enumerate-scenarios.js --stages mature --temps t_25_28 --pretty
+  node src/algorithms/enumerate-scenarios.js --self-check
+  node src/algorithms/enumerate-scenarios.js --pretty -o src/algorithms/scenario-catalog.json
+  node src/algorithms/enumerate-scenarios.js --format ndjson -o src/algorithms/scenario-catalog.ndjson
+  node src/algorithms/enumerate-scenarios.js --stages mature --temps t_25_28 --pretty
 `;
 }
 
@@ -560,7 +559,8 @@ function main(argv = process.argv.slice(2)) {
   return report.summary.anomalyScenarioCount === 0 ? 0 : 2;
 }
 
-if (require.main === module) {
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
   try {
     process.exitCode = main();
   } catch (error) {
@@ -569,7 +569,7 @@ if (require.main === module) {
   }
 }
 
-module.exports = {
+export {
   REPORT_SCHEMA,
   AXIS_ORDER,
   canonicalAxisValues,

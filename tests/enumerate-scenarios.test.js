@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-'use strict';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const assert = require('node:assert/strict');
-const { spawnSync } = require('node:child_process');
-const path = require('node:path');
-const {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import {
   canonicalAxisValues,
   normalizeAxes,
   combinationCount,
@@ -13,7 +15,7 @@ const {
   generateReport,
   reportToNdjson,
   selfCheck
-} = require('../scripts/enumerate-scenarios');
+} from '../src/algorithms/enumerate-scenarios.js';
 
 const tests = [];
 
@@ -149,7 +151,7 @@ test('NDJSON is line-delimited and contains metadata, scenarios, classes, and su
 
 test('CLI self-check exits successfully', () => {
   const repoRoot = path.resolve(__dirname, '..');
-  const run = spawnSync(process.execPath, ['scripts/enumerate-scenarios.js', '--self-check'], {
+  const run = spawnSync(process.execPath, ['src/algorithms/enumerate-scenarios.js', '--self-check'], {
     cwd: repoRoot,
     encoding: 'utf8'
   });
