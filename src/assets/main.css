@@ -48,28 +48,37 @@ a { color: inherit; }
 .brand-lockup { display: flex; align-items: center; gap: 18px; text-decoration: none; min-width: 310px; }
 .brand-cn { width: 170px; height: auto; object-fit: contain; }
 .brand-en { width: 112px; height: auto; object-fit: contain; opacity: .92; }
-.header-nav { display: flex; justify-content: flex-end; align-items: center; gap: 18px; flex-wrap: wrap; }
+.header-nav { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nav-link {
-  border: 0; background: transparent; text-decoration: none; color: var(--ink); cursor: pointer;
-  font-size: 12px; font-weight: 900; letter-spacing: .095em; padding: 9px 2px;
-  border-bottom: 2px solid transparent; transition: .18s ease;
+  border: 0; background: transparent; text-decoration: none; color: rgba(255, 250, 240, .9); cursor: pointer;
+  font-size: 12px; font-weight: 900; letter-spacing: .10em; padding: 9px 14px;
+  border-radius: 999px; transition: .18s ease;
+  text-shadow: 0 1px 2px rgba(122, 50, 10, .35);
 }
-.nav-link:hover, .nav-link.router-link-active { border-bottom-color: var(--ink); }
+.nav-link:hover { background: rgba(255,255,255,.18); color: #fff; text-shadow: none; }
+.nav-link.router-link-active {
+  background: rgba(255,255,255,.22); color: #fff; text-shadow: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.30);
+}
 .nav-button { appearance: none; }
 .user-chip {
   max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 8px 12px; border: 1px solid rgba(42,29,23,.22); border-radius: 999px;
-  background: rgba(255,244,223,.35); font-size: 12px; font-weight: 800;
+  padding: 9px 14px; border: 1px solid rgba(255,255,255,.42); border-radius: 999px;
+  background: rgba(255,255,255,.16); color: var(--cream); font-size: 12px; font-weight: 800;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px rgba(255,255,255,.25);
 }
 
 .hero {
   display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(310px, .5fr); gap: 46px;
   align-items: end; padding: 56px 58px 52px; border-radius: 38px; overflow: hidden;
   color: white; background:
-    radial-gradient(circle at 83% 25%, rgba(255,244,223,.24), transparent 16rem),
-    linear-gradient(120deg, rgba(232,93,22,.18), transparent 60%);
-  border: 1px solid rgba(255,255,255,.28);
-  box-shadow: inset 0 1px rgba(255,255,255,.25);
+    radial-gradient(circle at 83% 25%, rgba(255,255,255,.16), transparent 16rem),
+    linear-gradient(120deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+  border: 1px solid rgba(255,255,255,.38);
+  box-shadow: inset 0 1px rgba(255,255,255,.32), 0 24px 60px rgba(94,43,8,.22);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
   position: relative;
 }
 .hero::after {
@@ -269,9 +278,14 @@ a { color: inherit; }
 .advice-grid li + li { margin-top: 5px; }
 .safety-note { display: grid; gap: 5px; border-radius: 15px; padding: 13px 15px; color: #67231c; background: #ffe7df; border: 1px solid rgba(157,43,33,.2); font-size: 11px; line-height: 1.5; }
 .safety-note strong { font-size: 12px; }
-.references { margin-top: 18px; }
-.references h4 { margin: 0 0 9px; font-size: 13px; }
-.reference-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; padding: 11px 0; border-top: 1px solid var(--line); }
+.references { margin-top: 18px; display: grid; gap: 8px; }
+.references h4 { margin: 0 0 4px; font-size: 13px; }
+.reference-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px;
+  background: rgba(255,255,255,.50); transition: .17s ease;
+}
+.reference-row:hover { background: rgba(255,255,255,.72); border-color: var(--line-strong); }
 .reference-row > div { min-width: 0; }
 .reference-kind { display: block; color: var(--orange-deep); font-size: 9px; font-weight: 950; margin-bottom: 3px; }
 .reference-row strong { font-size: 11px; line-height: 1.35; display: block; }

@@ -152,13 +152,13 @@ function runDiagnosis() {
 
       <div class="slider-grid">
         <fieldset class="field-block slider-card">
-          <legend>
+          <div class="slider-head">
             <span>04 · 温度</span>
             <label class="switch">
               <input v-model="tempEnabled" type="checkbox" aria-label="是否提供环境温度" />
               <i></i>
             </label>
-          </legend>
+          </div>
           <div class="temp-control">
             <div class="range-value">
               <strong>{{ tempEnabled ? `${form.tempC}°C` : '25–28°C' }}</strong>
@@ -178,13 +178,13 @@ function runDiagnosis() {
         </fieldset>
 
         <fieldset class="field-block slider-card">
-          <legend>
+          <div class="slider-head">
             <span>05 · 喂养后经过时间</span>
             <label class="switch">
               <input v-model="elapsedEnabled" type="checkbox" aria-label="是否提供喂养后经过时间" />
               <i></i>
             </label>
-          </legend>
+          </div>
           <div class="temp-control">
             <div class="range-value">
               <strong>{{ elapsedEnabled ? `${form.elapsedHours} h` : '1 小时' }}</strong>

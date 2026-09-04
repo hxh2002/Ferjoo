@@ -6,7 +6,7 @@ defineProps({
 
 <template>
   <div class="references" v-if="citations.length">
-    <h4>参考与证据</h4>
+    <h4>参考文献</h4>
     <article v-for="ref in citations" :key="ref.key" class="reference-row">
       <div>
         <span class="reference-kind">{{ ref.kind || (ref.public === false ? 'Ferjoo 经验先验' : ref.type) }}</span>
