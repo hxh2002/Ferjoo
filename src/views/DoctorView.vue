@@ -148,55 +148,59 @@ function runDiagnosis() {
       </fieldset>
 
       <div class="slider-grid">
-        <fieldset class="field-block slider-card">
-          <div class="slider-head">
+        <fieldset class="field-block slider-field">
+          <legend>
             <span>04 · 温度</span>
             <label class="switch">
               <input v-model="tempEnabled" type="checkbox" aria-label="是否提供环境温度" />
               <i></i>
             </label>
-          </div>
-          <div class="temp-control">
-            <div class="range-value">
-              <strong>{{ tempEnabled ? `${form.tempC}°C` : '25–28°C' }}</strong>
-              <span>{{ tempEnabled ? '已提供' : '未提供时默认' }}</span>
+          </legend>
+          <div class="slider-card">
+            <div class="temp-control">
+              <div class="range-value">
+                <strong>{{ `${form.tempC}°C` }}</strong>
+                <span>{{ tempEnabled ? '已提供' : '未提供时默认' }}</span>
+              </div>
+              <input
+                v-model.number="form.tempC"
+                class="range"
+                type="range"
+                min="8"
+                max="40"
+                step="1"
+                :disabled="!tempEnabled"
+              />
+              <div class="range-scale"><span>8°C</span><span>24°C</span><span>40°C</span></div>
             </div>
-            <input
-              v-model.number="form.tempC"
-              class="range"
-              type="range"
-              min="8"
-              max="40"
-              step="1"
-              :disabled="!tempEnabled"
-            />
-            <div class="range-scale"><span>8°C</span><span>24°C</span><span>40°C</span></div>
           </div>
         </fieldset>
 
-        <fieldset class="field-block slider-card">
-          <div class="slider-head">
+        <fieldset class="field-block slider-field">
+          <legend>
             <span>05 · 喂养后经过时间</span>
             <label class="switch">
               <input v-model="elapsedEnabled" type="checkbox" aria-label="是否提供喂养后经过时间" />
               <i></i>
             </label>
-          </div>
-          <div class="temp-control">
-            <div class="range-value">
-              <strong>{{ elapsedEnabled ? `${form.elapsedHours} h` : '1 小时' }}</strong>
-              <span>{{ elapsedEnabled ? '已提供' : '未提供时默认' }}</span>
+          </legend>
+          <div class="slider-card">
+            <div class="temp-control">
+              <div class="range-value">
+                <strong>{{ `${form.elapsedHours} h` }}</strong>
+                <span>{{ elapsedEnabled ? '已提供' : '未提供时默认' }}</span>
+              </div>
+              <input
+                v-model.number="form.elapsedHours"
+                class="range"
+                type="range"
+                min="0"
+                max="48"
+                step="1"
+                :disabled="!elapsedEnabled"
+              />
+              <div class="range-scale"><span>0h</span><span>24h</span><span>48h</span></div>
             </div>
-            <input
-              v-model.number="form.elapsedHours"
-              class="range"
-              type="range"
-              min="0"
-              max="48"
-              step="1"
-              :disabled="!elapsedEnabled"
-            />
-            <div class="range-scale"><span>0h</span><span>24h</span><span>48h</span></div>
           </div>
         </fieldset>
       </div>

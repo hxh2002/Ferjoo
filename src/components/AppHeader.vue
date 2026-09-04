@@ -53,15 +53,15 @@ async function logout() {
     </nav>
 
     <div class="header-nav" aria-label="辅助导航">
-      <button class="nav-link nav-button" type="button" @click="modal = 'how'">HOW IT WORKS</button>
-      <button class="nav-link nav-button" type="button" @click="modal = 'about'">ABOUT US</button>
-      <template v-if="auth.user.value">
+      <div v-if="auth.user.value" class="account-row">
         <span class="user-chip">{{ auth.profile.value?.display_name || auth.profile.value?.system_user_id || auth.user.value.email }}</span>
-        <button class="nav-link nav-button" :disabled="busy" @click="logout">LOG OUT</button>
-      </template>
-      <template v-else>
-        <RouterLink to="/login" class="nav-link">LOG IN</RouterLink>
-      </template>
+        <button class="logout-button" type="button" :disabled="busy" @click="logout">LOG OUT</button>
+      </div>
+      <div class="nav-links">
+        <button class="nav-link nav-button" type="button" @click="modal = 'how'">HOW IT WORKS</button>
+        <button class="nav-link nav-button" type="button" @click="modal = 'about'">ABOUT US</button>
+        <RouterLink v-if="!auth.user.value" to="/login" class="nav-link">LOG IN</RouterLink>
+      </div>
     </div>
   </header>
 
