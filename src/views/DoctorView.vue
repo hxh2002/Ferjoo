@@ -67,7 +67,7 @@ function runDiagnosis() {
   const payload = {
     ...form,
     tempC: tempEnabled.value ? form.tempC : undefined,
-    elapsedHours: elapsedEnabled.value ? form.elapsedHours : undefined
+    elapsedHours: elapsedEnabled.value ? form.elapsedHours : 1
   };
   result.value = diagnoseFromForm(payload);
   requestAnimationFrame(() => {
@@ -183,7 +183,7 @@ function runDiagnosis() {
             <div class="temp-control">
               <div class="range-value">
                 <strong>{{ `${form.elapsedHours} h` }}</strong>
-                <span>{{ elapsedEnabled ? '已提供' : '未提供时默认' }}</span>
+                <span>{{ elapsedEnabled ? '已提供' : '默认 1h' }}</span>
               </div>
               <input
                 v-model.number="form.elapsedHours"

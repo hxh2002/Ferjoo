@@ -76,12 +76,12 @@ export function predictDoublingTime({
 
   const priorPhysical = priorBio / Math.max(0.08, temp.rate);
   let center = priorPhysical;
-  const elapsed = Number(elapsedHours);
+  const elapsed = elapsedHours === '' || elapsedHours == null ? null : Number(elapsedHours);
   const progress = PROGRESS[height] ?? 0.28;
 
   // Online correction: observed height/time nudges the prior without letting one visual
   // snapshot completely override the ratio × temperature prior.
-  if (Number.isFinite(elapsed) && elapsed > 0 && progress > 0.12 && progress < 1) {
+  if (elapsed != null && Number.isFinite(elapsed) && elapsed > 0 && progress > 0.12 && progress < 1) {
     const observedTotal = elapsed / progress;
     center = Math.sqrt(priorPhysical * Math.max(elapsed, observedTotal));
   }
@@ -101,7 +101,7 @@ export function predictDoublingTime({
     };
   }
 
-  if (Number.isFinite(elapsed) && elapsed >= 0) {
+  if (elapsed != null && Number.isFinite(elapsed) && elapsed >= 0) {
     const remainingLowHours = Math.max(0, lowHours - elapsed);
     const remainingHighHours = Math.max(0, highHours - elapsed);
     const display = remainingHighHours <= 0
