@@ -83,11 +83,6 @@ function runDiagnosis() {
       <h1>让每一次发酵，<br><span>都有迹可循。</span></h1>
       <p class="hero-lead">Ferment with joy.</p>
     </div>
-    <div class="hero-facts" aria-label="功能概览">
-      <div><strong>4</strong><span>核心观察维度</span></div>
-      <div><strong>8</strong><span>高度状态</span></div>
-      <div><strong>7</strong><span>温度区间</span></div>
-    </div>
   </section>
 
   <section class="diagnostic-layout">
