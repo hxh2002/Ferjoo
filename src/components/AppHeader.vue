@@ -62,15 +62,17 @@ async function logout() {
     </nav>
 
     <div class="header-nav" aria-label="辅助导航">
-      <div v-if="auth.user.value" class="account-group">
-        <span class="account-avatar" aria-hidden="true">{{ accountInitial }}</span>
-        <span class="account-name" :title="accountName">{{ accountName }}</span>
-        <button class="logout-button" type="button" :disabled="busy" @click="logout">LOG OUT</button>
+      <div class="account-row">
+        <div v-if="auth.user.value" class="account-group">
+          <span class="account-avatar" aria-hidden="true">{{ accountInitial }}</span>
+          <span class="account-name" :title="accountName">{{ accountName }}</span>
+          <button class="logout-button" type="button" :disabled="busy" @click="logout">LOG OUT</button>
+        </div>
+        <RouterLink v-else to="/login" class="login-button">LOG IN</RouterLink>
       </div>
       <div class="header-nav-links">
         <button class="nav-link nav-button" type="button" @click="modal = 'how'">HOW IT WORKS</button>
         <button class="nav-link nav-button" type="button" @click="modal = 'about'">ABOUT US</button>
-        <RouterLink v-if="!auth.user.value" to="/login" class="nav-link">LOG IN</RouterLink>
       </div>
     </div>
   </header>
