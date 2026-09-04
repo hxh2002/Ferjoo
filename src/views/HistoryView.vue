@@ -93,7 +93,7 @@ function fmt(value, suffix = '') {
     <div class="history-heading">
       <div>
         <p class="eyebrow">FERMENTATION HISTORY</p>
-        <h1>把趋势留住，<span>比一次读数更重要。</span></h1>
+        <h1>数据看板</h1>
       </div>
       <div class="profile-plate">
         <small>FERJOO ID</small>

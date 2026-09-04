@@ -47,9 +47,12 @@ async function logout() {
       <img class="brand-en" :src="classicAssets.logoEnglish" alt="Dr. Ferjoo" />
     </RouterLink>
 
-    <nav class="header-nav" aria-label="主导航">
-      <RouterLink to="/" class="nav-link">DIAGNOSE</RouterLink>
-      <RouterLink v-if="auth.user.value" to="/history" class="nav-link">HISTORY</RouterLink>
+    <nav class="page-switch" aria-label="页面切换">
+      <RouterLink to="/" class="page-switch-link">DIAGNOSE</RouterLink>
+      <RouterLink v-if="auth.user.value" to="/history" class="page-switch-link">HISTORY</RouterLink>
+    </nav>
+
+    <div class="header-nav" aria-label="辅助导航">
       <button class="nav-link nav-button" type="button" @click="modal = 'how'">HOW IT WORKS</button>
       <button class="nav-link nav-button" type="button" @click="modal = 'about'">ABOUT US</button>
       <template v-if="auth.user.value">
@@ -59,7 +62,7 @@ async function logout() {
       <template v-else>
         <RouterLink to="/login" class="nav-link">LOG IN</RouterLink>
       </template>
-    </nav>
+    </div>
   </header>
 
   <Teleport to="body">
