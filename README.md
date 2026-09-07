@@ -42,7 +42,7 @@ npm run dev
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`（`001_initial.sql`、`002_device_ingest.sql`）。
+2. 在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`（`001_initial.sql`、`002_device_ingest.sql`、`003_device_binding.sql`）。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -90,13 +90,22 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 
 ### devices
 
-`device_id` 是硬件/业务设备标识；`user_id` 是所有者 UUID。RLS 限制普通用户只管理自己的设备；设备 `last_seen` 由数据库自动更新。
+`device_id` 是硬件/业务设备标识，设备本身不持有单一所有者。设备与用户的绑定关系记录在 `device_members` 中，实现多对多：一个设备可绑定多个用户，一个用户可绑定多个设备。
+
+### device_members
+
+绑定关系表，字段：
+
+- `device_id` / `user_id`
+- `role`：`owner`（创建者，可管理绑定）/ `member`（普通绑定成员）
+
+设备 `last_seen` 由数据库自动更新。
 
 ### device_measurements
 
 历史点包含：
 
-- `device_id` / `user_id`
+- `device_id`
 - `recorded_at`（原始采样时间）
 - `bucket_start`（10 分钟桶）
 - `temperature_c`（温度）
@@ -116,6 +125,13 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 - `anon` 无表权限。
 - `authenticated` 只有业务需要的权限。
 - 历史数据默认 append-only：客户端只有 `SELECT/INSERT`，没有 UPDATE/DELETE。
+
+### 数据可见性
+
+- 绑定成员（`device_members` 中任意 `member`/`owner`）可看到所绑定设备的全部历史数据。
+- 一个设备可绑定多个用户，一个用户可绑定多个设备。
+- 管理员（`profiles.role = 'A'`）无需绑定即可看到全部设备与全部历史数据。
+- 普通用户只能看到自己的绑定记录（`device_members` 仅返回 `user_id = 自己` 的行），看不到管理员或其他用户的绑定信息。
 
 ### 设备 HTTP 上传
 
@@ -151,6 +167,26 @@ Content-Type: application/json
 - `recorded_at` 为 ISO 8601 时间；各数值字段可省略或传 `null`。
 - 同一 `(device_id, 10 分钟桶)` 会幂等 upsert，重复上传不会产生重复数据。
 - `api_key` 仅在创建设备时返回一次，数据库只存 sha256 摘要。
+
+绑定 / 解绑用户（需登录；绑定由设备 owner 或管理员发起，成员本人也可解绑自己）：
+
+```text
+POST https://<project-ref>.supabase.co/rest/v1/rpc/bind_device_member
+Authorization: Bearer <用户 access token>
+apikey: <anon public key>
+Content-Type: application/json
+
+{ "p_device_id": "dev_xxxx", "p_system_user_id": "U26090002" }
+```
+
+```text
+POST https://<project-ref>.supabase.co/rest/v1/rpc/unbind_device_member
+Authorization: Bearer <用户 access token>
+apikey: <anon public key>
+Content-Type: application/json
+
+{ "p_device_id": "dev_xxxx", "p_system_user_id": "U26090002" }
+```
 
 ## 算法边界
 

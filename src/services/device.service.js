@@ -62,11 +62,40 @@ export async function addMeasurement(deviceId, measurement) {
   };
   const { data, error } = await client
     .from('device_measurements')
-    .upsert(payload, { onConflict: 'device_id,bucket_start' })
+    .insert(payload)
     .select()
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function bindDeviceMember(deviceId, systemUserId) {
+  const client = requireClient();
+  const { data, error } = await client.rpc('bind_device_member', {
+    p_device_id: deviceId,
+    p_system_user_id: systemUserId?.trim()
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function unbindDeviceMember(deviceId, systemUserId) {
+  const client = requireClient();
+  const { data, error } = await client.rpc('unbind_device_member', {
+    p_device_id: deviceId,
+    p_system_user_id: systemUserId?.trim()
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function listDeviceMembers(deviceId) {
+  const client = requireClient();
+  const { data, error } = await client.rpc('list_device_members', {
+    p_device_id: deviceId
+  });
+  if (error) throw error;
+  return data || [];
 }
 
 function finiteOrNull(value) {

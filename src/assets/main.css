@@ -373,6 +373,9 @@ a { color: inherit; }
 .credential-plate dt { font-size: 9px; letter-spacing: .08em; color: var(--ink-soft); }
 .credential-plate dd { margin: 0; font-family: monospace; font-size: 11px; word-break: break-all; }
 .credential-warning { color: var(--ink-soft); font-size: 12px; margin: 4px 0 0; }
+.member-plate { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.member-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; font-size: 11px; }
+.member-row button { border: 0; background: transparent; color: var(--orange); cursor: pointer; font-size: 11px; }
 .measurement-form { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)) auto; gap: 8px; align-items: end; }
 .measurement-form input { padding: 10px; }
 .small-primary { min-height: 41px; border: 0; border-radius: 12px; background: var(--ink); color: var(--cream); font-weight: 900; padding: 0 14px; cursor: pointer; }

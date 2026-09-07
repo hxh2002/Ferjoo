@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
-import { addMeasurement, createDevice, listDevices, listMeasurements } from '../services/device.service.js';
+import { addMeasurement, bindDeviceMember, createDevice, listDeviceMembers, listDevices, listMeasurements, unbindDeviceMember } from '../services/device.service.js';
 
 const auth = useAuth();
 const devices = ref([]);
@@ -20,6 +20,8 @@ const measurement = reactive({
 
 const selectedDevice = computed(() => devices.value.find((x) => x.device_id === selectedId.value));
 const createdCredential = ref(null);
+const members = ref([]);
+const memberSystemUserId = ref('');
 
 onMounted(async () => {
   await auth.init();
@@ -27,8 +29,12 @@ onMounted(async () => {
 });
 
 watch(selectedId, async (id) => {
-  if (id) await refreshMeasurements();
-  else measurements.value = [];
+  if (id) {
+    await Promise.all([refreshMeasurements(), refreshMembers()]);
+  } else {
+    measurements.value = [];
+    members.value = [];
+  }
 });
 
 async function refreshDevices() {
@@ -66,6 +72,42 @@ async function refreshMeasurements() {
     measurements.value = await listMeasurements(selectedId.value, { limit: 120 });
   } catch (e) {
     error.value = e?.message || '无法读取测量历史。';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function refreshMembers() {
+  if (!selectedId.value) return;
+  try {
+    members.value = await listDeviceMembers(selectedId.value);
+  } catch (e) {
+    error.value = e?.message || '无法读取设备绑定。';
+  }
+}
+
+async function bindMember() {
+  if (!selectedId.value || !memberSystemUserId.value.trim()) return;
+  busy.value = true; error.value = '';
+  try {
+    await bindDeviceMember(selectedId.value, memberSystemUserId.value);
+    memberSystemUserId.value = '';
+    await refreshMembers();
+  } catch (e) {
+    error.value = e?.message || '绑定用户失败。';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function unbindMember(systemUserId) {
+  if (!selectedId.value) return;
+  busy.value = true; error.value = '';
+  try {
+    await unbindDeviceMember(selectedId.value, systemUserId);
+    await refreshMembers();
+  } catch (e) {
+    error.value = e?.message || '解绑用户失败。';
   } finally {
     busy.value = false;
   }
@@ -142,6 +184,18 @@ function fmt(value, suffix = '') {
               <dd>{{ createdCredential.api_key }}</dd>
             </dl>
             <button class="small-primary" type="button" @click="createdCredential = null">知道了</button>
+          </div>
+
+          <div v-if="selectedId" class="member-plate">
+            <p class="eyebrow dark">DEVICE MEMBERS</p>
+            <form class="device-add" @submit.prevent="bindMember">
+              <input v-model="memberSystemUserId" placeholder="绑定用户 FERJOO ID" maxlength="9" />
+              <button :disabled="busy">＋</button>
+            </form>
+            <div v-for="member in members" :key="member.system_user_id" class="member-row">
+              <span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '创建者' : '成员' }}</span>
+              <button v-if="member.member_role !== 'owner'" type="button" @click="unbindMember(member.system_user_id)">解绑</button>
+            </div>
           </div>
         </aside>
 
