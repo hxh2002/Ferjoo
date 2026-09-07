@@ -233,6 +233,26 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 
 ## 部署
 
+### 自动同步 Supabase
+
+仓库中的 `.github/workflows/supabase-migrate.yml` 会在 `main` 的迁移文件发生变化时运行 `supabase db push`。Vercel 负责前端构建，GitHub Actions 负责数据库迁移，两个流程相互独立。
+
+在 GitHub 私有仓库的 `Settings → Environments` 中创建 `production`，添加以下 Actions secrets：
+
+- `SUPABASE_ACCESS_TOKEN`：Supabase Account → Access Tokens 创建的 CLI access token。
+- `SUPABASE_PROJECT_REF`：`yccvmeepajpdagizplgp`。
+- `SUPABASE_DB_PASSWORD`：Supabase 项目的数据库密码，不是 publishable key 或 secret key。
+
+由于当前 `001`、`002`、`003` 已在 SQL Editor 手动执行过，首次启用 Actions 前，在本地执行一次：
+
+```bash
+supabase login
+supabase link --project-ref yccvmeepajpdagizplgp
+supabase migration repair --status applied 001 002 003
+```
+
+之后只要提交新的 `supabase/migrations/00X_*.sql` 并推送到 `main`，GitHub Actions 就会自动应用待执行迁移。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
+
 Vercel：
 
 - Build command: `npm run build`
