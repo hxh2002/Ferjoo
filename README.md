@@ -235,23 +235,23 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 
 ### 自动同步 Supabase
 
-仓库中的 `.github/workflows/supabase-migrate.yml` 会在 `main` 的迁移文件发生变化时运行 `supabase db push`。Vercel 负责前端构建，GitHub Actions 负责数据库迁移，两个流程相互独立。
+项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-在 GitHub 私有仓库的 `Settings → Environments` 中创建 `production`，添加以下 Actions secrets：
-
-- `SUPABASE_ACCESS_TOKEN`：Supabase Account → Access Tokens 创建的 CLI access token。
-- 项目 ID 已固定在工作流中：`yccvmeepajpdagizplgp`，不需要配置 `SUPABASE_PROJECT_REF` Secret。
-- `SUPABASE_DB_PASSWORD`：Supabase 项目的数据库密码，不是 publishable key 或 secret key。
-
-当前 `001`、`002`、`003` 已在远端执行。若其他环境需要初始化 Supabase CLI，使用：
+当前 `001`、`002`、`003` 已在远端执行。若本地需要查看迁移状态，使用：
 
 ```bash
-npx supabase@latest login
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
 npx supabase@latest migration list
 ```
 
-之后只要提交新的 `supabase/migrations/00X_*.sql` 并推送到 `main`，GitHub Actions 就会自动链接项目并应用待执行迁移。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
+之后只要提交新的 `supabase/migrations/00X_*.sql` 并合并到 `main`，Supabase GitHub Integration 就会自动应用待执行迁移。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
+
+Vercel 已通过 Supabase Integration 连接项目 `ferjoo`。由于应用使用 Vite，前端变量应使用以下名称，并只同步到 Production：
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Preview 和 Development 环境无需同步生产数据库凭据。
 
 Vercel：
 
