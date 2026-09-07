@@ -42,7 +42,7 @@ npm run dev
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 在 SQL Editor 执行 `supabase/migrations/001_initial.sql`。
+2. 在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`（`001_initial.sql`、`002_device_ingest.sql`）。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -80,13 +80,13 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 
 ### profiles
 
-| 字段 | 用途 |
-|---|---|
-| `id uuid` | 与 `auth.users.id` 一一对应，内部稳定主键 |
-| `system_user_id varchar(9)` | 对外 ID：`U/A + YYMM + 0001` |
-| `role` | `U` 普通用户 / `A` 管理员 |
-| `email` | Auth 邮箱镜像 |
-| `display_name` | 可选显示名 |
+| 字段                          | 用途                                       |
+| ----------------------------- | ------------------------------------------ |
+| `id uuid`                   | 与`auth.users.id` 一一对应，内部稳定主键 |
+| `system_user_id varchar(9)` | 对外 ID：`U/A + YYMM + 0001`             |
+| `role`                      | `U` 普通用户 / `A` 管理员              |
+| `email`                     | Auth 邮箱镜像                              |
+| `display_name`              | 可选显示名                                 |
 
 ### devices
 
@@ -116,6 +116,41 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 - `anon` 无表权限。
 - `authenticated` 只有业务需要的权限。
 - 历史数据默认 append-only：客户端只有 `SELECT/INSERT`，没有 UPDATE/DELETE。
+
+### 设备 HTTP 上传
+
+设备通过 WiFi/HTTP 每 10 分钟上传一次数据，每次可携带最多过去 48 小时（约 288 个 10 分钟桶）的采样。上传走 Supabase PostgREST RPC，不需要用户登录态。
+
+创建设备（浏览器已登录时调用）会返回一次性 `device_id` 与 `api_key`：
+
+```text
+POST https://<project-ref>.supabase.co/rest/v1/rpc/create_device
+Authorization: Bearer <用户 access token>
+apikey: <anon public key>
+Content-Type: application/json
+
+{ "p_name": "Ferjoo Sensor" }
+```
+
+设备上传（使用设备自身凭据，不需要用户 token）：
+
+```text
+POST https://<project-ref>.supabase.co/rest/v1/rpc/ingest_device_measurements
+apikey: <anon public key>
+Content-Type: application/json
+
+{
+  "p_device_id": "dev_xxxx",
+  "p_api_key": "xxxx",
+  "p_measurements": [
+    { "recorded_at": "2026-09-04T08:00:00Z", "temperature_c": 24.5, "height_mm": 12.3, "height_delta_mm": 0.5, "humidity_percent": 78.1, "battery_percent": 91, "payload": {} }
+  ]
+}
+```
+
+- `recorded_at` 为 ISO 8601 时间；各数值字段可省略或传 `null`。
+- 同一 `(device_id, 10 分钟桶)` 会幂等 upsert，重复上传不会产生重复数据。
+- `api_key` 仅在创建设备时返回一次，数据库只存 sha256 摘要。
 
 ## 算法边界
 
@@ -169,17 +204,6 @@ Vercel：
 - `vercel.json` 已包含 SPA rewrite
 
 也可部署到任意能托管 Vite 静态产物的平台。
-
-## v1.0 重构与迁移背景
-
-从 v0.5 静态项目（`index.html + app.js + styles.css`）迁移而来：
-
-1. 原 `starter-doctor.browser.js` 拆分为 `src/algorithms/` 中职责明确的模块，公共调用只走 `src/algorithms/index.js`。
-2. 原 `scripts/` 与 `reports/` 不再散落：枚举器、审核器和 2,016 组合结果全部归入算法目录。
-3. 原 `research/` 整体迁入 `src/references/`，运行时引用元数据全部从算法文件移出。
-4. 原页面替换为 Vue 3 + Vue Router + Vite：组件化诊断表单与结果页、登录/注册页、设备历史页，并采用 service/composable 分层。
-5. 新增 Supabase：邮箱/密码注册登录、自动系统用户 ID、U/A 权限字段、设备绑定、10 分钟历史数据、RLS 隔离。
-6. 原诊断算法行为由迁移后的 Node 回归测试继续覆盖，2,016 组合枚举仍要求零结构异常。
 
 完整验证命令：
 

@@ -18,7 +18,8 @@ const measurement = reactive({
   batteryPercent: ''
 });
 
-const selectedDevice = computed(() => devices.value.find((x) => x.id === selectedId.value));
+const selectedDevice = computed(() => devices.value.find((x) => x.device_id === selectedId.value));
+const createdCredential = ref(null);
 
 onMounted(async () => {
   await auth.init();
@@ -34,7 +35,7 @@ async function refreshDevices() {
   busy.value = true; error.value = '';
   try {
     devices.value = await listDevices();
-    if (!selectedId.value && devices.value.length) selectedId.value = devices.value[0].id;
+    if (!selectedId.value && devices.value.length) selectedId.value = devices.value[0].device_id;
   } catch (e) {
     error.value = e?.message || '无法读取设备。';
   } finally {
@@ -48,8 +49,9 @@ async function addDevice() {
   try {
     const device = await createDevice({ name: newDeviceName.value });
     newDeviceName.value = '';
+    createdCredential.value = { device_id: device.device_id, api_key: device.api_key };
     await refreshDevices();
-    selectedId.value = device.id;
+    selectedId.value = device.device_id;
   } catch (e) {
     error.value = e?.message || '创建设备失败。';
   } finally {
@@ -120,14 +122,26 @@ function fmt(value, suffix = '') {
           <div class="device-list">
             <button
               v-for="device in devices"
-              :key="device.id"
-              :class="{ selected: selectedId === device.id }"
-              @click="selectedId = device.id"
+              :key="device.device_id"
+              :class="{ selected: selectedId === device.device_id }"
+              @click="selectedId = device.device_id"
             >
               <span class="device-dot"></span>
-              <span><strong>{{ device.name }}</strong><small>{{ device.id }}</small></span>
+              <span><strong>{{ device.name }}</strong><small>{{ device.device_id }}</small></span>
             </button>
             <p v-if="!devices.length" class="empty-list">还没有设备。创建一个即可开始保存测量。</p>
+          </div>
+
+          <div v-if="createdCredential" class="credential-plate">
+            <p class="eyebrow dark">DEVICE CREDENTIALS</p>
+            <p class="credential-warning">请立即保存，密钥仅显示一次。</p>
+            <dl>
+              <dt>device_id</dt>
+              <dd>{{ createdCredential.device_id }}</dd>
+              <dt>api_key</dt>
+              <dd>{{ createdCredential.api_key }}</dd>
+            </dl>
+            <button class="small-primary" type="button" @click="createdCredential = null">知道了</button>
           </div>
         </aside>
 

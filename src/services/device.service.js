@@ -17,25 +17,20 @@ export async function listDevices() {
   const client = requireClient();
   const { data, error } = await client
     .from('devices')
-    .select('*')
+    .select('device_id, name, model, firmware_version, last_seen_at, metadata, created_at, updated_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
-export async function createDevice({ name }) {
+export async function createDevice({ name, deviceId } = {}) {
   const client = requireClient();
-  const { data: authData, error: authError } = await client.auth.getUser();
-  if (authError) throw authError;
-  if (!authData.user) throw new Error('请先登录。');
-
-  const { data, error } = await client
-    .from('devices')
-    .insert({ owner_id: authData.user.id, name: name?.trim() || 'Ferjoo Sensor' })
-    .select()
-    .single();
+  const { data, error } = await client.rpc('create_device', {
+    p_name: name?.trim() || 'Ferjoo Sensor',
+    p_device_id: deviceId?.trim() || null
+  });
   if (error) throw error;
-  return data;
+  return data; // { device_id, api_key }
 }
 
 export async function listMeasurements(deviceId, { limit = 120, from, to } = {}) {
