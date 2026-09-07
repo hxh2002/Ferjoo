@@ -21,9 +21,22 @@ jobs:
         with:
           version: latest
 
-      - name: 执行待应用迁移
-        run: supabase db push --db-url "postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+      - name: 检查必要密钥
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: 标记已手动执行的迁移
+        run: supabase migration repair --status applied 001 002 003 --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: yccvmeepajpdagizplgp
+
+      - name: 执行待应用迁移
+        run: supabase db push --db-url "postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.yccvmeepajpdagizplgp.supabase.co:5432/postgres?sslmode=require"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
