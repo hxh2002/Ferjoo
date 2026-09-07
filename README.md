@@ -42,7 +42,7 @@ npm run dev
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`（`001_initial.sql`、`002_device_ingest.sql`、`003_device_binding.sql`）。
+2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`、`002`、`003` 已完成远端同步。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -240,18 +240,18 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 在 GitHub 私有仓库的 `Settings → Environments` 中创建 `production`，添加以下 Actions secrets：
 
 - `SUPABASE_ACCESS_TOKEN`：Supabase Account → Access Tokens 创建的 CLI access token。
-- `SUPABASE_PROJECT_REF`：`yccvmeepajpdagizplgp`。
+- 项目 ID 已固定在工作流中：`yccvmeepajpdagizplgp`，不需要配置 `SUPABASE_PROJECT_REF` Secret。
 - `SUPABASE_DB_PASSWORD`：Supabase 项目的数据库密码，不是 publishable key 或 secret key。
 
-由于当前 `001`、`002`、`003` 已在 SQL Editor 手动执行过，首次启用 Actions 前，在本地执行一次：
+当前 `001`、`002`、`003` 已在远端执行。若其他环境需要初始化 Supabase CLI，使用：
 
 ```bash
-supabase login
-supabase link --project-ref yccvmeepajpdagizplgp
-supabase migration repair --status applied 001 002 003
+npx supabase@latest login
+npx supabase@latest link --project-ref yccvmeepajpdagizplgp
+npx supabase@latest migration list
 ```
 
-之后只要提交新的 `supabase/migrations/00X_*.sql` 并推送到 `main`，GitHub Actions 就会自动应用待执行迁移。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
+之后只要提交新的 `supabase/migrations/00X_*.sql` 并推送到 `main`，GitHub Actions 就会自动链接项目并应用待执行迁移。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
 
 Vercel：
 
