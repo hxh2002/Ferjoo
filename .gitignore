@@ -4,6 +4,9 @@ knowledge/
 # Classic UI 本地副本（已合并回正式版，仅保留本地参考）
 Ferjoo-Classic-UI/
 
+# 本地演示文稿（不入库）
+Ferjoo_PPT.pptx
+
 # 系统与通用
 .DS_Store
 Thumbs.db

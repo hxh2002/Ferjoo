@@ -1,6 +1,6 @@
 # 酵种医生 · Dr. Ferjoo — 开发者文档
 
-Vue 3 + Vite + Supabase 的酵种诊断应用：有限场景诊断算法 + 剩余翻倍时间估算 + 证据追踪 + 账号与设备 10 分钟测量历史，视觉为大更新前最后一版的**经典 UI**（橙色整页背景、磨砂玻璃卡片、双品牌 Logo、顶部居中页签切换）。
+Vue 3 + Vite + Supabase 
 
 本文件是项目唯一的开发者文档，集中覆盖目录结构、本地运行、Supabase 部署、用户系统、数据库设计、算法边界、测试与部署说明。
 
@@ -11,7 +11,7 @@ Vue 3 + Vite + Supabase 的酵种诊断应用：有限场景诊断算法 + 剩�
 ├── src/
 │   ├── algorithms/          # 诊断/解析/时间预测算法 + 2,016 场景枚举
 │   ├── assets/              # 经典 UI 样式 main.css
-│   ├── constants/           # 经典资产常量（固定提交基线）
+│   ├── constants/           # 经典资产常量
 │   ├── references/          # 运行时证据目录 + 参考文献资料库
 │   ├── components/          # Vue 展示组件
 │   ├── views/               # 路由页面（诊断 / 登录 / 注册 / 历史）
@@ -24,7 +24,7 @@ Vue 3 + Vite + Supabase 的酵种诊断应用：有限场景诊断算法 + 剩�
 │   └── migrations/001_initial.sql
 ├── docs/ARCHITECTURE.md     # 依赖方向图补充
 ├── tests/
-└── public/assets/           # 经典 PNG 资产（固定在提交 0a8d43b）
+└── public/assets/           # 经典 PNG 资产
 ```
 
 ## 本地运行
@@ -275,4 +275,4 @@ npm run dev
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - [`src/references/README.md`](src/references/README.md)
-- [`public/assets/CLASSIC_ASSETS.md`](public/assets/CLASSIC_ASSETS.md)（经典资产固定基线说明）
+- [`public/assets/CLASSIC_ASSETS.md`](public/assets/CLASSIC_ASSETS.md)（资产说明）
