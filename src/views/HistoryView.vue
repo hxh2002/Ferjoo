@@ -5,6 +5,7 @@ import SeriesChart from '../components/SeriesChart.vue';
 import {
   addMeasurement,
   bindDeviceMember,
+  claimDevice,
   createDevice,
   getLatestMeasurement,
   listDeviceMembers,
@@ -39,6 +40,54 @@ const memberSystemUserId = ref('');
 
 const renaming = ref(false);
 const renameValue = ref('');
+
+const bindCode = ref('');
+const bindSuccess = ref('');
+const bindCopied = ref(false);
+
+function formatBindCode(code) {
+  if (!code) return '—';
+  const clean = code.toUpperCase();
+  return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+}
+
+async function claimBind() {
+  const code = bindCode.value.trim();
+  if (!code) return;
+  busy.value = true;
+  error.value = '';
+  bindSuccess.value = '';
+  try {
+    const res = await claimDevice(code);
+    bindCode.value = '';
+    await refreshDevices();
+    if (res.device_id) selectedId.value = res.device_id;
+    bindSuccess.value = res.already_mine
+      ? '该设备已在你的列表中。'
+      : res.role === 'owner'
+        ? '绑定成功，你是这台设备的创建者。'
+        : '绑定成功，设备已加入你的列表。';
+    setTimeout(() => { bindSuccess.value = ''; }, 4000);
+  } catch (e) {
+    error.value = e?.message?.includes('INVALID_BIND_CODE')
+      ? '绑定码无效，请核对后重试。'
+      : e?.message || '绑定失败，请稍后重试。';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function copyBindCode() {
+  const code = selectedDevice.value?.bind_code;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(formatBindCode(code));
+    bindCopied.value = true;
+    setTimeout(() => { bindCopied.value = false; }, 1500);
+  } catch {
+    bindCopied.value = false;
+  }
+}
 
 const canManage = computed(() => {
   if (auth.profile.value?.role === 'A') return true;
@@ -110,7 +159,7 @@ async function addDevice() {
   try {
     const device = await createDevice({ name: newDeviceName.value });
     newDeviceName.value = '';
-    createdCredential.value = { device_id: device.device_id, api_key: device.api_key };
+    createdCredential.value = { device_id: device.device_id, api_key: device.api_key, bind_code: device.bind_code };
     await refreshDevices();
     selectedId.value = device.device_id;
   } catch (e) {
@@ -245,6 +294,16 @@ function fmt(value, suffix = '') {
             <input v-model="newDeviceName" placeholder="设备名称" maxlength="80" />
             <button :disabled="busy">＋</button>
           </form>
+          <form class="device-add bind-form" @submit.prevent="claimBind">
+            <input
+              v-model="bindCode"
+              placeholder="或输入 8 位绑定码绑定已有设备"
+              maxlength="12"
+              autocomplete="off"
+            />
+            <button :disabled="busy" title="绑定设备">⇢</button>
+          </form>
+          <p v-if="bindSuccess" class="form-success bind-success">{{ bindSuccess }}</p>
           <div class="device-list">
             <button
               v-for="device in devices"
@@ -266,8 +325,19 @@ function fmt(value, suffix = '') {
               <dd>{{ createdCredential.device_id }}</dd>
               <dt>api_key</dt>
               <dd>{{ createdCredential.api_key }}</dd>
+              <dt>bind_code</dt>
+              <dd>{{ formatBindCode(createdCredential.bind_code) }}</dd>
             </dl>
             <button class="small-primary" type="button" @click="createdCredential = null">知道了</button>
+          </div>
+
+          <div v-if="selectedDevice?.bind_code" class="bind-code-plate">
+            <p class="eyebrow dark">BIND CODE</p>
+            <div class="bind-code-row">
+              <code>{{ formatBindCode(selectedDevice.bind_code) }}</code>
+              <button class="copy-button" type="button" @click="copyBindCode">{{ bindCopied ? '已复制' : '复制' }}</button>
+            </div>
+            <small>家人或同事输入此码，即可把这台设备绑到自己的账号。</small>
           </div>
 
           <div v-if="selectedId && canManage" class="member-plate">

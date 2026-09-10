@@ -28,6 +28,29 @@
 | 存储位置      | 每台设备独立写入 Flash / NVS，禁止写进源码仓库                        |
 | `device_id` | 非机密，与 key 一起存放即可                                           |
 
+### 1.1 随设备交付的绑定码（bind_code）
+
+每台设备还有一串 **8 位绑定码**（如 `ABCD-EFGH`，字母表排除了 `0/O/1/I/L` 等易混淆字符），作用与 `api_key` 完全不同：
+
+| 凭据 | 用途 | 机密性 |
+| --- | --- | --- |
+| `api_key` | 设备固件上传数据的密钥 | 机密，只烧录在设备里 |
+| `bind_code` | 用户把设备绑到自己账号的凭据（持有即拥有） | 半公开，印在设备标签 / 随附卡片上 |
+
+- 用户拿到设备后注册账号，在 HISTORY 页输入绑定码即可完成绑定；设备与用户是多对多关系：首个绑定者为 owner，之后绑定者为 member。
+- **二维码是绑定码的冗余载体**，内容为 URL：`https://<域名>/claim?code=ABCD-EFGH`。扫码后未登录会自动跳转登录/注册，完成后再回来自动绑定。
+- 出厂批量备产：管理员直接 SQL 插入 `devices` 行（不写 `device_members`，设备保持无主），`bind_code` 由列默认值自动生成，打印标签时读出即可：
+
+```sql
+-- 出厂批量注册示例（SQL Editor，一次一台）
+insert into public.devices (device_id, name, model, api_key_hash)
+values ('dev_a1b2c3d4e5f60708', 'Ferjoo Sensor', 'ESP32-S3',
+        encode(extensions.digest('<明文 api_key>', 'sha256'), 'hex'));
+
+-- 读出自动签发的绑定码用于打印标签
+select device_id, bind_code from public.devices where device_id = 'dev_a1b2c3d4e5f60708';
+```
+
 ## 2. 上传接口规范
 
 ### 2.1 请求

@@ -17,10 +17,19 @@ export async function listDevices() {
   const client = requireClient();
   const { data, error } = await client
     .from('devices')
-    .select('device_id, name, model, firmware_version, last_seen_at, metadata, created_at, updated_at')
+    .select('device_id, name, model, firmware_version, bind_code, last_seen_at, metadata, created_at, updated_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
+}
+
+export async function claimDevice(bindCode) {
+  const client = requireClient();
+  const { data, error } = await client.rpc('claim_device', {
+    p_bind_code: bindCode?.trim() || ''
+  });
+  if (error) throw error;
+  return data; // { claimed, already_mine?, device_id, role }
 }
 
 export async function createDevice({ name, deviceId } = {}) {

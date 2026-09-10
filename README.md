@@ -116,7 +116,7 @@ npm run dev
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`004` 已完成远端同步。
+2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`007` 已完成远端同步。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -181,7 +181,7 @@ where system_user_id = 'U26090001';
 
 ### 浏览器端能力
 
-已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备创建/选择/改名/在线状态、设备成员绑定、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
+已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备创建/选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
 
 “不验证邮箱正确性”按“不验证邮箱所有权”实现：部署时关闭 Supabase Confirm email；Supabase 仍保留基本邮箱格式要求。
 
@@ -212,6 +212,13 @@ where system_user_id = 'U26090001';
 ### devices
 
 `device_id` 是硬件/业务设备标识，设备本身不持有单一所有者。设备与用户的绑定关系记录在 `device_members` 中，实现多对多：一个设备可绑定多个用户，一个用户可绑定多个设备。
+
+每台设备带一串 **8 位绑定码 `bind_code`**（Crockford 字母表，无 `0/O/1/I/L` 混淆字符），遵循「持有即拥有」原则：
+
+- 用户注册后在 HISTORY 页输入绑定码（或访问 `/claim?code=XXXX-XXXX` 扫码路径），调用 `claim_device` RPC 即可把设备绑到自己账号；
+- 无人认领的设备第一个绑定者成为 `owner`，之后绑定者为 `member`；
+- 出厂批量备产直接 SQL 插入 `devices` 行（不写成员，设备无主），`bind_code` 由列默认值自动签发；
+- 绑定码在设备详情中对成员可见，可直接分享给家人/同事完成二次绑定。
 
 ### device_members
 
@@ -360,7 +367,7 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前 `001`～`004` 已在远端执行。若本地需要查看迁移状态，使用：
+当前 `001`～`007` 已在远端执行。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp

@@ -1002,6 +1002,39 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   border-radius: 13px;
 }
 
+/* 设备绑定码 */
+.bind-form { margin-top: 8px; }
+.bind-success { margin: 8px 0 0; }
+.bind-code-plate {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255,255,255,.42);
+}
+.bind-code-plate .eyebrow { margin-bottom: 8px; }
+.bind-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bind-code-row code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 19px;
+  font-weight: 950;
+  letter-spacing: .1em;
+  color: var(--ink);
+}
+.bind-code-plate small {
+  display: block;
+  margin-top: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.claim-status { display: grid; gap: 14px; }
+
 @media (max-width: 1080px) {
   .latest-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
