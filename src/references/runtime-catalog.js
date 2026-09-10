@@ -94,7 +94,7 @@ const EVIDENCE_CATALOG = {
     authorsShort: 'Gänzle et al.', source: 'Applied and Environmental Microbiology', year: '1998',
     title: 'Modeling of Growth of Lactobacillus sanfranciscensis and Candida milleri in Response to Process Parameters of Sourdough Fermentation',
     citation: 'Gänzle MG, Ehmann M, Hammes WP. Appl Environ Microbiol. 1998;64(7):2616–2623.',
-    url: null,
+    url: 'https://doi.org/10.1128/AEM.64.7.2616-2623.1998',
     supports: 'Temperature response is nonlinear; strain growth-rate data should not be presented as a universal jar doubling time.',
     displayNote: '论文温度响应只作为相对生物时钟，不直接等同罐中高度翻倍时间。'
   },
