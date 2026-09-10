@@ -418,7 +418,7 @@ async function clearAvatar() {
               <small v-else class="invite-exhausted">邀请名额已用完。</small>
             </div>
             <p class="invite-note">
-              新用户可邀请人数默认为 1；存量用户与管理员为 100。名额上限如需调整，请联系管理员在数据库中修改。
+              新用户可邀请人数默认为 1，如需调整，请联系管理员修改。
             </p>
           </div>
 
