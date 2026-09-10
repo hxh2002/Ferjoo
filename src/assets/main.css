@@ -309,11 +309,30 @@ a { color: inherit; }
 .insight-kicker { display: block; color: var(--orange-deep); font-size: 9px; font-weight: 950; letter-spacing: .15em; margin-bottom: 6px; }
 .insight-card strong { display: block; font-size: 18px; }
 .insight-card p { margin: 6px 0 0; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
-.advice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
-.advice-grid section { border-top: 2px solid var(--ink); padding-top: 12px; }
-.advice-grid h3 { margin: 0 0 10px; font-size: 13px; }
-.advice-grid ul, .advice-grid ol { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
-.advice-grid li + li { margin-top: 5px; }
+.advice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.advice-card {
+  border: 1px solid var(--line); border-radius: 17px; padding: 16px 17px 15px;
+  background: rgba(255,255,255,.38);
+}
+.advice-card.advice-actions { background: var(--orange-soft); border-color: rgba(232,93,22,.25); }
+.advice-card h3 { margin: 0 0 12px; font-size: 15px; letter-spacing: -.01em; }
+.advice-card ul, .advice-card ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.advice-card li { display: flex; gap: 10px; align-items: flex-start; position: relative; }
+.advice-card li p { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
+.advice-card.advice-actions li p { color: #6b4426; }
+.reason-dot {
+  flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px;
+  background: var(--orange-deep); box-shadow: 0 0 0 3px rgba(232,93,22,.15);
+}
+.step-num {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; z-index: 1;
+  display: grid; place-items: center;
+  background: var(--orange-deep); color: #fff; font-size: 10px; font-weight: 950;
+}
+.advice-actions li:not(:last-child)::before {
+  content: ""; position: absolute; left: 9px; top: 22px; bottom: -8px; width: 2px;
+  background: rgba(232,93,22,.20); border-radius: 2px;
+}
 .safety-note { display: grid; gap: 5px; border-radius: 15px; padding: 13px 15px; color: #67231c; background: #ffe7df; border: 1px solid rgba(157,43,33,.2); font-size: 11px; line-height: 1.5; }
 .safety-note strong { font-size: 12px; }
 .references { margin-top: 18px; display: grid; gap: 8px; }

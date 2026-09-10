@@ -72,13 +72,25 @@ async function copyReport() {
       </div>
 
       <div class="advice-grid">
-        <section>
+        <section class="advice-card">
+          <span class="insight-kicker">WHY</span>
           <h3>为什么这样判断</h3>
-          <ul><li v-for="item in result.reasons" :key="item">{{ item }}</li></ul>
+          <ul>
+            <li v-for="item in result.reasons" :key="item">
+              <span class="reason-dot" aria-hidden="true"></span>
+              <p>{{ item }}</p>
+            </li>
+          </ul>
         </section>
-        <section>
+        <section class="advice-card advice-actions">
+          <span class="insight-kicker">NEXT STEPS</span>
           <h3>下一步怎么做</h3>
-          <ol><li v-for="item in result.actions" :key="item">{{ item }}</li></ol>
+          <ol>
+            <li v-for="(item, index) in result.actions" :key="item">
+              <span class="step-num" aria-hidden="true">{{ index + 1 }}</span>
+              <p>{{ item }}</p>
+            </li>
+          </ol>
         </section>
       </div>
 
