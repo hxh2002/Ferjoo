@@ -1,15 +1,20 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import ChoiceGroup from '../components/ChoiceGroup.vue';
 import DiagnosisResult from '../components/DiagnosisResult.vue';
 import { HEIGHTS, RATIOS, STAGES, parseStarterInput } from '../algorithms/index.js';
 import { diagnoseFromForm } from '../services/diagnosis.service.js';
+import { useAuth } from '../composables/useAuth.js';
 
+const auth = useAuth();
 const quickText = ref('');
 const result = ref(null);
 const advanced = ref(false);
 const tempEnabled = ref(false);
 const elapsedEnabled = ref(false);
+const loginRequired = ref(false);
+
+onMounted(() => auth.init());
 
 const form = reactive({
   stage: 'mature',
@@ -63,7 +68,12 @@ function applyQuickText() {
   if (parsed.elapsedHours != null) elapsedEnabled.value = true;
 }
 
-function runDiagnosis() {
+async function runDiagnosis() {
+  if (!auth.ready.value) await auth.init();
+  if (!auth.user.value) {
+    loginRequired.value = true;
+    return;
+  }
   const payload = {
     ...form,
     tempC: tempEnabled.value ? form.tempC : undefined,
@@ -236,8 +246,24 @@ function runDiagnosis() {
         <span>开始诊断</span>
         <b>DIAGNOSE →</b>
       </button>
+      <p v-if="!auth.user.value" class="login-gate-note">诊断功能需要登录账号后使用，点击“开始诊断”后将提示登录。</p>
     </form>
 
     <DiagnosisResult :result="result" />
   </section>
+
+  <Teleport to="body">
+    <div v-if="loginRequired" class="modal-backdrop" @click.self="loginRequired = false">
+      <section class="gate-modal" role="dialog" aria-modal="true">
+        <button class="modal-close" type="button" aria-label="关闭" @click="loginRequired = false">×</button>
+        <p class="eyebrow dark">LOGIN REQUIRED</p>
+        <h2>请先登录账号</h2>
+        <p class="gate-text">未登录账号无法使用诊断功能。登录或创建账号后即可继续，感谢你的理解。</p>
+        <div class="gate-actions">
+          <RouterLink class="small-primary gate-login" to="/login">去登录</RouterLink>
+          <RouterLink class="ghost-button" to="/register">创建账号</RouterLink>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 </template>

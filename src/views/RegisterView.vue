@@ -4,15 +4,32 @@ import AuthCard from '../components/AuthCard.vue';
 import { signUpWithEmail } from '../services/auth.service.js';
 import { useAuth } from '../composables/useAuth.js';
 
-const form = reactive({ displayName: '', email: '', password: '', confirm: '' });
+const form = reactive({ displayName: '', email: '', password: '', confirm: '', inviteCode: '' });
 const error = ref('');
 const success = ref('');
 const busy = ref(false);
 const auth = useAuth();
 
+const INVITE_ERROR_MESSAGES = {
+  INVALID_INVITE_CODE: '邀请码无效，请检查后重试。',
+  INVITE_QUOTA_EXCEEDED: '该邀请码的可邀请人数已达上限。',
+  REGISTRATION_REQUIRES_INVITE: '当前仅限邀请注册，请填写邀请码。'
+};
+
+function friendlyInviteError(message = '') {
+  for (const [code, text] of Object.entries(INVITE_ERROR_MESSAGES)) {
+    if (message.includes(code)) return text;
+  }
+  return null;
+}
+
 async function submit() {
   error.value = '';
   success.value = '';
+  if (!/^\d{8}$/.test(form.inviteCode.trim())) {
+    error.value = '请输入 8 位数字邀请码。';
+    return;
+  }
   if (form.password.length < 6) {
     error.value = '密码至少需要 6 位。';
     return;
@@ -28,7 +45,7 @@ async function submit() {
       ? '注册成功，当前项目已允许直接登录。'
       : '注册成功。请按 Supabase 项目的设置前往邮箱完成确认，再登录。';
   } catch (e) {
-    error.value = e?.message || '注册失败。';
+    error.value = friendlyInviteError(e?.message) || e?.message || '注册失败。';
   } finally {
     busy.value = false;
   }
@@ -37,12 +54,24 @@ async function submit() {
 
 <template>
   <div class="auth-page">
-    <AuthCard eyebrow="JOIN DR. FERJOO" title="保存你的发酵轨迹。" description="注册后，数据库触发器会生成形如 UYYMM0001 的系统用户编号。">
+    <AuthCard eyebrow="JOIN DR. FERJOO" title="保存你的发酵轨迹。" description="当前采用邀请制注册：需要 8 位邀请码方可创建账号，账号创建后数据库会为你分配专属邀请码与系统用户编号。">
       <div v-if="!auth.configured" class="config-warning">
-        当前未配置 Supabase。你可以先使用完整诊断功能，配置数据库后再启用账号与设备历史。
+        当前未配置 Supabase。诊断功能需登录后使用，请先复制 .env.example 为 .env 并填写项目配置。
       </div>
       <form class="auth-form" @submit.prevent="submit">
-        <label><span>显示名称</span><input v-model.trim="form.displayName" type="text" maxlength="80" /></label>
+        <label>
+          <span>邀请码 <b class="required-mark">*</b></span>
+          <input
+            v-model.trim="form.inviteCode"
+            type="text"
+            inputmode="numeric"
+            maxlength="8"
+            placeholder="8 位数字邀请码"
+            autocomplete="off"
+            required
+          />
+        </label>
+        <label><span>显示名称 / 用户名</span><input v-model.trim="form.displayName" type="text" maxlength="80" /></label>
         <label><span>邮箱</span><input v-model.trim="form.email" type="email" autocomplete="email" required /></label>
         <label><span>密码</span><input v-model="form.password" type="password" autocomplete="new-password" required /></label>
         <label><span>确认密码</span><input v-model="form.confirm" type="password" autocomplete="new-password" required /></label>

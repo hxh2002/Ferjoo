@@ -1,12 +1,26 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
-import { addMeasurement, bindDeviceMember, createDevice, listDeviceMembers, listDevices, listMeasurements, unbindDeviceMember } from '../services/device.service.js';
+import SeriesChart from '../components/SeriesChart.vue';
+import {
+  addMeasurement,
+  bindDeviceMember,
+  createDevice,
+  getLatestMeasurement,
+  listDeviceMembers,
+  listDevices,
+  listMeasurements,
+  renameDevice,
+  unbindDeviceMember
+} from '../services/device.service.js';
+
+const ONLINE_WINDOW_MS = 20 * 60 * 1000; // 两个 10 分钟桶内视为在线
 
 const auth = useAuth();
 const devices = ref([]);
 const selectedId = ref('');
 const measurements = ref([]);
+const latest = ref(null);
 const error = ref('');
 const busy = ref(false);
 const newDeviceName = ref('');
@@ -23,25 +37,66 @@ const createdCredential = ref(null);
 const members = ref([]);
 const memberSystemUserId = ref('');
 
+const renaming = ref(false);
+const renameValue = ref('');
+
+const canManage = computed(() => {
+  if (auth.profile.value?.role === 'A') return true;
+  const myId = auth.profile.value?.system_user_id;
+  return members.value.some((m) => m.member_role === 'owner' && m.system_user_id === myId);
+});
+
+const seriesAscending = computed(() =>
+  [...measurements.value].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at))
+);
+const tempSeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.temperature_c) })));
+const heightSeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.height_mm) })));
+const humiditySeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.humidity_percent) })));
+const batterySeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.battery_percent) })));
+
+const selectedStatus = computed(() => deviceStatus(selectedDevice.value));
+const lastSeenText = computed(() => {
+  const at = selectedDevice.value?.last_seen_at;
+  if (!at) return '从未上报';
+  return new Date(at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+});
+
 onMounted(async () => {
   await auth.init();
   if (auth.configured) await refreshDevices();
 });
 
 watch(selectedId, async (id) => {
+  renaming.value = false;
   if (id) {
-    await Promise.all([refreshMeasurements(), refreshMembers()]);
+    await Promise.all([refreshMeasurements(), refreshMembers(), refreshLatest()]);
   } else {
     measurements.value = [];
     members.value = [];
+    latest.value = null;
   }
 });
+
+function toNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function deviceStatus(device) {
+  if (!device?.last_seen_at) return 'never';
+  return Date.now() - new Date(device.last_seen_at).getTime() <= ONLINE_WINDOW_MS ? 'online' : 'offline';
+}
+
+const STATUS_LABEL = { online: '在线', offline: '离线', never: '未连接' };
 
 async function refreshDevices() {
   busy.value = true; error.value = '';
   try {
     devices.value = await listDevices();
     if (!selectedId.value && devices.value.length) selectedId.value = devices.value[0].device_id;
+    if (selectedId.value && !devices.value.some((d) => d.device_id === selectedId.value)) {
+      selectedId.value = devices.value[0]?.device_id || '';
+    }
   } catch (e) {
     error.value = e?.message || '无法读取设备。';
   } finally {
@@ -65,6 +120,26 @@ async function addDevice() {
   }
 }
 
+function startRename() {
+  if (!selectedDevice.value) return;
+  renameValue.value = selectedDevice.value.name || '';
+  renaming.value = true;
+}
+
+async function saveRename() {
+  if (!selectedId.value) return;
+  busy.value = true; error.value = '';
+  try {
+    await renameDevice(selectedId.value, renameValue.value);
+    renaming.value = false;
+    await refreshDevices();
+  } catch (e) {
+    error.value = e?.message || '重命名失败（需要设备创建者或管理员权限）。';
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function refreshMeasurements() {
   if (!selectedId.value) return;
   busy.value = true; error.value = '';
@@ -74,6 +149,15 @@ async function refreshMeasurements() {
     error.value = e?.message || '无法读取测量历史。';
   } finally {
     busy.value = false;
+  }
+}
+
+async function refreshLatest() {
+  if (!selectedId.value) return;
+  try {
+    latest.value = await getLatestMeasurement(selectedId.value);
+  } catch {
+    latest.value = null;
   }
 }
 
@@ -119,7 +203,7 @@ async function saveMeasurement() {
   try {
     await addMeasurement(selectedId.value, measurement);
     Object.assign(measurement, { temperatureC: '', heightMm: '', heightDeltaMm: '', humidityPercent: '', batteryPercent: '' });
-    await refreshMeasurements();
+    await Promise.all([refreshMeasurements(), refreshLatest()]);
   } catch (e) {
     error.value = e?.message || '保存测量失败。';
   } finally {
@@ -147,7 +231,7 @@ function fmt(value, suffix = '') {
     </div>
 
     <div v-if="!auth.configured" class="panel config-warning history-warning">
-      Supabase 尚未配置，因此设备历史不可用。诊断页无需数据库即可工作。
+      Supabase 尚未配置，因此设备历史不可用。请先复制 .env.example 为 .env 并填写项目配置。
     </div>
 
     <template v-else>
@@ -168,8 +252,8 @@ function fmt(value, suffix = '') {
               :class="{ selected: selectedId === device.device_id }"
               @click="selectedId = device.device_id"
             >
-              <span class="device-dot"></span>
-              <span><strong>{{ device.name }}</strong><small>{{ device.device_id }}</small></span>
+              <span class="device-dot" :class="`status-${deviceStatus(device)}`"></span>
+              <span><strong>{{ device.name || device.device_id }}</strong><small>{{ device.device_id }}</small></span>
             </button>
             <p v-if="!devices.length" class="empty-list">还没有设备。创建一个即可开始保存测量。</p>
           </div>
@@ -186,7 +270,7 @@ function fmt(value, suffix = '') {
             <button class="small-primary" type="button" @click="createdCredential = null">知道了</button>
           </div>
 
-          <div v-if="selectedId" class="member-plate">
+          <div v-if="selectedId && canManage" class="member-plate">
             <p class="eyebrow dark">DEVICE MEMBERS</p>
             <form class="device-add" @submit.prevent="bindMember">
               <input v-model="memberSystemUserId" placeholder="绑定用户 FERJOO ID" maxlength="9" />
@@ -203,9 +287,42 @@ function fmt(value, suffix = '') {
           <div class="panel-heading compact-heading">
             <div>
               <p class="eyebrow dark">10-MINUTE BUCKETS</p>
-              <h2>{{ selectedDevice?.name || '选择一个设备' }}</h2>
+              <div v-if="!renaming" class="device-title-row">
+                <h2>{{ selectedDevice?.name || '选择一个设备' }}</h2>
+                <button
+                  v-if="selectedDevice && canManage"
+                  class="rename-button"
+                  type="button"
+                  title="重命名设备"
+                  @click="startRename"
+                >✎ 改名</button>
+              </div>
+              <form v-else class="rename-form" @submit.prevent="saveRename">
+                <input v-model.trim="renameValue" maxlength="80" placeholder="设备名称" />
+                <button class="small-primary" :disabled="busy">保存</button>
+                <button class="ghost-button" type="button" @click="renaming = false">取消</button>
+              </form>
             </div>
-            <button v-if="selectedId" class="copy-button" type="button" @click="refreshMeasurements">REFRESH</button>
+            <div v-if="selectedId" class="heading-side">
+              <span class="status-pill" :class="`status-${selectedStatus}`">{{ STATUS_LABEL[selectedStatus] }}</span>
+              <button class="copy-button" type="button" @click="refreshMeasurements">REFRESH</button>
+            </div>
+          </div>
+
+          <div v-if="selectedId" class="latest-strip">
+            <div class="latest-item"><span>最后上报</span><strong>{{ lastSeenText }}</strong></div>
+            <div class="latest-item"><span>温度</span><strong>{{ fmt(latest?.temperature_c, ' °C') }}</strong></div>
+            <div class="latest-item"><span>高度</span><strong>{{ fmt(latest?.height_mm, ' mm') }}</strong></div>
+            <div class="latest-item"><span>Δ高度</span><strong>{{ fmt(latest?.height_delta_mm, ' mm') }}</strong></div>
+            <div class="latest-item"><span>湿度</span><strong>{{ fmt(latest?.humidity_percent, ' %') }}</strong></div>
+            <div class="latest-item"><span>电量</span><strong>{{ fmt(latest?.battery_percent, ' %') }}</strong></div>
+          </div>
+
+          <div v-if="selectedId" class="chart-grid">
+            <SeriesChart label="温度" unit="°C" color="#e85d16" :points="tempSeries" />
+            <SeriesChart label="高度" unit="mm" color="#2b7de8" :points="heightSeries" />
+            <SeriesChart label="湿度" unit="%" color="#2b8a5e" :points="humiditySeries" />
+            <SeriesChart label="电量" unit="%" color="#8a6d1f" :points="batterySeries" />
           </div>
 
           <form v-if="selectedId" class="measurement-form" @submit.prevent="saveMeasurement">

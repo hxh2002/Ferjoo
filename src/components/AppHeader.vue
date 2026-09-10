@@ -62,18 +62,38 @@ async function logout() {
     </nav>
 
     <div class="header-nav" aria-label="辅助导航">
-      <div class="account-row">
-        <div v-if="auth.user.value" class="account-group">
-          <span class="account-avatar" aria-hidden="true">{{ accountInitial }}</span>
-          <span class="account-name" :title="accountName">{{ accountName }}</span>
-          <button class="logout-button" type="button" :disabled="busy" @click="logout">LOG OUT</button>
-        </div>
-        <RouterLink v-else to="/login" class="login-button">LOG IN</RouterLink>
-      </div>
-      <div class="header-nav-links">
+      <nav class="header-links" aria-label="了解项目">
         <button class="nav-link nav-button" type="button" @click="modal = 'how'">HOW IT WORKS</button>
         <button class="nav-link nav-button" type="button" @click="modal = 'about'">ABOUT US</button>
-      </div>
+      </nav>
+
+      <template v-if="auth.user.value">
+        <RouterLink class="account-chip" to="/profile" :title="`我的资料 · ${accountName}`">
+          <span class="chip-avatar">
+            <img v-if="auth.profile.value?.avatar_url" :src="auth.profile.value.avatar_url" alt="头像" />
+            <template v-else>{{ accountInitial }}</template>
+          </span>
+          <span class="chip-text">
+            <strong class="chip-name">{{ accountName }}</strong>
+            <small class="chip-sub">我的资料</small>
+          </span>
+        </RouterLink>
+        <button
+          class="icon-button"
+          type="button"
+          title="退出登录"
+          aria-label="退出登录"
+          :disabled="busy"
+          @click="logout"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3" />
+            <path d="m16 17 5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+        </button>
+      </template>
+      <RouterLink v-else to="/login" class="login-cta">LOG IN</RouterLink>
     </div>
   </header>
 

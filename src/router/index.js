@@ -3,13 +3,15 @@ import DoctorView from '../views/DoctorView.vue';
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import HistoryView from '../views/HistoryView.vue';
+import ProfileView from '../views/ProfileView.vue';
 import { useAuth } from '../composables/useAuth.js';
 
 const routes = [
   { path: '/', name: 'doctor', component: DoctorView },
   { path: '/login', name: 'login', component: LoginView },
   { path: '/register', name: 'register', component: RegisterView },
-  { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } }
+  { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
+  { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } }
 ];
 
 const router = createRouter({

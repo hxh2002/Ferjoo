@@ -33,6 +33,29 @@ export async function createDevice({ name, deviceId } = {}) {
   return data; // { device_id, api_key }
 }
 
+export async function renameDevice(deviceId, name) {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('devices')
+    .update({ name: name?.trim() || null })
+    .eq('device_id', deviceId)
+    .select('device_id, name, model, firmware_version, last_seen_at, metadata, created_at, updated_at')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getLatestMeasurement(deviceId) {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('device_latest_measurements')
+    .select('*')
+    .eq('device_id', deviceId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function listMeasurements(deviceId, { limit = 120, from, to } = {}) {
   const client = requireClient();
   let query = client

@@ -1,6 +1,6 @@
 # 酵种医生 · Dr. Ferjoo — 开发者文档
 
-Vue 3 + Vite + Supabase 
+Vue 3 + Vite + Supabase
 
 本文件是项目唯一的开发者文档，集中覆盖目录结构、本地运行、Supabase 部署、用户系统、数据库设计、算法边界、测试与部署说明。
 
@@ -21,11 +21,85 @@ Vue 3 + Vite + Supabase
 │   └── router/
 ├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
-│   └── migrations/001_initial.sql
+│   └── migrations/          # 001~004 SQL （后端逻辑）
 ├── docs/ARCHITECTURE.md     # 依赖方向图补充
 ├── tests/
 └── public/assets/           # 经典 PNG 资产
 ```
+
+## 架构总览
+
+项目没有自建应用服务器：“后端”由 Supabase 托管服务（Auth / REST API / Storage）加 PostgreSQL 内的触发器、存储过程与 RLS 共同承担；前端构建成静态文件后完全运行在浏览器中。
+
+```text
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │                源代码层  GitHub 仓库 hxh2002/Ferjoo （main 分支）          │
+ │  src/（Vue 前端）   supabase/migrations/（SQL 后端逻辑）  tests/ docs/      │
+ └──────────────────────────────────────────────────────────────────────────┘
+                  push / merge 到 main
+        ┌─────────────────┼────────────────────────────┐
+        ▼                 ▼                            ▼
+ ┌─────────────┐  ┌─────────────────────┐   ┌────────────────────────┐
+ │ GitHub CI    │  │ Vercel（构建+托管）  │   │ Supabase GitHub 集成    │
+ │ npm test     │  │ npm run build → dist│   │ 自动将新 migrations 应│
+ │ npm run build│  │ vercel.json SPA 直达│   │ 用到远端 Postgres      │
+ └─────────────┘  └─────────────────────┘   └────────────────────────┘
+                         │（CDN 全球加速分发 dist 静态文件）
+                         │ HTTPS（index.html / css / js）
+                         ▼
+                ┌───────────────────────────────┐
+                │ 用户浏览器（前端真正运行的地方）│
+                │  ┌─────────────────────────┐  │
+                │  │ Vue 3 SPA               │  │
+                │  │ ├── 路由 /ui / 诊断算法  │  │
+                │  │ └── supabase-js 客户端  │  │
+                │  └────────────┬────────────┘  │
+                └───────────────┼───────────────┘
+        使用 VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+        登录后请求头携带 JWT（Auth 签发的 access token）
+              │                 │                  │
+              ▼                 ▼                  ▼
+      ┌──────────────┐  ┌────────────────┐  ┌──────────────┐
+      │ Supabase Auth │  │ Supabase API    │  │ Supabase      │
+      │ (GoTrue)      │  │ (PostgREST/REST)│  │ Storage       │
+      │ 登录/注册/改密 │  │ 表读写 + RPC     │  │ avatars 头像  │
+      └──────┬───────┘  └───────┬────────┘  └──────┬───────┘
+             │                  │                  │
+             └──────────────────┼──────────────────┘
+                                ▼
+                    ┌───────────────────────────┐
+                    │ PostgreSQL（Supabase 托管）│
+                    │ profiles / devices /       │
+                    │ device_members /           │
+                    │ device_measurements        │
+                    │                           │
+                    │ ★后端业务逻辑所在：        │
+                    │ 触发器（注册邀请码校验）    │
+                    │ 存储过程（create_device…） │
+                    │ 行级安全策略 RLS           │
+                    └───────────────────────────┘
+                                ▲
+        IoT 设备（温度/高度传感器等） HTTP POST
+        /rest/v1/rpc/ingest_device_measurements
+        （不用用户登录，用设备一次性 api_key，anon 角色）
+```
+
+各部分职责：
+
+| 层次              | 是什么                                           | 在哪里运行                                              | 关键文件                           |
+| ----------------- | ------------------------------------------------ | ------------------------------------------------------- | ---------------------------------- |
+| 前端源码          | Vue 3 + Vite SPA（诊断、注册/登录/资料页、算法） | 本地`npm run dev` 调试；构建产物运行在浏览器          | `src/`                           |
+| 前端托管          | 静态构建 + CDN 分发                              | Vercel 云                                               | `vercel.json`（SPA 重写）        |
+| 后端服务          | Auth（GoTrue）、REST/RPC（PostgREST）、Storage   | Supabase 云`https://yccvmeepajpdagizplgp.supabase.co` | —                                 |
+| 数据库 + 业务逻辑 | PostgreSQL：数据表、触发器、存储过程、RLS        | Supabase 托管实例                                       | `supabase/migrations/*.sql`      |
+| CI/CD             | 测试/构建、迁移应用、前端发布                    | GitHub Actions / Supabase GitHub 集成 / Vercel Git 集成 | `.github/workflows/ci.yml`       |
+| 设备数据上传      | IoT 设备直连 REST RPC（一次性设备 api_key）      | 设备固件                                                | `src/services/device.service.js` |
+
+核心关系：
+
+1. **浏览器 ↔ Supabase**：前端经 `@supabase/supabase-js` 直连 Auth/REST/Storage；登录后带 JWT，由 Postgres RLS 决定可见与可写范围。
+2. **Git 仓库是单一事实源**：前端改动合入 `main` 由 Vercel 自动构建发布；`supabase/migrations/` 新增 SQL 合入 `main` 由 Supabase GitHub 集成自动应用。
+3. **“服务端逻辑”落在数据库对象**：注册邀请码校验与配额扣减在 `handle_new_auth_user` 触发器，管理员配额在 `set_user_role`，头像文件隔离在 Storage 策略。
 
 ## 本地运行
 
@@ -37,12 +111,12 @@ cp .env.example .env
 npm run dev
 ```
 
-没有配置 Supabase 时，核心诊断页仍可使用；登录、注册、设备历史页会提示未配置。
+没有配置 Supabase 时，核心诊断页仍可打开，但诊断按钮、登录、注册、个人资料、设备历史页均会提示需要登录 / 未配置。
 
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`、`002`、`003` 已完成远端同步。
+2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`004` 已完成远端同步。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -70,9 +144,44 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 
 该函数会分配新的 `A + YYMM + 4 位序号`，例如 `A26090001`。角色提升函数不授权给前端，仅数据库管理员可执行。
 
+### 邀请制注册
+
+自 `004` 迁移起，注册改为邀请制：**每个注册请求必须携带一个 8 位数字邀请码**，由 `profiles` 注册触发器在 `auth.users` 插入时强制校验并原子扣减邀请人名额，随后为新用户生成自己的专属邀请码。
+
+- 存量用户（迁移前已注册）与**管理员**账号的可邀请人数上限为 `100`；
+- 通过邀请码注册的新用户，其邀请码可邀请人数默认为 `1`；
+- 可邀请人数可在数据库中手动修改（见下方「邀请配额管理」）；
+- 邀请码只允许看，不允许改；`invite_quota` / `invited_count` 仅数据库管理员可写。
+
+注册错误码与提示：
+
+| 服务端返回                       | 含义                     |
+| -------------------------------- | ------------------------ |
+| `INVALID_INVITE_CODE`          | 邀请码不存在或已失效     |
+| `INVITE_QUOTA_EXCEEDED`        | 邀请码可邀请人数已达上限 |
+| `REGISTRATION_REQUIRES_INVITE` | 未提供邀请码             |
+
+> 触发器同样作用于 Supabase Dashboard / Admin API 创建的账号：如确需绕过邀请校验直接建号，请在 `raw_user_meta_data` 中携带一个有效 `invite_code`（例如用某个高配额账号的邀请码）。
+
+#### 邀请配额管理
+
+管理员在 SQL Editor 中以数据库管理员身份手动调整单个用户的可邀请人数：
+
+```sql
+-- 将某用户的邀请上限改为 10（system_user_id 为对外 ID）
+update public.profiles
+set invite_quota = 10
+where system_user_id = 'U26090001';
+```
+
+#### 诊断与账号
+
+- 未登录账号不能使用诊断功能：点击「开始诊断」会弹出登录提醒；路由层面 `history`、`profile` 均要求登录。
+- 登录、注册、个人资料 / 头像、邀请码、修改密码等均依赖 Supabase。
+
 ### 浏览器端能力
 
-已接入 Supabase JS：邮箱注册、邮箱密码登录、自动读取系统 ID/权限、退出、设备绑定、历史数据读取、手工写入测试数据点。
+已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备创建/选择/改名/在线状态、设备成员绑定、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
 
 “不验证邮箱正确性”按“不验证邮箱所有权”实现：部署时关闭 Supabase Confirm email；Supabase 仍保留基本邮箱格式要求。
 
@@ -80,13 +189,25 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 
 ### profiles
 
-| 字段                          | 用途                                       |
-| ----------------------------- | ------------------------------------------ |
-| `id uuid`                   | 与`auth.users.id` 一一对应，内部稳定主键 |
-| `system_user_id varchar(9)` | 对外 ID：`U/A + YYMM + 0001`             |
-| `role`                      | `U` 普通用户 / `A` 管理员              |
-| `email`                     | Auth 邮箱镜像                              |
-| `display_name`              | 可选显示名                                 |
+| 字段                          | 用途                                                     |
+| ----------------------------- | -------------------------------------------------------- |
+| `id uuid`                   | 与`auth.users.id` 一一对应，内部稳定主键               |
+| `system_user_id varchar(9)` | 对外 ID：`U/A + YYMM + 0001`                           |
+| `role`                      | `U` 普通用户 / `A` 管理员                            |
+| `email`                     | Auth 邮箱镜像                                            |
+| `display_name`              | 可选显示名（用户名）                                     |
+| `invite_code varchar(8)`    | 8 位数字邀请码，唯一，注册后自动生成，仅可读             |
+| `invited_by uuid`           | 注册时消耗谁的邀请码（溯源）                             |
+| `invite_quota int`          | 可邀请人数上限：存量 / 管理员 100，新用户默认 1          |
+| `invited_count int`         | 已邀请人数（注册触发器原子自增）                         |
+| `gender varchar(10)`        | 性别（male / female / other / secret）                   |
+| `birth_date date`           | 出生年月日                                               |
+| `profile_identity varchar`  | 身份（secondary / college / graduate / working / other） |
+| `avatar_url text`           | 头像公网 URL（Storage bucket`avatars`）                |
+
+### avatars（Storage bucket）
+
+公共读、按 `{user_id}/avatar_*.png` 目录隔离写：仅登录后可写，且只能写自己目录下的文件。删除旧头像时按 URL 解析路径一并清理。配额受限时可通过 Storage 控制台调整。
 
 ### devices
 
@@ -134,6 +255,8 @@ select private.set_user_role('AUTH_USER_UUID', 'A');
 - 普通用户只能看到自己的绑定记录（`device_members` 仅返回 `user_id = 自己` 的行），看不到管理员或其他用户的绑定信息。
 
 ### 设备 HTTP 上传
+
+> 📘 面向硬件工程师的完整接入指南（凭据烧录、字段字典、十分钟桶机制、错误码、ESP32 实现、验收清单）：[`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md)
 
 设备通过 WiFi/HTTP 每 10 分钟上传一次数据，每次可携带最多过去 48 小时（约 288 个 10 分钟桶）的采样。上传走 Supabase PostgREST RPC，不需要用户登录态。
 
@@ -237,14 +360,14 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前 `001`、`002`、`003` 已在远端执行。若本地需要查看迁移状态，使用：
+当前 `001`～`004` 已在远端执行。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
 npx supabase@latest migration list
 ```
 
-之后只要提交新的 `supabase/migrations/00X_*.sql` 并合并到 `main`，Supabase GitHub Integration 就会自动应用待执行迁移。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
+之后只要提交新的 `supabase/migrations/00X_*.sql` 并合并到 `main`，Supabase GitHub Integration 就会自动应用待执行迁移。`004_invites_and_profiles.sql` 设计为幂等迁移：若已通过 SQL Editor 手动执行过一次，再次由 GitHub Integration 应用也不会报错。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
 
 Vercel 已通过 Supabase Integration 连接项目 `ferjoo`。由于应用使用 Vite，前端变量应使用以下名称，并只同步到 Production：
 
@@ -274,5 +397,6 @@ npm run dev
 ## 更多说明
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md)（硬件工程师 HTTP 接入指南）
 - [`src/references/README.md`](src/references/README.md)
 - [`public/assets/CLASSIC_ASSETS.md`](public/assets/CLASSIC_ASSETS.md)（资产说明）
