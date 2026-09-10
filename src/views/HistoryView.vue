@@ -297,7 +297,7 @@ function fmt(value, suffix = '') {
           <form class="device-add bind-form" @submit.prevent="claimBind">
             <input
               v-model="bindCode"
-              placeholder="或输入 8 位绑定码绑定已有设备"
+              placeholder="输入设备绑定码"
               maxlength="12"
               autocomplete="off"
             />
