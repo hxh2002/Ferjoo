@@ -267,13 +267,24 @@ where system_user_id = 'U26090001';
 
 设备通过 WiFi/HTTP 每 10 分钟上传一次数据，每次可携带最多过去 48 小时（约 288 个 10 分钟桶）的采样。上传走 Supabase PostgREST RPC，不需要用户登录态。
 
-设备一律由出厂 SQL 插入 `devices` 行创建（详见 [`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md) §1），`device_id` 与 `api_key` 明文只出现在出厂生成现场，数据库只存 `api_key` 的 sha256 摘要。
+设备必须在出厂前由管理员预先创建。生产端为每台设备生成唯一的 `device_id` 和高熵随机 `api_key`，将 `api_key` 的 SHA-256 摘要写入 `devices.api_key_hash`，再把明文 `api_key` 烧录到该设备的 Flash/NVS。数据库不会自动为未注册的设备创建凭据；设备上传前必须已有对应的 `devices` 行。
+
+`device_id` 是设备标识，不属于机密；`api_key` 是每台设备独立的上传密码，只在受控生成/烧录流程中出现，禁止写入源码、日志、工单、共享 SQL 文本或 Git。插入设备后，数据库自动生成 `bind_code`，生产端读取它并打印在标签或卡片上，供用户在网页端认领设备。`bind_code` 不需要烧录进固件。
+
+硬件端需要配置：
+
+- `device_id`：该设备专属 ID；
+- `api_key`：该设备专属密钥；
+- `VITE_SUPABASE_ANON_KEY`：Supabase 项目的 `anon/public` key，作为 HTTP `apikey` 请求头。它是项目级公开客户端 key，不承担设备身份认证，可以写入固件；
+- 上传接口 URL：`https://yccvmeepajpdagizplgp.supabase.co/rest/v1/rpc/ingest_device_measurements`。
+
+`VITE_SUPABASE_ANON_KEY` 可从 Supabase Dashboard → **Project Settings → API** → **anon public** 获取；前端项目本地副本位于根目录 `.env` 的 `VITE_SUPABASE_ANON_KEY`。不要把整个 `.env` 文件交给硬件方。
 
 设备上传（使用设备自身凭据，不需要用户 token）：
 
 ```text
-POST https://<project-ref>.supabase.co/rest/v1/rpc/ingest_device_measurements
-apikey: <anon public key>
+POST https://yccvmeepajpdagizplgp.supabase.co/rest/v1/rpc/ingest_device_measurements
+apikey: <VITE_SUPABASE_ANON_KEY>
 Content-Type: application/json
 
 {
@@ -287,7 +298,8 @@ Content-Type: application/json
 
 - `recorded_at` 为 ISO 8601 时间；各数值字段可省略或传 `null`。
 - 同一 `(device_id, 10 分钟桶)` 会幂等 upsert，重复上传不会产生重复数据。
-- `api_key` 仅在出厂生成时出现一次，数据库只存 sha256 摘要。
+- `api_key` 仅在受控出厂生成/烧录流程中出现，数据库只存 SHA-256 摘要；设备不得携带用户 JWT，也不要添加 `Authorization` 请求头。
+- `anon` 角色没有表级读写权限，仅被单独授权执行设备上传 RPC；RPC 通过 `device_id + api_key` 校验设备，并限制数据格式、范围和批量大小。
 
 绑定 / 解绑用户（需登录；绑定由设备 owner 或管理员发起，成员本人也可解绑自己）：
 
