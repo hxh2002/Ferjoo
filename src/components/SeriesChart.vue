@@ -57,7 +57,6 @@ function round(n) {
   return Number(n.toFixed(2));
 }
 
-// Catmull-Rom 转三次贝塞尔，折线变平滑曲线
 function smoothPath(pts) {
   if (pts.length < 2) return '';
   if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
@@ -88,15 +87,10 @@ const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
 const hoverIdx = ref(null);
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
 
-// 靠近边缘时调整 tooltip 位置，避免溢出卡片
 const tipStyle = computed(() => {
   const p = hoverPoint.value;
   if (!p) return {};
-  const fx = p.x / W;
-  const fy = p.y / H;
-  const tx = fx < 0.14 ? '-12%' : fx > 0.86 ? '-88%' : '-50%';
-  const ty = fy < 0.32 ? '10px' : 'calc(-100% - 8px)';
-  return { left: `${fx * 100}%`, top: `${fy * 100}%`, transform: `translate(${tx}, ${ty})` };
+  return { left: `${(p.x / W) * 100}%`, top: `${(p.y / H) * 100}%` };
 });
 
 function onMove(e) {
@@ -186,20 +180,22 @@ function fmtTime(t) {
             :y1="0"
             :y2="H"
           />
-          <circle
+          <ellipse
             v-if="hoverPoint"
             class="series-hover-dot"
             :cx="hoverPoint.x"
             :cy="hoverPoint.y"
-            r="2.6"
+            rx="1.45"
+            ry="1.45"
             :style="{ fill: color }"
           />
-          <circle
+          <ellipse
             v-else-if="lastPoint"
             class="series-dot"
             :cx="lastPoint.x"
             :cy="lastPoint.y"
-            r="2"
+            rx="1.15"
+            ry="1.15"
             :style="{ fill: color }"
           />
         </svg>
