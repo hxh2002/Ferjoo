@@ -1004,14 +1004,21 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   vector-effect: non-scaling-stroke;
   stroke-linejoin: round;
   stroke-linecap: round;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: series-draw .8s ease-out forwards;
 }
-@keyframes series-draw { to { stroke-dashoffset: 0; } }
 .series-guide { stroke: rgba(42,29,23,.38); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.series-dot { stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; }
-.series-hover-dot { stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.series-dot, .series-hover-dot {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 4px rgba(42,29,23,.22);
+  pointer-events: none;
+}
+.series-hover-dot { width: 10px; height: 10px; }
 .series-tip {
   position: absolute;
   z-index: 2;

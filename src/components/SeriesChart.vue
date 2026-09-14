@@ -170,7 +170,6 @@ function fmtTime(t) {
             class="series-line"
             :d="linePath"
             :style="{ stroke: color }"
-            pathLength="100"
           />
           <line
             v-if="hoverPoint"
@@ -180,25 +179,17 @@ function fmtTime(t) {
             :y1="0"
             :y2="H"
           />
-          <ellipse
-            v-if="hoverPoint"
-            class="series-hover-dot"
-            :cx="hoverPoint.x"
-            :cy="hoverPoint.y"
-            rx="1.45"
-            ry="1.45"
-            :style="{ fill: color }"
-          />
-          <ellipse
-            v-else-if="lastPoint"
-            class="series-dot"
-            :cx="lastPoint.x"
-            :cy="lastPoint.y"
-            rx="1.15"
-            ry="1.15"
-            :style="{ fill: color }"
-          />
         </svg>
+        <span
+          v-if="hoverPoint"
+          class="series-hover-dot"
+          :style="{ left: `${(hoverPoint.x / W) * 100}%`, top: `${(hoverPoint.y / H) * 100}%`, background: color }"
+        ></span>
+        <span
+          v-else-if="lastPoint"
+          class="series-dot"
+          :style="{ left: `${(lastPoint.x / W) * 100}%`, top: `${(lastPoint.y / H) * 100}%`, background: color }"
+        ></span>
         <div
           v-if="hoverPoint"
           class="series-tip"
