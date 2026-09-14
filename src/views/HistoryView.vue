@@ -6,7 +6,6 @@ import {
   addMeasurement,
   bindDeviceMember,
   claimDevice,
-  createDevice,
   getLatestMeasurement,
   listDeviceMembers,
   listDevices,
@@ -24,7 +23,6 @@ const measurements = ref([]);
 const latest = ref(null);
 const error = ref('');
 const busy = ref(false);
-const newDeviceName = ref('');
 const measurement = reactive({
   temperatureC: '',
   heightMm: '',
@@ -153,22 +151,6 @@ async function refreshDevices() {
   }
 }
 
-async function addDevice() {
-  if (!newDeviceName.value.trim()) return;
-  busy.value = true; error.value = '';
-  try {
-    const device = await createDevice({ name: newDeviceName.value });
-    newDeviceName.value = '';
-    createdCredential.value = { device_id: device.device_id, api_key: device.api_key, bind_code: device.bind_code };
-    await refreshDevices();
-    selectedId.value = device.device_id;
-  } catch (e) {
-    error.value = e?.message || '创建设备失败。';
-  } finally {
-    busy.value = false;
-  }
-}
-
 function startRename() {
   if (!selectedDevice.value) return;
   renameValue.value = selectedDevice.value.name || '';
@@ -290,10 +272,6 @@ function fmt(value, suffix = '') {
           <div class="panel-heading compact-heading">
             <div><p class="eyebrow dark">DEVICES</p><h2>我的设备</h2></div>
           </div>
-          <form class="device-add" @submit.prevent="addDevice">
-            <input v-model="newDeviceName" placeholder="设备名称" maxlength="80" />
-            <button :disabled="busy">＋</button>
-          </form>
           <form class="device-add bind-form" @submit.prevent="claimBind">
             <input
               v-model="bindCode"
@@ -314,21 +292,7 @@ function fmt(value, suffix = '') {
               <span class="device-dot" :class="`status-${deviceStatus(device)}`"></span>
               <span><strong>{{ device.name || device.device_id }}</strong><small>{{ device.device_id }}</small></span>
             </button>
-            <p v-if="!devices.length" class="empty-list">还没有设备。创建一个即可开始保存测量。</p>
-          </div>
-
-          <div v-if="createdCredential" class="credential-plate">
-            <p class="eyebrow dark">DEVICE CREDENTIALS</p>
-            <p class="credential-warning">请立即保存，密钥仅显示一次。</p>
-            <dl>
-              <dt>device_id</dt>
-              <dd>{{ createdCredential.device_id }}</dd>
-              <dt>api_key</dt>
-              <dd>{{ createdCredential.api_key }}</dd>
-              <dt>bind_code</dt>
-              <dd>{{ formatBindCode(createdCredential.bind_code) }}</dd>
-            </dl>
-            <button class="small-primary" type="button" @click="createdCredential = null">知道了</button>
+            <p v-if="!devices.length" class="empty-list">还没有设备。输入设备标签上的绑定码即可认领设备。</p>
           </div>
 
           <div v-if="selectedDevice?.bind_code" class="bind-code-plate">

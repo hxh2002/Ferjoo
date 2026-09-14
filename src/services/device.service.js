@@ -32,16 +32,6 @@ export async function claimDevice(bindCode) {
   return data; // { claimed, already_mine?, device_id, role }
 }
 
-export async function createDevice({ name, deviceId } = {}) {
-  const client = requireClient();
-  const { data, error } = await client.rpc('create_device', {
-    p_name: name?.trim() || 'Ferjoo Sensor',
-    p_device_id: deviceId?.trim() || null
-  });
-  if (error) throw error;
-  return data; // { device_id, api_key }
-}
-
 export async function renameDevice(deviceId, name) {
   const client = requireClient();
   const { data, error } = await client

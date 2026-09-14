@@ -403,11 +403,6 @@ a { color: inherit; }
 .device-list strong, .device-list small { display: block; }
 .device-list small { max-width: 205px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
 .empty-list { color: var(--ink-soft); line-height: 1.6; font-size: 12px; }
-.credential-plate { margin-top: 16px; padding: 14px; border: 1px solid var(--orange); border-radius: 15px; background: var(--orange-soft); }
-.credential-plate dl { display: grid; gap: 6px; margin: 10px 0 14px; }
-.credential-plate dt { font-size: 9px; letter-spacing: .08em; color: var(--ink-soft); }
-.credential-plate dd { margin: 0; font-family: monospace; font-size: 11px; word-break: break-all; }
-.credential-warning { color: var(--ink-soft); font-size: 12px; margin: 4px 0 0; }
 .member-plate { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .member-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; font-size: 11px; }
 .member-row button { border: 0; background: transparent; color: var(--orange); cursor: pointer; font-size: 11px; }
@@ -967,11 +962,14 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   margin-bottom: 20px;
 }
 .series-chart {
-  padding: 14px 15px 12px;
+  padding: 14px 15px 10px;
   border-radius: 17px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.42);
+  background: linear-gradient(180deg, rgba(255,255,255,.66), rgba(255,255,255,.34));
+  box-shadow: 0 10px 24px rgba(94,43,8,.08);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
+.series-chart:hover { transform: translateY(-2px); box-shadow: 0 16px 32px rgba(94,43,8,.13); }
 .series-head {
   display: flex;
   align-items: baseline;
@@ -980,11 +978,58 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   margin-bottom: 8px;
 }
 .series-label { font-size: 11px; font-weight: 900; letter-spacing: .06em; color: var(--ink-soft); }
+.series-headline { display: flex; align-items: baseline; gap: 8px; }
 .series-value { font-size: 19px; letter-spacing: -.02em; }
+.series-delta {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.series-delta.up { color: #1f7a4d; background: rgba(43,138,94,.14); }
+.series-delta.down { color: #b0432f; background: rgba(232,93,22,.14); }
+.series-delta.flat { color: var(--ink-soft); background: rgba(42,29,23,.08); }
+.series-plot { position: relative; cursor: crosshair; }
 .series-body svg { display: block; width: 100%; height: 96px; }
-.series-line { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
-.series-area { opacity: .12; }
+.series-grid {
+  stroke: rgba(42,29,23,.10);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+.series-line {
+  fill: none;
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: series-draw .8s ease-out forwards;
+}
+@keyframes series-draw { to { stroke-dashoffset: 0; } }
+.series-guide { stroke: rgba(42,29,23,.38); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .series-dot { stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.series-hover-dot { stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.series-tip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: rgba(42,29,23,.92);
+  color: var(--cream);
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 6px 16px rgba(42,29,23,.25);
+}
+.series-tip span { font-size: 9px; opacity: .72; }
 .series-range {
   display: flex;
   justify-content: space-between;
@@ -993,6 +1038,7 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   font-weight: 800;
   color: var(--ink-soft);
 }
+.series-span { font-weight: 700; opacity: .7; }
 .series-empty {
   padding: 18px 8px;
   text-align: center;

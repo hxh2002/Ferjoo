@@ -75,7 +75,7 @@ Vue 3 + Vite + Supabase
                     │                           │
                     │ ★后端业务逻辑所在：        │
                     │ 触发器（注册邀请码校验）    │
-                    │ 存储过程（create_device…） │
+                    │ 存储过程（claim_device…）  │
                     │ 行级安全策略 RLS           │
                     └───────────────────────────┘
                                 ▲
@@ -217,7 +217,7 @@ where system_user_id = 'U26090001';
 
 - 用户注册后在 HISTORY 页输入绑定码（或访问 `/claim?code=XXXX-XXXX` 扫码路径），调用 `claim_device` RPC 即可把设备绑到自己账号；
 - 无人认领的设备第一个绑定者成为 `owner`，之后绑定者为 `member`；
-- 出厂批量备产直接 SQL 插入 `devices` 行（不写成员，设备无主），`bind_code` 由列默认值自动签发；
+- 设备一律由出厂 SQL 插入 `devices` 行创建（不写成员，设备无主），`bind_code` 由列默认值自动签发；网页端不提供创建设备入口；
 - 绑定码在设备详情中对成员可见，可直接分享给家人/同事完成二次绑定。
 
 ### device_members
@@ -267,16 +267,7 @@ where system_user_id = 'U26090001';
 
 设备通过 WiFi/HTTP 每 10 分钟上传一次数据，每次可携带最多过去 48 小时（约 288 个 10 分钟桶）的采样。上传走 Supabase PostgREST RPC，不需要用户登录态。
 
-创建设备（浏览器已登录时调用）会返回一次性 `device_id` 与 `api_key`：
-
-```text
-POST https://<project-ref>.supabase.co/rest/v1/rpc/create_device
-Authorization: Bearer <用户 access token>
-apikey: <anon public key>
-Content-Type: application/json
-
-{ "p_name": "Ferjoo Sensor" }
-```
+设备一律由出厂 SQL 插入 `devices` 行创建（详见 [`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md) §1），`device_id` 与 `api_key` 明文只出现在出厂生成现场，数据库只存 `api_key` 的 sha256 摘要。
 
 设备上传（使用设备自身凭据，不需要用户 token）：
 
@@ -296,7 +287,7 @@ Content-Type: application/json
 
 - `recorded_at` 为 ISO 8601 时间；各数值字段可省略或传 `null`。
 - 同一 `(device_id, 10 分钟桶)` 会幂等 upsert，重复上传不会产生重复数据。
-- `api_key` 仅在创建设备时返回一次，数据库只存 sha256 摘要。
+- `api_key` 仅在出厂生成时出现一次，数据库只存 sha256 摘要。
 
 绑定 / 解绑用户（需登录；绑定由设备 owner 或管理员发起，成员本人也可解绑自己）：
 
