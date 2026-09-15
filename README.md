@@ -235,7 +235,6 @@ where system_user_id = 'U26090001';
 
 - `device_id`
 - `recorded_at`（原始采样时间）
-- `bucket_start`（10 分钟桶）
 - `temperature_c`（温度）
 - `height_mm`（高度）
 - `height_delta_mm`（高度变化）
@@ -245,7 +244,7 @@ where system_user_id = 'U26090001';
 
 ### 数据分辨率
 
-`device_measurements.recorded_at` 保存采样时间；写入前数据库触发器使用 PostgreSQL `date_bin` 生成 `bucket_start`，固定为 10 分钟时间桶。唯一键 `(device_id, bucket_start)` 保证同一设备同一 10 分钟桶只有一个数据点。
+`device_measurements.recorded_at` 保存采样时间，数据库按原始数据逐条存储，不做时间分辨率分割。10 分钟展示桶在 Web 查询时计算：每个 10 分钟区间自动选取 `recorded_at` 最新的一条用于曲线和表格展示。
 
 ### 安全
 

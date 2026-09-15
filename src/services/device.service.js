@@ -7,10 +7,21 @@ function requireClient() {
   return supabase;
 }
 
-export function toTenMinuteBucket(value = new Date()) {
-  const date = value instanceof Date ? value : new Date(value);
-  const bucketMs = 10 * 60 * 1000;
-  return new Date(Math.floor(date.getTime() / bucketMs) * bucketMs).toISOString();
+const BUCKET_MS = 10 * 60 * 1000;
+
+// 十分钟桶在查询层实现：每个桶自动选取 recorded_at 最新的一条。
+function pickLatestPerBucket(rows) {
+  const byBucket = new Map();
+  for (const row of rows) {
+    const t = new Date(row.recorded_at).getTime();
+    if (!Number.isFinite(t)) continue;
+    const key = Math.floor(t / BUCKET_MS);
+    const prev = byBucket.get(key);
+    if (!prev || new Date(prev.recorded_at).getTime() < t) byBucket.set(key, row);
+  }
+  return [...byBucket.values()].sort(
+    (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at)
+  );
 }
 
 export async function listDevices() {
@@ -57,17 +68,19 @@ export async function getLatestMeasurement(deviceId) {
 
 export async function listMeasurements(deviceId, { limit = 120, from, to } = {}) {
   const client = requireClient();
+  // 多取原始数据，避免分桶选取后不足 limit 条。
+  const rawLimit = Math.min(limit * 10, 1000);
   let query = client
     .from('device_measurements')
     .select('*')
     .eq('device_id', deviceId)
     .order('recorded_at', { ascending: false })
-    .limit(limit);
+    .limit(rawLimit);
   if (from) query = query.gte('recorded_at', from);
   if (to) query = query.lte('recorded_at', to);
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  return pickLatestPerBucket(data || []).slice(0, limit);
 }
 
 export async function addMeasurement(deviceId, measurement) {

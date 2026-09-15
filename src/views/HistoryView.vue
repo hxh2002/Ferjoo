@@ -370,18 +370,17 @@ function fmt(value, suffix = '') {
 
           <div v-if="selectedId" class="table-wrap">
             <table>
-              <thead><tr><th>时间</th><th>10 分钟桶</th><th>温度</th><th>高度</th><th>Δ高度</th><th>湿度</th><th>电量</th></tr></thead>
+              <thead><tr><th>时间</th><th>温度</th><th>高度</th><th>Δ高度</th><th>湿度</th><th>电量</th></tr></thead>
               <tbody>
                 <tr v-for="row in measurements" :key="row.id">
                   <td>{{ new Date(row.recorded_at).toLocaleString() }}</td>
-                  <td>{{ new Date(row.bucket_start).toLocaleString() }}</td>
                   <td>{{ fmt(row.temperature_c, '°') }}</td>
                   <td>{{ fmt(row.height_mm, ' mm') }}</td>
                   <td>{{ fmt(row.height_delta_mm, ' mm') }}</td>
                   <td>{{ fmt(row.humidity_percent, '%') }}</td>
                   <td>{{ fmt(row.battery_percent, '%') }}</td>
                 </tr>
-                <tr v-if="!measurements.length"><td colspan="7" class="empty-table">暂无测量记录。</td></tr>
+                <tr v-if="!measurements.length"><td colspan="6" class="empty-table">暂无测量记录。</td></tr>
               </tbody>
             </table>
           </div>
