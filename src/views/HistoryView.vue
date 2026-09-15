@@ -23,6 +23,7 @@ const measurements = ref([]);
 const latest = ref(null);
 const error = ref('');
 const busy = ref(false);
+const bucketed = ref(true); // true=十分钟桶筛选，false=展示全部原始数据
 const measurement = reactive({
   temperatureC: '',
   heightMm: '',
@@ -175,12 +176,20 @@ async function refreshMeasurements() {
   if (!selectedId.value) return;
   busy.value = true; error.value = '';
   try {
-    measurements.value = await listMeasurements(selectedId.value, { limit: 120 });
+    measurements.value = await listMeasurements(selectedId.value, {
+      limit: 120,
+      bucketed: bucketed.value
+    });
   } catch (e) {
     error.value = e?.message || '无法读取测量历史。';
   } finally {
     busy.value = false;
   }
+}
+
+async function toggleBucketed() {
+  bucketed.value = !bucketed.value;
+  await refreshMeasurements();
 }
 
 async function refreshLatest() {
@@ -338,6 +347,13 @@ function fmt(value, suffix = '') {
               </form>
             </div>
             <div v-if="selectedId" class="heading-side">
+              <button
+                class="copy-button"
+                :class="{ active: bucketed }"
+                type="button"
+                :title="bucketed ? '十分钟桶筛选已开启，点击关闭以展示全部原始数据' : '十分钟桶筛选已关闭，点击开启'"
+                @click="toggleBucketed"
+              >10-MIN {{ bucketed ? 'ON' : 'OFF' }}</button>
               <span class="status-pill" :class="`status-${selectedStatus}`">{{ STATUS_LABEL[selectedStatus] }}</span>
               <button class="copy-button" type="button" @click="refreshMeasurements">REFRESH</button>
             </div>

@@ -298,6 +298,7 @@ a { color: inherit; }
 .tone-warn { color: #8a4d05; background: #fff0cb; }
 .tone-danger { color: #9d2b21; background: #ffe3dd; }
 .copy-button { border: 1px solid var(--line-strong); background: transparent; cursor: pointer; }
+.copy-button.active { background: var(--ink, #1f1a16); color: #fff; border-color: transparent; }
 .result-content > h2 { margin: 20px 0 7px; font-size: 39px; line-height: 1.03; letter-spacing: -.055em; }
 .result-subtitle { margin: 0 0 20px; color: var(--ink-soft); font-weight: 700; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 20px 0; }

@@ -66,10 +66,10 @@ export async function getLatestMeasurement(deviceId) {
   return data;
 }
 
-export async function listMeasurements(deviceId, { limit = 120, from, to } = {}) {
+export async function listMeasurements(deviceId, { limit = 120, from, to, bucketed = true } = {}) {
   const client = requireClient();
-  // 多取原始数据，避免分桶选取后不足 limit 条。
-  const rawLimit = Math.min(limit * 10, 1000);
+  // 分桶模式多取原始数据，避免每桶取最新后不足 limit 条。
+  const rawLimit = bucketed ? Math.min(limit * 10, 1000) : limit;
   let query = client
     .from('device_measurements')
     .select('*')
@@ -80,7 +80,7 @@ export async function listMeasurements(deviceId, { limit = 120, from, to } = {})
   if (to) query = query.lte('recorded_at', to);
   const { data, error } = await query;
   if (error) throw error;
-  return pickLatestPerBucket(data || []).slice(0, limit);
+  return bucketed ? pickLatestPerBucket(data || []).slice(0, limit) : (data || []);
 }
 
 export async function addMeasurement(deviceId, measurement) {
