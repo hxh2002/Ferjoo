@@ -136,6 +136,7 @@ function deviceStatus(device) {
 }
 
 const STATUS_LABEL = { online: '在线', offline: '离线', never: '未连接' };
+const MODE_LABEL = { sleep: '休眠', fer: '发酵' };
 
 async function refreshDevices() {
   busy.value = true; error.value = '';
@@ -361,11 +362,13 @@ function fmt(value, suffix = '') {
 
           <div v-if="selectedId" class="latest-strip">
             <div class="latest-item"><span>最后上报</span><strong>{{ lastSeenText }}</strong></div>
+            <div class="latest-item"><span>模式</span><strong>{{ MODE_LABEL[latest?.mode] || '—' }}</strong></div>
             <div class="latest-item"><span>温度</span><strong>{{ fmt(latest?.temperature_c, ' °C') }}</strong></div>
             <div class="latest-item"><span>高度</span><strong>{{ fmt(latest?.height_mm, ' mm') }}</strong></div>
             <div class="latest-item"><span>Δ高度</span><strong>{{ fmt(latest?.height_delta_mm, ' mm') }}</strong></div>
             <div class="latest-item"><span>湿度</span><strong>{{ fmt(latest?.humidity_percent, ' %') }}</strong></div>
             <div class="latest-item"><span>电量</span><strong>{{ fmt(latest?.battery_percent, ' %') }}</strong></div>
+            <div class="latest-item" v-if="latest?.sensor_error"><span>传感器</span><strong class="sensor-error-text">故障</strong></div>
           </div>
 
           <div v-if="selectedId" class="chart-grid">
@@ -386,17 +389,19 @@ function fmt(value, suffix = '') {
 
           <div v-if="selectedId" class="table-wrap">
             <table>
-              <thead><tr><th>时间</th><th>温度</th><th>高度</th><th>Δ高度</th><th>湿度</th><th>电量</th></tr></thead>
+              <thead><tr><th>时间</th><th>模式</th><th>温度</th><th>高度</th><th>Δ高度</th><th>湿度</th><th>电量</th><th>传感器</th></tr></thead>
               <tbody>
                 <tr v-for="row in measurements" :key="row.id">
                   <td>{{ new Date(row.recorded_at).toLocaleString() }}</td>
+                  <td>{{ MODE_LABEL[row.mode] || '—' }}</td>
                   <td>{{ fmt(row.temperature_c, '°') }}</td>
                   <td>{{ fmt(row.height_mm, ' mm') }}</td>
                   <td>{{ fmt(row.height_delta_mm, ' mm') }}</td>
                   <td>{{ fmt(row.humidity_percent, '%') }}</td>
                   <td>{{ fmt(row.battery_percent, '%') }}</td>
+                  <td :class="{ 'sensor-error-text': row.sensor_error }">{{ row.sensor_error ? '故障' : '正常' }}</td>
                 </tr>
-                <tr v-if="!measurements.length"><td colspan="6" class="empty-table">暂无测量记录。</td></tr>
+                <tr v-if="!measurements.length"><td colspan="8" class="empty-table">暂无测量记录。</td></tr>
               </tbody>
             </table>
           </div>

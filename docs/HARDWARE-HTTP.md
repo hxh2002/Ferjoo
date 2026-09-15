@@ -98,7 +98,16 @@ Content-Type: application/json
 | `height_delta_mm`  | number\| null | 否   | 相对上次的高度变化                                   |
 | `humidity_percent` | number\| null | 否   | 0–100，越界被拒                                     |
 | `battery_percent`  | number\| null | 否   | 0–100，越界被拒                                     |
-| `payload`          | object        | 否   | 扩展字段（如未来 pH），默认`{}`                    |
+| `payload`          | object        | 否   | 扩展字段，默认`{}`                                  |
+
+`payload` 中的以下字段会被服务端提升为独立列，方便查询与展示：
+
+| payload 字段       | 类型          | 说明                                                         |
+| ------------------ | ------------- | ------------------------------------------------------------ |
+| `mode`           | string        | `"sleep"`（休眠）或 `"fer"`（发酵），其他值视为未知         |
+| `sensor_error`   | boolean       | 传感器读数无效（任一关键传感器故障）时传 `true`             |
+
+其余 payload 字段（如 `session_id`、`expansion_ratio`、`time_source`）原样保存，网页端暂不展示。
 
 注意：数值一律是 JSON number，不加引号；传感器读不到就传 `null`，**不要用 0 冒充**。
 
