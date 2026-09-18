@@ -461,6 +461,7 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   .diagnostic-layout { grid-template-columns: 1fr; }
   .result-panel { position: static; min-height: 0; }
   .history-grid { grid-template-columns: 1fr; }
+  .device-panel, .measurement-panel { min-height: 0; }
   .measurement-form { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 720px) {
@@ -997,7 +998,7 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -1144,4 +1145,6 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   .panel-heading { flex-wrap: wrap; }
   .chart-feature .series-body svg { height: 132px; }
   .heading-side { flex-wrap: wrap; }
+  .measurement-form .small-primary { grid-column: 1 / -1; }
+  th, td { padding: 9px 10px; }
 }
