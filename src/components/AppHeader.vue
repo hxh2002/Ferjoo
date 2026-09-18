@@ -121,6 +121,11 @@ async function logout() {
             <strong>一个更有用的观察习惯</strong>
             <p>连续记录 2–3 个喂养周期，比只看某一次是否翻倍更能说明你的酵种是否稳定。</p>
           </div>
+          <div class="safety-note">
+            <strong>食品安全提醒</strong>
+            <span>不直接品尝生面粉或生酵种。</span>
+            <span>若出现彩色/绒毛状霉菌或明显腐败气味，直接丢弃。</span>
+          </div>
         </template>
 
         <template v-else>

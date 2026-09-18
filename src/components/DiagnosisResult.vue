@@ -65,12 +65,6 @@ async function copyReport() {
         <p v-if="result.expected?.baseAt25to28">25–28°C 下的比例经验先验：{{ result.expected.baseAt25to28 }}</p>
       </div>
 
-      <div class="insight-card">
-        <span class="insight-kicker">ACIDITY</span>
-        <strong>{{ result.ph.label }}</strong>
-        <p>{{ result.ph.message }}</p>
-      </div>
-
       <div class="advice-grid">
         <section class="advice-card">
           <span class="insight-kicker">WHY</span>
@@ -94,12 +88,13 @@ async function copyReport() {
         </section>
       </div>
 
-      <div class="safety-note">
-        <strong>食品安全提醒</strong>
-        <span v-for="item in result.safety" :key="item">{{ item }}</span>
-      </div>
-
       <ReferenceList :citations="result.citations" />
+
+      <div class="insight-card">
+        <span class="insight-kicker">ACIDITY</span>
+        <strong>{{ result.ph.label }}</strong>
+        <p>{{ result.ph.message }}</p>
+      </div>
 
       <details class="trace-details">
         <summary>查看本次规则追踪</summary>

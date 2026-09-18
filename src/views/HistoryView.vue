@@ -320,9 +320,16 @@ function fmt(value, suffix = '') {
               <input v-model="memberSystemUserId" placeholder="绑定用户 FERJOO ID" maxlength="9" />
               <button :disabled="busy">＋</button>
             </form>
-            <div v-for="member in members" :key="member.system_user_id" class="member-row">
-              <span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '创建者' : '成员' }}</span>
-              <button v-if="member.member_role !== 'owner'" type="button" @click="unbindMember(member.system_user_id)">解绑</button>
+            <small class="member-hint">输入对方的 FERJOO ID，即可共享这台设备的数据。</small>
+            <div class="member-list">
+              <div v-for="member in members" :key="member.system_user_id" class="member-row">
+                <span class="member-avatar" aria-hidden="true">{{ (member.system_user_id || '?').charAt(0) }}</span>
+                <span class="member-meta">
+                  <strong class="member-id">{{ member.system_user_id }}</strong>
+                  <small class="member-role" :class="{ owner: member.member_role === 'owner' }">{{ member.member_role === 'owner' ? '创建者' : '成员' }}</small>
+                </span>
+                <button v-if="member.member_role !== 'owner'" type="button" class="member-unbind" @click="unbindMember(member.system_user_id)">解绑</button>
+              </div>
             </div>
           </div>
         </aside>

@@ -405,9 +405,43 @@ a { color: inherit; }
 .device-list strong, .device-list small { display: block; }
 .device-list small { max-width: 205px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
 .empty-list { color: var(--ink-soft); line-height: 1.6; font-size: 12px; }
-.member-plate { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
-.member-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; font-size: 11px; }
-.member-row button { border: 0; background: transparent; color: var(--orange); cursor: pointer; font-size: 11px; }
+.member-plate {
+  margin-top: 16px; padding: 14px;
+  border: 1px solid var(--line); border-radius: 15px;
+  background: rgba(255,255,255,.42);
+}
+.member-plate .eyebrow { margin-bottom: 10px; }
+.member-hint { display: block; margin-top: 8px; font-size: 10px; line-height: 1.5; color: var(--ink-soft); }
+.member-list { display: grid; gap: 8px; margin-top: 12px; }
+.member-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px; border: 1px solid var(--line); border-radius: 13px;
+  background: rgba(255,255,255,.5);
+}
+.member-avatar {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--orange-deep); color: #fff;
+  font-size: 12px; font-weight: 950; text-transform: uppercase;
+}
+.member-meta { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.member-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px; font-weight: 900; letter-spacing: .04em;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.member-role {
+  justify-self: start; padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 800;
+  color: var(--ink-soft); background: rgba(42,29,23,.08);
+}
+.member-role.owner { color: var(--orange-deep); background: var(--orange-soft); }
+.member-unbind {
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 5px 12px;
+  background: transparent; color: var(--ink-soft);
+  font-size: 11px; font-weight: 750; cursor: pointer; transition: .18s;
+}
+.member-unbind:hover { border-color: var(--orange-deep); color: var(--orange-deep); background: var(--orange-soft); }
 .measurement-form { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)) auto; gap: 8px; align-items: end; }
 .measurement-form input { padding: 10px; }
 .small-primary { min-height: 41px; border: 0; border-radius: 12px; background: var(--ink); color: var(--cream); font-weight: 900; padding: 0 14px; cursor: pointer; }

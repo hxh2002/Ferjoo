@@ -8,6 +8,9 @@ function label(value, options) {
 }
 
 export function assessPh(ph) {
+  if (ph === '' || ph == null) {
+    return { status: 'unknown', label: '未提供 pH', message: '如果你有可靠的 pH 测量，可作为趋势辅助；不要仅凭一次读数判断酵种健康。' };
+  }
   const n = Number(ph);
   if (!Number.isFinite(n)) {
     return { status: 'unknown', label: '未提供 pH', message: '如果你有可靠的 pH 测量，可作为趋势辅助；不要仅凭一次读数判断酵种健康。' };
