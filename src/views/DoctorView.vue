@@ -103,14 +103,10 @@ async function runDiagnosis() {
           <p class="eyebrow dark">FERMENTATION CHECK-IN</p>
           <h2>这一轮，发生了什么？</h2>
         </div>
-        <span class="step-pill">01 / INPUT</span>
-      </div>
-
-      <div class="quick-input">
-        <button class="quick-entry" type="button" @click="quickOpen = true">
-          <span><strong>一句话快速填写</strong><small>用自然语言快速带入本轮状态</small></span>
-          <b>＋</b>
-        </button>
+        <div class="panel-heading-actions">
+          <button class="quick-text-entry" type="button" @click="quickOpen = true">一句话快速填写</button>
+          <span class="step-pill">01 / INPUT</span>
+        </div>
       </div>
 
       <ChoiceGroup v-model="form.stage" label="01 · 你的酵种处在哪个阶段？" :options="stageOptions" />

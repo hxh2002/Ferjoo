@@ -110,21 +110,21 @@ async function logout() {
         <template v-if="modal === 'how'">
           <p class="eyebrow dark">HOW IT WORKS</p>
           <h2>它如何判断你的酵种</h2>
-          <p class="modal-lead">它会把你看到的变化放回发酵过程里理解，而不是只盯着某一个数字。</p>
+          <p class="modal-lead">把你看到的变化放回发酵过程里理解，而不是只盯着某一个数字。</p>
           <div class="how-grid">
-            <article><strong>01</strong><h3>先看是否安全</h3><p>先检查异常颜色、绒毛状霉变和明显腐败异味；有这些情况时不建议继续使用。</p></article>
-            <article><strong>02</strong><h3>确认所处阶段</h3><p>新起种、成熟种、冷藏后的复活期节奏不同，同一种表现可能代表不同状态。</p></article>
-            <article><strong>03</strong><h3>结合涨幅与时间</h3><p>把体积变化和已经过的时间一起看，再结合温度与喂养比例判断是“还早”还是“确实偏慢”。</p></article>
-            <article><strong>04</strong><h3>给你下一步</h3><p>根据当前状态建议继续等待、按节奏喂养、调整温度，或在不安全时停止使用。</p></article>
+            <article><strong>01</strong><h3>先排查风险</h3><p>先确认没有霉变、异味等安全信号，再谈发酵节奏。</p></article>
+            <article><strong>02</strong><h3>确认所处阶段</h3><p>新起种、成熟种、冷藏复活期的节奏不同，同样的表现含义也不同。</p></article>
+            <article><strong>03</strong><h3>结合涨幅与时间</h3><p>把体积变化和已过时间放在一起，再结合温度与喂养比例判断快慢。</p></article>
+            <article><strong>04</strong><h3>给出下一步</h3><p>继续等待、按节奏喂养或调整温度，都会给出明确方向。</p></article>
           </div>
           <div class="think-tip">
             <strong>一个更有用的观察习惯</strong>
-            <p>连续记录 2–3 个喂养周期，比只看某一次是否翻倍更能说明你的酵种是否稳定。</p>
+            <p>连续记录 2–3 个喂养周期，比只看某一次是否翻倍更能说明酵种是否稳定。</p>
           </div>
           <div class="safety-note">
             <strong>食品安全提醒</strong>
             <span>不直接品尝生面粉或生酵种。</span>
-            <span>若出现彩色/绒毛状霉菌或明显腐败气味，直接丢弃。</span>
+            <span>出现彩色或绒毛状霉菌、明显腐败气味时，整份直接丢弃。</span>
           </div>
         </template>
 
