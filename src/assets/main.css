@@ -969,34 +969,48 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 .status-pill.status-offline { color: #6b5b4b; background: #efe8dd; border: 1px solid #d6c9b8; }
 .status-pill.status-never { color: #8a4d05; background: #fff0cb; border: 1px solid #e5c98f; }
 
-.latest-strip {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 9px;
-  margin-bottom: 18px;
+.meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
 }
-.latest-item {
-  padding: 12px 13px;
-  border-radius: 15px;
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.40);
+  border-radius: 999px;
+  background: rgba(255,255,255,.38);
+  font-size: 12px;
+  font-weight: 750;
 }
-.latest-item span {
-  display: block;
-  margin-bottom: 5px;
+.meta-item small {
   font-size: 10px;
   font-weight: 900;
   color: var(--ink-soft);
-  letter-spacing: .08em;
+  letter-spacing: .06em;
 }
-.latest-item strong { font-size: 15px; line-height: 1.3; word-break: break-all; }
+.meta-item.warn { color: #8a4d05; background: #fff0cb; border-color: #e5c98f; }
+.meta-item.warn small { color: inherit; }
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
+.chart-feature {
+  grid-column: 1 / -1;
+  border-color: rgba(43,125,232,.32);
+  background: linear-gradient(180deg, rgba(255,255,255,.78), rgba(235,243,255,.42));
+}
+.chart-feature .series-label { font-size: 12px; }
+.chart-feature .series-value { font-size: clamp(30px, 3.4vw, 42px); }
+.chart-feature .series-delta { font-size: 11px; }
+.chart-feature .series-body svg { height: 172px; }
+.chart-grid .series-chart:not(.chart-feature) .series-body svg { height: 76px; }
 .series-chart {
   padding: 14px 15px 10px;
   border-radius: 17px;
@@ -1125,11 +1139,9 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 }
 .claim-status { display: grid; gap: 14px; }
 
-@media (max-width: 1080px) {
-  .latest-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 @media (max-width: 720px) {
-  .latest-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .chart-grid { grid-template-columns: 1fr; }
   .rename-form input { width: 100%; }
+  .panel-heading { flex-wrap: wrap; }
+  .chart-feature .series-body svg { height: 132px; }
+  .heading-side { flex-wrap: wrap; }
 }

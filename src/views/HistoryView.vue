@@ -337,7 +337,7 @@ function fmt(value, suffix = '') {
         <main class="panel measurement-panel">
           <div class="panel-heading compact-heading">
             <div>
-              <p class="eyebrow dark">10-MINUTE BUCKETS</p>
+              <p class="eyebrow dark">DATA OVERVIEW</p>
               <div v-if="!renaming" class="device-title-row">
                 <h2>{{ selectedDevice?.name || '选择一个设备' }}</h2>
                 <button
@@ -367,20 +367,15 @@ function fmt(value, suffix = '') {
             </div>
           </div>
 
-          <div v-if="selectedId" class="latest-strip">
-            <div class="latest-item"><span>最后上报</span><strong>{{ lastSeenText }}</strong></div>
-            <div class="latest-item"><span>模式</span><strong>{{ MODE_LABEL[latest?.mode] || '—' }}</strong></div>
-            <div class="latest-item"><span>温度</span><strong>{{ fmt(latest?.temperature_c, ' °C') }}</strong></div>
-            <div class="latest-item"><span>高度</span><strong>{{ fmt(latest?.height_mm, ' mm') }}</strong></div>
-            <div class="latest-item"><span>Δ高度</span><strong>{{ fmt(latest?.height_delta_mm, ' mm') }}</strong></div>
-            <div class="latest-item"><span>湿度</span><strong>{{ fmt(latest?.humidity_percent, ' %') }}</strong></div>
-            <div class="latest-item"><span>电量</span><strong>{{ fmt(latest?.battery_percent, ' %') }}</strong></div>
-            <div class="latest-item" v-if="latest?.sensor_error"><span>传感器</span><strong class="sensor-error-text">故障</strong></div>
+          <div v-if="selectedId" class="meta-strip">
+            <span class="meta-item"><small>模式</small>{{ MODE_LABEL[latest?.mode] || '—' }}</span>
+            <span class="meta-item"><small>最后上报</small>{{ lastSeenText }}</span>
+            <span v-if="latest?.sensor_error" class="meta-item warn"><small>传感器</small>故障</span>
           </div>
 
           <div v-if="selectedId" class="chart-grid">
+            <SeriesChart class="chart-feature" label="高度" unit="mm" color="#2b7de8" :points="heightSeries" />
             <SeriesChart label="温度" unit="°C" color="#e85d16" :points="tempSeries" />
-            <SeriesChart label="高度" unit="mm" color="#2b7de8" :points="heightSeries" />
             <SeriesChart label="湿度" unit="%" color="#2b8a5e" :points="humiditySeries" />
             <SeriesChart label="电量" unit="%" color="#8a6d1f" :points="batterySeries" />
           </div>
