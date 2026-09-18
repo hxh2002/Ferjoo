@@ -158,7 +158,14 @@ a { color: inherit; }
   padding: 18px; margin-bottom: 26px; border-radius: 21px; background: rgba(255,255,255,.45);
   border: 1px solid var(--line);
 }
-.quick-input > label { display: block; margin-bottom: 9px; font-weight: 900; font-size: 13px; }
+.quick-entry {
+  width: 100%; border: 0; padding: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  text-align: left; background: transparent; color: var(--ink); cursor: pointer;
+}
+.quick-entry span { display: grid; gap: 5px; }
+.quick-entry strong { font-size: 13px; }
+.quick-entry small { color: var(--ink-soft); line-height: 1.5; }
+.quick-entry b { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%; background: var(--ink); color: var(--cream); font-size: 20px; font-weight: 500; }
 .quick-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .quick-row input, .auth-form input, .advanced-grid input, .advanced-grid textarea, .device-add input, .measurement-form input {
   width: 100%; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--paper); color: var(--ink);
@@ -171,6 +178,10 @@ a { color: inherit; }
   border: 0; border-radius: 13px; background: var(--ink); color: var(--cream); padding: 0 17px; font-weight: 900; cursor: pointer;
 }
 .quick-input small { display: block; margin-top: 8px; color: var(--ink-soft); line-height: 1.5; }
+.ratio-group .choice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ratio-group .choice-card { min-height: 58px; padding: 10px 11px; }
+.ratio-group .choice-card .choice-dot { display: none; }
+.ratio-group .choice-copy strong { font-size: 13px; }
 
 .field-block { border: 0; padding: 0; margin: 0 0 28px; min-width: 0; }
 .field-block legend {
@@ -358,6 +369,15 @@ a { color: inherit; }
 .classic-modal { width: min(890px, 100%); max-height: 88vh; overflow: auto; border-radius: 32px; background: var(--cream); padding: 38px; box-shadow: 0 35px 90px rgba(0,0,0,.28); position: relative; }
 .modal-close { position: absolute; top: 17px; right: 18px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: transparent; font-size: 25px; cursor: pointer; }
 .classic-modal h2 { margin: 0 0 25px; font-size: 43px; letter-spacing: -.05em; }
+.quick-modal {
+  width: min(560px, 100%); position: relative; border-radius: 30px; background: var(--cream);
+  padding: 38px; box-shadow: 0 35px 90px rgba(0,0,0,.28);
+}
+.quick-modal h2 { margin-bottom: 10px; font-size: 36px; }
+.quick-modal-lead { margin: 0 0 18px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+.quick-modal-input { width: 100%; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--paper); color: var(--ink); padding: 14px; outline: none; }
+.quick-modal-input:focus { border-color: var(--orange-deep); box-shadow: 0 0 0 3px rgba(255,124,45,.13); }
+.quick-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .how-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .how-grid article { padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,.45); }
 .how-grid article > strong { font-size: 32px; color: var(--orange-deep); }
@@ -461,8 +481,8 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   .diagnostic-layout { grid-template-columns: 1fr; }
   .result-panel { position: static; min-height: 0; }
   .history-grid { grid-template-columns: 1fr; }
-  .device-panel, .measurement-panel { min-height: 0; }
-  .measurement-form { grid-template-columns: repeat(3, 1fr); }
+  .device-panel, .measurement-panel { min-height: 0; min-width: 0; }
+  .measurement-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .page-shell { padding: 18px 15px 28px; }
@@ -479,16 +499,19 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   .panel { padding: 23px; border-radius: 24px; }
   .panel-heading h2 { font-size: 28px; }
   .choice-grid, .height-choices, .slider-grid, .select-grid, .advanced-grid, .advice-grid, .metric-grid { grid-template-columns: 1fr; }
+  .ratio-group .choice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .height-layout { grid-template-columns: 1fr; }
   .height-visual { min-height: 230px; }
   .result-content > h2 { font-size: 34px; }
   .classic-modal { padding: 31px 22px; border-radius: 25px; }
   .classic-modal h2 { font-size: 35px; padding-right: 35px; }
+  .quick-modal { padding: 31px 22px; border-radius: 25px; }
+  .quick-modal h2 { font-size: 32px; padding-right: 35px; }
   .how-grid { grid-template-columns: 1fr; }
   .history-heading { grid-template-columns: 1fr; }
   .history-heading h1 { font-size: 55px; }
   .profile-plate { min-width: 0; }
-  .measurement-form { grid-template-columns: repeat(2, 1fr); }
+  .measurement-form { grid-template-columns: minmax(0, 1fr); }
   .site-footer { display: grid; }
 }
 @media (max-width: 430px) {
@@ -998,7 +1021,7 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -1143,6 +1166,7 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 @media (max-width: 720px) {
   .rename-form input { width: 100%; }
   .panel-heading { flex-wrap: wrap; }
+  .chart-grid { grid-template-columns: minmax(0, 1fr); }
   .chart-feature .series-body svg { height: 132px; }
   .heading-side { flex-wrap: wrap; }
   .measurement-form .small-primary { grid-column: 1 / -1; }

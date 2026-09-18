@@ -10,6 +10,7 @@ const auth = useAuth();
 const quickText = ref('');
 const result = ref(null);
 const advanced = ref(false);
+const quickOpen = ref(false);
 const tempEnabled = ref(false);
 const elapsedEnabled = ref(false);
 const loginRequired = ref(false);
@@ -106,22 +107,14 @@ async function runDiagnosis() {
       </div>
 
       <div class="quick-input">
-        <label for="quickText">一句话快速填写</label>
-        <div class="quick-row">
-          <input
-            id="quickText"
-            v-model="quickText"
-            type="text"
-            placeholder="例如：成熟酵种 1:2:2，26°C，4 小时，接近翻倍，pH 3.8"
-            @keydown.enter.prevent="applyQuickText"
-          />
-          <button type="button" @click="applyQuickText">解析</button>
-        </div>
-        <small>支持识别阶段、比例、高度、温度、已过时间、pH 与明显污染描述。</small>
+        <button class="quick-entry" type="button" @click="quickOpen = true">
+          <span><strong>一句话快速填写</strong><small>用自然语言快速带入本轮状态</small></span>
+          <b>＋</b>
+        </button>
       </div>
 
       <ChoiceGroup v-model="form.stage" label="01 · 你的酵种处在哪个阶段？" :options="stageOptions" />
-      <ChoiceGroup v-model="form.ratio" label="02 · 这一轮的刷新比例？" hint="老种 : 水 : 面粉" :options="ratioOptions" />
+      <ChoiceGroup class="ratio-group" v-model="form.ratio" label="02 · 这一轮的刷新比例？" hint="老种 : 水 : 面粉" :options="ratioOptions" />
 
       <fieldset class="field-block height-field">
         <legend><span>03 · 现在涨到哪里了？</span><small>以刷新后的起始高度为 1×</small></legend>
@@ -253,6 +246,26 @@ async function runDiagnosis() {
   </section>
 
   <Teleport to="body">
+    <div v-if="quickOpen" class="modal-backdrop" @click.self="quickOpen = false">
+      <section class="quick-modal" role="dialog" aria-modal="true" aria-labelledby="quick-title">
+        <button class="modal-close" type="button" aria-label="关闭" @click="quickOpen = false">×</button>
+        <p class="eyebrow dark">QUICK INPUT</p>
+        <h2 id="quick-title">一句话告诉我这一轮状态</h2>
+        <p class="quick-modal-lead">支持识别阶段、比例、高度、温度、已过时间、pH 与明显污染描述。</p>
+        <input
+          id="quickText"
+          v-model="quickText"
+          class="quick-modal-input"
+          type="text"
+          placeholder="例如：成熟酵种 1:2:2，26°C，4 小时，接近翻倍，pH 3.8"
+          @keydown.enter.prevent="applyQuickText(); quickOpen = false"
+        />
+        <div class="quick-modal-actions">
+          <button class="ghost-button" type="button" @click="quickOpen = false">取消</button>
+          <button class="small-primary" type="button" @click="applyQuickText(); quickOpen = false">解析并带入</button>
+        </div>
+      </section>
+    </div>
     <div v-if="loginRequired" class="modal-backdrop" @click.self="loginRequired = false">
       <section class="gate-modal" role="dialog" aria-modal="true">
         <button class="modal-close" type="button" aria-label="关闭" @click="loginRequired = false">×</button>
