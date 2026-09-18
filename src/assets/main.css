@@ -389,8 +389,8 @@ a { color: inherit; }
 .form-error { background: #ffe1dc; color: #8d2b20; }
 .form-success { background: #e4f5e5; color: #286647; }
 
-.history-page { padding: 30px 0 18px; }
-.history-heading { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: end; margin: 30px 0 28px; color: white; }
+.history-page { --overview-max: 980px; padding: 30px 0 18px; }
+.history-heading { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: end; max-width: calc(300px + 20px + var(--overview-max)); margin: 30px 0 28px; color: white; }
 .history-heading h1 { margin: 0; max-width: 880px; font-size: clamp(48px, 6vw, 84px); line-height: .98; letter-spacing: -.065em; }
 .history-heading h1 span { color: var(--ink); }
 .profile-plate { min-width: 230px; padding: 19px; border-radius: 20px; border: 1px solid rgba(255,255,255,.34); background: rgba(255,255,255,.17); backdrop-filter: blur(12px); }
@@ -402,7 +402,7 @@ a { color: inherit; }
 .global-error { margin-bottom: 13px; }
 .history-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
 .device-panel, .measurement-panel { min-height: 460px; }
-.measurement-panel { max-width: 980px; }
+.measurement-panel { max-width: var(--overview-max); }
 .compact-heading { margin-bottom: 16px; }
 .compact-heading h2 { font-size: 27px; }
 .device-add { display: grid; grid-template-columns: 1fr 46px; gap: 8px; }
