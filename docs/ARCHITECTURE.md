@@ -36,4 +36,4 @@ Vue Views / Components
 ## 数据层
 
 Supabase Auth 负责邮箱/密码会话；`public.profiles` 负责系统展示 ID 与 U/A 角色。
-设备和历史数据使用 UUID 所有权 + RLS 隔离，浏览器 anon key 不能越权访问他人数据。
+设备和历史数据通过 `device_members` 成员关系 + RLS 隔离，浏览器 anon key 不能越权访问他人数据。

@@ -63,10 +63,18 @@ for (const legacy of ['starter-doctor.js', 'starter-doctor.browser.js', 'app.js'
   assert.equal(fs.existsSync(path.join(root, legacy)), false, `legacy path should be removed: ${legacy}`);
 }
 
-const migration = fs.readFileSync(path.join(root, 'supabase', 'migrations', '001_initial.sql'), 'utf8');
-assert.match(migration, /system_user_id/);
-assert.match(migration, /date_bin\(\s*interval '10 minutes'/);
-assert.match(migration, /enable row level security/);
-assert.match(migration, /private\.set_user_role/);
+const migrationsDir = path.join(root, 'supabase', 'migrations');
+const migrations = fs.readdirSync(migrationsDir)
+  .filter((f) => f.endsWith('.sql'))
+  .map((f) => fs.readFileSync(path.join(migrationsDir, f), 'utf8'))
+  .join('\n');
+assert.match(migrations, /system_user_id/);
+assert.match(migrations, /enable row level security/);
+assert.match(migrations, /private\.set_user_role/);
+assert.match(migrations, /create table if not exists public\.device_members/);
+assert.match(migrations, /function public\.claim_device/);
+assert.match(migrations, /function public\.ingest_device_measurements/);
+assert.match(migrations, /drop column if exists bucket_start/);
+assert.match(migrations, /sensor_error/);
 
 console.log('ok 1 - architecture boundaries, 2,016 catalog, references, and Supabase schema are intact');

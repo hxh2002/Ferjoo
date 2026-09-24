@@ -21,7 +21,7 @@ Vue 3 + Vite + Supabase
 │   └── router/
 ├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
-│   └── migrations/          # 001~004 SQL （后端逻辑）
+│   └── migrations/          # 001~014 SQL（后端逻辑）
 ├── docs/ARCHITECTURE.md     # 依赖方向图补充
 ├── tests/
 └── public/assets/           # 经典 PNG 资产
@@ -116,7 +116,7 @@ npm run dev
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`007` 已完成远端同步。
+2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`014` 已完成远端同步。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -181,7 +181,7 @@ where system_user_id = 'U26090001';
 
 ### 浏览器端能力
 
-已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备创建/选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
+已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
 
 “不验证邮箱正确性”按“不验证邮箱所有权”实现：部署时关闭 Supabase Confirm email；Supabase 仍保留基本邮箱格式要求。
 
@@ -240,6 +240,8 @@ where system_user_id = 'U26090001';
 - `height_delta_mm`（高度变化）
 - `humidity_percent`（湿度）
 - `battery_percent`（电量）
+- `mode`（`sleep` 休眠 / `fer` 发酵，由服务端从 `payload` 提升为独立列）
+- `sensor_error`（传感器故障标记，由服务端从 `payload` 提升为独立列）
 - `payload jsonb`（任意扩展字段，给未来传感器留空间）
 
 ### 数据分辨率
@@ -264,7 +266,7 @@ where system_user_id = 'U26090001';
 
 > 📘 面向硬件工程师的完整接入指南（凭据烧录、字段字典、十分钟桶机制、错误码、ESP32 实现、验收清单）：[`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md)
 
-设备通过 WiFi/HTTP 每 10 分钟上传一次数据，每次可携带最多过去 48 小时（约 288 个 10 分钟桶）的采样。上传走 Supabase PostgREST RPC，不需要用户登录态。
+设备通过 WiFi/HTTP 每 10 分钟上传一次数据，单批最多 288 条采样（约覆盖 48 小时离线缓冲）。上传走 Supabase PostgREST RPC，不需要用户登录态。
 
 设备必须在出厂前由管理员预先创建。生产端为每台设备生成唯一的 `device_id` 和高熵随机 `api_key`，将 `api_key` 的 SHA-256 摘要写入 `devices.api_key_hash`，再把明文 `api_key` 烧录到该设备的 Flash/NVS。数据库不会自动为未注册的设备创建凭据；设备上传前必须已有对应的 `devices` 行。
 
@@ -296,7 +298,7 @@ Content-Type: application/json
 ```
 
 - `recorded_at` 为 ISO 8601 时间；各数值字段可省略或传 `null`。
-- 同一 `(device_id, 10 分钟桶)` 会幂等 upsert，重复上传不会产生重复数据。
+- 原始数据逐条落库，无分桶唯一约束：重复上传会保存为多条原始记录，网页端每个 10 分钟桶只展示 `recorded_at` 最新的一条，固件仍需做好本地去重。单批最多 288 条，超出返回 `TOO_MANY_MEASUREMENTS`。
 - `api_key` 仅在受控出厂生成/烧录流程中出现，数据库只存 SHA-256 摘要；设备不得携带用户 JWT，也不要添加 `Authorization` 请求头。
 - `anon` 角色没有表级读写权限，仅被单独授权执行设备上传 RPC；RPC 通过 `device_id + api_key` 校验设备，并限制数据格式、范围和批量大小。
 
@@ -359,7 +361,7 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 - 污染安全规则覆盖高度、pH 等正常信号；
 - 文献引用可解析，且只能从 `src/references/` 取；
 - Vue 代码不能绕过 service 深度调用算法；
-- Supabase migration 包含用户 ID、RLS、设备和 10 分钟数据桶。
+- Supabase migration 包含用户 ID、RLS、设备与历史数据表。
 
 说明：`tests/` 下其余 `*.test.js` 为上一轮算法架构（规则引擎 / 审核队列）留存的归档用例，不属于当前 `npm test` 范围，单独运行可能失败。
 
@@ -369,7 +371,7 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前 `001`～`007` 已在远端执行。若本地需要查看迁移状态，使用：
+当前 `001`～`014` 已在远端执行。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
