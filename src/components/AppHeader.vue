@@ -12,7 +12,7 @@ const busy = ref(false);
 const socials = [
   {
     name: 'Facebook',
-    href: 'https://www.facebook.com/share/1HrAuYvxTV/',
+    href: 'https://www.facebook.com/share/18v7fhWTYX/?mibextid=wwXIfr',
     icon: 'facebook'
   },
   {

@@ -131,9 +131,15 @@ function fmt(value) {
   return `${rounded}${props.unit}`;
 }
 
+const spanLong = computed(() => {
+  if (!stats.value) return false;
+  return new Date(stats.value.lastAt) - new Date(stats.value.firstAt) > 20 * 3600 * 1000;
+});
+
 function fmtTime(t) {
   const d = new Date(t);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return spanLong.value ? `${d.getMonth() + 1}/${d.getDate()} ${hm}` : hm;
 }
 </script>
 

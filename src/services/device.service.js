@@ -10,7 +10,7 @@ function requireClient() {
 const BUCKET_MS = 10 * 60 * 1000;
 
 // 十分钟桶在查询层实现：每个桶自动选取 recorded_at 最新的一条。
-function pickLatestPerBucket(rows) {
+function pickLatestPerBucket(rows, dir = 'desc') {
   const byBucket = new Map();
   for (const row of rows) {
     const t = new Date(row.recorded_at).getTime();
@@ -19,8 +19,9 @@ function pickLatestPerBucket(rows) {
     const prev = byBucket.get(key);
     if (!prev || new Date(prev.recorded_at).getTime() < t) byBucket.set(key, row);
   }
+  const sign = dir === 'asc' ? 1 : -1;
   return [...byBucket.values()].sort(
-    (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at)
+    (a, b) => sign * (new Date(b.recorded_at) - new Date(a.recorded_at))
   );
 }
 
@@ -66,21 +67,26 @@ export async function getLatestMeasurement(deviceId) {
   return data;
 }
 
-export async function listMeasurements(deviceId, { limit = 120, from, to, bucketed = true } = {}) {
+// 按时间范围拉取（PostgREST 单页上限 1000 行，自动分页），返回按时间升序的数组。
+export async function listMeasurementsRange(deviceId, { from, to, bucketed = true, maxPages = 40 } = {}) {
   const client = requireClient();
-  // 分桶模式多取原始数据，避免每桶取最新后不足 limit 条。
-  const rawLimit = bucketed ? Math.min(limit * 10, 1000) : limit;
-  let query = client
-    .from('device_measurements')
-    .select('*')
-    .eq('device_id', deviceId)
-    .order('recorded_at', { ascending: false })
-    .limit(rawLimit);
-  if (from) query = query.gte('recorded_at', from);
-  if (to) query = query.lte('recorded_at', to);
-  const { data, error } = await query;
-  if (error) throw error;
-  return bucketed ? pickLatestPerBucket(data || []).slice(0, limit) : (data || []);
+  const PAGE = 1000;
+  const rows = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    let query = client
+      .from('device_measurements')
+      .select('*')
+      .eq('device_id', deviceId)
+      .order('recorded_at', { ascending: true })
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (from) query = query.gte('recorded_at', from);
+    if (to) query = query.lte('recorded_at', to);
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) break;
+  }
+  return bucketed ? pickLatestPerBucket(rows, 'asc') : rows;
 }
 
 export async function addMeasurement(deviceId, measurement) {

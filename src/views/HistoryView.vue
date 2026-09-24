@@ -1,7 +1,9 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth.js';
 import SeriesChart from '../components/SeriesChart.vue';
+import HistoryCalendar from '../components/HistoryCalendar.vue';
+import WeekLanes from '../components/WeekLanes.vue';
 import {
   addMeasurement,
   bindDeviceMember,
@@ -9,21 +11,25 @@ import {
   getLatestMeasurement,
   listDeviceMembers,
   listDevices,
-  listMeasurements,
+  listMeasurementsRange,
   renameDevice,
   unbindDeviceMember
 } from '../services/device.service.js';
 
 const ONLINE_WINDOW_MS = 20 * 60 * 1000; // 两个 10 分钟桶内视为在线
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MONTH_PAD_DAYS = 7;      // 月历数据前后多取 7 天，覆盖周视图跨月列
+const FER_GAP_MS = 40 * 60 * 1000; // 发酵采样间隔超过 40 分钟即视为窗口断开
+const MIN_SEG_POINTS = 2;      // 至少 2 个有效发酵点才构成诊断窗口
+const POLL_MS = 60 * 1000;     // 新数据轮询间隔
+const WIN_STORE_KEY = 'dr-ferjoo:history-windows';
 
 const auth = useAuth();
 const devices = ref([]);
 const selectedId = ref('');
-const measurements = ref([]);
 const latest = ref(null);
 const error = ref('');
 const busy = ref(false);
-const bucketed = ref(true); // true=十分钟桶筛选，false=展示全部原始数据
 const measurement = reactive({
   temperatureC: '',
   heightMm: '',
@@ -33,7 +39,6 @@ const measurement = reactive({
 });
 
 const selectedDevice = computed(() => devices.value.find((x) => x.device_id === selectedId.value));
-const createdCredential = ref(null);
 const members = ref([]);
 const memberSystemUserId = ref('');
 
@@ -44,63 +49,245 @@ const bindCode = ref('');
 const bindSuccess = ref('');
 const bindCopied = ref(false);
 
-function formatBindCode(code) {
-  if (!code) return '—';
-  const clean = code.toUpperCase();
-  return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+/* ---------- 三级时间分辨率 ---------- */
+const calendarMonth = ref(monthStartOf(Date.now()));
+const selectedDateKey = ref(dateKey(new Date()));
+const records = ref([]);       // 已加载范围内全部数据（十分钟桶，升序）
+const loadedFrom = ref(0);
+const loadedTo = ref(0);
+const manualWindows = ref([]); // 用户新建的窗口 [{ id, start, end }]
+const editedWindows = ref({}); // 用户拖改过的自动窗口 { [segStart]: { id, start, end } }
+const activeWindowId = ref('');
+const createMode = ref(false);
+const pendingStart = ref(null);
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function monthStartOf(ms) {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+}
+function monthEndOf(monthMs) {
+  const d = new Date(monthMs);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1;
+}
+function dayMsOf(key) {
+  const [y, m, dd] = key.split('-').map(Number);
+  return new Date(y, m - 1, dd).getTime();
+}
+function iso(ms) {
+  return new Date(ms).toISOString();
 }
 
-async function claimBind() {
-  const code = bindCode.value.trim();
-  if (!code) return;
-  busy.value = true;
-  error.value = '';
-  bindSuccess.value = '';
-  try {
-    const res = await claimDevice(code);
-    bindCode.value = '';
-    await refreshDevices();
-    if (res.device_id) selectedId.value = res.device_id;
-    bindSuccess.value = res.already_mine
-      ? '该设备已在你的列表中。'
-      : res.role === 'owner'
-        ? '绑定成功，你是这台设备的创建者。'
-        : '绑定成功，设备已加入你的列表。';
-    setTimeout(() => { bindSuccess.value = ''; }, 4000);
-  } catch (e) {
-    error.value = e?.message?.includes('INVALID_BIND_CODE')
-      ? '绑定码无效，请核对后重试。'
-      : e?.message || '绑定失败，请稍后重试。';
-  } finally {
-    busy.value = false;
+/* ---------- 分辨率 1：月份总览 ---------- */
+// 绿=有有效发酵数据，红=只有休眠（或故障）数据，灰=无数据
+const dayStats = computed(() => {
+  const stats = {};
+  for (const r of records.value) {
+    const k = dateKey(new Date(r.recorded_at));
+    if (r.mode === 'fer' && !r.sensor_error) stats[k] = 'fer';
+    else if (stats[k] !== 'fer') stats[k] = 'sleep';
   }
-}
-
-async function copyBindCode() {
-  const code = selectedDevice.value?.bind_code;
-  if (!code) return;
-  try {
-    await navigator.clipboard.writeText(formatBindCode(code));
-    bindCopied.value = true;
-    setTimeout(() => { bindCopied.value = false; }, 1500);
-  } catch {
-    bindCopied.value = false;
-  }
-}
-
-const canManage = computed(() => {
-  if (auth.profile.value?.role === 'A') return true;
-  const myId = auth.profile.value?.system_user_id;
-  return members.value.some((m) => m.member_role === 'owner' && m.system_user_id === myId);
+  return stats;
 });
 
-const seriesAscending = computed(() =>
-  [...measurements.value].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at))
-);
-const tempSeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.temperature_c) })));
-const heightSeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.height_mm) })));
-const humiditySeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.humidity_percent) })));
-const batterySeries = computed(() => seriesAscending.value.map((r) => ({ t: r.recorded_at, v: toNum(r.battery_percent) })));
+function selectDate(key) {
+  selectedDateKey.value = key;
+  const m = monthStartOf(dayMsOf(key));
+  if (m !== calendarMonth.value) {
+    calendarMonth.value = m;
+    refreshTimeline({ reset: true });
+  }
+}
+
+function changeMonth(delta) {
+  if (delta === 0) {
+    const now = Date.now();
+    calendarMonth.value = monthStartOf(now);
+    selectedDateKey.value = dateKey(new Date(now));
+  } else {
+    const d = new Date(calendarMonth.value);
+    calendarMonth.value = new Date(d.getFullYear(), d.getMonth() + delta, 1).getTime();
+  }
+  refreshTimeline({ reset: true });
+}
+
+/* ---------- 分辨率 2：七日时间带 + 诊断窗口 ---------- */
+const selectedDayMs = computed(() => dayMsOf(selectedDateKey.value));
+const CN_WEEK = '日一二三四五六';
+const weekDays = computed(() => {
+  const center = selectedDayMs.value;
+  const today = dateKey(new Date());
+  const out = [];
+  for (let off = -3; off <= 3; off += 1) {
+    const d = new Date(center + off * DAY_MS);
+    const key = dateKey(d);
+    out.push({
+      key,
+      dayMs: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
+      label: `${d.getMonth() + 1}/${d.getDate()}`,
+      sub: key === today ? '今天' : `周${CN_WEEK[d.getDay()]}`
+    });
+  }
+  return out;
+});
+
+const weekRecords = computed(() => {
+  const start = weekDays.value[0]?.dayMs ?? 0;
+  const end = start + 7 * DAY_MS;
+  return records.value.filter((r) => {
+    const t = new Date(r.recorded_at).getTime();
+    return t >= start && t < end;
+  });
+});
+
+// 自动识别：连续「发酵且传感器正常」的采样段 => 诊断窗口
+// 未被拖改过的自动窗口 follow=真实数据末尾，随新数据自动延展。
+const windows = computed(() => {
+  const segList = [];
+  let seg = null;
+  for (const r of records.value) {
+    const t = new Date(r.recorded_at).getTime();
+    if (r.mode === 'fer' && !r.sensor_error) {
+      if (seg && t - seg.end <= FER_GAP_MS) { seg.end = t; seg.points += 1; }
+      else {
+        if (seg && seg.points >= MIN_SEG_POINTS) segList.push(seg);
+        seg = { start: t, end: t, points: 1 };
+      }
+    }
+  }
+  if (seg && seg.points >= MIN_SEG_POINTS) segList.push(seg);
+
+  const out = [];
+  for (const s of segList) {
+    const edited = editedWindows.value[s.start];
+    if (edited) out.push({ ...edited, kind: 'edited', follow: false, origin: s.start });
+    else out.push({ id: `auto:${s.start}`, start: s.start, end: s.end, kind: 'auto', follow: true, origin: s.start });
+  }
+  for (const w of manualWindows.value) out.push({ ...w, kind: 'manual', follow: false });
+  return out.sort((a, b) => a.start - b.start);
+});
+
+const activeWindow = computed(() => windows.value.find((w) => w.id === activeWindowId.value) || null);
+
+// 默认选中：当前周视图内结束最新的窗口
+watch([windows, selectedDateKey], () => {
+  if (windows.value.some((w) => w.id === activeWindowId.value)) return;
+  const start = selectedDayMs.value - 3 * DAY_MS;
+  const end = selectedDayMs.value + 4 * DAY_MS;
+  const pool = windows.value.filter((w) => w.end > start && w.start < end);
+  const pick = (pool.length ? pool : windows.value).reduce((best, w) => (best && best.end >= w.end ? best : w), null);
+  activeWindowId.value = pick?.id || '';
+});
+
+function onLaneClick(ms) {
+  if (!createMode.value) return;
+  if (pendingStart.value == null) { pendingStart.value = ms; return; }
+  const start = Math.min(pendingStart.value, ms);
+  const end = Math.max(pendingStart.value, ms);
+  if (end - start >= 10 * 60 * 1000) {
+    const w = { id: `manual:${Date.now()}`, start, end };
+    manualWindows.value = [...manualWindows.value, w];
+    activeWindowId.value = w.id;
+    persistWindows();
+  }
+  pendingStart.value = null;
+  createMode.value = false;
+}
+
+function toggleCreate() {
+  createMode.value = !createMode.value;
+  pendingStart.value = null;
+}
+
+function onWindowDrag({ id, edge, ms }) {
+  const w = windows.value.find((x) => x.id === id);
+  if (!w) return;
+  if (w.kind === 'auto') {
+    editedWindows.value = {
+      ...editedWindows.value,
+      [w.origin]: { id: w.id, start: w.start, end: w.end, [edge]: ms }
+    };
+  } else if (w.kind === 'edited') {
+    editedWindows.value = {
+      ...editedWindows.value,
+      [w.origin]: { ...editedWindows.value[w.origin], [edge]: ms }
+    };
+  } else {
+    manualWindows.value = manualWindows.value.map((x) => (x.id === id ? { ...x, [edge]: ms } : x));
+  }
+  persistWindows();
+}
+
+function resetActiveWindow() {
+  const w = activeWindow.value;
+  if (!w || w.kind !== 'edited') return;
+  const next = { ...editedWindows.value };
+  delete next[w.origin];
+  editedWindows.value = next;
+  persistWindows();
+}
+
+function removeActiveWindow() {
+  const w = activeWindow.value;
+  if (!w || w.kind !== 'manual') return;
+  manualWindows.value = manualWindows.value.filter((x) => x.id !== w.id);
+  persistWindows();
+}
+
+// 手动/调整过的窗口按设备持久化（自动窗口每次从数据重新识别）
+function persistWindows() {
+  if (!selectedId.value) return;
+  try {
+    localStorage.setItem(`${WIN_STORE_KEY}:${selectedId.value}`, JSON.stringify({
+      manual: manualWindows.value,
+      edited: editedWindows.value
+    }));
+  } catch { /* 存储不可用时静默降级 */ }
+}
+
+function restoreWindows() {
+  try {
+    const raw = localStorage.getItem(`${WIN_STORE_KEY}:${selectedId.value}`);
+    if (raw) {
+      const { manual, edited } = JSON.parse(raw);
+      manualWindows.value = (manual || []).filter((w) => Number.isFinite(w?.start) && Number.isFinite(w?.end) && w.end > w.start);
+      editedWindows.value = edited && typeof edited === 'object' ? edited : {};
+      return;
+    }
+  } catch { /* 忽略损坏的本地缓存 */ }
+  manualWindows.value = [];
+  editedWindows.value = {};
+}
+
+/* ---------- 分辨率 3：窗口详情 ---------- */
+const windowRecords = computed(() => {
+  const w = activeWindow.value;
+  if (!w) return [];
+  return records.value.filter((r) => {
+    const t = new Date(r.recorded_at).getTime();
+    return t >= w.start && t <= w.end;
+  });
+});
+const windowRowsDesc = computed(() => [...windowRecords.value].reverse());
+
+// 手画/拖出的窗口可能超出已加载月份范围，按需补拉数据
+watch(activeWindow, async (w) => {
+  if (!w || !selectedId.value || !loadedTo.value) return;
+  for (const [from, to] of [[w.start - 1, loadedFrom.value], [loadedTo.value, w.end + 1]]) {
+    if (from >= to) continue;
+    try {
+      const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(to) });
+      mergeRows(rows, from, to);
+    } catch { /* 补拉失败不阻塞展示 */ }
+  }
+});
+
+const tempSeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.temperature_c) })));
+const heightSeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.height_mm) })));
+const humiditySeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.humidity_percent) })));
+const batterySeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.battery_percent) })));
 
 const selectedStatus = computed(() => deviceStatus(selectedDevice.value));
 const lastSeenText = computed(() => {
@@ -108,18 +295,107 @@ const lastSeenText = computed(() => {
   if (!at) return '从未上报';
   return new Date(at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 });
+const windowDurationText = computed(() => {
+  const w = activeWindow.value;
+  if (!w) return '';
+  return fmtDuration(w.end - w.start);
+});
+const windowRangeText = computed(() => {
+  const w = activeWindow.value;
+  if (!w) return '';
+  return `${fmtStamp(w.start)} → ${fmtStamp(w.end)}`;
+});
+const windowKindLabel = computed(() => ({ auto: '自动识别', edited: '已手动调整', manual: '手动创建' }[activeWindow.value?.kind] || ''));
+
+function fmtStamp(ms) {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function fmtDuration(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m} 分钟`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} 小时${m % 60 ? ` ${m % 60} 分` : ''}`;
+  return `${Math.floor(h / 24)} 天${h % 24 ? ` ${h % 24} 小时` : ''}`;
+}
+
+/* ---------- 数据加载 / 轮询 ---------- */
+function mergeRows(rows, from, to) {
+  const map = new Map(records.value.map((r) => [r.id ?? r.recorded_at, r]));
+  for (const r of rows) map.set(r.id ?? r.recorded_at, r);
+  records.value = [...map.values()].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+  loadedFrom.value = Math.min(loadedFrom.value || from, from);
+  loadedTo.value = Math.max(loadedTo.value || to, to);
+}
+
+async function refreshTimeline({ reset = false } = {}) {
+  if (!selectedId.value) return;
+  busy.value = true; error.value = '';
+  try {
+    const from = calendarMonth.value - MONTH_PAD_DAYS * DAY_MS;
+    const to = Math.min(monthEndOf(calendarMonth.value) + MONTH_PAD_DAYS * DAY_MS, Date.now());
+    const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(to) });
+    if (reset) {
+      records.value = rows;
+      loadedFrom.value = from;
+      loadedTo.value = to;
+    } else {
+      mergeRows(rows, from, to);
+    }
+  } catch (e) {
+    error.value = e?.message || '无法读取测量历史。';
+  } finally {
+    busy.value = false;
+  }
+}
+
+// 轮询新数据：让「跟随最新」的窗口末端随上报持续延展
+async function pollLatest() {
+  if (!selectedId.value || busy.value) return;
+  try {
+    const now = Date.now();
+    const from = Math.max(loadedFrom.value || 0, now - 2 * DAY_MS, (loadedTo.value || 0) - FER_GAP_MS);
+    if (from > now) return;
+    const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(now) });
+    if (rows.length) mergeRows(rows, from, now);
+    latest.value = await getLatestMeasurement(selectedId.value);
+  } catch { /* 静默：下个周期重试 */ }
+}
+
+let pollTimer = null;
+function onKeydown(e) {
+  if (e.key === 'Escape') { createMode.value = false; pendingStart.value = null; }
+}
 
 onMounted(async () => {
   await auth.init();
   if (auth.configured) await refreshDevices();
+  pollTimer = setInterval(pollLatest, POLL_MS);
+  window.addEventListener('keydown', onKeydown);
+});
+
+onBeforeUnmount(() => {
+  clearInterval(pollTimer);
+  window.removeEventListener('keydown', onKeydown);
 });
 
 watch(selectedId, async (id) => {
   renaming.value = false;
+  createMode.value = false;
+  pendingStart.value = null;
+  activeWindowId.value = '';
+  records.value = [];
+  loadedFrom.value = 0;
+  loadedTo.value = 0;
+  manualWindows.value = [];
+  editedWindows.value = {};
   if (id) {
-    await Promise.all([refreshMeasurements(), refreshMembers(), refreshLatest()]);
+    restoreWindows();
+    const now = Date.now();
+    calendarMonth.value = monthStartOf(now);
+    selectedDateKey.value = dateKey(new Date(now));
+    await Promise.all([refreshTimeline({ reset: true }), refreshMembers(), refreshLatest()]);
   } else {
-    measurements.value = [];
     members.value = [];
     latest.value = null;
   }
@@ -173,26 +449,6 @@ async function saveRename() {
   }
 }
 
-async function refreshMeasurements() {
-  if (!selectedId.value) return;
-  busy.value = true; error.value = '';
-  try {
-    measurements.value = await listMeasurements(selectedId.value, {
-      limit: 120,
-      bucketed: bucketed.value
-    });
-  } catch (e) {
-    error.value = e?.message || '无法读取测量历史。';
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function toggleBucketed() {
-  bucketed.value = !bucketed.value;
-  await refreshMeasurements();
-}
-
 async function refreshLatest() {
   if (!selectedId.value) return;
   try {
@@ -244,7 +500,7 @@ async function saveMeasurement() {
   try {
     await addMeasurement(selectedId.value, measurement);
     Object.assign(measurement, { temperatureC: '', heightMm: '', heightDeltaMm: '', humidityPercent: '', batteryPercent: '' });
-    await Promise.all([refreshMeasurements(), refreshLatest()]);
+    await Promise.all([refreshTimeline(), refreshLatest()]);
   } catch (e) {
     error.value = e?.message || '保存测量失败。';
   } finally {
@@ -254,6 +510,56 @@ async function saveMeasurement() {
 
 function fmt(value, suffix = '') {
   return value == null ? '—' : `${value}${suffix}`;
+}
+
+const canManage = computed(() => {
+  if (auth.profile.value?.role === 'A') return true;
+  const myId = auth.profile.value?.system_user_id;
+  return members.value.some((m) => m.member_role === 'owner' && m.system_user_id === myId);
+});
+
+function formatBindCode(code) {
+  if (!code) return '—';
+  const clean = code.toUpperCase();
+  return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+}
+
+async function claimBind() {
+  const code = bindCode.value.trim();
+  if (!code) return;
+  busy.value = true;
+  error.value = '';
+  bindSuccess.value = '';
+  try {
+    const res = await claimDevice(code);
+    bindCode.value = '';
+    await refreshDevices();
+    if (res.device_id) selectedId.value = res.device_id;
+    bindSuccess.value = res.already_mine
+      ? '该设备已在你的列表中。'
+      : res.role === 'owner'
+        ? '绑定成功，你是这台设备的创建者。'
+        : '绑定成功，设备已加入你的列表。';
+    setTimeout(() => { bindSuccess.value = ''; }, 4000);
+  } catch (e) {
+    error.value = e?.message?.includes('INVALID_BIND_CODE')
+      ? '绑定码无效，请核对后重试。'
+      : e?.message || '绑定失败，请稍后重试。';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function copyBindCode() {
+  const code = selectedDevice.value?.bind_code;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(formatBindCode(code));
+    bindCopied.value = true;
+    setTimeout(() => { bindCopied.value = false; }, 1500);
+  } catch {
+    bindCopied.value = false;
+  }
 }
 </script>
 
@@ -355,15 +661,8 @@ function fmt(value, suffix = '') {
               </form>
             </div>
             <div v-if="selectedId" class="heading-side">
-              <button
-                class="copy-button"
-                :class="{ active: bucketed }"
-                type="button"
-                :title="bucketed ? '十分钟桶筛选已开启，点击关闭以展示全部原始数据' : '十分钟桶筛选已关闭，点击开启'"
-                @click="toggleBucketed"
-              >10-MIN {{ bucketed ? 'ON' : 'OFF' }}</button>
               <span class="status-pill" :class="`status-${selectedStatus}`">{{ STATUS_LABEL[selectedStatus] }}</span>
-              <button class="copy-button" type="button" @click="refreshMeasurements">REFRESH</button>
+              <button class="copy-button" type="button" @click="refreshTimeline({ reset: true }); refreshLatest()">REFRESH</button>
             </div>
           </div>
 
@@ -373,39 +672,105 @@ function fmt(value, suffix = '') {
             <span v-if="latest?.sensor_error" class="meta-item warn"><small>传感器</small>故障</span>
           </div>
 
-          <div v-if="selectedId" class="chart-grid">
-            <SeriesChart class="chart-feature" label="高度" unit="mm" color="#2b7de8" :points="heightSeries" />
-            <SeriesChart label="温度" unit="°C" color="#e85d16" :points="tempSeries" />
-            <SeriesChart label="湿度" unit="%" color="#2b8a5e" :points="humiditySeries" />
-            <SeriesChart label="电量" unit="%" color="#8a6d1f" :points="batterySeries" />
+          <!-- 分辨率 1：月份总览 -->
+          <div v-if="selectedId" class="timeline-block">
+            <HistoryCalendar
+              :month="calendarMonth"
+              :stats="dayStats"
+              :selected="selectedDateKey"
+              @select="selectDate"
+              @change-month="changeMonth"
+            />
           </div>
 
-          <form v-if="selectedId" class="measurement-form" @submit.prevent="saveMeasurement">
-            <label><span>温度 °C</span><input v-model="measurement.temperatureC" type="number" step="0.1" /></label>
-            <label><span>高度 mm</span><input v-model="measurement.heightMm" type="number" step="0.1" /></label>
-            <label><span>高度变化 mm</span><input v-model="measurement.heightDeltaMm" type="number" step="0.1" /></label>
-            <label><span>湿度 %</span><input v-model="measurement.humidityPercent" type="number" step="0.1" /></label>
-            <label><span>电量 %</span><input v-model="measurement.batteryPercent" type="number" step="0.1" /></label>
-            <button class="small-primary" :disabled="busy">保存当前测量</button>
-          </form>
+          <!-- 分辨率 2：七日时间带 -->
+          <div v-if="selectedId" class="timeline-block">
+            <div class="strip-toolbar">
+              <p class="eyebrow dark">WEEK STRIP · {{ weekDays[0]?.label }} – {{ weekDays[6]?.label }}</p>
+              <button
+                class="copy-button"
+                :class="{ active: createMode }"
+                type="button"
+                title="在时间带上点击两点，创建自定义诊断窗口"
+                @click="toggleCreate"
+              >{{ createMode ? '取消创建' : '＋ 新建诊断窗口' }}</button>
+            </div>
+            <p v-if="createMode" class="create-tip">
+              在时间带上点击设定窗口{{ pendingStart == null ? '【起点】' : '【终点】' }}，可按 Esc 取消。
+            </p>
+            <div class="week-scroll">
+              <WeekLanes
+                :days="weekDays"
+                :records="weekRecords"
+                :windows="windows"
+                :active-window-id="activeWindowId"
+                :create-mode="createMode"
+                :pending-start="pendingStart"
+                @lane-click="onLaneClick"
+                @select-window="(id) => (activeWindowId = id)"
+                @drag-window="onWindowDrag"
+              />
+            </div>
+            <p class="strip-hint">系统会自动识别连续发酵段为诊断窗口；拖动窗口上下两边的横线可微调起止时间（5 分钟步进）。</p>
+          </div>
 
-          <div v-if="selectedId" class="table-wrap">
-            <table>
-              <thead><tr><th>时间</th><th>模式</th><th>温度</th><th>高度</th><th>Δ高度</th><th>湿度</th><th>电量</th><th>传感器</th></tr></thead>
-              <tbody>
-                <tr v-for="row in measurements" :key="row.id">
-                  <td>{{ new Date(row.recorded_at).toLocaleString() }}</td>
-                  <td>{{ MODE_LABEL[row.mode] || '—' }}</td>
-                  <td>{{ fmt(row.temperature_c, '°') }}</td>
-                  <td>{{ fmt(row.height_mm, ' mm') }}</td>
-                  <td>{{ fmt(row.height_delta_mm, ' mm') }}</td>
-                  <td>{{ fmt(row.humidity_percent, '%') }}</td>
-                  <td>{{ fmt(row.battery_percent, '%') }}</td>
-                  <td :class="{ 'sensor-error-text': row.sensor_error }">{{ row.sensor_error ? '故障' : '正常' }}</td>
-                </tr>
-                <tr v-if="!measurements.length"><td colspan="8" class="empty-table">暂无测量记录。</td></tr>
-              </tbody>
-            </table>
+          <!-- 分辨率 3：诊断窗口详情 -->
+          <div v-if="selectedId" class="timeline-block">
+            <div class="strip-toolbar">
+              <p class="eyebrow dark">DIAGNOSTIC WINDOW</p>
+              <div v-if="activeWindow" class="win-actions">
+                <button v-if="activeWindow.kind === 'edited'" class="copy-button" type="button" @click="resetActiveWindow">重置为自动</button>
+                <button v-if="activeWindow.kind === 'manual'" class="copy-button" type="button" @click="removeActiveWindow">删除窗口</button>
+              </div>
+            </div>
+
+            <template v-if="activeWindow">
+              <div class="win-info">
+                <span class="win-range">{{ windowRangeText }}</span>
+                <span class="win-badge">{{ windowDurationText }}</span>
+                <span class="win-badge kind">{{ windowKindLabel }}</span>
+                <span v-if="activeWindow.follow" class="win-badge live">● 随新数据延展</span>
+                <span class="win-badge count">{{ windowRecords.length }} 个采样</span>
+              </div>
+
+              <div class="chart-grid">
+                <SeriesChart class="chart-feature" label="高度" unit="mm" color="#2b7de8" :points="heightSeries" />
+                <SeriesChart label="温度" unit="°C" color="#e85d16" :points="tempSeries" />
+                <SeriesChart label="湿度" unit="%" color="#2b8a5e" :points="humiditySeries" />
+                <SeriesChart label="电量" unit="%" color="#8a6d1f" :points="batterySeries" />
+              </div>
+
+              <form class="measurement-form" @submit.prevent="saveMeasurement">
+                <label><span>温度 °C</span><input v-model="measurement.temperatureC" type="number" step="0.1" /></label>
+                <label><span>高度 mm</span><input v-model="measurement.heightMm" type="number" step="0.1" /></label>
+                <label><span>高度变化 mm</span><input v-model="measurement.heightDeltaMm" type="number" step="0.1" /></label>
+                <label><span>湿度 %</span><input v-model="measurement.humidityPercent" type="number" step="0.1" /></label>
+                <label><span>电量 %</span><input v-model="measurement.batteryPercent" type="number" step="0.1" /></label>
+                <button class="small-primary" :disabled="busy">保存当前测量</button>
+              </form>
+
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>时间</th><th>模式</th><th>温度</th><th>高度</th><th>Δ高度</th><th>湿度</th><th>电量</th><th>传感器</th></tr></thead>
+                  <tbody>
+                    <tr v-for="row in windowRowsDesc" :key="row.id">
+                      <td>{{ new Date(row.recorded_at).toLocaleString() }}</td>
+                      <td>{{ MODE_LABEL[row.mode] || '—' }}</td>
+                      <td>{{ fmt(row.temperature_c, '°') }}</td>
+                      <td>{{ fmt(row.height_mm, ' mm') }}</td>
+                      <td>{{ fmt(row.height_delta_mm, ' mm') }}</td>
+                      <td>{{ fmt(row.humidity_percent, '%') }}</td>
+                      <td>{{ fmt(row.battery_percent, '%') }}</td>
+                      <td :class="{ 'sensor-error-text': row.sensor_error }">{{ row.sensor_error ? '故障' : '正常' }}</td>
+                    </tr>
+                    <tr v-if="!windowRowsDesc.length"><td colspan="8" class="empty-table">该窗口内暂无测量记录。</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <p v-else class="empty-windows">
+              附近暂无有效发酵窗口。开始发酵后系统会自动识别连续发酵段；也可点击「＋ 新建诊断窗口」在时间带上手动圈选。
+            </p>
           </div>
         </main>
       </div>
