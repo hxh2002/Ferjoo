@@ -75,7 +75,7 @@ export async function listMeasurementsRange(deviceId, { from, to, bucketed = tru
   for (let page = 0; page < maxPages; page += 1) {
     let query = client
       .from('device_measurements')
-      .select('*')
+      .select('id, recorded_at, temperature_c, height_mm, height_delta_mm, humidity_percent, battery_percent, mode, sensor_error')
       .eq('device_id', deviceId)
       .order('recorded_at', { ascending: true })
       .range(page * PAGE, page * PAGE + PAGE - 1);

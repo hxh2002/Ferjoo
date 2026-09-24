@@ -21,6 +21,7 @@ const MIN_WINDOW_MS = 10 * 60 * 1000;
 const HOUR_MARKS = [0, 6, 12, 18, 24];
 
 const laneEls = ref([]);
+const rowTimes = new WeakMap();
 const drag = reactive({ id: '', edge: '', label: '', active: false, suppressClick: false });
 
 // 每天的数据颜色块：单次遍历（双指针），把连续同模式段合并为一个节点，
@@ -30,39 +31,35 @@ const dayBlocks = computed(() => {
   const rows = props.records;
   const raw = props.days.map(() => []);
   if (!rows.length || !props.days.length) return raw;
+  const dayStart = props.days[0].dayMs;
+  const dayEnd = props.days[props.days.length - 1].dayMs + DAY_MS;
   let d = 0;
+  let previousTime = 0;
   for (let i = 0; i < rows.length; i += 1) {
-    const t = new Date(rows[i].recorded_at).getTime();
-    if (!Number.isFinite(t)) continue;
+    const t = rowTimes.get(rows[i]) ?? new Date(rows[i].recorded_at).getTime();
+    rowTimes.set(rows[i], t);
+    if (!Number.isFinite(t) || t < dayStart || t >= dayEnd) continue;
     while (d < props.days.length - 1 && t >= props.days[d].dayMs + DAY_MS) d += 1;
-    if (t < props.days[d].dayMs) continue;
-    const nextT = i + 1 < rows.length ? new Date(rows[i + 1].recorded_at).getTime() : t + BLOCK_TAIL_MS;
+    const nextRow = rows[i + 1];
+    const nextRaw = nextRow ? (rowTimes.get(nextRow) ?? new Date(nextRow.recorded_at).getTime()) : t + BLOCK_TAIL_MS;
+    if (nextRow) rowTimes.set(nextRow, nextRaw);
+    const nextT = Number.isFinite(nextRaw) && nextRaw > t ? nextRaw : t + BLOCK_TAIL_MS;
     const mode = rows[i].mode === 'fer' ? 'fer' : 'sleep';
     const err = Boolean(rows[i].sensor_error);
     const segs = raw[d];
     const last = segs[segs.length - 1];
-    if (last && last.mode === mode && last.err === err && t - last.end <= MERGE_GAP_MS) {
-      last.end = nextT;
-    } else {
-      segs.push({ key: rows[i].id ?? `${mode}${t}`, mode, err, start: t, end: nextT });
-    }
+    if (last && last.mode === mode && last.err === err && t - previousTime <= MERGE_GAP_MS) last.end = nextT;
+    else segs.push({ key: rows[i].id ?? `${mode}${t}`, mode, err, start: t, end: nextT });
+    previousTime = t;
   }
   return raw.map((segs, i) => {
-    const dayStart = props.days[i].dayMs;
-    const dayEnd = dayStart + DAY_MS;
-    return segs
-      .map((s) => {
-        const from = Math.max(s.start, dayStart);
-        const to = Math.min(s.end, dayEnd);
-        return {
-          key: s.key,
-          mode: s.mode,
-          err: s.err,
-          top: ((from - dayStart) / DAY_MS) * 100,
-          height: ((to - from) / DAY_MS) * 100
-        };
-      })
-      .filter((b) => b.height > 0.12); // 小于约 2 分钟的碎块不渲染
+    const start = props.days[i].dayMs;
+    const end = start + DAY_MS;
+    return segs.map((s) => {
+      const from = Math.max(s.start, start);
+      const to = Math.min(s.end, end);
+      return { key: s.key, mode: s.mode, err: s.err, top: ((from - start) / DAY_MS) * 100, height: ((to - from) / DAY_MS) * 100 };
+    }).filter((b) => b.height > 0.12);
   });
 });
 

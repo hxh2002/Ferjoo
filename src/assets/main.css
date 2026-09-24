@@ -1266,10 +1266,16 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   box-shadow: 0 10px 26px rgba(232,93,22,.16), inset 0 0 0 1px rgba(232,93,22,.28);
 }
 .week-strip.creating .lane-body { cursor: crosshair; border-color: rgba(232,93,22,.55); }
-.lane-block { position: absolute; left: 4px; right: 4px; border-radius: 4px; pointer-events: none; }
-.lane-block.mode-fer { background: linear-gradient(180deg, #5abd88 0%, #3f9d68 100%); }
-.lane-block.mode-sleep { background: linear-gradient(180deg, #e57f6c 0%, #d15f4a 100%); }
-.lane-block.err { outline: 1.5px dashed rgba(140,47,29,.75); outline-offset: -1.5px; }
+.lane-block {
+  position: absolute; left: 7px; right: 7px; min-height: 3px;
+  border-radius: 5px; pointer-events: none; opacity: .78;
+  border: 1px solid rgba(255,255,255,.42);
+  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  box-shadow: 0 1px 3px rgba(42,29,23,.12), inset 0 1px 0 rgba(255,255,255,.28);
+}
+.lane-block.mode-fer { background: linear-gradient(180deg, rgba(92,190,139,.78), rgba(53,145,99,.66)); }
+.lane-block.mode-sleep { background: linear-gradient(180deg, rgba(229,127,108,.72), rgba(198,76,58,.60)); }
+.lane-block.err { outline: 1.5px dashed rgba(140,47,29,.75); outline-offset: -2px; }
 .win-band {
   position: absolute; left: 0; right: 0; cursor: pointer; pointer-events: auto;
   background: linear-gradient(180deg, rgba(232,93,22,.16), rgba(232,93,22,.08));
