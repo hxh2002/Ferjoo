@@ -1241,32 +1241,59 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 }
 .lane-head strong { font-size: 11px; font-weight: 950; }
 .lane-head small { font-size: 9px; font-weight: 800; color: var(--ink-soft); }
+.lane.selected .lane-head strong {
+  padding: 2px 9px; border-radius: 999px;
+  background: var(--orange-deep); color: #fff;
+  box-shadow: 0 3px 8px rgba(232,93,22,.35);
+}
+.lane.selected .lane-head small { color: var(--orange-deep); font-weight: 900; }
 .lane-body {
   position: relative; height: 380px; overflow: hidden;
   border: 1px solid var(--line); border-radius: 13px;
-  background: rgba(255,255,255,.42);
+  background-color: rgba(255,255,255,.42);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(25% - 1px),
+    rgba(42,29,23,.10) calc(25% - 1px),
+    rgba(42,29,23,.10) 25%
+  );
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.lane.selected .lane-body {
+  border-color: var(--orange-deep);
+  background-color: rgba(255,247,233,.9);
+  box-shadow: 0 10px 26px rgba(232,93,22,.16), inset 0 0 0 1px rgba(232,93,22,.28);
 }
 .week-strip.creating .lane-body { cursor: crosshair; border-color: rgba(232,93,22,.55); }
-.lane-grid { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(42,29,23,.13); }
-.lane-grid.edge { border-top-color: transparent; }
 .lane-block { position: absolute; left: 4px; right: 4px; border-radius: 4px; pointer-events: none; }
-.lane-block.mode-fer { background: #4caf7d; }
-.lane-block.mode-sleep { background: #e0725c; }
+.lane-block.mode-fer { background: linear-gradient(180deg, #5abd88 0%, #3f9d68 100%); }
+.lane-block.mode-sleep { background: linear-gradient(180deg, #e57f6c 0%, #d15f4a 100%); }
 .lane-block.err { outline: 1.5px dashed rgba(140,47,29,.75); outline-offset: -1.5px; }
 .win-band {
   position: absolute; left: 0; right: 0; cursor: pointer; pointer-events: auto;
-  background: rgba(232,93,22,.12);
+  background: linear-gradient(180deg, rgba(232,93,22,.16), rgba(232,93,22,.08));
   border-top: 1.5px solid var(--orange-deep); border-bottom: 1.5px solid var(--orange-deep);
 }
 .win-band.manual { border-top-style: dashed; border-bottom-style: dashed; }
-.win-band.active { background: rgba(232,93,22,.26); z-index: 2; }
+.win-band.active {
+  background: linear-gradient(180deg, rgba(232,93,22,.30), rgba(232,93,22,.18));
+  z-index: 2;
+}
 .win-handle {
   position: absolute; left: -2px; right: -2px; height: 15px; z-index: 4;
   transform: translateY(-50%); cursor: ns-resize; touch-action: none;
   display: flex; align-items: center; justify-content: center;
 }
-.win-handle i { width: 72%; height: 4px; border-radius: 3px; background: var(--ink); opacity: .5; transition: .15s; }
-.win-handle:hover i, .win-handle.active i { background: var(--orange-deep); opacity: 1; box-shadow: 0 1px 5px rgba(232,93,22,.5); }
+.win-handle i {
+  width: 58%; height: 5px; border-radius: 3px;
+  background: linear-gradient(180deg, rgba(42,29,23,.65), rgba(42,29,23,.85));
+  opacity: .5; transition: .15s;
+}
+.win-handle:hover i, .win-handle.active i {
+  background: var(--orange-deep); opacity: 1;
+  box-shadow: 0 2px 7px rgba(232,93,22,.55);
+}
 .pending-mark { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--orange-deep); z-index: 3; pointer-events: none; }
 .pending-mark em {
   position: absolute; right: 3px; top: -15px; padding: 0 5px;

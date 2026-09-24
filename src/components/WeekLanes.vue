@@ -8,6 +8,7 @@ const props = defineProps({
   records: { type: Array, default: () => [] }, // 升序行
   windows: { type: Array, default: () => [] }, // [{ id, start, end, kind, follow }]
   activeWindowId: { type: String, default: '' },
+  selectedKey: { type: String, default: '' },
   createMode: { type: Boolean, default: false },
   pendingStart: { type: Number, default: null }
 });
@@ -22,33 +23,46 @@ const HOUR_MARKS = [0, 6, 12, 18, 24];
 const laneEls = ref([]);
 const drag = reactive({ id: '', edge: '', label: '', active: false, suppressClick: false });
 
-function ts(row) {
-  return new Date(row.recorded_at).getTime();
-}
-
-// 每天的数据颜色块：一条记录从其时间延伸到下一条记录（末尾默认 10 分钟）。
+// 每天的数据颜色块：单次遍历（双指针），把连续同模式段合并为一个节点，
+// 大幅降低 DOM 数量（小时级发酵段从几十个采样点合并为 1 个矩形）。
+const MERGE_GAP_MS = 15 * 60 * 1000; // 相邻采样间隔 ≤15 分钟视为连续
 const dayBlocks = computed(() => {
   const rows = props.records;
-  const times = rows.map((r) => ts(r));
-  return props.days.map((day) => {
-    const dayStart = day.dayMs;
-    const dayEnd = dayStart + DAY_MS;
-    const blocks = [];
-    for (let i = 0; i < rows.length; i += 1) {
-      const t = times[i];
-      const next = i + 1 < rows.length ? times[i + 1] : t + BLOCK_TAIL_MS;
-      const s = Math.max(t, dayStart);
-      const e = Math.min(next, dayEnd);
-      if (e - s < 60 * 1000 || s >= dayEnd) continue;
-      blocks.push({
-        id: rows[i].id ?? i,
-        top: ((s - dayStart) / DAY_MS) * 100,
-        height: ((e - s) / DAY_MS) * 100,
-        mode: rows[i].mode === 'fer' ? 'fer' : 'sleep',
-        err: Boolean(rows[i].sensor_error)
-      });
+  const raw = props.days.map(() => []);
+  if (!rows.length || !props.days.length) return raw;
+  let d = 0;
+  for (let i = 0; i < rows.length; i += 1) {
+    const t = new Date(rows[i].recorded_at).getTime();
+    if (!Number.isFinite(t)) continue;
+    while (d < props.days.length - 1 && t >= props.days[d].dayMs + DAY_MS) d += 1;
+    if (t < props.days[d].dayMs) continue;
+    const nextT = i + 1 < rows.length ? new Date(rows[i + 1].recorded_at).getTime() : t + BLOCK_TAIL_MS;
+    const mode = rows[i].mode === 'fer' ? 'fer' : 'sleep';
+    const err = Boolean(rows[i].sensor_error);
+    const segs = raw[d];
+    const last = segs[segs.length - 1];
+    if (last && last.mode === mode && last.err === err && t - last.end <= MERGE_GAP_MS) {
+      last.end = nextT;
+    } else {
+      segs.push({ key: rows[i].id ?? `${mode}${t}`, mode, err, start: t, end: nextT });
     }
-    return blocks;
+  }
+  return raw.map((segs, i) => {
+    const dayStart = props.days[i].dayMs;
+    const dayEnd = dayStart + DAY_MS;
+    return segs
+      .map((s) => {
+        const from = Math.max(s.start, dayStart);
+        const to = Math.min(s.end, dayEnd);
+        return {
+          key: s.key,
+          mode: s.mode,
+          err: s.err,
+          top: ((from - dayStart) / DAY_MS) * 100,
+          height: ((to - from) / DAY_MS) * 100
+        };
+      })
+      .filter((b) => b.height > 0.12); // 小于约 2 分钟的碎块不渲染
   });
 });
 
@@ -178,7 +192,7 @@ function startDrag(e, band, edge) {
       <span v-for="h in HOUR_MARKS" :key="h" :style="{ top: `${(h / 24) * 100}%` }">{{ String(h).padStart(2, '0') }}:00</span>
     </div>
     <div class="week-lanes">
-      <div v-for="(day, i) in days" :key="day.key" class="lane">
+      <div v-for="(day, i) in days" :key="day.key" class="lane" :class="{ selected: day.key === selectedKey }">
         <div class="lane-head"><strong>{{ day.label }}</strong><small>{{ day.sub }}</small></div>
         <div
           :ref="(el) => setLaneRef(el, i)"
@@ -186,16 +200,9 @@ function startDrag(e, band, edge) {
           :title="createMode ? '点击设置窗口起点 / 终点' : ''"
           @click="onLaneClick($event, day)"
         >
-          <span
-            v-for="h in HOUR_MARKS"
-            :key="h"
-            class="lane-grid"
-            :class="{ edge: h === 0 || h === 24 }"
-            :style="{ top: `${(h / 24) * 100}%` }"
-          ></span>
           <i
             v-for="b in dayBlocks[i]"
-            :key="b.id"
+            :key="b.key"
             class="lane-block"
             :class="[`mode-${b.mode}`, { err: b.err }]"
             :style="{ top: `${b.top}%`, height: `${b.height}%` }"

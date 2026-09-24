@@ -120,7 +120,8 @@ const weekDays = computed(() => {
   const center = selectedDayMs.value;
   const today = dateKey(new Date());
   const out = [];
-  for (let off = -3; off <= 3; off += 1) {
+  // 选中日期固定在第 3 列：前 2 天回看 + 后 4 天前瞻
+  for (let off = -2; off <= 4; off += 1) {
     const d = new Date(center + off * DAY_MS);
     const key = dateKey(d);
     out.push({
@@ -174,8 +175,8 @@ const activeWindow = computed(() => windows.value.find((w) => w.id === activeWin
 // 默认选中：当前周视图内结束最新的窗口
 watch([windows, selectedDateKey], () => {
   if (windows.value.some((w) => w.id === activeWindowId.value)) return;
-  const start = selectedDayMs.value - 3 * DAY_MS;
-  const end = selectedDayMs.value + 4 * DAY_MS;
+  const start = selectedDayMs.value - 2 * DAY_MS;
+  const end = selectedDayMs.value + 5 * DAY_MS;
   const pool = windows.value.filter((w) => w.end > start && w.start < end);
   const pick = (pool.length ? pool : windows.value).reduce((best, w) => (best && best.end >= w.end ? best : w), null);
   activeWindowId.value = pick?.id || '';
@@ -704,6 +705,7 @@ async function copyBindCode() {
                 :records="weekRecords"
                 :windows="windows"
                 :active-window-id="activeWindowId"
+                :selected-key="selectedDateKey"
                 :create-mode="createMode"
                 :pending-start="pendingStart"
                 @lane-click="onLaneClick"
