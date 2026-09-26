@@ -26,7 +26,7 @@ const drag = reactive({ id: '', edge: '', label: '', active: false, suppressClic
 
 // 每天的数据颜色块：单次遍历（双指针），把连续同模式段合并为一个节点，
 // 大幅降低 DOM 数量（小时级发酵段从几十个采样点合并为 1 个矩形）。
-const MERGE_GAP_MS = 15 * 60 * 1000; // 相邻采样间隔 ≤15 分钟视为连续
+const MERGE_GAP_MS = 40 * 60 * 1000; // 与 FER_GAP_MS 对齐，10 分钟桶偶发丢点不切碎段
 const dayBlocks = computed(() => {
   const rows = props.records;
   const raw = props.days.map(() => []);

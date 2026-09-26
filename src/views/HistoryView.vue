@@ -134,22 +134,39 @@ const weekDays = computed(() => {
   return out;
 });
 
+const rowTimeCache = new WeakMap();
+function rowTime(r) {
+  let t = rowTimeCache.get(r);
+  if (t == null) {
+    t = new Date(r.recorded_at).getTime();
+    rowTimeCache.set(r, t);
+  }
+  return t;
+}
+
 const weekRecords = computed(() => {
   const start = weekDays.value[0]?.dayMs ?? 0;
   const end = start + 7 * DAY_MS;
   return records.value.filter((r) => {
-    const t = new Date(r.recorded_at).getTime();
+    const t = rowTime(r);
     return t >= start && t < end;
   });
 });
 
 // 自动识别：连续「发酵且传感器正常」的采样段 => 诊断窗口
 // 未被拖改过的自动窗口 follow=真实数据末尾，随新数据自动延展。
+// 为降低开销，仅扫描当前周视图 ±1 天缓冲；外部窗口由手动/编辑保留。
+const WINDOWS_SCAN_PAD = DAY_MS;
 const windows = computed(() => {
+  if (!weekDays.value.length) return [];
+  const wStart = weekDays.value[0].dayMs - WINDOWS_SCAN_PAD;
+  const wEnd = wStart + 7 * DAY_MS + 2 * WINDOWS_SCAN_PAD;
   const segList = [];
   let seg = null;
   for (const r of records.value) {
-    const t = new Date(r.recorded_at).getTime();
+    const t = rowTime(r);
+    if (t < wStart) continue;
+    if (t >= wEnd) break;
     if (r.mode === 'fer' && !r.sensor_error) {
       if (seg && t - seg.end <= FER_GAP_MS) { seg.end = t; seg.points += 1; }
       else {
@@ -166,7 +183,9 @@ const windows = computed(() => {
     if (edited) out.push({ ...edited, kind: 'edited', follow: false, origin: s.start });
     else out.push({ id: `auto:${s.start}`, start: s.start, end: s.end, kind: 'auto', follow: true, origin: s.start });
   }
-  for (const w of manualWindows.value) out.push({ ...w, kind: 'manual', follow: false });
+  for (const w of manualWindows.value) {
+    if (w.end > wStart && w.start < wEnd) out.push({ ...w, kind: 'manual', follow: false });
+  }
   return out.sort((a, b) => a.start - b.start);
 });
 
@@ -267,7 +286,7 @@ const windowRecords = computed(() => {
   const w = activeWindow.value;
   if (!w) return [];
   return records.value.filter((r) => {
-    const t = new Date(r.recorded_at).getTime();
+    const t = rowTime(r);
     return t >= w.start && t <= w.end;
   });
 });
