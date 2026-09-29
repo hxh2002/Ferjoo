@@ -85,7 +85,7 @@ function iso(ms) {
 const dayStats = computed(() => {
   const stats = {};
   for (const r of records.value) {
-    const k = dateKey(new Date(r.recorded_at));
+    const k = dateKey(new Date(rowTime(r)));
     if (r.mode === 'fer' && !r.sensor_error) stats[k] = 'fer';
     else if (stats[k] !== 'fer') stats[k] = 'sleep';
   }
@@ -340,33 +340,61 @@ function fmtDuration(ms) {
 }
 
 /* ---------- 数据加载 / 轮询 ---------- */
+// 按 10 分钟桶合并：同桶只保留最新一条（与 pickLatestPerBucket 同语义），
+// 分页渐进合入不会在桶边界产生重复点。
+const BUCKET_MS = 10 * 60 * 1000;
+let loadToken = 0; // 单调递增；切换设备/月份后，旧请求的增量直接丢弃
+
 function mergeRows(rows, from, to) {
-  const map = new Map(records.value.map((r) => [r.id ?? r.recorded_at, r]));
-  for (const r of rows) map.set(r.id ?? r.recorded_at, r);
-  records.value = [...map.values()].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+  const map = new Map(records.value.map((r) => [Math.floor(rowTime(r) / BUCKET_MS), r]));
+  for (const r of rows) {
+    const k = Math.floor(rowTime(r) / BUCKET_MS);
+    const prev = map.get(k);
+    if (!prev || rowTime(prev) <= rowTime(r)) map.set(k, r);
+  }
+  records.value = [...map.values()].sort((a, b) => rowTime(a) - rowTime(b));
   loadedFrom.value = Math.min(loadedFrom.value || from, from);
   loadedTo.value = Math.max(loadedTo.value || to, to);
 }
 
+async function fetchRangeMerge(from, to, token) {
+  if (from >= to) return;
+  await listMeasurementsRange(selectedId.value, {
+    from: iso(from),
+    to: iso(to),
+    onPage: (rows) => { if (token === loadToken) mergeRows(rows, from, to); }
+  });
+}
+
+// 分级加载 + 渐进渲染：
+// 阶段一只拉当前周视图 ±1 天（通常一页内），WEEK STRIP 立即出柱；
+// 阶段二后台补齐月历需要的整月其余部分。每页合入即触发依赖重算。
 async function refreshTimeline({ reset = false } = {}) {
   if (!selectedId.value) return;
   busy.value = true; error.value = '';
-  try {
-    const from = calendarMonth.value - MONTH_PAD_DAYS * DAY_MS;
-    const to = Math.min(monthEndOf(calendarMonth.value) + MONTH_PAD_DAYS * DAY_MS, Date.now());
-    const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(to) });
-    if (reset) {
-      records.value = rows;
-      loadedFrom.value = from;
-      loadedTo.value = to;
-    } else {
-      mergeRows(rows, from, to);
-    }
-  } catch (e) {
-    error.value = e?.message || '无法读取测量历史。';
-  } finally {
-    busy.value = false;
+  const token = ++loadToken;
+  const monthFrom = calendarMonth.value - MONTH_PAD_DAYS * DAY_MS;
+  const monthTo = Math.min(monthEndOf(calendarMonth.value) + MONTH_PAD_DAYS * DAY_MS, Date.now());
+  let weekFrom = Math.max(selectedDayMs.value - 3 * DAY_MS, monthFrom);
+  let weekTo = Math.min(selectedDayMs.value + 6 * DAY_MS, monthTo);
+  if (weekFrom >= weekTo) { weekFrom = monthFrom; weekTo = monthTo; } // 选中日不在当前月：退回整月单段
+  if (reset) {
+    records.value = [];
+    loadedFrom.value = 0;
+    loadedTo.value = 0;
   }
+  try {
+    await fetchRangeMerge(weekFrom, weekTo, token);
+  } catch (e) {
+    if (token === loadToken) error.value = e?.message || '无法读取测量历史。';
+  } finally {
+    if (token === loadToken) busy.value = false;
+  }
+  // 阶段二不阻塞首屏；补拉失败静默（月历保持局部显示）
+  Promise.all([
+    fetchRangeMerge(monthFrom, weekFrom, token),
+    fetchRangeMerge(weekTo, monthTo, token)
+  ]).catch(() => {});
 }
 
 // 轮询新数据：让「跟随最新」的窗口末端随上报持续延展

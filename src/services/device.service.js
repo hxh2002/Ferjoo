@@ -68,7 +68,8 @@ export async function getLatestMeasurement(deviceId) {
 }
 
 // 按时间范围拉取（PostgREST 单页上限 1000 行，自动分页），返回按时间升序的数组。
-export async function listMeasurementsRange(deviceId, { from, to, bucketed = true, maxPages = 40 } = {}) {
+// onPage：每页拉完即回调该页的桶化增量行，供调用方渐进渲染；返回值仍是全量结果。
+export async function listMeasurementsRange(deviceId, { from, to, bucketed = true, maxPages = 40, onPage } = {}) {
   const client = requireClient();
   const PAGE = 1000;
   const rows = [];
@@ -84,6 +85,7 @@ export async function listMeasurementsRange(deviceId, { from, to, bucketed = tru
     const { data, error } = await query;
     if (error) throw error;
     rows.push(...(data || []));
+    if (onPage && data?.length) onPage(bucketed ? pickLatestPerBucket(data, 'asc') : data);
     if (!data || data.length < PAGE) break;
   }
   return bucketed ? pickLatestPerBucket(rows, 'asc') : rows;
