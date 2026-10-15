@@ -15,6 +15,7 @@ import MobileReport from '../views/mobile/MobileReport.vue';
 import MobileDevices from '../views/mobile/MobileDevices.vue';
 import MobileTrend from '../views/mobile/MobileTrend.vue';
 import { useAuth } from '../composables/useAuth.js';
+import { isMobileBrowser } from '../lib/device.js';
 
 const routes = [
   { path: '/', name: 'doctor', component: DoctorView },
@@ -50,6 +51,9 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  if (to.name === 'doctor' && to.query.view !== 'desktop' && isMobileBrowser()) {
+    return { name: 'mobile-today', query: to.query, hash: to.hash, replace: true };
+  }
   if (!to.meta.requiresAuth) return true;
   const auth = useAuth();
   await auth.init();

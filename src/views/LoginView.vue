@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import AuthCard from '../components/AuthCard.vue';
 import { signInWithEmail } from '../services/auth.service.js';
 import { useAuth } from '../composables/useAuth.js';
+import { isMobileBrowser } from '../lib/device.js';
 
 const form = reactive({ email: '', password: '' });
 const error = ref('');
@@ -18,7 +19,7 @@ async function submit() {
   try {
     await signInWithEmail(form);
     await auth.syncSession();
-    await router.push(String(route.query.redirect || '/history'));
+    await router.push(String(route.query.redirect || (isMobileBrowser() ? '/today' : '/history')));
   } catch (e) {
     error.value = e?.message || '登录失败，请检查邮箱与密码。';
   } finally {

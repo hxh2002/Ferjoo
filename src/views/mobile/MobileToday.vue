@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { createStarter, listCareRecords, listStarters } from '../../services/care.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
@@ -17,33 +17,69 @@ const error = ref('');
 const accountId = computed(() => auth.user.value?.id || '');
 const starter = computed(() => starters.value.find((item) => item.id === starterId.value));
 const latestDevice = computed(() => devices.value[0]);
-async function load() {
+let accountGeneration = 0;
+let recordGeneration = 0;
+let disposed = false;
+watch(accountId, async (owner) => {
+  const token = ++accountGeneration;
+  ++recordGeneration;
+  starters.value = [];
+  devices.value = [];
+  starterId.value = '';
+  record.value = null;
+  report.value = null;
+  name.value = '';
   error.value = '';
-  if (!accountId.value) { starters.value = []; devices.value = []; record.value = null; return; }
-  loading.value = true;
+  loading.value = !!owner;
+  if (!owner) return;
   try {
-    const [starterRows, service] = await Promise.all([listStarters(), mobileDeviceService()]);
+    const [starterRows, deviceRows] = await Promise.all([
+      listStarters(),
+      mobileDeviceService().then((service) => service.listDevices(owner))
+    ]);
+    if (disposed || token !== accountGeneration) return;
     starters.value = starterRows;
-    devices.value = accountId.value ? await service.listDevices(accountId.value) : [];
-    if (!starterId.value && starterRows[0]) starterId.value = starterRows[0].id;
-    const records = starterId.value ? await listCareRecords({ starterId: starterId.value }) : [];
-    record.value = records[0] || null;
-    report.value = loadSessionReport(accountId.value);
-  } catch (e) { error.value = e?.message || '读取失败，请稍后重试。'; }
-  finally { loading.value = false; }
-}
+    devices.value = deviceRows;
+    starterId.value = starterRows[0]?.id || '';
+  } catch (e) {
+    if (!disposed && token === accountGeneration) error.value = e?.message || '读取失败，请稍后重试。';
+  } finally {
+    if (!disposed && token === accountGeneration) loading.value = false;
+  }
+}, { immediate: true, flush: 'sync' });
+watch([accountId, starterId], async ([owner, id]) => {
+  const token = ++recordGeneration;
+  record.value = null;
+  report.value = null;
+  error.value = '';
+  if (!owner || !id) return;
+  const sessionReport = loadSessionReport(owner);
+  if (sessionReport?.starterId === id) report.value = sessionReport;
+  try {
+    const records = await listCareRecords({ starterId: id });
+    if (!disposed && token === recordGeneration) record.value = records[0] || null;
+  } catch (e) {
+    if (!disposed && token === recordGeneration) error.value = e?.message || '读取失败，请稍后重试。';
+  }
+}, { flush: 'sync' });
 async function addStarter() {
   if (!auth.user.value) { error.value = '添加酵种前请先登录。'; return; }
   if (!name.value.trim()) return;
+  const owner = accountId.value;
+  const token = accountGeneration;
   error.value = '';
   try {
     const created = await createStarter(name.value);
+    if (disposed || token !== accountGeneration || owner !== accountId.value) return;
     starters.value.unshift(created);
     starterId.value = created.id;
     name.value = '';
-  } catch (e) { error.value = e?.message || '添加失败，请稍后重试。'; }
+  } catch (e) {
+    if (!disposed && token === accountGeneration) error.value = e?.message || '添加失败，请稍后重试。';
+  }
 }
-onMounted(async () => { await auth.init(); await load(); });
+onMounted(() => auth.init());
+onScopeDispose(() => { disposed = true; ++accountGeneration; ++recordGeneration; });
 </script>
 
 <template>

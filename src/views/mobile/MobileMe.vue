@@ -26,7 +26,7 @@ onMounted(() => auth.init());
       <RouterLink v-if="auth.user.value" to="/claim"><span>绑定设备二维码链接</span><b>›</b></RouterLink>
       <RouterLink v-if="!auth.user.value" :to="{ path: '/login', query: { redirect: '/me' } }"><span>登录</span><b>›</b></RouterLink>
       <RouterLink v-if="!auth.user.value" :to="{ path: '/register', query: { redirect: '/me' } }"><span>邀请码注册</span><b>›</b></RouterLink>
-      <RouterLink to="/"><span>电脑端完整工具</span><b>›</b></RouterLink>
+      <RouterLink :to="{ path: '/', query: { view: 'desktop' } }"><span>电脑端完整工具</span><b>›</b></RouterLink>
     </nav>
     <section v-if="auth.user.value" class="m-card">
       <h2>账号安全</h2>

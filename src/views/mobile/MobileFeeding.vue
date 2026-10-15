@@ -5,11 +5,16 @@ import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { saveFeeding } from '../../services/care.service.js';
 
+function localDateTimeValue(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const route = useRoute();
 const router = useRouter();
 const { user } = useAuth();
 const accountId = computed(() => user.value?.id || 'guest');
-const { draft, storageAvailable } = useCheckinDraft(accountId, { kind: 'feeding', defaults: () => ({ starterId: '', occurredAt: new Date().toISOString().slice(0, 16), ratio: '', step: 1 }) });
+const { draft, storageAvailable } = useCheckinDraft(accountId, { kind: 'feeding', defaults: () => ({ starterId: '', occurredAt: localDateTimeValue(), ratio: '', step: 1 }) });
 const error = ref('');
 const status = ref('');
 const saving = ref(false);

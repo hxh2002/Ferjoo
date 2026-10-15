@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { getCareRecord, saveObservation } from '../../services/care.service.js';
-import { loadSessionReport, storeSessionReport, snapshot, protectResult, reportText, fieldLabels, describeField } from '../../services/mobile-diagnosis.service.js';
+import { loadSessionReport, storeSessionReport, snapshot, reportText, fieldLabels, describeField } from '../../services/mobile-diagnosis.service.js';
 
 const route = useRoute();
 const { user } = useAuth();
@@ -14,12 +14,13 @@ const saving = ref(false);
 const error = ref('');
 const copyStatus = ref('');
 const readable = ref(false);
-const cloud = computed(() => !!route.params.id);
+const cloud = computed(() => !!route.params.id && route.params.id !== 'session');
 const text = computed(() => report.value ? reportText(report.value) : '');
 let generation = 0;
 watch([accountId, () => route.params.id, () => route.path], async () => {
   const token = ++generation;
   report.value = null;
+  loading.value = false;
   error.value = '';
   copyStatus.value = '';
   readable.value = false;
@@ -32,8 +33,8 @@ watch([accountId, () => route.params.id, () => route.path], async () => {
     const value = snapshot(record);
     const input = value.input || value.payload?.input;
     const result = value.result || value.payload?.result;
-    if (!input || !result) throw new Error('这不是一条包含建议快照的观察记录。');
-    report.value = { ...value, input, result: protectResult(result, input), occurredAt: value.occurredAt || value.occurred_at, savedId: value.id || route.params.id };
+    if (value.kind !== 'observation' || !input || !result) throw new Error('这不是一条包含建议快照的观察记录。');
+    report.value = { ...value, input, result, occurredAt: value.occurredAt || value.occurred_at, savedId: value.id || route.params.id };
   } catch (cause) { if (token === generation) error.value = cause.message || '加载失败，请稍后重试。'; }
   finally { if (token === generation) loading.value = false; }
 }, { immediate: true });
