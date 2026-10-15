@@ -14,10 +14,10 @@ Vue 3 + Vite + Supabase
 │   ├── constants/           # 经典资产常量
 │   ├── references/          # 运行时证据目录 + 参考文献资料库
 │   ├── components/          # Vue 展示组件
-│   ├── views/               # 路由页面（诊断 / 登录 / 注册 / 历史）
+│   ├── views/               # 电脑端页面、共享账号页及 mobile/ 手机端页面
 │   ├── services/            # UI 与算法/数据库之间的调用边界
-│   ├── composables/         # 登录会话状态
-│   ├── lib/                 # Supabase 客户端
+│   ├── composables/         # 登录会话、养护草稿、酵种名称查询
+│   ├── lib/                 # Supabase 客户端、设备识别、UUID、本地时间与账号导航
 │   └── router/
 ├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
@@ -111,7 +111,45 @@ cp .env.example .env
 npm run dev
 ```
 
-没有配置 Supabase 时，核心诊断页仍可打开，但诊断按钮、登录、注册、个人资料、设备历史页均会提示需要登录 / 未配置。
+没有配置 Supabase 时，电脑端核心诊断页仍可打开，但诊断、账号与设备云端功能不可用。手机端支持游客填写观察、生成本地建议；保存到云端、读取账号记录和设备数据需要配置 Supabase 并登录。
+
+## 电脑端与手机端
+
+### 入口与布局边界
+
+- 电脑端诊断入口为 `/`，设备历史入口为 `/history`。移动设备访问 `/` 时自动进入 `/today`；可通过 `/?view=desktop` 明确访问电脑端诊断页。
+- 手机端任务页面位于 `src/views/mobile/`，统一使用 `MobileShell`；电脑端保留经典布局。入口识别只负责选择默认首页，不禁止显式访问另一端路由。
+- `/login`、`/register`、`/profile`、`/claim` 是共享账号页面：在移动浏览器或手机端回跳场景下使用手机外壳。登录、注册切换保留合法站内 `redirect`，绑定完成返回相应设备页面。
+- 两端共用 Supabase 账号与服务层，但**目前不是全部功能逐项对等，也不是所有页面组件完全分离**。本轮已修复手机端主流程与账号闭环，尚未进行全量手机 UI 美化重构。
+
+### 手机端路由与能力
+
+| 路径 | 能力 | 登录要求 |
+| --- | --- | --- |
+| `/today` | 今日任务入口、酵种选择及养护操作入口 | 游客可进入，账号数据需登录 |
+| `/checkin` | 分步骤填写观察、生成本地建议 | 游客可生成，云端保存需登录 |
+| `/feeding` | 记录喂养事实、保存确认与连续新增 | 云端保存需登录 |
+| `/records` | 观察/喂养记录列表，酵种、类型、日期筛选与分页 | 云端记录需登录 |
+| `/reports/session` | 当前本地观察建议 | 游客可查看当前会话 |
+| `/reports/:id` | 已保存观察快照或喂养事实详情 | 云端记录需登录 |
+| `/me` | 个人与账号操作入口 | 游客可进入 |
+| `/me/devices`、`/me/devices/:deviceId` | 设备列表与设备设置 | 需要登录 |
+| `/devices/:deviceId/trend` | 设备趋势、指标与时间范围选择 | 需要登录 |
+
+### 最新主流程修复（`15eb40f`）
+
+- **详情分流**：观察记录读取保存时的建议快照，不重新诊断；喂养记录仅展示时间、酵种与比例等事实，不生成观察建议。
+- **记录筛选与返回**：空酵种筛选表示“全部酵种”；列表每页 40 条，筛选与页码保存在路由 query，详情通过 `returnTo` 恢复列表位置。
+- **喂养幂等生命周期**：首次提交锁定请求编号与负载，结果未确认时使用同一内容重试；保存确认后，通过“开始下一条喂养记录”生成新的请求编号，不复用上一条已确认请求。草稿写入本地存储，存储不可用时阻止无法安全重试的提交。
+- **安全 UUID**：观察与喂养统一使用 `crypto.randomUUID()`；不可用时通过 `crypto.getRandomValues()` 构造 UUID v4。没有安全随机源则明确提示失败，不用时间戳冒充 UUID。
+- **时间语义**：`datetime-local` 使用本地时间字符串，查询/保存前转换为 UTC ISO；拒绝无效日期及夏令时跳过时段。趋势取消编辑会恢复已应用范围；查询结束边界采用排他上界，允许覆盖所选日期，而新增记录仍不得晚于当前时间。
+- **对象名称与账号闭环**：业务界面显示酵种名称及名称加载状态，不直接以裸 UUID 代替名称；名称查询随账号切换隔离，手机登录、注册及设备绑定保留合法站内回跳。
+
+### 当前边界与后续验收
+
+- 手机端尚未补齐电脑设备历史的全部分析交互，例如日期定位、手动刷新、采样详情、Δ高度、自动区间与统计；不要将当前状态理解为双端功能已经完全一致。
+- 真实账号登录、邮箱确认、生产登录态保存及真机视觉仍需专项验收；本地游客流程验证不能替代这些检查。
+- 后续界面调整应保持电脑端经典布局与手机端样式隔离，并通过公共服务层维持相同业务规则，避免分别实现算法或数据库权限逻辑。
 
 ## Supabase 部署
 
@@ -176,14 +214,14 @@ where system_user_id = 'U26090001';
 
 #### 诊断与账号
 
-- 未登录账号不能使用诊断功能：点击「开始诊断」会弹出登录提醒；路由层面 `history`、`profile` 均要求登录。
+- 电脑端未登录时点击「开始诊断」会弹出登录提醒；手机端允许游客生成本地观察建议，但云端保存需要登录。`history`、`profile`、`claim` 及手机设备路由均要求登录。
 - 登录、注册、个人资料 / 头像、邀请码、修改密码等均依赖 Supabase。
 
 ### 浏览器端能力
 
 已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
 
-“不验证邮箱正确性”按“不验证邮箱所有权”实现：部署时关闭 Supabase Confirm email；Supabase 仍保留基本邮箱格式要求。
+当前部署约定保持 Supabase **Confirm email** 开启，注册后需完成邮箱确认。若另行决定取消邮箱所有权验证，须显式调整 Supabase 配置；前端仍受基本邮箱格式校验约束。
 
 ## 数据库设计
 
@@ -243,6 +281,14 @@ where system_user_id = 'U26090001';
 - `mode`（`sleep` 休眠 / `fer` 发酵，由服务端从 `payload` 提升为独立列）
 - `sensor_error`（传感器故障标记，由服务端从 `payload` 提升为独立列）
 - `payload jsonb`（任意扩展字段，给未来传感器留空间）
+
+### starters / care_records（迁移 `015`）
+
+- `starters` 保存账号拥有的酵种：`id`、`user_id`、`name`、`created_at`。
+- `care_records` 保存养护事实：`request_id`、`starter_id`、`kind`（`feeding` / `observation`）、`occurred_at`、输入 `input`、建议快照 `result`、喂养比例 `ratio` 与创建时间。
+- 两张表均启用 RLS，仅允许用户读取和新增自己的数据；养护记录不是设备传感器数据，不与 `device_measurements` 混用。
+- 保存走 `save_care_record` RPC，校验酵种归属。`(user_id, request_id)` 唯一约束保证相同请求重复提交只返回同一记录；同一编号携带不同内容时返回 `REQUEST_ID_CONFLICT`。
+- 本次主流程修复复用现有 `015_mobile_care.sql`，没有新增数据库迁移。
 
 ### 数据分辨率
 
@@ -343,14 +389,21 @@ import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 - `scenario-catalog.json`：完整预生成组合。
 - `build-review-queue.js` / `review-queue.json`：审核队列。
 
-依赖方向由 `tests/architecture.test.js` 强制约束，详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+依赖方向约定详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。`tests/architecture.test.js` 是历史架构检查用例，未接入当前默认测试链，需更新其断言后再作为持续集成门禁。
 
 ## 测试
 
 ```bash
-npm test           # 诊断行为测试 + 2,016 场景结构自检 + 架构边界检查
+npm test           # 诊断行为测试 + 2,016 场景结构自检
 npm run audit      # 仅运行 2,016 场景枚举自检
+node tests/mobile-care.test.js
+node tests/mobile-device.service.test.js
+npm run build
 ```
+
+手机养护与设备服务测试需单独运行，目前未包含在 `npm test` 脚本中；架构边界测试也不在当前默认测试链中。
+
+最新主流程修复已验证构建、诊断测试、手机养护契约和设备服务测试；另验证了 `Asia/Singapore` / `America/New_York` 本地时间往返、夏令时跳过时段拒绝及游客观察到本地报告流程。这些结果不代表已经完成真实账号或生产环境端到端验收。
 
 `npm run audit` 必须完整遍历 6 × 6 × 8 × 7 = **2,016** 组合并保持无异常。
 
