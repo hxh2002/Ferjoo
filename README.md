@@ -21,7 +21,7 @@ Vue 3 + Vite + Supabase
 │   └── router/
 ├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
-│   └── migrations/          # 001~014 SQL（后端逻辑）
+│   └── migrations/          # 001~015 SQL（后端逻辑）
 ├── docs/ARCHITECTURE.md     # 依赖方向图补充
 ├── tests/
 └── public/assets/           # 经典 PNG 资产
@@ -116,7 +116,7 @@ npm run dev
 ## Supabase 部署
 
 1. 新建 Supabase 项目。
-2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`014` 已完成远端同步。
+2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`015` 已完成远端同步。
 3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
 4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
@@ -371,7 +371,7 @@ npm run audit      # 仅运行 2,016 场景枚举自检
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前 `001`～`014` 已在远端执行。若本地需要查看迁移状态，使用：
+当前 `001`～`015` 已在远端执行。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
@@ -379,6 +379,8 @@ npx supabase@latest migration list
 ```
 
 之后只要提交新的 `supabase/migrations/00X_*.sql` 并合并到 `main`，Supabase GitHub Integration 就会自动应用待执行迁移。`004_invites_and_profiles.sql` 设计为幂等迁移：若已通过 SQL Editor 手动执行过一次，再次由 GitHub Integration 应用也不会报错。不要把数据库密码、Supabase access token 或 secret key 写入 `.env`、源码或 Vercel 前端变量。
+
+迁移文件一经应用就不要改名：远端 `supabase_migrations.schema_migrations` 记录的是应用时的文件版本号，重命名会让远端出现「本地不存在的版本」，集成检查随即失败并报 `Remote migration versions not found in local migrations directory.`。`005` 是历史空号，不再补号；`008` 曾在远端缺失，已于修复历史后补执行。确需修正历史时用 `npx supabase@latest migration repair --status applied|reverted <version>` 对齐，不要手工改 `schema_migrations`。
 
 Vercel 已通过 Supabase Integration 连接项目 `ferjoo`。由于应用使用 Vite，前端变量应使用以下名称，并只同步到 Production：
 
