@@ -4,15 +4,18 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { mobileOptions, fieldLabels, describeField, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport } from '../../services/mobile-diagnosis.service.js';
+import { useStarterName } from '../../composables/useStarterName.js';
 
 const route = useRoute();
 const router = useRouter();
 const { user } = useAuth();
 const accountId = computed(() => user.value?.id || 'guest');
 const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId);
+const { starterName } = useStarterName(accountId, computed(() => draft.value.starterId));
 const errors = ref({});
 const pending = ref({});
 const notice = ref('');
+const fatal = ref('');
 const extra = ref(false);
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
@@ -47,10 +50,13 @@ function next() {
 }
 function generate() {
   persist();
-  const { report, errors: invalid } = generateMobileReport(draft.value, accountId.value);
-  if (invalid) { draft.value.step = 1; return showErrors(invalid); }
-  storeSessionReport(accountId.value, report);
-  router.push('/reports/session');
+  fatal.value = '';
+  try {
+    const { report, errors: invalid } = generateMobileReport(draft.value, accountId.value);
+    if (invalid) { draft.value.step = 1; return showErrors(invalid); }
+    storeSessionReport(accountId.value, report);
+    router.push('/reports/session');
+  } catch (cause) { fatal.value = cause.message || '生成建议失败，请稍后重试。'; }
 }
 function parseText() {
   pending.value = parsePendingText(draft.value.quickText);
@@ -66,7 +72,8 @@ function applyPending(key) {
 <template>
   <main class="m-page mobile-checkin">
     <header><RouterLink class="m-secondary" to="/today">返回今天</RouterLink><h1>记录观察</h1><p class="m-muted">{{ steps[step - 1] }} · 第 {{ step }} / 3 步</p></header>
-    <section class="m-card"><p v-if="draft.starterId">当前酵种：{{ draft.starterId }}</p><p v-else>尚未选择酵种。可以仅生成建议，不保存云端；<RouterLink to="/today">去今天添加或选择酵种</RouterLink>。</p><p class="m-muted">生成与保存是两件事；云端保存需要登录并选择酵种。</p></section>
+    <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
+    <section class="m-card"><p v-if="draft.starterId">当前酵种：{{ starterName }}</p><p v-else>尚未选择酵种。可以仅生成建议，不保存云端；<RouterLink to="/today">去今天添加或选择酵种</RouterLink>。</p><p class="m-muted">生成与保存是两件事；云端保存需要登录并选择酵种。</p></section>
     <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，暂在当前会话保留；关闭页面可能丢失，请及时完成任务。</p>
     <form ref="formElement" @submit.prevent="step === 3 ? generate() : next()">
       <section v-show="step === 1" class="m-card">

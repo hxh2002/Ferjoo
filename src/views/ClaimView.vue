@@ -1,15 +1,21 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AuthCard from '../components/AuthCard.vue';
 import { useAuth } from '../composables/useAuth.js';
 import { claimDevice } from '../services/device.service.js';
+import { usesMobileAccountLayout } from '../lib/accountNavigation.js';
 
 // 二维码落地页（冗余路径）：扫码打开 /claim?code=XXXX-XXXX 自动绑定；
 // 未登录会先被路由守卫送去登录/注册，成功后带着 redirect 回到本页继续绑定。
 const auth = useAuth();
 const route = useRoute();
 const router = useRouter();
+const mobile = computed(() => usesMobileAccountLayout(route, router));
+const deviceId = ref('');
+const destination = computed(() => !mobile.value ? '/history' : deviceId.value
+  ? { name: 'mobile-device-settings', params: { deviceId: deviceId.value } }
+  : { name: 'mobile-devices' });
 
 const state = ref('input'); // input | working | success | already | error
 const message = ref('');
@@ -17,15 +23,17 @@ const manualCode = ref('');
 
 onMounted(async () => {
   await auth.init();
-  const code = String(route.query.code || '').trim();
+  const code = typeof route.query.code === 'string' ? route.query.code.trim() : '';
   if (code) await claim(code);
 });
 
 async function claim(code) {
   state.value = 'working';
   message.value = '';
+  deviceId.value = '';
   try {
     const res = await claimDevice(code);
+    deviceId.value = res.device_id || '';
     state.value = res.already_mine ? 'already' : 'success';
   } catch (e) {
     state.value = 'error';
@@ -42,8 +50,8 @@ async function submitManual() {
   await claim(code);
 }
 
-function goHistory() {
-  router.push('/history');
+function goDevice() {
+  router.push(destination.value);
 }
 </script>
 
@@ -54,19 +62,11 @@ function goHistory() {
         <p class="auth-description">正在绑定，请稍候…</p>
       </div>
 
-      <div v-else-if="state === 'success'" class="claim-status">
-        <p class="form-success">绑定成功，设备已加入你的列表。</p>
-        <button class="diagnose-button" type="button" @click="goHistory">
-          <span>前往数据看板</span>
-          <b>HISTORY →</b>
-        </button>
-      </div>
-
-      <div v-else-if="state === 'already'" class="claim-status">
-        <p class="form-success">这台设备已经在你的列表中。</p>
-        <button class="diagnose-button" type="button" @click="goHistory">
-          <span>前往数据看板</span>
-          <b>HISTORY →</b>
+      <div v-else-if="state === 'success' || state === 'already'" class="claim-status">
+        <p class="form-success">{{ state === 'already' ? '这台设备已经在你的列表中。' : '绑定成功，设备已加入你的列表。' }}</p>
+        <button class="diagnose-button" type="button" @click="goDevice">
+          <span>{{ mobile ? (deviceId ? '查看设备详情' : '前往我的设备') : '前往数据看板' }}</span>
+          <b>{{ mobile ? 'DEVICE →' : 'HISTORY →' }}</b>
         </button>
       </div>
 

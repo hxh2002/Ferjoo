@@ -4,16 +4,27 @@ import { useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import MobileMetricChart from '../../components/MobileMetricChart.vue';
 import { METRICS, mobileDeviceService, mobileError, validateRange } from '../../services/mobile-device.service.js';
+import { localDateTimeValue, parseLocalDateTime } from '../../lib/localDateTime.js';
 const route = useRoute(); const auth = useAuth();
 const metrics = Object.keys(METRICS); const metric = ref(route.query.metric && METRICS[route.query.metric] ? route.query.metric : 'height_mm');
 const now = new Date(); const defaultTo = now.toISOString(); const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-const from = ref(defaultFrom); const to = ref(defaultTo); const draftFrom = ref(defaultFrom); const draftTo = ref(defaultTo); const rows = ref([]); const device = ref(null); const loading = ref(false); const error = ref(''); const completeness = ref(''); const selectedIndex = ref(-1); const editingRange = ref(false); let version = 0; let hidden = false;
+const from = ref(defaultFrom); const to = ref(defaultTo); const draftFrom = ref(localDateTimeValue(new Date(defaultFrom))); const draftTo = ref(localDateTimeValue(new Date(defaultTo))); const rows = ref([]); const device = ref(null); const loading = ref(false); const error = ref(''); const completeness = ref(''); const selectedIndex = ref(-1); const editingRange = ref(false); let version = 0; let hidden = false;
 const deviceId = computed(() => String(route.params.deviceId || '')); const readings = computed(() => rows.value.filter((row) => row[metric.value] != null && !row.sensor_error && row.mode === 'fer'));
 const selected = computed(() => selectedIndex.value >= 0 ? readings.value[selectedIndex.value] : null);
-function inputValue(value) { return new Date(value).toISOString().slice(0, 16); }
 async function load() { const token = ++version; loading.value = true; error.value = ''; completeness.value = ''; try { const service = await mobileDeviceService(); const [info, result] = await Promise.all([service.getDevice(deviceId.value, auth.user.value?.id), service.range(deviceId.value, { from: from.value, to: to.value })]); if (token !== version) return; device.value = info; rows.value = result.rows; completeness.value = result.error || (result.limited ? '已达到查询上限，当前仅加载了部分时间范围。' : result.complete ? '' : '当前范围尚未完整加载。'); selectedIndex.value = readings.value.length ? readings.value.length - 1 : -1; } catch (e) { if (token === version) error.value = mobileError(e); } finally { if (token === version) loading.value = false; } }
-function applyRange() { const message = validateRange(draftFrom.value, draftTo.value); if (message) { error.value = message; return; } from.value = new Date(draftFrom.value).toISOString(); to.value = new Date(draftTo.value).toISOString(); editingRange.value = false; load(); }
-function cancelRange() { draftFrom.value = inputValue(from.value); draftTo.value = inputValue(to.value); editingRange.value = false; error.value = ''; }
+function applyRange() {
+  let start; let end;
+  try {
+    start = parseLocalDateTime(draftFrom.value);
+    end = parseLocalDateTime(draftTo.value);
+  } catch (cause) { error.value = cause.message; return; }
+  const message = validateRange(start.toISOString(), end.toISOString());
+  if (message) { error.value = message; return; }
+  from.value = start.toISOString(); to.value = end.toISOString();
+  editingRange.value = false; error.value = '';
+  load();
+}
+function cancelRange() { draftFrom.value = localDateTimeValue(new Date(from.value)); draftTo.value = localDateTimeValue(new Date(to.value)); editingRange.value = false; error.value = ''; }
 function move(delta) { const next = selectedIndex.value + delta; if (next >= 0 && next < readings.value.length) selectedIndex.value = next; }
 function onVisibility() { hidden = document.hidden; if (!hidden) load(); }
 watch(metric, () => { selectedIndex.value = readings.value.length ? readings.value.length - 1 : -1; });

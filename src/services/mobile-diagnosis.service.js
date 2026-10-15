@@ -1,4 +1,5 @@
 import { STAGES, RATIOS, HEIGHTS, diagnoseStarter, parseStarterInput, getTemperatureResponse } from '../algorithms/index.js';
+import { randomUuid } from '../lib/uuid.js';
 
 export const mobileOptions = {
   stage: STAGES.map(({ value, label }) => ({ value, label })),
@@ -7,7 +8,7 @@ export const mobileOptions = {
 };
 export const fieldLabels = { color: '颜色 / 霉斑', smell: '气味', height: '主要涨幅表现', stage: '养护阶段', ratio: '老种 : 水 : 面粉', tempC: '实测温度（°C）', elapsedHours: '喂养后经过小时', ph: 'pH', notes: '备注' };
 export const snapshot = (value) => JSON.parse(JSON.stringify(value));
-export const newRequestId = () => globalThis.crypto?.randomUUID?.() || `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+export const newRequestId = () => randomUuid('报告请求编号');
 export function emptyCheckin() {
   return { step: 1, starterId: '', color: '', smell: '', height: '', stage: '', ratio: '', tempC: '', elapsedHours: '', ph: '', notes: '', quickText: '' };
 }

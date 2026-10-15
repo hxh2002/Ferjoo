@@ -16,6 +16,7 @@ import MobileDevices from '../views/mobile/MobileDevices.vue';
 import MobileTrend from '../views/mobile/MobileTrend.vue';
 import { useAuth } from '../composables/useAuth.js';
 import { isMobileBrowser } from '../lib/device.js';
+import { safeRedirect } from '../lib/accountNavigation.js';
 
 const routes = [
   { path: '/', name: 'doctor', component: DoctorView },
@@ -57,7 +58,10 @@ router.beforeEach(async (to) => {
   if (!to.meta.requiresAuth) return true;
   const auth = useAuth();
   await auth.init();
-  if (!auth.user.value) return { name: 'login', query: { redirect: to.fullPath } };
+  if (!auth.user.value) {
+    const redirect = safeRedirect(to.fullPath, router);
+    return { name: 'login', query: redirect ? { redirect } : {} };
+  }
   return true;
 });
 

@@ -19,13 +19,17 @@ function requiredUuid(value, label) {
   return value;
 }
 
-function occurredAt(value) {
+function queryTime(value) {
   if (typeof value !== 'string' || !value.trim() || !Number.isFinite(Date.parse(value))) {
     fail('记录时间格式不正确。');
   }
-  const time = new Date(value);
-  if (time > new Date()) fail('记录时间不能晚于当前时间。');
-  return time.toISOString();
+  return new Date(value).toISOString();
+}
+
+function occurredAt(value) {
+  const time = queryTime(value);
+  if (new Date(time) > new Date()) fail('记录时间不能晚于当前时间。');
+  return time;
 }
 
 function objectSnapshot(value, label) {
@@ -65,9 +69,11 @@ function record(row) {
   };
 }
 
-export function listStarters() {
+export function listStarters({ userId } = {}) {
   return run(async () => {
-    const { data, error } = await requireClient().from('starters').select('id, name').order('created_at', { ascending: false });
+    let query = requireClient().from('starters').select('id, name').order('created_at', { ascending: false });
+    if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
+    const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(({ id, name }) => ({ id, name }));
   });
@@ -82,14 +88,24 @@ export function createStarter(name) {
   });
 }
 
-export function listCareRecords({ starterId, from, to } = {}) {
+export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, userId } = {}) {
   return run(async () => {
     const client = requireClient();
-    let query = client.from('care_records').select(RECORD_FIELDS).order('occurred_at', { ascending: false });
-    if (starterId !== undefined) query = query.eq('starter_id', requiredUuid(starterId, '酵种 ID'));
-    if (from !== undefined) query = query.gte('occurred_at', occurredAt(from));
-    if (to !== undefined) query = query.lt('occurred_at', occurredAt(to));
+    let query = client.from('care_records').select(RECORD_FIELDS).order('occurred_at', { ascending: false }).order('id', { ascending: false });
+    if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
+    if (starterId !== undefined && starterId !== null && starterId !== '') query = query.eq('starter_id', requiredUuid(starterId, '酵种 ID'));
+    if (from !== undefined) query = query.gte('occurred_at', queryTime(from));
+    if (to !== undefined) query = query.lt('occurred_at', queryTime(to));
     if (from !== undefined && to !== undefined && new Date(from) >= new Date(to)) fail('查询开始时间必须早于结束时间。');
+    if (kind !== undefined) {
+      if (!['feeding', 'observation'].includes(kind)) fail('记录类型不正确。');
+      query = query.eq('kind', kind);
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0) fail('查询偏移量不正确。');
+    if (limit !== undefined) {
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) fail('每页记录数应为 1 至 200。');
+      query = query.range(offset, offset + limit - 1);
+    } else if (offset !== 0) fail('分页查询需要指定每页记录数。');
     const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(record);
@@ -131,9 +147,11 @@ export function saveObservation(args = {}) {
   return saveRecord(args, 'observation');
 }
 
-export function getCareRecord(id) {
+export function getCareRecord(id, { userId } = {}) {
   return run(async () => {
-    const { data, error } = await requireClient().from('care_records').select(RECORD_FIELDS).eq('id', requiredUuid(id, '记录 ID')).single();
+    let query = requireClient().from('care_records').select(RECORD_FIELDS).eq('id', requiredUuid(id, '记录 ID'));
+    if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
+    const { data, error } = await query.single();
     if (error) throw error;
     return record(data);
   });

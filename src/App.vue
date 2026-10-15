@@ -1,11 +1,15 @@
 <script setup>
 import { computed, watchEffect } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import AppHeader from './components/AppHeader.vue';
+import MobileShell from './components/MobileShell.vue';
 import { classicAssets } from './constants/classicAssets.js';
+import { isMobilePath, usesMobileAccountLayout } from './lib/accountNavigation.js';
 
 const route = useRoute();
-const isMobileArea = computed(() => route.path.startsWith('/today') || route.path.startsWith('/records') || route.path.startsWith('/checkin') || route.path.startsWith('/feeding') || route.path.startsWith('/reports') || route.path.startsWith('/devices') || route.path.startsWith('/me'));
+const router = useRouter();
+const isMobileAccount = computed(() => usesMobileAccountLayout(route, router));
+const isMobileArea = computed(() => isMobilePath(route.path) || isMobileAccount.value);
 watchEffect(() => {
   document.documentElement.classList.toggle('mobile-mode', isMobileArea.value);
   document.body.classList.toggle('mobile-mode', isMobileArea.value);
@@ -14,7 +18,8 @@ watchEffect(() => {
 
 <template>
   <div v-if="isMobileArea" class="mobile-area">
-    <RouterView />
+    <MobileShell v-if="isMobileAccount"><RouterView /></MobileShell>
+    <RouterView v-else />
   </div>
   <div v-else class="page-shell">
     <AppHeader />

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import AuthCard from '../components/AuthCard.vue';
 import { signInWithEmail } from '../services/auth.service.js';
 import { useAuth } from '../composables/useAuth.js';
-import { isMobileBrowser } from '../lib/device.js';
+import { accountDestination, authLink } from '../lib/accountNavigation.js';
 
 const form = reactive({ email: '', password: '' });
 const error = ref('');
@@ -19,7 +19,7 @@ async function submit() {
   try {
     await signInWithEmail(form);
     await auth.syncSession();
-    await router.push(String(route.query.redirect || (isMobileBrowser() ? '/today' : '/history')));
+    await router.push(accountDestination(route, router));
   } catch (e) {
     error.value = e?.message || '登录失败，请检查邮箱与密码。';
   } finally {
@@ -40,7 +40,7 @@ async function submit() {
         <p v-if="error" class="form-error">{{ error }}</p>
         <button class="diagnose-button" :disabled="busy || !auth.configured">{{ busy ? '登录中…' : '登录' }}</button>
       </form>
-      <p class="auth-switch">还没有账号？<RouterLink to="/register">创建账号 →</RouterLink></p>
+      <p class="auth-switch">还没有账号？<RouterLink :to="authLink('register', route, router)">创建账号 →</RouterLink></p>
     </AuthCard>
   </div>
 </template>

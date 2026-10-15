@@ -1,14 +1,18 @@
 <script setup>
 import { reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AuthCard from '../components/AuthCard.vue';
 import { signUpWithEmail } from '../services/auth.service.js';
 import { useAuth } from '../composables/useAuth.js';
+import { accountDestination, authLink, usesMobileAccountLayout } from '../lib/accountNavigation.js';
 
 const form = reactive({ displayName: '', email: '', password: '', confirm: '', inviteCode: '' });
 const error = ref('');
 const success = ref('');
 const busy = ref(false);
 const auth = useAuth();
+const route = useRoute();
+const router = useRouter();
 
 const INVITE_ERROR_MESSAGES = {
   INVALID_INVITE_CODE: '邀请码无效，请检查后重试。',
@@ -41,6 +45,11 @@ async function submit() {
   busy.value = true;
   try {
     const data = await signUpWithEmail(form);
+    if (data.session && usesMobileAccountLayout(route, router)) {
+      await auth.syncSession();
+      await router.push(accountDestination(route, router));
+      return;
+    }
     success.value = data.session
       ? '注册成功，当前项目已允许直接登录。'
       : '注册成功。请按 Supabase 项目的设置前往邮箱完成确认，再登录。';
@@ -79,7 +88,7 @@ async function submit() {
         <p v-if="success" class="form-success">{{ success }}</p>
         <button class="diagnose-button" :disabled="busy || !auth.configured">{{ busy ? '创建中…' : '创建账号' }}</button>
       </form>
-      <p class="auth-switch">已经有账号？<RouterLink to="/login">去登录 →</RouterLink></p>
+      <p class="auth-switch">已经有账号？<RouterLink :to="authLink('login', route, router)">去登录 →</RouterLink></p>
     </AuthCard>
   </div>
 </template>
