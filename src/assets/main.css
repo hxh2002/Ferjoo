@@ -1340,3 +1340,40 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
   .win-range { width: 100%; }
 }
 
+/* ============================================================
+   手机端任务壳：直角、暖白、底部任务导航；仅作用于 mobile-mode
+   ============================================================ */
+:root.mobile-mode { background: #fff9f3; color: #30251f; }
+body.mobile-mode { background: #fff9f3 !important; min-height: 100vh; }
+body.mobile-mode::before { display: none; }
+.mobile-area { min-height: 100vh; background: #fff9f3; color: #30251f; }
+.mobile-area a { color: #a54214; }
+.mobile-shell { min-height: 100vh; display: flex; flex-direction: column; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+.mobile-topbar {
+  position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px; padding: 6px 20px; border-bottom: 1px solid #eaddd2; background: rgba(255,249,243,.96);
+}
+.mobile-brand { display: inline-flex; align-items: center; text-decoration: none; }
+.mobile-brand img { display: block; width: 112px; height: auto; }
+.mobile-login, .mobile-account { font-size: 14px; font-weight: 700; color: #75665b; max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-login { color: #a54214; text-decoration: underline; text-underline-offset: 3px; }
+.mobile-main { flex: 1; width: 100%; }
+.mobile-main .m-page { padding: 20px 20px 40px; }
+.mobile-main .m-page h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: 0; }
+.mobile-main .m-page h2 { margin: 0 0 10px; font-size: 20px; font-weight: 600; }
+.mobile-main .m-page p { line-height: 1.6; }
+.mobile-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+  border-top: 1px solid #eaddd2; background: #fff9f3;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-tabbar button {
+  min-height: 60px; border: 0; border-radius: 0; background: transparent; color: #75665b;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; cursor: pointer;
+}
+.mobile-tabbar button span { font-size: 17px; line-height: 1; }
+.mobile-tabbar button strong { font-size: 13px; font-weight: 500; }
+.mobile-tabbar button.active { color: #a54214; font-weight: 700; box-shadow: inset 0 2px 0 #ff6b25; }
+.mobile-main [class*="m-primary"], .mobile-main [class*="m-secondary"] { border-radius: 0 !important; }
+

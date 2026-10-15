@@ -59,6 +59,7 @@ async function logout() {
     <nav class="page-switch" aria-label="页面切换">
       <RouterLink to="/" class="page-switch-link">DIAGNOSE</RouterLink>
       <RouterLink v-if="auth.user.value" to="/history" class="page-switch-link">HISTORY</RouterLink>
+      <RouterLink to="/today" class="page-switch-link">手机端</RouterLink>
     </nav>
 
     <div class="header-nav" aria-label="辅助导航">
