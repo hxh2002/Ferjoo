@@ -28,6 +28,7 @@ function friendlyInviteError(message = '') {
 }
 
 async function submit() {
+  if (busy.value) return;
   error.value = '';
   success.value = '';
   if (!/^\d{8}$/.test(form.inviteCode.trim())) {

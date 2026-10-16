@@ -2,6 +2,16 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
+import { confirmDialog } from '../../platform/dialog.js';
+import { listStarters } from '../../services/care.service.js';
+import { getStarterDeviceLink, linkStarterDevice } from '../../services/starter-device.service.js';
+const starters = ref([]);
+const linkedStarter = ref('');
+async function saveLink() {
+  if (!linkedStarter.value) return;
+  const c = context();
+  await perform(() => linkStarterDevice({ userId: c.user, starterId: linkedStarter.value, deviceId: c.device }), '酵种关联已更新；历史关联时间段保留。');
+}
 import { mobileDeviceService, mobileError, normalizeBindCode } from '../../services/mobile-device.service.js';
 const router = useRouter();
 const route = useRoute();
@@ -36,6 +46,11 @@ async function load() {
       device.value = info;
       if (!info) { error.value = '设备不存在或共享权限已变化。'; return; }
       name.value = info.name || '';
+      const names = await listStarters({ userId: c.user });
+      const links = await Promise.all(names.map(item => getStarterDeviceLink({ userId: c.user, starterId: item.id })));
+      if (!current(c)) return;
+      starters.value = names;
+      linkedStarter.value = names.find((item, index) => links[index]?.device_id === c.device)?.id || '';
       if (manager.value) {
         const list = await service.members(c.device);
         if (current(c)) members.value = list || [];
@@ -96,8 +111,9 @@ async function addMember() {
 }
 async function removeMember(member, self = false) {
   if (member.member_role === 'owner' || (!self && !manager.value)) return;
-  if (!window.confirm(self ? '确认解绑这台设备？解绑后将不再通过成员身份访问设备历史，原始数据不会删除。' : `确认移除 ${member.system_user_id}？该成员将失去设备历史访问权限。`)) return;
   const c = context();
+  if (!await confirmDialog(self ? '确认解绑这台设备？解绑后将不再通过成员身份访问设备历史，原始数据不会删除。' : `确认移除 ${member.system_user_id}？该成员将失去设备历史访问权限。`)) return;
+  if (!current(c)) return;
   const result = await perform((service) => service.unbind(c.device, member.system_user_id), '已解除共享关系。');
   if (result && current(c)) { if (self) { device.value = null; router.replace('/me/devices'); } else await load(); }
 }
@@ -141,10 +157,11 @@ onBeforeUnmount(() => { version += 1; });
       <section class="m-card"><h2>{{ device.name || device.device_id }}</h2>
         <p>我的设备角色：{{ device.my_role === 'owner' ? '所有者' : device.my_role === 'member' ? '成员' : '无成员身份（管理员访问）' }}</p>
         <p class="m-muted">最近收到数据：{{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '从未接收' }}。接收时间不等于最新采样时间。</p>
-        <RouterLink :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备趋势</RouterLink>
+        <RouterLink :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备趋势（全部设备历史）</RouterLink>
+        <form @submit.prevent="saveLink"><label class="m-field">关联酵种<select v-model="linkedStarter"><option value="">请选择酵种</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><p class="m-muted">更改仅影响该酵种今后的数据来源，历史按原关联时间段隔离。</p><button class="m-secondary" :disabled="saving || !linkedStarter">保存关联</button></form>
         <form v-if="manager" @submit.prevent="rename"><label class="m-field">设备名称<input v-model="name" maxlength="80"></label><p class="m-muted">改名会对所有共享成员生效。</p><button class="m-primary" :disabled="saving">保存名称</button></form>
       </section>
-      <section class="m-card"><h2>共享设备</h2><p>持有绑定码的账号加入后，可查看这台设备的全部历史采样。个人观察、备注和报告不因此自动共享。</p>
+      <section v-if="manager" class="m-card"><h2>共享设备</h2><p>持有绑定码的账号加入后，可查看这台设备的全部历史采样。个人观察、备注和报告不因此自动共享。</p>
         <p class="m-muted">当前绑定码可持续用于加入；解绑不能收回他人已保存的信息。</p>
         <p class="m-code">{{ device.bind_code || '暂无绑定码' }}</p><button class="m-secondary" :disabled="!device.bind_code" @click="copy(device.bind_code)">复制绑定码</button>
       </section>

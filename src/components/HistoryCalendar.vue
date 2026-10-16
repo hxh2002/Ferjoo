@@ -52,11 +52,13 @@ const cells = computed(() => {
         <button type="button" class="cal-today" @click="emit('change-month', 0)">今天</button>
       </div>
       <div class="cal-legend" aria-hidden="true">
-        <span><i class="lg none"></i>无数据</span>
+        <span><i class="lg observation"></i>观察</span>
+        <span><i class="lg feeding"></i>喂养</span>
         <span><i class="lg sleep"></i>仅休眠</span>
         <span><i class="lg fer"></i>发酵中</span>
       </div>
     </div>
+    <label class="cal-narrow">选择日期<input type="date" :value="selected" @change="emit('select', $event.target.value)"></label>
     <div class="cal-week"><span v-for="w in WEEKDAYS" :key="w">{{ w }}</span></div>
     <div class="cal-grid">
       <button
@@ -71,3 +73,7 @@ const cells = computed(() => {
     </div>
   </div>
 </template>
+<style scoped>
+.cal-narrow{display:none}.cal-week,.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}.cal-week{text-align:center}.cal-cell{position:relative;min-height:44px;min-width:0;border:0;background:transparent;color:#30251f;font:inherit}.cal-cell.selected{background:#a54214;color:#fff}.cal-cell.off{opacity:.5}.cal-cell.fer:after,.cal-cell.sleep:after,.cal-cell.observation:after,.cal-cell.feeding:after{content:'';display:block;width:5px;height:5px;position:absolute;bottom:4px;left:calc(50% - 2px);background:#286247}.cal-cell.observation:after{background:#2b6cb0}.cal-cell.feeding:after{background:#a54214}.cal-nav{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.cal-nav button{min-height:44px;min-width:44px}.cal-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px}.cal-narrow input{width:100%;box-sizing:border-box;min-height:48px;font:inherit}
+@media(max-width:347px){.cal-week,.cal-grid{display:none}.cal-narrow{display:grid;gap:8px}}
+</style>

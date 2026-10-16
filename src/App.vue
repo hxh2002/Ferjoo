@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watchEffect } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppHeader from './components/AppHeader.vue';
 import MobileShell from './components/MobileShell.vue';
@@ -10,10 +10,6 @@ const route = useRoute();
 const router = useRouter();
 const isMobileAccount = computed(() => usesMobileAccountLayout(route, router));
 const isMobileArea = computed(() => isMobilePath(route.path) || isMobileAccount.value);
-watchEffect(() => {
-  document.documentElement.classList.toggle('mobile-mode', isMobileArea.value);
-  document.body.classList.toggle('mobile-mode', isMobileArea.value);
-});
 </script>
 
 <template>

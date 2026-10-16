@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { formatAdvice } from '../algorithms/index.js';
+import { formatAdvice } from '../services/diagnosis.service.js';
 import ReferenceList from './ReferenceList.vue';
 
 const props = defineProps({

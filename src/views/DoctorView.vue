@@ -2,8 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import ChoiceGroup from '../components/ChoiceGroup.vue';
 import DiagnosisResult from '../components/DiagnosisResult.vue';
-import { HEIGHTS, RATIOS, STAGES, parseStarterInput } from '../algorithms/index.js';
-import { diagnoseFromForm } from '../services/diagnosis.service.js';
+import { HEIGHTS, RATIOS, STAGES, parseStarterInput, diagnoseFromForm } from '../services/diagnosis.service.js';
 import { useAuth } from '../composables/useAuth.js';
 
 const auth = useAuth();
@@ -78,7 +77,7 @@ async function runDiagnosis() {
   const payload = {
     ...form,
     tempC: tempEnabled.value ? form.tempC : undefined,
-    elapsedHours: elapsedEnabled.value ? form.elapsedHours : 1
+    elapsedHours: elapsedEnabled.value ? form.elapsedHours : null
   };
   result.value = diagnoseFromForm(payload);
   requestAnimationFrame(() => {

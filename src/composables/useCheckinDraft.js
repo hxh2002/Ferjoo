@@ -12,14 +12,17 @@ export function readDraft(accountId, kind, defaults) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return snapshot(defaults);
   const restored = snapshot(defaults);
   for (const key of Object.keys(defaults)) {
-    if (value[key] !== undefined && typeof value[key] === typeof defaults[key]) restored[key] = snapshot(value[key]);
+    const item = value[key];
+    const primitive = ['string', 'number', 'boolean'].includes(typeof item) && typeof defaults[key] !== 'object';
+    const object = item && typeof item === 'object' && !Array.isArray(item) && defaults[key] && typeof defaults[key] === 'object';
+    if (primitive || object) restored[key] = snapshot(item);
   }
   return restored;
 }
 export function writeDraft(accountId, kind, value) {
   const key = draftStorageKey(accountId, kind);
   memory.set(key, snapshot(value));
-  try { globalThis.localStorage?.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+  try { if (!globalThis.localStorage) return false; globalThis.localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
 }
 export function useCheckinDraft(accountId, { kind = 'checkin', defaults = emptyCheckin } = {}) {
   const draft = ref(defaults());

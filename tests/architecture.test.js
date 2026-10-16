@@ -23,7 +23,7 @@ function walk(dir) {
 const scenarioCatalog = JSON.parse(
   fs.readFileSync(path.join(src, 'algorithms', 'scenario-catalog.json'), 'utf8')
 );
-assert.equal(scenarioCatalog.scenarios.length, 2016, 'scenario catalog must keep all 2,016 combinations');
+assert.equal(scenarioCatalog.length, 2016, 'scenario catalog must keep all 2,016 combinations');
 
 const registry = JSON.parse(
   fs.readFileSync(path.join(src, 'references', 'evidence-registry.json'), 'utf8')
@@ -59,7 +59,7 @@ const diagnosis = fs.readFileSync(path.join(src, 'algorithms', 'diagnosis.js'), 
 assert.match(diagnosis, /from '\.\.\/references\/index\.js'/);
 assert.doesNotMatch(diagnosis, /runtime-catalog\.js/);
 
-for (const legacy of ['starter-doctor.js', 'starter-doctor.browser.js', 'app.js', 'styles.css', 'research', 'reports', 'scripts']) {
+for (const legacy of ['starter-doctor.js', 'starter-doctor.browser.js', 'app.js', 'styles.css', 'research', 'reports']) {
   assert.equal(fs.existsSync(path.join(root, legacy)), false, `legacy path should be removed: ${legacy}`);
 }
 

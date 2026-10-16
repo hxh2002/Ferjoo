@@ -118,6 +118,15 @@ function saveRecord({ requestId, starterId, occurredAt: when, ratio, input = {},
     const starter = requiredUuid(starterId, '酵种 ID');
     const time = occurredAt(when);
     const inputSnapshot = objectSnapshot(input, '输入快照');
+    if (kind === 'feeding') {
+      const baseline = inputSnapshot.baseline_height_mm;
+      if (baseline != null && baseline !== '' && (!Number.isFinite(Number(baseline)) || Number(baseline) <= 0)) {
+        fail('起始高度必须是大于零的数值。');
+      }
+      if (inputSnapshot.baseline_source != null && !['device', 'manual'].includes(inputSnapshot.baseline_source)) {
+        fail('起始高度来源不正确。');
+      }
+    }
     const resultSnapshot = objectSnapshot(result, '结果快照');
     const normalizedRatio = kind === 'feeding'
       ? (typeof ratio === 'string' && ratio.trim() ? ratio.trim() : fail('喂养比例不能为空。'))

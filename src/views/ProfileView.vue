@@ -231,8 +231,9 @@ function startDrag(event) {
 
 function onDrag(event) {
   if (!dragging.value || !dragPointer) return;
-  pos.x += event.clientX - dragPointer.x;
-  pos.y += event.clientY - dragPointer.y;
+  const scale = VIEW / cropCanvas.value.getBoundingClientRect().width;
+  pos.x += (event.clientX - dragPointer.x) * scale;
+  pos.y += (event.clientY - dragPointer.y) * scale;
   dragPointer = { x: event.clientX, y: event.clientY };
   draw();
 }
@@ -489,3 +490,6 @@ async function clearAvatar() {
     </div>
   </Teleport>
 </template>
+<style scoped>
+.crop-modal{box-sizing:border-box;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow-y:auto}.crop-stage{width:min(320px,100%);max-width:100%;margin:auto}.crop-canvas{display:block;width:100%;height:auto;touch-action:none}.crop-actions{display:flex;flex-wrap:wrap;gap:8px}.crop-actions button{min-height:44px}.profile-form input,.profile-form select{min-width:0;max-width:100%;box-sizing:border-box;font-size:16px}
+</style>

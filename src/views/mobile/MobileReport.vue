@@ -1,13 +1,21 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { getCareRecord, listStarters, saveObservation } from '../../services/care.service.js';
-import { loadSessionReport, storeSessionReport, snapshot, reportText, fieldLabels, describeField } from '../../services/mobile-diagnosis.service.js';
+import { loadSessionReport, storeSessionReport, snapshot, reportText, fieldLabels, describeField, describeSource } from '../../services/mobile-diagnosis.service.js';
 
 const route = useRoute();
 const { user } = useAuth();
 const accountId = computed(() => user.value?.id || 'guest');
+const router = useRouter();
+const { replace: replaceDraft } = useCheckinDraft(accountId);
+const risk = computed(() => report.value?.result?.status === 'discard' || [report.value?.input?.color, report.value?.input?.smell].includes('suspicious'));
+function regenerate() {
+  replaceDraft({ ...snapshot(report.value.input), starterId: report.value.starterId || '', step: 1 });
+  router.push('/checkin');
+}
 const report = ref(null);
 const starterName = ref('名称不可用');
 const loading = ref(false);
@@ -81,7 +89,7 @@ async function save() {
   saving.value = true;
   error.value = '';
   try {
-    const saved = await saveObservation({ requestId: original.requestId, starterId: original.starterId, occurredAt: original.occurredAt, input: snapshot(original.input), result: snapshot(original.result) });
+    const saved = await saveObservation({ requestId: original.requestId, starterId: original.starterId, occurredAt: original.occurredAt, input: { ...snapshot(original.input), algorithmVersion: original.algorithmVersion, schemaVersion: original.schemaVersion }, result: snapshot(original.result) });
     if (disposed || token !== generation || report.value !== original) return;
     if (!saved?.id) throw new Error('未收到云端保存确认，请重试（沿用同一请求标识）。');
     const updated = { ...snapshot(original), savedId: saved.id };
@@ -110,25 +118,28 @@ onUnmounted(() => { disposed = true; generation++; });
     <p v-if="loading" role="status">正在加载云端记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <section v-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录可能不存在、读取失败，或当前账号没有访问权限。' : '本机会话可能已结束、存储损坏或账号已切换。不会显示其他账号的报告。' }}</p><RouterLink v-if="cloud && !user" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录后查看</RouterLink><RouterLink v-else to="/checkin">继续或重新记录观察</RouterLink></section>
     <template v-if="report && report.kind === 'feeding'">
-      <section class="m-card"><p role="status">已云端保存的事实记录</p><p class="m-muted">喂养时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ starterName }}</p><h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ report.ratio === 'deep_reset' ? '大比例刷新' : report.ratio || '未记录' }}</p><p>这是一条独立的喂养事实记录，不生成或推断观察建议。</p></section>
+      <section class="m-card"><p role="status">已云端保存的事实记录</p><p class="m-muted">喂养时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ starterName }}</p><h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ report.ratio === 'deep_reset' ? '大比例刷新' : report.ratio || '未记录' }}</p><h2>起始高度</h2><p>{{ report.input?.baseline_height_mm == null ? '未记录' : `${report.input.baseline_height_mm} mm` }}<span v-if="report.input?.baseline_height_mm != null">（{{ report.input.baseline_source === 'device' ? '设备读取' : report.input.baseline_source === 'manual' ? '手工记录' : '来源未记录' }}）</span></p><p>这是一条独立的喂养事实记录，不生成或推断观察建议。</p><RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: report.starterId, feeding: report.savedId } }">基于这次喂养记录观察</RouterLink></section>
       <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId }}<br>酵种编号：{{ report.starterId || '未记录' }}</p></details>
     </template>
     <template v-else-if="report">
-      <section class="m-card"><p role="status">{{ report.savedId ? '已云端保存' : '已生成，未云端保存' }}</p><p class="m-muted">观察时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ report.starterId ? starterName : '未选择，仅生成建议' }}</p><p>{{ report.result.badge }}</p><h2>{{ report.result.title }}</h2><p>{{ report.result.subtitle }}</p></section>
-      <section class="m-card"><h2>下一步</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul><h3>为什么</h3><ul><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul></section>
-      <section v-if="report.result.status !== 'discard' && (report.result.timing || report.result.timingNote || report.result.ph)" class="m-card"><h2>辅助信息</h2><p v-if="report.result.timing">{{ report.result.timing.display }}</p><p class="m-muted">{{ report.result.timingNote }}</p><p v-if="report.result.ph">{{ report.result.ph.label }}<br>{{ report.result.ph.message }}</p></section>
+      <section class="m-card"><p role="status">{{ report.savedId ? '已云端保存' : '已生成，未云端保存' }}</p><p class="m-muted">观察时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ report.starterId ? starterName : '未选择，仅生成建议' }}</p><p v-if="!risk" class="m-muted" role="status">{{ report.result.badge }}</p><h2>{{ risk ? '食品安全优先：请停止使用并丢弃这份酵种' : report.result.title }}</h2><p v-if="!risk">{{ report.result.subtitle }}</p></section>
+      <section v-if="!risk" class="m-card"><h2>下一步</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul><h3>为什么</h3><ul><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul></section>
+      <section v-if="!risk && report.result.status !== 'needs-check' && report.result.status !== 'incomplete' && (report.result.timing || report.result.timingNote || report.result.ph)" class="m-card"><h2>辅助信息</h2><p v-if="report.result.timing">{{ report.result.timing.display }}</p><p class="m-muted">{{ report.result.timingNote }}</p><p v-if="report.result.ph">{{ report.result.ph.label }}<br>{{ report.result.ph.message }}</p></section>
+      <section v-if="risk" class="m-card m-risk"><h2>食品安全优先</h2><p>请停止使用并丢弃这份酵种，不要品尝；清洁接触过的容器与工具。</p></section>
       <section v-if="report.result.safety?.length" class="m-card"><h2>安全提醒</h2><ul><li v-for="item in report.result.safety" :key="item">{{ item }}</li></ul></section>
-      <details class="m-card"><summary>本次输入快照与来源</summary><p class="m-muted">{{ report.source || '已保存的观察快照' }}</p><dl><template v-for="(label, key) in fieldLabels" :key="key"><dt>{{ label }}</dt><dd>{{ describeField(key, report.input[key]) }}</dd></template></dl><p v-if="report.input.quickText">一句话原文：{{ report.input.quickText }}</p></details>
-      <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId || '尚未云端保存' }}<br>酵种编号：{{ report.starterId || '未选择' }}</p></details>
+      <details class="m-card"><summary>依据与来源</summary><template v-for="group in [{ public: true, title: '公开来源' }, { public: false, title: '项目经验先验（未经同行评审）' }]" :key="group.title"><h3>{{ group.title }}</h3><ul><li v-for="item in (report.result.citations || []).filter((item) => item.public === group.public)" :key="item.key"><a v-if="item.url && group.public" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.title || item.citation }}</a><span v-else>{{ item.citation || item.key }}</span><p>{{ item.displayNote || item.supports }}</p></li></ul></template><p>项目经验先验来自有限样本，适用条件有限。</p></details>
+      <details class="m-card"><summary>本次输入快照与来源</summary><p class="m-muted">{{ report.source || '已保存的观察快照' }}</p><dl><template v-for="(label, key) in fieldLabels" :key="key"><dt>{{ label }}</dt><dd>{{ describeField(key, report.input[key]) }}<small class="m-muted"> · 来源：{{ describeSource(report.input, key) }}</small></dd></template></dl><p v-if="report.input.quickText">一句话原文：{{ report.input.quickText }}</p></details>
+      <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId || '尚未云端保存' }}<br>酵种编号：{{ report.starterId || '未选择' }}<br>算法版本：{{ report.algorithmVersion || report.input?.algorithmVersion || '历史快照（版本未记录）' }}</p></details>
+      <button v-if="cloud" type="button" class="m-secondary" @click="regenerate">基于这次输入重新生成（创建新记录）</button>
       <p v-if="!cloud && !report.starterId" class="m-muted">未选择对象，不能云端保存。<RouterLink to="/today">去今天添加或选择酵种</RouterLink>，再通过修改输入重新生成报告。</p>
       <p v-if="!cloud && !user" class="m-muted">登录后才能云端保存；账号切换不会迁移当前草稿。<RouterLink to="/login?redirect=/reports/session">前往登录</RouterLink></p>
       <button type="button" class="m-secondary" @click="copy">复制建议</button><p role="status">{{ copyStatus }}</p>
       <label v-if="readable" class="m-field">可选择的建议文本<textarea :value="text" readonly rows="12" /></label>
-      <div v-if="!cloud" class="m-actions"><RouterLink class="m-secondary" :to="{ path: '/checkin', query: { edit: 'session', ...(report.starterId ? { starter: report.starterId } : {}) } }">修改本次输入</RouterLink><button class="m-primary" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已云端保存' : '保存到云端' }}</button></div>
+      <div v-if="!cloud" class="m-actions"><RouterLink v-if="risk" class="m-secondary" to="/today">返回今天</RouterLink><RouterLink v-else class="m-secondary" :to="{ path: '/checkin', query: { edit: 'session', ...(report.starterId ? { starter: report.starterId } : {}) } }">修改本次输入</RouterLink><button class="m-primary" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已云端保存' : '保存到云端' }}</button></div>
     </template>
   </main>
 </template>
 
 <style scoped>
-.mobile-report{max-width:42rem;margin:auto;padding-bottom:calc(11rem + env(safe-area-inset-bottom));overflow-wrap:anywhere}.m-card{margin:1rem 0;padding:1rem;background:#fffdf8;border:1px solid #d8d2c8}.m-actions{position:fixed;bottom:calc(var(--m-tab-height, 64px) + env(safe-area-inset-bottom));left:0;right:0;z-index:20;display:flex;justify-content:center;gap:.75rem;padding:.75rem;background:#fffdf8;border-top:1px solid #d8d2c8}.m-primary,.m-secondary{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:.65rem 1rem;font:inherit;text-decoration:none;cursor:pointer}.m-primary{background:#a44213;border:1px solid #a44213;color:#fff}.m-secondary{border:1px solid #938d83;background:transparent;color:inherit}button:disabled{opacity:.55;cursor:default}.m-error{color:#9b2920}.m-muted{color:#625e56;font-size:.92rem}li{margin:.65rem 0}.m-field{display:grid;gap:.5rem;margin:1rem 0}textarea{width:100%;box-sizing:border-box;font:inherit;padding:.75rem}dt{font-weight:600;margin-top:.75rem}dd{margin:0;white-space:pre-wrap}summary{min-height:44px;cursor:pointer}
+.mobile-report{max-width:42rem;margin:auto;padding-bottom:calc(11rem + env(safe-area-inset-bottom));overflow-wrap:anywhere}.m-card{margin:1rem 0;padding:1rem;background:#fffdf8;border:1px solid #d8d2c8}.m-actions{position:fixed;bottom:calc(0px + env(safe-area-inset-bottom));left:0;right:0;z-index:20;display:flex;justify-content:center;gap:.75rem;padding:.75rem;background:#fffdf8;border-top:1px solid #d8d2c8}.m-primary,.m-secondary{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:.65rem 1rem;font:inherit;text-decoration:none;cursor:pointer}.m-primary{background:#a44213;border:1px solid #a44213;color:#fff}.m-secondary{border:1px solid #938d83;background:transparent;color:inherit}button:disabled{opacity:.55;cursor:default}.m-error{color:#9b2920}.m-muted{color:#625e56;font-size:.92rem}li{margin:.65rem 0}.m-field{display:grid;gap:.5rem;margin:1rem 0}textarea{width:100%;box-sizing:border-box;font:inherit;padding:.75rem}dt{font-weight:600;margin-top:.75rem}dd{margin:0;white-space:pre-wrap}summary{min-height:44px;cursor:pointer}.m-risk{color:#9a352a;background:#fff1ed;border-color:#9a352a}
 </style>

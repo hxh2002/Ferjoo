@@ -1,10 +1,10 @@
 <script setup>
-import { computed, ref, useId } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 
 const props = defineProps({
   label: { type: String, required: true },
   unit: { type: String, default: '' },
-  color: { type: String, default: '#e85d16' },
+  color: { type: String, default: '#C04B0A' },
   points: { type: Array, default: () => [] } // [{ t: ISO string, v: number }]
 });
 
@@ -16,11 +16,10 @@ const PAD_Y = 6;
 const gid = useId();
 const gridYs = [H * 0.25, H * 0.5, H * 0.75];
 
-const series = computed(() =>
-  (props.points || [])
-    .filter((p) => Number.isFinite(p?.v))
-    .sort((a, b) => new Date(a.t) - new Date(b.t))
-);
+const samples = computed(() => (props.points || [])
+  .filter((p) => Number.isFinite(Date.parse(p?.t)))
+  .slice().sort((a, b) => new Date(a.t) - new Date(b.t)));
+const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v) && !p.sensor_error));
 
 const stats = computed(() => {
   if (!series.value.length) return null;
@@ -44,9 +43,11 @@ const coords = computed(() => {
   if (!pts.length || !stats.value) return [];
   const { min, max } = stats.value;
   const span = max - min;
-  const stepX = pts.length > 1 ? (W - PAD_X * 2) / (pts.length - 1) : 0;
-  return pts.map((p, i) => ({
-    x: round(pts.length > 1 ? PAD_X + i * stepX : W / 2),
+  const tMin = new Date(pts[0].t).getTime();
+  const tMax = new Date(pts.at(-1).t).getTime();
+  const tSpan = Math.max(tMax - tMin, 1);
+  return pts.map((p) => ({
+    x: round(pts.length > 1 ? PAD_X + ((new Date(p.t).getTime() - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
     y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
     t: p.t,
     v: p.v
@@ -57,34 +58,41 @@ function round(n) {
   return Number(n.toFixed(2));
 }
 
-function smoothPath(pts) {
+function linePathFor(pts) {
   if (pts.length < 2) return '';
-  if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
-  let d = `M${pts[0].x},${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[Math.min(pts.length - 1, i + 2)];
-    const c1x = round(p1.x + (p2.x - p0.x) / 6);
-    const c1y = round(p1.y + (p2.y - p0.y) / 6);
-    const c2x = round(p2.x - (p3.x - p1.x) / 6);
-    const c2y = round(p2.y - (p3.y - p1.y) / 6);
-    d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
-  }
-  return d;
+  return `M${pts.map((p) => `${p.x},${p.y}`).join(' L')}`;
 }
 
-const linePath = computed(() => smoothPath(coords.value));
-const areaPath = computed(() => {
-  const pts = coords.value;
-  if (!linePath.value || !pts.length) return '';
-  return `${linePath.value} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+const segments = computed(() => {
+  const result = [];
+  let segment = [];
+  let previous = null;
+  let index = 0;
+  for (const sample of samples.value) {
+    if (!Number.isFinite(sample.v) || sample.sensor_error) {
+      if (segment.length) result.push(segment);
+      segment = [];
+      previous = null;
+      continue;
+    }
+    if (previous && Date.parse(sample.t) - Date.parse(previous.t) > 40 * 60 * 1000) {
+      result.push(segment);
+      segment = [];
+    }
+    segment.push(coords.value[index++]);
+    previous = sample;
+  }
+  if (segment.length) result.push(segment);
+  return result;
 });
+const linePath = computed(() => segments.value.map(linePathFor).join(' '));
+const areaPath = computed(() => segments.value.filter((pts) => pts.length > 1)
+  .map((pts) => `${linePathFor(pts)} L${pts.at(-1).x},${H} L${pts[0].x},${H} Z`).join(' '));
 
 const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
 
 const hoverIdx = ref(null);
+watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
 
 const tipStyle = computed(() => {

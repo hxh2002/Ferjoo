@@ -1,4 +1,6 @@
-import { diagnoseStarter, formatAdvice, parseStarterInput } from '../algorithms/index.js';
+import { diagnoseStarter, formatAdvice, parseStarterInput, HEIGHTS, RATIOS, STAGES, getTemperatureResponse } from '../algorithms/index.js';
+
+export { HEIGHTS, RATIOS, STAGES, diagnoseStarter, getTemperatureResponse };
 
 export function diagnoseFromForm(form) {
   return diagnoseStarter(form);

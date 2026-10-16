@@ -13,10 +13,12 @@ async function loadProfile() {
     profile.value = null;
     return;
   }
+  const userId = user.value.id;
   try {
-    profile.value = await getProfile(user.value.id);
+    const nextProfile = await getProfile(userId);
+    if (user.value?.id === userId) profile.value = nextProfile;
   } catch {
-    profile.value = null;
+    if (user.value?.id === userId) profile.value = null;
   }
 }
 
@@ -34,9 +36,11 @@ async function init() {
     await syncSession();
     if (supabase && !subscribed) {
       subscribed = true;
-      supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-        user.value = nextSession?.user || null;
-        await loadProfile();
+      supabase.auth.onAuthStateChange((_event, nextSession) => {
+        const nextUser = nextSession?.user || null;
+        if (user.value?.id !== nextUser?.id) profile.value = null;
+        user.value = nextUser;
+        setTimeout(() => { loadProfile(); }, 0);
       });
     }
   })();

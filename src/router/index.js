@@ -1,43 +1,33 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import DoctorView from '../views/DoctorView.vue';
-import LoginView from '../views/LoginView.vue';
-import RegisterView from '../views/RegisterView.vue';
-import HistoryView from '../views/HistoryView.vue';
-import ProfileView from '../views/ProfileView.vue';
-import ClaimView from '../views/ClaimView.vue';
-import MobileShell from '../components/MobileShell.vue';
-import MobileToday from '../views/mobile/MobileToday.vue';
-import MobileRecords from '../views/mobile/MobileRecords.vue';
-import MobileMe from '../views/mobile/MobileMe.vue';
-import MobileCheckin from '../views/mobile/MobileCheckin.vue';
-import MobileFeeding from '../views/mobile/MobileFeeding.vue';
-import MobileReport from '../views/mobile/MobileReport.vue';
-import MobileDevices from '../views/mobile/MobileDevices.vue';
-import MobileTrend from '../views/mobile/MobileTrend.vue';
 import { useAuth } from '../composables/useAuth.js';
 import { isMobileBrowser } from '../lib/device.js';
 import { safeRedirect } from '../lib/accountNavigation.js';
 
 const routes = [
-  { path: '/', name: 'doctor', component: DoctorView },
-  { path: '/login', name: 'login', component: LoginView },
-  { path: '/register', name: 'register', component: RegisterView },
-  { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
-  { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
-  { path: '/claim', name: 'claim', component: ClaimView, meta: { requiresAuth: true } },
+  { path: '/', name: 'doctor', component: () => import('../views/DoctorView.vue') },
+  { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
+  { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue') },
+  { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue'), meta: { requiresAuth: true } },
+  { path: '/profile', name: 'profile', component: () => import('../views/ProfileView.vue'), meta: { requiresAuth: true } },
+  { path: '/claim', name: 'claim', component: () => import('../views/ClaimView.vue'), meta: { requiresAuth: true } },
   {
     path: '/',
-    component: MobileShell,
+    component: () => import('../components/MobileShell.vue'),
     children: [
-      { path: 'today', name: 'mobile-today', component: MobileToday },
-      { path: 'records', name: 'mobile-records', component: MobileRecords },
-      { path: 'me', name: 'mobile-me', component: MobileMe },
-      { path: 'checkin', name: 'mobile-checkin', component: MobileCheckin },
-      { path: 'feeding', name: 'mobile-feeding', component: MobileFeeding },
-      { path: 'reports/:id?', name: 'mobile-report', component: MobileReport },
-      { path: 'me/devices', name: 'mobile-devices', component: MobileDevices, meta: { requiresAuth: true } },
-      { path: 'me/devices/:deviceId', name: 'mobile-device-settings', component: MobileDevices, meta: { requiresAuth: true } },
-      { path: 'devices/:deviceId/trend', name: 'mobile-trend', component: MobileTrend, meta: { requiresAuth: true } }
+      { path: 'today', name: 'mobile-today', component: () => import('../views/mobile/MobileToday.vue') },
+      { path: 'records', name: 'mobile-records', component: () => import('../views/mobile/MobileRecords.vue') },
+      { path: 'records/:id', name: 'record-detail', component: () => import('../views/mobile/MobileRecordDetail.vue'), meta: { requiresAuth: true } },
+      { path: 'me', name: 'mobile-me', component: () => import('../views/mobile/MobileMe.vue') },
+      { path: 'checkin', name: 'mobile-checkin', component: () => import('../views/mobile/MobileCheckin.vue') },
+      { path: 'feeding', name: 'mobile-feeding', component: () => import('../views/mobile/MobileFeeding.vue'), meta: { requiresAuth: true } },
+      { path: 'reports/session', name: 'report-session', component: () => import('../views/mobile/MobileReport.vue') },
+      { path: 'reports/:id?', name: 'mobile-report', component: () => import('../views/mobile/MobileReport.vue'), meta: { requiresAuth: true } },
+      { path: 'me/devices', name: 'mobile-devices', component: () => import('../views/mobile/MobileDevices.vue'), meta: { requiresAuth: true } },
+      { path: 'me/devices/:deviceId', name: 'mobile-device-settings', component: () => import('../views/mobile/MobileDevices.vue'), meta: { requiresAuth: true } },
+      { path: 'devices/:deviceId/trend', name: 'mobile-trend', component: () => import('../views/mobile/MobileTrend.vue'), meta: { requiresAuth: true } },
+      { path: 'me/invite', name: 'invite', component: () => import('../views/mobile/MobileInvite.vue'), meta: { requiresAuth: true } },
+      { path: 'me/help', name: 'help', component: () => import('../views/mobile/MobileHelp.vue') },
+      { path: 'me/account', name: 'account', component: () => import('../views/mobile/MobileAccount.vue'), meta: { requiresAuth: true } }
     ]
   }
 ];

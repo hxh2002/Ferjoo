@@ -14,6 +14,7 @@ const router = useRouter();
 const auth = useAuth();
 
 async function submit() {
+  if (busy.value) return;
   error.value = '';
   busy.value = true;
   try {

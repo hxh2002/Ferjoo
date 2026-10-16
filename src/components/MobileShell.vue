@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { classicAssets } from '../constants/classicAssets.js';
@@ -9,53 +9,82 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
 const tabs = [
-  { path: '/today', label: '今天', icon: '○' },
-  { path: '/records', label: '记录', icon: '▤' },
-  { path: '/me', label: '我的', icon: '◇' }
+  { path: '/today', label: '今日', icon: 'M12 21v-9m0 4C5 16 3 12 3 6c6 0 9 3 9 8m0-2c0-6 3-9 9-9 0 6-3 9-9 9' },
+  { path: '/records', label: '记录', icon: 'M8 3h8v4H8z M8 5H5v16h14V5h-3 M8 11h8m-8 4h8' },
+  { path: '/me', label: '我的', icon: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2' }
 ];
+const cachedTabs = ['MobileToday', 'MobileRecords', 'MobileMe'];
+const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
-const isTask = computed(() => ['/checkin', '/feeding', '/reports', '/me/devices', '/devices'].some((path) => route.path.startsWith(path)));
-const showTabs = computed(() => !isTask.value && !isAccount.value);
-const accountBack = computed(() => {
-  if (route.name === 'claim') return { path: '/me/devices', label: '返回我的设备' };
-  if (route.name === 'profile') return { path: '/me', label: '返回我的' };
-  const redirect = safeRedirect(route.query.redirect, router);
-  const protectedTarget = redirect && router.resolve(redirect).meta.requiresAuth;
-  return redirect && !protectedTarget
-    ? { path: redirect, label: '返回上一任务' }
-    : { path: '/me', label: '返回我的' };
+const title = computed(() => {
+  if (typeof route.meta.title === 'string') return route.meta.title;
+  if (route.path.startsWith('/devices/')) return '设备趋势';
+  if (route.path.startsWith('/records/')) return '记录详情';
+  if (route.path.startsWith('/reports/')) return '诊断报告';
+  if (route.path.startsWith('/me/devices/')) return '设备设置';
+  return ({ '/checkin': '记录观察', '/feeding': '记录喂养', '/reports': '诊断报告', '/me/devices': '我的设备', '/me/invite': '邀请好友', '/me/account': '账号安全', '/me/help': '帮助与关于', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
+});
+const backTarget = computed(() => {
+  if (route.path === '/claim') return '/me/devices';
+  if (isAccount.value) {
+    const redirect = safeRedirect(route.query.redirect, router);
+    return redirect && !router.resolve(redirect).meta.requiresAuth ? redirect : '/me';
+  }
+  if (route.path.startsWith('/me/')) return '/me';
+  if (route.path.startsWith('/devices/')) return '/me/devices';
+  if (route.path.startsWith('/records/')) return '/records';
+  return '/today';
+});
+const scrollPositions = new Map();
+let frame;
+const removeGuard = router.beforeEach((to, from) => {
+  if (tabs.some((tab) => tab.path === from.path)) scrollPositions.set(from.path, window.scrollY);
+});
+const removeAfter = router.afterEach(async (to, from, failure) => {
+  if (failure || to.path === from.path) return;
+  await nextTick();
+  cancelAnimationFrame(frame);
+  frame = requestAnimationFrame(() => {
+    if (route.fullPath === to.fullPath) window.scrollTo({ top: scrollPositions.get(to.path) || 0, behavior: 'instant' });
+  });
 });
 onMounted(() => auth.init());
-function go(path) { router.push(path); }
+onBeforeUnmount(() => {
+  removeGuard();
+  removeAfter();
+  cancelAnimationFrame(frame);
+});
+function go(path) {
+  if (route.path !== path) router.push(path);
+}
 </script>
 
 <template>
-  <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount }">
-    <header class="mobile-topbar">
-      <RouterLink class="mobile-brand" to="/today" aria-label="Ferjoo 今天"><img :src="classicAssets.logoBrand" alt="Ferjoo" /></RouterLink>
-      <RouterLink v-if="!auth.user.value && !isAccount" class="mobile-login" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</RouterLink>
-      <span v-else-if="auth.user.value" class="mobile-account">{{ auth.profile.value?.display_name || auth.user.value.email }}</span>
+  <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
+    <header v-if="showTabs" class="mobile-topbar">
+      <RouterLink class="mobile-brand" to="/today" aria-label="Ferjoo 今日"><img :src="classicAssets.logoBrand" alt="Ferjoo" /></RouterLink>
+      <RouterLink v-if="!auth.user.value" class="mobile-login" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</RouterLink>
+      <RouterLink v-else class="mobile-account" to="/me">{{ auth.profile.value?.display_name || auth.user.value.email }}</RouterLink>
     </header>
-    <nav v-if="isAccount" class="mobile-account-back" aria-label="账号页返回"><RouterLink :to="accountBack.path">← {{ accountBack.label }}</RouterLink></nav>
-    <main class="mobile-main"><slot><RouterView /></slot></main>
+    <header v-else class="mobile-topbar mobile-subbar">
+      <RouterLink class="mobile-back" :to="backTarget" aria-label="返回上一级">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span>返回</span>
+      </RouterLink>
+      <h1>{{ title }}</h1>
+    </header>
+    <main class="mobile-main">
+      <slot>
+        <RouterView v-slot="{ Component }">
+          <KeepAlive :include="cachedTabs">
+            <component :is="Component" />
+          </KeepAlive>
+        </RouterView>
+      </slot>
+    </main>
     <nav v-if="showTabs" class="mobile-tabbar" aria-label="主要导航">
-      <button v-for="tab in tabs" :key="tab.path" type="button" :class="{ active: route.path === tab.path }" @click="go(tab.path)"><span aria-hidden="true">{{ tab.icon }}</span><strong>{{ tab.label }}</strong></button>
+      <button v-for="tab in tabs" :key="tab.path" type="button" :class="{ active: route.path === tab.path }" :aria-current="route.path === tab.path ? 'page' : undefined" @click="go(tab.path)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="tab.icon" /></svg><strong>{{ tab.label }}</strong>
+      </button>
     </nav>
   </div>
 </template>
-
-<style scoped>
-.mobile-account-back { padding: 8px 20px; border-bottom: 1px solid #eaddd2; }
-.mobile-account-back a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
-.mobile-account-shell :deep(.auth-page) { display: block; min-height: 0; padding: 20px 16px calc(32px + env(safe-area-inset-bottom)); }
-.mobile-account-shell :deep(.auth-card) { width: 100%; max-width: 570px; margin: auto; padding: 24px 20px; box-sizing: border-box; border-radius: 0; }
-.mobile-account-shell :deep(.auth-card h1) { font-size: 32px; letter-spacing: -.03em; }
-.mobile-account-shell :deep(input), .mobile-account-shell :deep(select) { min-width: 0; max-width: 100%; font-size: 16px; }
-.mobile-account-shell :deep(.profile-page) { max-width: 680px; margin: auto; padding: 20px 16px calc(32px + env(safe-area-inset-bottom)); }
-.mobile-account-shell :deep(.profile-heading), .mobile-account-shell :deep(.profile-grid), .mobile-account-shell :deep(.profile-top) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
-.mobile-account-shell :deep(.profile-heading) { color: #30251f; margin: 0 0 20px; }
-.mobile-account-shell :deep(.profile-heading h1) { font-size: 32px; }
-.mobile-account-shell :deep(.profile-card) { padding: 20px; border-radius: 0; min-width: 0; }
-.mobile-account-shell :deep(.profile-plate) { min-width: 0; border-color: #eaddd2; background: #fffdf8; }
-.mobile-account-shell :deep(.meta-list dd) { overflow-wrap: anywhere; }
-</style>

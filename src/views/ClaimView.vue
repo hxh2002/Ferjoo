@@ -14,17 +14,19 @@ const router = useRouter();
 const mobile = computed(() => usesMobileAccountLayout(route, router));
 const deviceId = ref('');
 const destination = computed(() => !mobile.value ? '/history' : deviceId.value
-  ? { name: 'mobile-device-settings', params: { deviceId: deviceId.value } }
-  : { name: 'mobile-devices' });
+  ? `/me/devices/${encodeURIComponent(deviceId.value)}`
+  : '/me/devices');
 
 const state = ref('input'); // input | working | success | already | error
 const message = ref('');
 const manualCode = ref('');
+const confirmed = ref(false);
+const normalizedCode = computed(() => manualCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
 
 onMounted(async () => {
   await auth.init();
   const code = typeof route.query.code === 'string' ? route.query.code.trim() : '';
-  if (code) await claim(code);
+  if (code) manualCode.value = code;
 });
 
 async function claim(code) {
@@ -35,6 +37,7 @@ async function claim(code) {
     const res = await claimDevice(code);
     deviceId.value = res.device_id || '';
     state.value = res.already_mine ? 'already' : 'success';
+    if (mobile.value && deviceId.value) await router.replace(destination.value);
   } catch (e) {
     state.value = 'error';
     message.value = e?.message?.includes('INVALID_BIND_CODE')
@@ -45,8 +48,8 @@ async function claim(code) {
 }
 
 async function submitManual() {
-  const code = manualCode.value.trim();
-  if (!code) return;
+  const code = normalizedCode.value;
+  if (!confirmed.value || !/^[A-HJ-NP-Z2-9]{8}$/.test(code)) { message.value = '请输入有效的八位绑定码，并确认历史访问范围。'; state.value = 'error'; return; }
   await claim(code);
 }
 
@@ -57,7 +60,7 @@ function goDevice() {
 
 <template>
   <div class="auth-page">
-    <AuthCard eyebrow="DEVICE BINDING" title="绑定设备" description="输入设备上的 8 位绑定码，即可把设备绑到你的账号。持有即拥有，设备数据不算敏感信息。">
+    <AuthCard eyebrow="DEVICE BINDING" title="绑定设备" description="绑定后可查看这台设备的全部历史采样；个人观察和报告不会因此共享。">
       <div v-if="state === 'working'" class="claim-status">
         <p class="auth-description">正在绑定，请稍候…</p>
       </div>
@@ -84,7 +87,9 @@ function goDevice() {
               required
             />
           </label>
-          <button class="diagnose-button" :disabled="!manualCode.trim()">
+          <p>规范化绑定码：{{ normalizedCode || '尚未输入' }}</p>
+          <label><input v-model="confirmed" type="checkbox">我已了解：绑定后可查看设备全部历史采样。</label>
+          <button class="diagnose-button" :disabled="!manualCode.trim() || !confirmed">
             <span>绑定设备</span>
             <b>BIND →</b>
           </button>

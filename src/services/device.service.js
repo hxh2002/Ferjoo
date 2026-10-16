@@ -10,7 +10,7 @@ function requireClient() {
 const BUCKET_MS = 10 * 60 * 1000;
 
 // 十分钟桶在查询层实现：每个桶自动选取 recorded_at 最新的一条。
-function pickLatestPerBucket(rows, dir = 'desc') {
+export function pickLatestPerBucket(rows, dir = 'desc') {
   const byBucket = new Map();
   for (const row of rows) {
     const t = new Date(row.recorded_at).getTime();
@@ -21,7 +21,7 @@ function pickLatestPerBucket(rows, dir = 'desc') {
   }
   const sign = dir === 'asc' ? 1 : -1;
   return [...byBucket.values()].sort(
-    (a, b) => sign * (new Date(b.recorded_at) - new Date(a.recorded_at))
+    (a, b) => sign * (new Date(a.recorded_at) - new Date(b.recorded_at))
   );
 }
 
