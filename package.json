@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/diagnosis.test.js && node tests/architecture.test.js && node tests/mobile-care.test.js && node tests/mobile-device.service.test.js && node tests/foundation.test.js && node tests/mobile-observation-flow.test.js && node tests/mobile-shell-isolation.test.js && node tests/mobile-today.test.js && node src/algorithms/enumerate-scenarios.js --self-check",
+    "test": "node tests/diagnosis.test.js && node tests/architecture.test.js && node tests/mobile-care.test.js && node tests/mobile-device.service.test.js && node tests/foundation.test.js && node tests/mobile-observation-flow.test.js && node tests/mobile-shell-isolation.test.js && node tests/mobile-today.test.js && node tests/feeding-analysis.test.js && node src/algorithms/enumerate-scenarios.js --self-check",
     "audit": "node src/algorithms/enumerate-scenarios.js --self-check",
     "enumerate": "node src/algorithms/enumerate-scenarios.js --pretty -o src/algorithms/scenario-catalog.json",
     "assets:classic": "node scripts/fetch-classic-assets.mjs",

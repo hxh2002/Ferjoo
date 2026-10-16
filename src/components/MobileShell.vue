@@ -22,7 +22,7 @@ const title = computed(() => {
   if (route.path.startsWith('/records/')) return '记录详情';
   if (route.path.startsWith('/reports/')) return '诊断报告';
   if (route.path.startsWith('/me/devices/')) return '设备设置';
-  return ({ '/checkin': '记录观察', '/feeding': '记录喂养', '/reports': '诊断报告', '/me/devices': '我的设备', '/me/invite': '邀请好友', '/me/account': '账号安全', '/me/help': '帮助与关于', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
+  return ({ '/checkin': '诊断记录', '/feeding': '记录喂养', '/reports': '诊断报告', '/me/devices': '我的设备', '/me/invite': '邀请好友', '/me/account': '账号安全', '/me/help': '帮助与关于', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
 });
 const backTarget = computed(() => {
   const returnTo = safeRedirect(route.query.returnTo, router);

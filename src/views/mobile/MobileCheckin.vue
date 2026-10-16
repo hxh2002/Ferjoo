@@ -3,26 +3,36 @@ import { computed, nextTick, onScopeDispose, ref, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
-import { mobileOptions, fieldLabels, describeField, describeSource, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport, loadObservationContext } from '../../services/mobile-diagnosis.service.js';
+import { mobileOptions, fieldLabels, describeField, describeSource, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport, loadObservationContext, emptyCheckin } from '../../services/mobile-diagnosis.service.js';
+import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { useStarterName } from '../../composables/useStarterName.js';
 
 const route = useRoute();
 const router = useRouter();
 const { user } = useAuth();
 const accountId = computed(() => user.value?.id || 'guest');
-const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId);
+const diagnosisMode = computed(() => route.query.mode === 'diagnosis');
+const observationDraft = useCheckinDraft(accountId);
+const diagnosisDraft = useCheckinDraft(accountId, { kind: 'diagnosis' });
+const activeDraft = computed(() => diagnosisMode.value ? diagnosisDraft : observationDraft);
+const draft = computed(() => activeDraft.value.draft.value);
+const storageAvailable = computed(() => activeDraft.value.storageAvailable.value);
+const persist = () => activeDraft.value.persist();
+const replace = (value) => activeDraft.value.replace(value);
 const { starterName } = useStarterName(accountId, computed(() => draft.value.starterId));
 const errors = ref({});
 const pending = ref({});
 const notice = ref('');
 const fatal = ref('');
+const feedingEvidence = ref(null);
 const extra = ref(false);
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
 const step = computed(() => [1, 2, 3].includes(draft.value.step) ? draft.value.step : 1);
 const summaryKeys = computed(() => ['color', 'smell', ...Object.keys(fieldLabels).filter((key) => !['color', 'smell'].includes(key) && draft.value[key] !== '' && draft.value[key] != null)]);
 const emptySummaryKeys = computed(() => Object.keys(fieldLabels).filter((key) => !summaryKeys.value.includes(key)));
-watch([accountId, () => route.query.starter], () => {
+watch([accountId, () => route.query.starter, () => route.query.mode, () => route.query.feeding], () => {
+  if (diagnosisMode.value) replace({ ...emptyCheckin(), starterId: typeof route.query.starter === 'string' ? route.query.starter : '' });
   if (typeof route.query.starter === 'string' && route.query.starter !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId: route.query.starter });
     else draft.value.starterId = route.query.starter;
@@ -30,28 +40,44 @@ watch([accountId, () => route.query.starter], () => {
   errors.value = {};
   pending.value = {};
 }, { immediate: true });
-if (route.query.edit === 'session') {
+if (!diagnosisMode.value && route.query.edit === 'session') {
   const report = loadSessionReport(accountId.value);
   if (report) replace({ ...report.input, step: 1 });
 }
 let contextGeneration = 0;
-watch([accountId, () => draft.value.starterId, () => route.query.feeding], async ([owner, starterId, feedingId]) => {
+watch([accountId, () => draft.value.starterId, () => route.query.feeding, () => route.query.mode], async ([owner, starterId, feedingId]) => {
   const token = ++contextGeneration;
-  if (owner === 'guest' || !starterId || route.query.edit === 'session') return;
+  feedingEvidence.value = null;
+  if (owner === 'guest' || !starterId || (!diagnosisMode.value && route.query.edit === 'session')) return;
   const target = draft.value;
   try {
-    const { sample, link, feeding } = await loadObservationContext(owner, starterId, typeof feedingId === 'string' ? feedingId : undefined);
+    if (diagnosisMode.value && typeof feedingId !== 'string') throw new Error('缺少本轮喂养记录，请从喂养记录进入诊断。');
+    const evidence = diagnosisMode.value && typeof feedingId === 'string'
+      ? await loadFeedingEvidence(owner, starterId, feedingId)
+      : null;
+    const { sample, link, feeding } = evidence || await loadObservationContext(owner, starterId, typeof feedingId === 'string' ? feedingId : undefined);
     if (token !== contextGeneration || target !== draft.value) return;
     function fill(key, value, source) {
       if (target[key] !== '' || value == null) return;
       target[key] = value;
       target.sources[key] = source;
     }
-    if (sample?.temperature_c != null) fill('tempC', sample.temperature_c, `设备 Ferjoo Sensor · ${link.device_id} · 采样 ${new Date(sample.recorded_at).toLocaleString('zh-CN')}`);
+    feedingEvidence.value = evidence;
+    const summary = evidence?.summary;
+    if (diagnosisMode.value && summary) {
+      target.feedingId = feeding.id;
+      target.evidenceSnapshot = { source: 'feeding-analysis.service', feedingId: feeding.id, measuredAt: evidence.now, windowFrom: summary.windowFrom, windowTo: summary.windowTo, latestMeasurementAt: summary.latestMeasurementAt, latestTemperatureAt: summary.latestTemperatureAt, baselineHeightMm: summary.baselineHeightMm, baselineSource: summary.baselineSource, expansionPercent: summary.expansionPercent, expansionSource: summary.latestMeasurementAt ? `height:${summary.latestMeasurementAt}` : null, heightStale: summary.heightStale, temperatureStale: summary.temperatureStale };
+      if (summary.tempC != null) fill('tempC', Number(summary.tempC.toFixed(1)), `传感器轮次平均 · ${summary.temperatureCount} 个有效样本 · ${summary.latestTemperatureAt}`);
+      if (summary.elapsedHours != null) fill('elapsedHours', Number(summary.elapsedHours.toFixed(1)), summary.historicalRound ? `历史轮次截至下一次喂养 ${summary.windowTo}` : `喂养至测量截点 ${summary.windowTo}`);
+      if (summary.height) fill('height', summary.height, `${summary.historicalRound ? '历史轮次' : '当前轮次'}传感器测量 · ${summary.latestMeasurementAt} · 有效高度 ${summary.heightCount} 个，起始样本 ${summary.baselineUsedCount} 个`);
+      if (summary.heightStale || summary.temperatureStale) notice.value = '最新高度或温度证据已超过 40 分钟，未作为当前值预填；请重新测量或手工确认。';
+    } else if (sample?.temperature_c != null) fill('tempC', sample.temperature_c, `设备 Ferjoo Sensor · ${link.device_id} · 采样 ${new Date(sample.recorded_at).toLocaleString('zh-CN')}`);
     if (feeding) {
       fill('ratio', feeding.ratio, '来自喂养记录');
-      const elapsed = (Date.now() - Date.parse(feeding.occurred_at)) / 3600000;
-      if (Number.isFinite(elapsed) && elapsed >= 0) fill('elapsedHours', Number(elapsed.toFixed(1)), '来自喂养记录');
+      if (!diagnosisMode.value) {
+        const elapsed = (Date.now() - Date.parse(feeding.occurred_at)) / 3600000;
+        if (Number.isFinite(elapsed) && elapsed >= 0) fill('elapsedHours', Number(elapsed.toFixed(1)), '来自喂养记录');
+      }
     }
   } catch { if (token === contextGeneration) notice.value = '预填信息暂不可用，可继续手工填写。'; }
 }, { immediate: true });
@@ -102,13 +128,18 @@ function applyPending(key) {
 
 <template>
   <main class="m-page mobile-checkin">
-    <p class="m-context m-muted">{{ steps[step - 1] }} · 第 {{ step }} / 3 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
+    <p class="m-context m-muted">{{ diagnosisMode ? '传感器诊断确认' : steps[step - 1] }} · 第 {{ step }} / 3 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
+    <section v-if="diagnosisMode" class="m-card">
+      <p>这是本轮诊断确认，不恢复旧观察草稿。传感器不能判断颜色、气味或食品安全；养护阶段也请主动选择。</p>
+      <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，诊断截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '缺少有效样本' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定，前 50 分钟尚未结束' : '观察窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}（使用 {{ feedingEvidence.summary.baselineUsedCount }} 个起始样本，排除 {{ feedingEvidence.summary.baselineExcludedCount }} 个大偏移值）</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足，未计算' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未作为当前值预填。' : '' }}温度为本轮有效传感器采样平均，仍请核实探头是否代表酵种温度。</p></template>
+      <p v-if="notice" role="status">{{ notice }}</p>
+    </section>
     <details><summary>填写与保存说明</summary><p class="m-muted">可以仅生成建议，不保存云端；生成与保存是两件事，云端保存需要登录并选择酵种。</p></details>
     <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，暂在当前会话保留；关闭页面可能丢失，请及时完成任务。</p>
     <form ref="formElement" @submit.prevent="step === 3 ? generate() : next()">
       <section v-show="step === 1" class="m-card">
-        <h2>先确认本次安全观察</h2>
+        <h2>{{ diagnosisMode ? '确认本轮安全与涨幅' : '先确认本次安全观察' }}</h2>
         <p class="m-muted">不要品尝生酵种。无法看清或无法判断，请选“不确定”。</p>
         <label v-for="key in ['color', 'smell']" :key="key" class="m-field">
           <span>{{ fieldLabels[key] }}</span>
@@ -118,12 +149,12 @@ function applyPending(key) {
           <span :id="`${key}-help`" class="m-muted">{{ key === 'color' ? '检查粉红、绿、蓝、黑等异常斑块和绒毛状霉菌。' : '区分正常酸香、酒精气味与明显腐败气味。' }}</span>
           <span v-if="errors[key]" class="m-error">{{ errors[key] }}</span>
         </label>
-        <label class="m-field"><span>请选择最主要的涨幅表现</span><select v-model="draft.height" :aria-invalid="!!errors.height"><option disabled value="">请选择</option><option v-for="item in mobileOptions.height" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span class="m-muted">相对喂养后起始高度；表面液层与涨幅本轮只能选最主要的一项。</span><span v-if="errors.height" class="m-error">{{ errors.height }}</span></label>
+        <label class="m-field"><span>请选择最主要的涨幅表现</span><select v-model="draft.height" :aria-invalid="!!errors.height" @change="markManual('height')"><option disabled value="">请选择</option><option v-for="item in mobileOptions.height" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span class="m-muted">{{ diagnosisMode ? '传感器只预填可核实的涨幅证据；阶段、颜色和气味仍必须由你确认。' : '相对喂养后起始高度；表面液层与涨幅本轮只能选最主要的一项。' }}</span><span class="m-muted">来源：{{ describeSource(draft, 'height') }}</span><span v-if="errors.height" class="m-error">{{ errors.height }}</span></label>
         <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
-        <h2>补充这一轮背景</h2>
-        <label v-for="key in ['stage', 'ratio']" :key="key" class="m-field"><span>{{ fieldLabels[key] }}</span><select v-model="draft[key]" :aria-invalid="!!errors[key]" @change="markManual(key)"><option disabled value="">请选择</option><option v-for="item in mobileOptions[key]" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span v-if="errors[key]" class="m-error">{{ errors[key] }}</span></label>
+        <h2>{{ diagnosisMode ? '确认诊断背景' : '补充这一轮背景' }}</h2>
+        <label v-for="key in ['stage', 'ratio']" :key="key" class="m-field"><span>{{ fieldLabels[key] }}</span><select v-model="draft[key]" :aria-invalid="!!errors[key]" @change="markManual(key)"><option disabled value="">请选择</option><option v-for="item in mobileOptions[key]" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span class="m-muted">来源：{{ describeSource(draft, key) }}</span><span v-if="errors[key]" class="m-error">{{ errors[key] }}</span></label>
         <p class="m-muted">比例按重量，顺序为老种 : 水 : 面粉；不将自定义比例映射为相近比例，不知道请选“不确定”。</p>
         <label v-for="key in ['tempC', 'elapsedHours']" :key="key" class="m-field"><span>{{ fieldLabels[key] }}（可空）</span><input v-model="draft[key]" type="number" step="any" inputmode="decimal" :aria-invalid="!!errors[key]" placeholder="未测量 / 不记得请留空" @input="markManual(key)"><span class="m-muted">来源：{{ describeSource(draft, key) }}</span><span v-if="errors[key]" class="m-error">{{ errors[key] }}</span></label>
         <p class="m-muted">温度指实测酵种温度，而非未经确认的设备环境温度；时间未知不伪造默认值。</p>

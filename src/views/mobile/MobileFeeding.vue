@@ -8,18 +8,18 @@ import { saveFeeding } from '../../services/care.service.js';
 import { useStarterName } from '../../composables/useStarterName.js';
 import { randomUuid, isUuid } from '../../lib/uuid.js';
 import { localDateTimeValue, parseLocalDateTime } from '../../lib/localDateTime.js';
-import { loadObservationContext } from '../../services/mobile-diagnosis.service.js';
+
 
 const route = useRoute();
 const { user } = useAuth();
 const accountId = computed(() => user.value?.id || 'guest');
-const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId, { kind: 'feeding', defaults: () => ({ starterId: '', occurredAt: localDateTimeValue(), ratio: '', baselineHeightMm: '', baselineSource: '', deviceId: '', step: 1, requestId: '', submission: {}, confirmed: false }) });
+const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId, { kind: 'feeding', defaults: () => ({ starterId: '', occurredAt: localDateTimeValue(), ratio: '', baselineHeightMm: '', baselineSource: '', deviceId: '', savedFeedingId: '', step: 1, requestId: '', submission: {}, confirmed: false }) });
 const { starterName } = useStarterName(accountId, computed(() => draft.value.starterId));
 const error = ref('');
 const status = ref('');
 const saving = ref(false);
 const locked = computed(() => Object.keys(draft.value.submission).length > 0);
-const deviceSample = ref(null);
+const savedFeedingId = ref('');
 let generation = 0;
 watch(accountId, () => {
   generation += 1;
@@ -28,31 +28,22 @@ watch(accountId, () => {
   status.value = '';
 }, { flush: 'sync' });
 onScopeDispose(() => { generation += 1; });
-watch([accountId, () => route.query.starter], async () => {
-  if (!locked.value && typeof route.query.starter === 'string' && route.query.starter !== draft.value.starterId) {
-    if (draft.value.starterId) replace({ starterId: route.query.starter });
-    else draft.value.starterId = route.query.starter;
+watch([accountId, () => route.query.starter, () => route.query.new], () => {
+  const starterId = typeof route.query.starter === 'string' ? route.query.starter : '';
+  if (route.query.new === '1' && draft.value.confirmed) {
+    startNext(starterId || draft.value.starterId);
+  } else if (!locked.value && starterId && starterId !== draft.value.starterId) {
+    if (draft.value.starterId) replace({ starterId });
+    else draft.value.starterId = starterId;
   }
-  deviceSample.value = null;
-  const token = generation;
-  const owner = accountId.value;
-  const starterId = draft.value.starterId;
-  if (!user.value || !starterId || locked.value) return;
-  try {
-    const context = await loadObservationContext(owner, starterId);
-    if (token !== generation || owner !== accountId.value || starterId !== draft.value.starterId) return;
-    if (context.sample) deviceSample.value = { ...context.sample, device_id: context.link.device_id };
-  } catch { if (token === generation) deviceSample.value = null; }
+  savedFeedingId.value = draft.value.savedFeedingId || '';
+  if (!locked.value && draft.value.baselineSource === 'device') {
+    draft.value.baselineHeightMm = '';
+    draft.value.baselineSource = '';
+  }
 }, { immediate: true, flush: 'sync' });
-function useDeviceHeight() {
-  if (locked.value || saving.value || deviceSample.value?.height_mm == null) return;
-  if (Date.now() - Date.parse(deviceSample.value.recorded_at) > 40 * 60000) { error.value = '设备读数已过期，请手工测量。'; return; }
-  draft.value.baselineHeightMm = deviceSample.value.height_mm;
-  draft.value.baselineSource = 'device';
-  draft.value.deviceId = deviceSample.value.device_id;
-}
 function validate() {
-  if (!isUuid(draft.value.starterId)) return '请先在今天添加或选择有效酵种；也可以返回后只做观察，不保存喂养。';
+  if (!isUuid(draft.value.starterId)) return '请先在今日添加或选择有效酵种，再记录喂养。';
   try {
     if (parseLocalDateTime(draft.value.occurredAt) > new Date()) return '喂养时间不能晚于现在。';
   } catch (cause) { return cause.message; }
@@ -60,11 +51,12 @@ function validate() {
   if (draft.value.baselineHeightMm !== '' && (!Number.isFinite(Number(draft.value.baselineHeightMm)) || Number(draft.value.baselineHeightMm) <= 0)) return '起始高度需为大于 0 的毫米数，未测量可留空。';
   return '';
 }
-function startNext() {
+function startNext(starterId = draft.value.starterId) {
   if (saving.value || !draft.value.confirmed) return;
   try {
     const requestId = randomUuid();
-    replace({ starterId: draft.value.starterId, occurredAt: localDateTimeValue(), ratio: '', requestId });
+    replace({ starterId, occurredAt: localDateTimeValue(), ratio: '', requestId });
+    savedFeedingId.value = '';
     status.value = '已开始下一条喂养记录，请填写本次事实。';
     error.value = '';
   } catch (cause) { error.value = cause.message; }
@@ -91,6 +83,8 @@ async function save() {
     const result = await saveFeeding(payload);
     if (!current()) return;
     if (!result?.id && result?.saved !== true) throw new Error('未收到云端保存确认。');
+    savedFeedingId.value = result.id || '';
+    draft.value.savedFeedingId = savedFeedingId.value;
     draft.value.confirmed = true;
     persist();
     status.value = '已云端保存喂养记录。要记录另一次喂养，请明确开始下一条。';
@@ -105,17 +99,18 @@ async function save() {
     <p class="m-context m-muted"><span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span> · 记录已发生的喂养</p>
     <p v-if="!storageAvailable" class="m-error">本机存储不可用，关闭页面可能丢失草稿。</p>
     <form class="m-card" @submit.prevent="save">
-      <p v-if="locked" role="status">{{ draft.confirmed ? '本条已确认保存；刷新页面不会重复新增。' : '本条提交尚待确认，内容已锁定；请重试确认原提交后再记录下一条。' }}</p>
+      <p v-if="locked && !draft.confirmed" class="m-error" role="alert">当前保留的是「{{ starterName }}」（{{ draft.starterId }}）的待确认喂养草稿，内容已锁定；不会切换酵种或覆盖草稿，请先重试确认原提交后再记录下一条。</p>
+      <p v-else-if="draft.confirmed" role="status">本条已确认保存；刷新页面不会重复新增。</p>
       <label class="m-field">这次什么时候喂的<input v-model="draft.occurredAt" type="datetime-local" :disabled="locked || saving" required></label>
       <label class="m-field">喂养比例（老种 : 水 : 面粉）<select v-model="draft.ratio" :disabled="locked || saving" required><option disabled value="">请选择</option><option value="1:1:1">1 : 1 : 1</option><option value="1:2:2">1 : 2 : 2</option><option value="1:3:3">1 : 3 : 3</option><option value="1:5:5">1 : 5 : 5</option><option value="deep_reset">大比例刷新</option><option value="1:2:1">1 : 2 : 1</option></select></label>
+      <p class="m-muted">关联设备会自动观察喂养后前 50 分钟的有效高度，窗口结束前为暂定值；样本不足会保留缺失，不捏造起始高度。</p>
       <details :open="draft.baselineHeightMm !== ''">
         <summary>喂养后起始高度（可选）<span v-if="draft.baselineHeightMm !== ''"> · {{ draft.baselineHeightMm }} mm</span></summary>
-        <label class="m-field">起始高度（mm）<input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="locked || saving" @input="draft.baselineSource = 'manual'"><span class="m-muted">用于计算膨胀率。{{ deviceSample ? `设备最新读数：${deviceSample.height_mm ?? '未测量'}mm` : '可手工输入' }}</span></label>
-        <button v-if="deviceSample?.height_mm != null" type="button" class="m-secondary" :disabled="locked || saving" @click="useDeviceHeight">使用设备最新高度</button><p class="m-muted">高度来源：{{ draft.baselineHeightMm === '' ? '未提供' : draft.baselineSource === 'device' ? '设备读取（已确认）' : '手工记录' }}</p>
+        <label class="m-field">手动修正起始高度（mm）<input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="locked || saving" @input="draft.baselineSource = 'manual'"><span class="m-muted">可留空；填写后以手工修正值计算膨胀率，不使用设备最新单点作为起始高度。</span></label>
       </details>
       <details><summary>记录说明</summary><p class="m-muted">这里只记录已经发生的喂养，不会远程控制设备。</p></details>
       <p v-if="error" class="m-error" role="alert">{{ error }}</p><p v-if="status" role="status">{{ status }}</p>
-      <div class="m-actions"><button v-if="draft.confirmed" type="button" class="m-primary" :disabled="saving" @click="startNext">开始下一条喂养记录</button><button v-else type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><RouterLink v-if="draft.confirmed" class="m-secondary" :to="{ path: '/checkin', query: draft.starterId ? { starter: draft.starterId } : {} }">记录观察</RouterLink></div>
+      <div class="m-actions"><button v-if="!draft.confirmed" type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><template v-else><RouterLink v-if="savedFeedingId" class="m-primary" :to="{ path: '/checkin', query: { starter: draft.starterId, feeding: savedFeedingId, mode: 'diagnosis' } }">可选：诊断本轮</RouterLink><RouterLink class="m-secondary" to="/today">回今日</RouterLink><button type="button" class="m-secondary" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条喂养记录</button></template></div>
     </form>
   </main>
 </template>

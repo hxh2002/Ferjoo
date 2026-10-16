@@ -100,7 +100,8 @@ async function claim() {
   if (result?.device_id && current(c)) {
     notice.value = result.already_mine ? '已在你的设备中。' : '设备绑定成功。';
     code.value = ''; confirmed.value = false;
-    router.push(`/me/devices/${encodeURIComponent(result.device_id)}`);
+    if (route.query.bind === '1') router.replace('/today');
+    else router.push(`/me/devices/${encodeURIComponent(result.device_id)}`);
   }
 }
 async function rename() {
@@ -133,11 +134,11 @@ async function copy(value) {
 watch([userId, deviceId], () => {
   version += 1; devices.value = []; device.value = null; members.value = [];
   code.value = ''; confirmed.value = false; name.value = ''; target.value = '';
-  showBinding.value = false; starters.value = []; linkedStarter.value = ''; savedStarter.value = '';
+  showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; linkedStarter.value = ''; savedStarter.value = '';
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
   if (userId.value) load();
 }, { immediate: true, flush: 'sync' });
-watch(() => route.fullPath, () => { showBinding.value = false; }, { flush: 'sync' });
+watch(() => route.fullPath, () => { showBinding.value = !deviceId.value && route.query.bind === '1'; }, { immediate: true, flush: 'sync' });
 watch(manager, (value) => { if (!value) members.value = []; });
 onMounted(async () => { try { await auth.init(); } catch { error.value = '登录状态读取失败，请稍后重试。'; } });
 onBeforeUnmount(() => { version += 1; });

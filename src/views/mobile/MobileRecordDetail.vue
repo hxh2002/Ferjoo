@@ -57,7 +57,7 @@ onScopeDispose(() => { generation++; });
       <h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ describeField('ratio', record.ratio) }}</p>
       <h2>起始高度</h2><p>{{ baseline == null ? '未记录' : `${baseline} mm` }}<span v-if="baseline != null">（{{ baselineSource === 'device' ? '设备读取' : baselineSource === 'manual' ? '手工记录' : '来源未记录' }}）</span></p>
       <p>这是一条事实记录，不生成诊断建议。</p>
-      <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id } }">基于这次喂养记录观察</RouterLink>
+      <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
     </section>
   </main>
 </template>
