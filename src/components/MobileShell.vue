@@ -25,6 +25,8 @@ const title = computed(() => {
   return ({ '/checkin': '记录观察', '/feeding': '记录喂养', '/reports': '诊断报告', '/me/devices': '我的设备', '/me/invite': '邀请好友', '/me/account': '账号安全', '/me/help': '帮助与关于', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
 });
 const backTarget = computed(() => {
+  const returnTo = safeRedirect(route.query.returnTo, router);
+  if (returnTo && router.resolve(returnTo).path === '/records') return returnTo;
   if (route.path === '/claim') return '/me/devices';
   if (isAccount.value) {
     const redirect = safeRedirect(route.query.redirect, router);
@@ -32,13 +34,13 @@ const backTarget = computed(() => {
   }
   if (route.path.startsWith('/me/')) return '/me';
   if (route.path.startsWith('/devices/')) return '/me/devices';
-  if (route.path.startsWith('/records/')) return '/records';
+  if (route.path.startsWith('/records/') || (route.path.startsWith('/reports/') && route.path !== '/reports/session')) return '/records';
   return '/today';
 });
 function goBack() {
-  // 有应用内浏览记录时回到实际上一页；直接打开/刷新无记录时回退到逻辑上级页面
+  // 优先回到真实进入前页面；直接打开/刷新时才使用安全的逻辑上级页面。
   if (window.history.state?.back) router.back();
-  else router.push(backTarget.value);
+  else router.replace(backTarget.value);
 }
 const scrollPositions = new Map();
 let frame;

@@ -27,14 +27,6 @@ const cloud = computed(() => !!route.params.id && route.params.id !== 'session')
 const text = computed(() => report.value && report.value.kind !== 'feeding' ? [`酵种：${report.value.starterId ? starterName.value : '未选择'}`, reportText({ ...report.value, occurredAt: formatDate(report.value.occurredAt) })].join('\n') : '');
 let generation = 0;
 let disposed = false;
-function safeReturnTo() {
-  const value = typeof route.query.returnTo === 'string' ? route.query.returnTo : '';
-  if (!/^\/records(?:[?#]|$)/.test(value) || /[\\\u0000-\u0020\u007f]/.test(value)) return '/records';
-  try {
-    const url = new URL(value, window.location.origin);
-    return url.origin === window.location.origin && url.pathname === '/records' ? `${url.pathname}${url.search}${url.hash}` : '/records';
-  } catch { return '/records'; }
-}
 function formatDate(value) {
   const date = new Date(value);
   return value && Number.isFinite(date.getTime()) ? date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }) : '时间不可用';
@@ -114,7 +106,7 @@ onUnmounted(() => { disposed = true; generation++; });
 
 <template>
   <main class="m-page mobile-report">
-    <header><RouterLink class="m-secondary" :to="cloud ? safeReturnTo() : '/today'">{{ cloud ? '返回记录' : '返回今天' }}</RouterLink><h1>{{ cloud ? (report?.kind === 'feeding' ? '喂养记录（只读）' : '观察记录（只读）') : '本次建议' }}</h1></header>
+    <header><h1>{{ cloud ? (report?.kind === 'feeding' ? '喂养记录（只读）' : '观察记录（只读）') : '本次建议' }}</h1></header>
     <p v-if="loading" role="status">正在加载云端记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <section v-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录可能不存在、读取失败，或当前账号没有访问权限。' : '本机会话可能已结束、存储损坏或账号已切换。不会显示其他账号的报告。' }}</p><RouterLink v-if="cloud && !user" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录后查看</RouterLink><RouterLink v-else to="/checkin">继续或重新记录观察</RouterLink></section>
     <template v-if="report && report.kind === 'feeding'">
@@ -135,7 +127,7 @@ onUnmounted(() => { disposed = true; generation++; });
       <p v-if="!cloud && !user" class="m-muted">登录后才能云端保存；账号切换不会迁移当前草稿。<RouterLink to="/login?redirect=/reports/session">前往登录</RouterLink></p>
       <button type="button" class="m-secondary" @click="copy">复制建议</button><p role="status">{{ copyStatus }}</p>
       <label v-if="readable" class="m-field">可选择的建议文本<textarea :value="text" readonly rows="12" /></label>
-      <div v-if="!cloud" class="m-actions"><RouterLink v-if="risk" class="m-secondary" to="/today">返回今天</RouterLink><RouterLink v-else class="m-secondary" :to="{ path: '/checkin', query: { edit: 'session', ...(report.starterId ? { starter: report.starterId } : {}) } }">修改本次输入</RouterLink><button class="m-primary" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已云端保存' : '保存到云端' }}</button></div>
+      <div v-if="!cloud" class="m-actions"><RouterLink v-if="!risk" class="m-secondary" :to="{ path: '/checkin', query: { edit: 'session', ...(report.starterId ? { starter: report.starterId } : {}) } }">修改本次输入</RouterLink><button class="m-primary" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已云端保存' : '保存到云端' }}</button></div>
     </template>
   </main>
 </template>

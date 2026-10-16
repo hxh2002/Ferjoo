@@ -48,7 +48,7 @@ async function submit() {
     const data = await signUpWithEmail(form);
     if (data.session && usesMobileAccountLayout(route, router)) {
       await auth.syncSession();
-      await router.push(accountDestination(route, router));
+      await router.replace(accountDestination(route, router));
       return;
     }
     success.value = data.session
@@ -89,7 +89,7 @@ async function submit() {
         <p v-if="success" class="form-success">{{ success }}</p>
         <button class="diagnose-button" :disabled="busy || !auth.configured">{{ busy ? '创建中…' : '创建账号' }}</button>
       </form>
-      <p class="auth-switch">已经有账号？<RouterLink :to="authLink('login', route, router)">去登录 →</RouterLink></p>
+      <p class="auth-switch">已经有账号？<RouterLink replace :to="authLink('login', route, router)">去登录 →</RouterLink></p>
     </AuthCard>
   </div>
 </template>

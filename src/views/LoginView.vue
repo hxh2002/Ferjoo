@@ -20,7 +20,7 @@ async function submit() {
   try {
     await signInWithEmail(form);
     await auth.syncSession();
-    await router.push(accountDestination(route, router));
+    await router.replace(accountDestination(route, router));
   } catch (e) {
     error.value = e?.message || '登录失败，请检查邮箱与密码。';
   } finally {
@@ -41,7 +41,7 @@ async function submit() {
         <p v-if="error" class="form-error">{{ error }}</p>
         <button class="diagnose-button" :disabled="busy || !auth.configured">{{ busy ? '登录中…' : '登录' }}</button>
       </form>
-      <p class="auth-switch">还没有账号？<RouterLink :to="authLink('register', route, router)">创建账号 →</RouterLink></p>
+      <p class="auth-switch">还没有账号？<RouterLink replace :to="authLink('register', route, router)">创建账号 →</RouterLink></p>
     </AuthCard>
   </div>
 </template>

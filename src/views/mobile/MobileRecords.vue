@@ -102,7 +102,7 @@ function updateFilter(key, value) {
 function changePage(value) {
   const query = { ...route.query, ...filterQuery(), page: String(value), scroll: String(scrollY.value) };
   listPositions.delete(positionKey(query));
-  router.push({ path: '/records', query });
+  router.replace({ path: '/records', query });
 }
 const starterId = computed({ get: () => queryText('starter'), set: (value) => updateFilter('starter', value) });
 const type = computed({ get: () => ['feeding', 'observation', 'device'].includes(queryText('type')) ? queryText('type') : 'all', set: (value) => updateFilter('type', value) });

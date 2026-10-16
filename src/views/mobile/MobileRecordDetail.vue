@@ -50,7 +50,7 @@ onScopeDispose(() => { generation++; });
 
 <template>
   <main class="m-page mobile-record-detail">
-    <header><RouterLink class="m-secondary" :to="returnTo">返回记录</RouterLink><h1>喂养记录（只读）</h1></header>
+    <header><h1>喂养记录（只读）</h1></header>
     <p v-if="loading" role="status">正在加载…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <section v-if="record" class="m-card">
       <p>酵种：{{ name }} · {{ when }}</p>
