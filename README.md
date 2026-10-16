@@ -152,14 +152,18 @@ npm run dev
 
 ## Supabase 部署
 
-1. 新建 Supabase 项目。
-2. 首次部署可在 SQL Editor 按文件名顺序执行 `supabase/migrations/` 下的所有 `.sql`；当前项目的 `001`～`015` 已完成远端同步。
-3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启（默认）。
+**默认通过 GitHub 部署，完整流程见下文「部署」。** 当前项目为 `yccvmeepajpdagizplgp`，数据库结构、业务 SQL 与设备注册均以仓库中的迁移为准。
+
+1. 首次建立环境时，在 Supabase 中关联 GitHub 仓库 `hxh2002/Ferjoo`，工作目录设为 `.`，生产分支设为 `main`，由原生 GitHub Integration 应用 `supabase/migrations/` 中的迁移。
+2. 后续变更只新增迁移文件，经检查、提交并推送或合并到 GitHub `main` 后自动部署；不默认使用 SQL Editor、CLI `db push` 或 Supabase MCP 直接修改生产库。
+3. 在 **Authentication → Providers → Email** 中确认 Email/Password 已启用，并保持 **Confirm email** 开启。
    - 注册后会发送验证邮件，用户完成邮箱确认后才能登录。
-4. 从 Project Settings 获取 Project URL 与 anon/public key；复制项目根目录 `.env.example` 为 `.env` 并填入：
+4. 从 Project Settings 获取 Project URL 与 anon/public key；本地开发复制项目根目录 `.env.example` 为 `.env` 并填入：
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-5. 运行 `npm install && npm run dev`。
+5. 运行 `npm install && npm run dev`。Vercel 生产环境变量另在平台配置，不提交 `.env`。
+
+Auth 提供商、邮件、回跳地址及平台集成等设置需在对应控制台单独核对，不能把迁移成功等同于所有平台配置已同步。
 
 ## 用户系统
 
@@ -369,13 +373,13 @@ Content-Type: application/json
 
 ## 算法边界
 
-`src/algorithms/` 是项目中所有算法、有限组合、规则、数值模型、枚举与审核工具的唯一归属。业务代码只能：
+`src/algorithms/` 集中核心诊断、预测模型与场景枚举；服务层和界面仍包含输入适配、分桶与图表派生计算。调用核心算法应使用公共入口，不深度导入内部文件：
 
 ```js
 import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 ```
 
-当前 Vue 层进一步收紧：组件不直接 import 算法目录，只通过 `services/diagnosis.service.js` 调用。算法需要文献时只允许调用 `../references/index.js`，不得复制 citation 元数据。
+当前电脑诊断主调用经 `services/diagnosis.service.js`，手机观察经 `services/mobile-diagnosis.service.js`。`DoctorView.vue` 与 `DiagnosisResult.vue` 仍直接从算法公共入口导入解析、选项或格式化能力，因此尚未实现严格的 Vue → service 单一路径。算法需要文献时通过 `../references/index.js`，不得复制 citation 元数据。
 
 文件职责：
 
@@ -419,11 +423,37 @@ npm run build
 
 ## 部署
 
+### 默认发布路径：GitHub → Vercel + Supabase
+
+GitHub `hxh2002/Ferjoo` 的 `main` 是生产环境唯一发布入口。默认流程如下：
+
+1. 在本地修改代码或新增 `supabase/migrations/00X_*.sql`。
+2. 本地运行必要的测试与构建检查。
+3. 提交并推送到 GitHub `main`（或通过 Pull Request 合并到 `main`）。
+4. GitHub Actions 运行测试与构建；Vercel Git 集成自动构建前端并发布 `dist`；Supabase 原生 GitHub Integration 自动应用待执行迁移。
+5. 检查 GitHub Actions、Vercel Deployment 和 Supabase migration 日志，确认三处均成功。
+
+不要把生产发布默认理解为本地直接部署：不使用 `vercel deploy`、Supabase MCP、生产 SQL Editor 或本地 `supabase db push` 作为常规发布路径。只有在明确的故障恢复或迁移修复场景下，才单独执行平台控制台或 CLI 操作。
+
+### 部署状态核查（2026-10-16）
+
+通过 GitHub API 核查提交 `6c40b9307d9af14dc7ecef1e91d47ccd7adf0236`（包含此前的设备注册迁移）：
+
+- GitHub `test-and-build`：`completed / success`。
+- Vercel：提交状态为 `success`，对应 `Production` deployment 状态为 `success`，描述为 `Deployment has completed`。
+- Supabase：名为 `Supabase Preview` 的 check 为 `completed / success`。该结果证明集成检查通过，但不能单凭名称推断生产库中 `016`、`017` 的迁移记录及设备行已确认；这部分仍需生产 migration 日志或只读数据库查询证据。
+
+以上是该提交的检查快照，不代表后续提交自动成功；CI 和平台部署由各自集成触发，当前工作流没有实现“CI 成功后才允许平台发布”的串行门禁。
+
+### GitHub Actions 的职责
+
+`.github/workflows/ci.yml` 只负责在 `main` 推送和 Pull Request 上执行 `npm install`、`npm test` 与 `npm run build`，不执行数据库迁移。数据库迁移由 Supabase 原生 GitHub Integration 负责，前端发布由 Vercel Git 集成负责。
+
 ### 自动同步 Supabase
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前 `001`～`015` 已在远端执行。若本地需要查看迁移状态，使用：
+当前仓库包含 `001`～`017` 范围内的 16 个迁移（`005` 是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
@@ -475,13 +505,14 @@ Vue Views / Components
  references/index          Supabase
 ```
 
-### 强制边界
+### 设计约定与当前边界
 
-- `src/algorithms/`：所有算法、有限组合、规则、数值模型、枚举与审核工具的唯一归属。
-- `src/references/`：全部参考文献库、证据注册表、引用 schema 与运行时引用元数据的唯一归属。
-- Vue 组件不得直接 import 算法内部文件，只允许通过 `services/diagnosis.service.js`。
+- `src/algorithms/`：核心诊断、数值预测与场景枚举的归属；服务/UI 的适配和派生计算不等同于核心诊断模型。
+- `src/references/`：参考文献库、证据注册表、引用 schema 与运行时引用元数据的归属。
+- Vue 不应深度导入算法内部文件；主诊断通过电脑/手机各自的 service 调用。当前两处 Vue 直接使用公共入口的例外见「算法边界」。
 - 算法引用文献只通过 `src/references/index.js`。
-- `tests/architecture.test.js` 会扫描这些边界，防止后续重构时重新产生跨层耦合。
+- `tests/architecture.test.js` 是历史静态检查，未接入默认测试或 CI；其 catalog 结构、允许的 service 及 scripts 目录断言与当前实现不兼容，不能视为有效门禁。
+- 默认枚举自检检查 2,016 条结果数量及 `status/title` 非空，不代表完整业务正确性、引用完整性或真实 RLS 已验收。
 
 ### 数据层
 
