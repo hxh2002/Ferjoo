@@ -21,8 +21,7 @@ Vue 3 + Vite + Supabase
 │   └── router/
 ├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
-│   └── migrations/          # 001~015 SQL（后端逻辑）
-├── docs/ARCHITECTURE.md     # 依赖方向图补充
+│   └── migrations/          # SQL 后端逻辑与设备注册迁移
 ├── tests/
 └── public/assets/           # 经典 PNG 资产
 ```
@@ -34,7 +33,7 @@ Vue 3 + Vite + Supabase
 ```text
  ┌──────────────────────────────────────────────────────────────────────────┐
  │                源代码层  GitHub 仓库 hxh2002/Ferjoo （main 分支）           │
- │  src/（Vue 前端）   supabase/migrations/（SQL 后端逻辑）  tests/ docs/      │
+ │  src/（Vue 前端）   supabase/migrations/（SQL 后端逻辑）  tests/           │
  └──────────────────────────────────────────────────────────────────────────┘
                   push / merge 到 main
         ┌─────────────────┼────────────────────────────┐
@@ -310,7 +309,7 @@ where system_user_id = 'U26090001';
 
 ### 设备 HTTP 上传
 
-> 📘 面向硬件工程师的完整接入指南（凭据烧录、字段字典、十分钟桶机制、错误码、ESP32 实现、验收清单）：[`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md)
+> 📘 硬件工程师的完整接入说明见本文件「硬件 HTTP 接入」一节。
 
 设备通过 WiFi/HTTP 每 10 分钟上传一次数据，单批最多 288 条采样（约覆盖 48 小时离线缓冲）。上传走 Supabase PostgREST RPC，不需要用户登录态。
 
@@ -389,7 +388,7 @@ import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 - `scenario-catalog.json`：完整预生成组合。
 - `build-review-queue.js` / `review-queue.json`：审核队列。
 
-依赖方向约定详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。`tests/architecture.test.js` 是历史架构检查用例，未接入当前默认测试链，需更新其断言后再作为持续集成门禁。
+依赖方向约定见上文「架构说明」。`tests/architecture.test.js` 是历史架构检查用例，未接入当前默认测试链，需更新其断言后再作为持续集成门禁。
 
 ## 测试
 
@@ -460,9 +459,80 @@ npm run build
 npm run dev
 ```
 
+## 架构说明
+
+### 依赖方向
+
+```text
+Vue Views / Components
+        ↓
+     services
+        ↓
+┌───────────────────┬───────────────────┐
+│ algorithms/index  │ Supabase services │
+└─────────┬─────────┴─────────┬─────────┘
+          ↓                   ↓
+ references/index          Supabase
+```
+
+### 强制边界
+
+- `src/algorithms/`：所有算法、有限组合、规则、数值模型、枚举与审核工具的唯一归属。
+- `src/references/`：全部参考文献库、证据注册表、引用 schema 与运行时引用元数据的唯一归属。
+- Vue 组件不得直接 import 算法内部文件，只允许通过 `services/diagnosis.service.js`。
+- 算法引用文献只通过 `src/references/index.js`。
+- `tests/architecture.test.js` 会扫描这些边界，防止后续重构时重新产生跨层耦合。
+
+### 数据层
+
+Supabase Auth 负责邮箱/密码会话；`public.profiles` 负责系统展示 ID 与 U/A 角色。设备和历史数据通过 `device_members` 成员关系与 RLS 隔离，浏览器 anon key 不能越权访问他人数据。
+
+## 硬件 HTTP 接入
+
+设备通过 HTTPS POST 调用 Supabase RPC `ingest_device_measurements`，不需要用户登录或用户 JWT；设备使用自身的 `device_id` 和 `api_key`，请求头仅携带项目级 `anon` key：
+
+```text
+POST https://yccvmeepajpdagizplgp.supabase.co/rest/v1/rpc/ingest_device_measurements
+apikey: <VITE_SUPABASE_ANON_KEY>
+Content-Type: application/json
+```
+
+请求体示例：
+
+```json
+{
+  "p_device_id": "dev_xxxx",
+  "p_api_key": "xxxx",
+  "p_measurements": [
+    {
+      "recorded_at": "2026-09-04T08:00:00Z",
+      "temperature_c": 24.5,
+      "height_mm": 12.3,
+      "height_delta_mm": 0.5,
+      "humidity_percent": 78.1,
+      "battery_percent": 91,
+      "payload": {}
+    }
+  ]
+}
+```
+
+### 出厂注册与安全
+
+- 每台设备必须由管理员预先插入 `public.devices`，数据库只保存 `api_key` 的 SHA-256 摘要，明文只在受控烧录流程中出现。
+- 插入设备后数据库自动生成 8 位 `bind_code`；生产端读取它并打印到标签，用户通过 HISTORY 或 `/claim?code=XXXX-XXXX` 认领设备。
+- `api_key` 不得写入源码、日志、工单、共享 SQL 文本或 Git；设备端将其写入 Flash/NVS。
+- `anon` 角色没有表级读写权限，仅被授权执行设备上传 RPC；设备不得携带 `Authorization` 请求头。
+- 单批最多上传 288 条；`recorded_at` 使用 ISO 8601 UTC。重复上传会保留原始记录，网页端按十分钟桶展示最新一条。
+
+### 设备验收
+
+- 每台设备拥有独立的 `device_id` 和 `api_key`。
+- 首次上传前完成 SNTP 校时；断网数据写入 Flash 缓冲区并在恢复后批量补传。
+- 收到 `INVALID_DEVICE_CREDENTIALS` 后停止重试；`TOO_MANY_MEASUREMENTS` 则拆分批次。
+- 量产固件启用 TLS 证书校验，不使用 `setInsecure()`。
+
 ## 更多说明
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- [`docs/HARDWARE-HTTP.md`](docs/HARDWARE-HTTP.md)（硬件工程师 HTTP 接入指南）
 - [`src/references/README.md`](src/references/README.md)
 - [`public/assets/CLASSIC_ASSETS.md`](public/assets/CLASSIC_ASSETS.md)（资产说明）
