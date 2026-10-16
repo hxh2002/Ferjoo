@@ -146,10 +146,10 @@ onBeforeUnmount(() => { version += 1; });
         <label><input v-model="confirmed" type="checkbox">我确认：绑定后可查看这台设备的全部历史采样。</label>
         <button class="m-primary" :disabled="saving || !userId" @click="claim">{{ saving ? '正在绑定…' : '确认绑定设备' }}</button>
       </section>
-      <section class="m-card"><h2>已绑定设备</h2><p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备；无需设备也可以手工观察。</p>
+      <section class="m-card"><div class="section-heading"><h2>已绑定设备</h2><span v-if="devices.length" class="m-muted count">{{ devices.length }} 台</span></div><p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备；无需设备也可以手工观察。</p>
         <RouterLink v-for="item in devices" :key="item.device_id" :to="`/me/devices/${encodeURIComponent(item.device_id)}`" class="m-list-row">
-          <strong>{{ item.name || item.device_id }}</strong><span>{{ item.my_role === 'owner' ? '所有者' : '成员' }} · {{ item.quality }}</span>
-          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString() : '从未接收' }}</small>
+          <span class="row-main"><strong>{{ item.name || item.device_id }}</strong><small>{{ item.my_role === 'owner' ? '所有者' : '成员' }} · {{ item.quality }}</small>
+          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
         </RouterLink>
       </section>
     </template>
@@ -178,9 +178,15 @@ onBeforeUnmount(() => { version += 1; });
   </main>
 </template>
 <style scoped>
-.m-code { overflow-wrap: anywhere; user-select: text; }
-.m-list-row { display: grid; gap: 4px; }
-.m-field { display: grid; gap: 8px; margin: 12px 0; }
+.m-page{padding-bottom:calc(6rem + env(safe-area-inset-bottom))}
+.m-code { overflow-wrap: anywhere; user-select: text; font-family: ui-monospace, monospace; }
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.section-heading h2{margin:0}
+.count{font-size:.82rem}
+.row-main{display:grid;gap:3px;min-width:0}.row-main small{color:var(--text-secondary,#75665b);font-size:.82rem}
+.chevron{color:var(--text-secondary,#75665b);font-size:1.1rem;flex-shrink:0}
+.m-list-row .row-main + .chevron{margin-left:auto}
 .m-field input { width: 100%; min-width: 0; box-sizing: border-box; }
 .m-primary { margin-top: 12px; }
+h1{font-size:1.5rem;font-weight:600;margin:.25rem 0 1rem}
+h2{font-size:1.05rem}
 </style>

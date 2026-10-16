@@ -266,5 +266,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}.m-record-list{max-height:60vh;max-height:60dvh;overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none}.m-card{margin:1rem 0;padding:1rem;border:1px solid #d8d2c8;background:#fffdf8}.m-eyebrow{color:#a44213;font-weight:700}.m-field{display:grid;gap:.5rem;margin:.75rem 0}.m-field select,.m-field input{box-sizing:border-box;width:100%;min-height:48px;padding:.7rem;font:inherit;border:1px solid #938d83;background:#fff}.m-types{display:flex;gap:.5rem;flex-wrap:wrap}.m-secondary{min-height:44px;padding:.6rem .9rem;border:1px solid #938d83;background:transparent;font:inherit;cursor:pointer}.m-secondary.active{border-color:#a44213;color:#a44213;font-weight:700}.m-list-row{display:flex;justify-content:space-between;gap:1rem;align-items:center;min-height:64px;border-top:1px solid #eadfd6;color:inherit;text-decoration:none}.m-list-row span{display:grid;gap:.2rem}.m-list-row small{color:#625e56}.m-list-row b{color:#a44213}.m-error{color:#9b2920}.m-muted{color:#625e56;font-size:.92rem}
+.m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
+.m-record-list{max-height:60vh;max-height:60dvh;overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none}
+.m-card h1{font-size:1.4rem;font-weight:600;margin:.1rem 0 .875rem}
+.m-card h2{font-size:.95rem;margin:0 0 .25rem}
+.m-filters{display:grid;gap:.25rem;margin-bottom:.75rem}
+.m-field{margin:.5rem 0}
+.m-field select,.m-field input{box-sizing:border-box;width:100%;min-height:48px;padding:.7rem;font:inherit;border:1px solid #938d83;background:#fff}
+.m-types{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.5rem 0}
+.m-types span{font-size:.85rem;color:#625e56}
+.m-secondary{min-height:40px;padding:.4rem .85rem;border:1px solid #938d83;background:transparent;font:inherit;font-size:.9rem;cursor:pointer}
+.m-secondary.active{border-color:#a44213;color:#a44213;font-weight:600;background:#fdf3ec}
+.m-list-row span{display:grid;gap:2px;min-width:0}
+.m-list-row b{color:#a44213;font-size:.85rem;font-weight:600;flex-shrink:0}
 </style>

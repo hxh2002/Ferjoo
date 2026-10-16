@@ -17,7 +17,7 @@ const template = compileTemplate({ source: descriptor.template.content, filename
 assert.deepEqual(template.errors, []);
 const renderCode = template.code.replace(/import \{([^}]+)\} from "vue"/, (_, bindings) => `const { ${bindings.replace(/ as /g, ': ')} } = Vue;`).replace('export function render', 'function render');
 const render = new Function('Vue', `${renderCode}; return render;`)(Vue);
-const names = ['starters', 'starterId', 'devices', 'records', 'sample', 'link', 'report', 'draft', 'now', 'loading', 'saving', 'error', 'deviceError', 'selectorOpen', 'linkOpen', 'selectedDevice', 'name', 'accountId', 'starter', 'feeding', 'observation', 'currentDevice', 'historical', 'expansion', 'baseline', 'lastAdvice', 'riskAdvice', 'hasDraft', 'mainAction', 'elapsedHours', 'timing', 'refresh', 'selectStarter', 'addStarter', 'openLink', 'saveLink', 'number', 'relative', 'dateTime', 'target'];
+const names = ['deviceId', 'rawSample', 'categories', 'selectDevice', 'selectStarter', 'starters', 'starterId', 'devices', 'records', 'sample', 'link', 'report', 'draft', 'now', 'loading', 'saving', 'error', 'deviceError', 'selectorOpen', 'linkOpen', 'selectedDevice', 'name', 'accountId', 'starter', 'feeding', 'observation', 'currentDevice', 'historical', 'expansion', 'baseline', 'lastAdvice', 'riskAdvice', 'hasDraft', 'mainAction', 'elapsedHours', 'timing', 'refresh', 'addStarter', 'openLink', 'saveLink', 'number', 'relative', 'dateTime', 'target'];
 const code = descriptor.scriptSetup.content.replace(/^import .*;\n/gm, '').replace(/defineOptions\([^\n]+\);/, '');
 const time = Date.now();
 const iso = (minutes) => new Date(time - minutes * 60000).toISOString();
@@ -29,6 +29,9 @@ let cloudStarters = [{ id: 's2', name: '较早创建' }, { id: 's1', name: '小�
 let cloudRecords = [observe, feed];
 let cloudLink = deviceLink;
 let cloudSample = measurement;
+let cloudDevices = [{ device_id: 'd1', name: 'Ferjoo Sensor' }, { device_id: 'd2', name: 'Second Sensor' }];
+let sampleCalls = [];
+let starterFailure = false;
 let session = null;
 let storedDraft = emptyCheckin();
 let requestedOwners = [];
@@ -55,15 +58,16 @@ const deps = {
     requestedOwners.push(userId); listCalls++; activeLists++; maxLists = Math.max(maxLists, activeLists);
     if (recordGate) await recordGate.promise;
     activeLists--;
+    if (starterFailure) throw new Error('starter offline');
     return structuredClone(cloudStarters);
   },
   async listCareRecords({ userId, starterId, kind }) {
     requestedOwners.push(userId);
     return structuredClone(cloudRecords.filter((row) => row.starter_id === starterId && (!kind || row.kind === kind)).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)).slice(0, 1));
   },
-  mobileDeviceService: async () => ({ async listDevices(owner) { requestedOwners.push(owner); if (deviceFailure) throw new Error('offline'); return [{ device_id: 'd1', name: 'Ferjoo Sensor' }]; } }),
+  mobileDeviceService: async () => ({ async listDevices(owner) { requestedOwners.push(owner); if (deviceFailure) throw new Error('offline'); return structuredClone(cloudDevices); } }),
   getStarterDeviceLink: async ({ userId, starterId }) => { requestedOwners.push(userId); return starterId === 's1' ? cloudLink : null; },
-  async getLatestMeasurement() { if (sampleGate) await sampleGate.promise; return cloudSample; },
+  async getLatestMeasurement(id) { sampleCalls.push(id); if (sampleGate) await sampleGate.promise; return cloudSample ? { ...cloudSample, device_id: id } : null; },
   async createStarter(value) { if (createGate) await createGate.promise; const item = { id: 's3', name: value }; cloudStarters.push(item); return item; },
   async linkStarterDevice(value) { linkCalls.push(value); cloudLink = value.deviceId ? { ...deviceLink, device_id: value.deviceId } : null; }
 };
@@ -85,7 +89,10 @@ assert.deepEqual(state.starters.value.map((item) => item.id), ['s1', 's2'], 'ord
 assert.equal(state.starterId.value, 's1');
 assert.equal(state.expansion.value, 50);
 assert.ok(state.timing.value?.display, 'confirmed mature round estimates through diagnosis service');
-assert.equal(state.mainAction.value.label, '记录观察并获取建议');
+assert.equal(state.mainAction.value.label, '记录观察');
+assert.equal(state.deviceId.value, 'd1');
+assert.deepEqual(sampleCalls, ['d1'], 'one latest request on initial load');
+assert.ok((await html()).indexOf('device-card') < (await html()).indexOf('classification-card'));
 assert.ok(requestedOwners.every((owner) => owner === 'account-a'));
 assert.match(await html(), /膨胀率/);
 assert.match(await html(), /50%/);
@@ -96,21 +103,27 @@ state.selectorOpen.value = false;
 
 state.records.value = [{ ...feed, input: {} }, observe];
 assert.equal(state.expansion.value, null);
-assert.match(await html(), /Δ \+10 mm/);
+assert.match(await html(), /高度变化 · 原始读数/);
 state.records.value = [feed, observe];
 for (const changed of [{ sensor_error: true }, { mode: 'sleep' }, { temperature_c: 33 }, { temperature_c: 7 }, { recorded_at: iso(41) }, { mode: null }]) {
   state.sample.value = { ...measurement, ...changed };
+  state.rawSample.value = state.sample.value;
   assert.equal(state.timing.value, null, JSON.stringify(changed));
+  if (changed.temperature_c == null) assert.equal(state.expansion.value, null);
 }
 state.sample.value = { ...measurement, sensor_error: true };
+state.rawSample.value = state.sample.value;
 assert.equal(state.expansion.value, null);
 assert.match(await html(), /传感器故障，读数不可靠/);
 state.sample.value = { ...measurement, recorded_at: iso(41) };
+state.rawSample.value = state.sample.value;
 assert.equal(state.historical.value, true);
 assert.match(await html(), /历史读数/);
 state.sample.value = { ...measurement, temperature_c: 33 };
+state.rawSample.value = state.sample.value;
 assert.match(await html(), /高温警告/);
 state.sample.value = { ...measurement, mode: 'sleep' };
+state.rawSample.value = state.sample.value;
 assert.match(await html(), /设备休眠/);
 state.sample.value = measurement;
 state.records.value = [feed, { ...observe, input: { ...observe.input, height: 'double' } }];
@@ -136,7 +149,7 @@ state.selectStarter('s2');
 assert.equal(state.sample.value, null, 'switch clears sample synchronously');
 await settled();
 assert.equal(state.hasDraft.value, false, 'other starter draft does not override action');
-assert.equal(state.mainAction.value.label, '记录这次喂养');
+assert.equal(state.mainAction.value.label, '记录观察');
 assert.match(await html(), /手工养护模式/);
 state.selectStarter('s1');
 await settled();
@@ -145,6 +158,9 @@ cloudSample = { ...measurement, recorded_at: iso(181) };
 await state.refresh();
 assert.equal(state.sample.value, null, 'sample before active_from is hidden');
 assert.match(state.deviceError.value, /不在当前关联时间段/);
+assert.ok(state.rawSample.value, 'pre-association readings remain available as raw device data');
+assert.equal(state.expansion.value, null);
+assert.equal(state.timing.value, null);
 cloudSample = { ...measurement, recorded_at: iso(5) };
 cloudLink = { ...deviceLink, active_to: iso(10) };
 await state.refresh();
@@ -158,7 +174,7 @@ cloudSample = measurement;
 cloudLink = null;
 await state.refresh();
 assert.ok(state.timing.value, 'manual temperature supports full care without devices');
-assert.match(await html(), /无需设备也可以完整使用/);
+assert.match(await html(), /设备读数不作为分类证据/);
 state.records.value = [feed, { ...observe, input: { ...observe.input, sources: { tempC: '设备读取' } } }];
 assert.equal(state.timing.value, null, 'detached device temperature is not relabelled manual');
 await state.refresh();
@@ -185,9 +201,37 @@ await state.refresh();
 assert.equal(state.report.value, null);
 session = null;
 
+state.selectStarter(''); await settled();
+assert.equal(state.starterId.value, '');
+assert.equal(state.sample.value, null);
+assert.ok(state.rawSample.value);
+await state.refresh();
+assert.equal(state.starterId.value, '', 'explicit unclassified choice survives polling');
+state.selectStarter('s1'); await settled();
+cloudLink = deviceLink;
+await state.refresh();
+state.selectDevice('d2');
+assert.equal(state.rawSample.value, null, 'switch clears raw reading synchronously');
+assert.equal(state.sample.value, null);
+await settled();
+assert.equal(state.deviceId.value, 'd2');
+assert.equal(state.starterId.value, '', 'does not reuse another device category');
+assert.equal(state.expansion.value, null);
+assert.ok(!state.categories.value.some((item) => item.id === 's1'));
+state.selectStarter('s1');
+assert.equal(state.starterId.value, '', 'cannot select a category associated with another device');
+state.selectDevice('d1'); await settled();
+assert.equal(state.starterId.value, 's1');
+starterFailure = true;
+await state.refresh();
+assert.ok(state.rawSample.value, 'category API failure does not hide raw device data');
+assert.match(state.error.value, /分类读取失败/);
+starterFailure = false;
+await state.refresh();
+
 deviceFailure = true;
 await state.refresh();
-assert.equal(state.feeding.value.id, 'feeding', 'device failure does not block manual records');
+assert.ok(state.starters.value.some((item) => item.id === 's1'), 'device failure does not block category records');
 assert.match(state.deviceError.value, /设备列表读取失败/);
 deviceFailure = false;
 recordGate = gate();
@@ -214,11 +258,22 @@ sampleGate.resolve(); sampleGate = null;
 await oldRequest; await settled();
 assert.equal(state.sample.value, null, 'late old-account sample cannot reappear');
 assert.deepEqual(state.starters.value, []);
-assert.match(await html(), /添加你的第一份酵种/);
+assert.equal(state.deviceId.value, 'd1');
+assert.ok(state.rawSample.value, 'devices remain usable without starters');
+assert.match(await html(), /未分类/);
+assert.match(await html(), /查看完整趋势/);
+assert.match(await html(), /记录观察/);
+assert.match(await html(), /记录喂养/);
 state.name.value = ' 第一份 ';
 await state.addStarter(); await settled();
 assert.equal(state.starter.value.name, '第一份');
 assert.equal(state.starterId.value, 's3');
+cloudDevices = [];
+await state.refresh();
+assert.equal(state.deviceId.value, '');
+assert.equal(state.rawSample.value, null);
+assert.match(await html(), /暂无设备/);
+assert.match(await html(), /记录观察/);
 
 createGate = gate();
 state.name.value = '不应跨账号出现';

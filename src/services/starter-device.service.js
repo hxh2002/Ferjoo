@@ -31,7 +31,33 @@ function localHistory(userId, starterId) {
   return value.map((row) => ({ ...row, source: 'local', storage_source: 'local', local_only: true }));
 }
 
-export async function listStarterDeviceLinks({ userId, starterId }) {
+function accountLocalHistory(userId) {
+  const prefix = `ferjoo:starter-device:${userId}:`;
+  const rows = [];
+  for (const storageKey of Object.keys(globalThis.localStorage)) {
+    if (!storageKey.startsWith(prefix)) continue;
+    const value = JSON.parse(globalThis.localStorage.getItem(storageKey) || '[]');
+    if (!Array.isArray(value)) throw new Error('本机关联记录格式已过期，请重新关联设备。');
+    rows.push(...value);
+  }
+  return rows.map((row) => ({ ...row, source: 'local', storage_source: 'local', local_only: true }));
+}
+
+export async function listStarterDeviceLinks({ userId, starterId } = {}) {
+  if (starterId == null) {
+    if (!UUID_RE.test(userId || '')) throw new Error('账号 ID 格式不正确。');
+    if (!hasSupabaseConfig || !supabase) return accountLocalHistory(userId);
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (authData?.user?.id !== userId) throw new Error('请使用当前登录账号查看设备关联。');
+    const { data, error } = await supabase.from('starter_device_links').select('*')
+      .eq('user_id', userId).order('active_from', { ascending: false });
+    if (error) {
+      if (missingSchema(error)) return accountLocalHistory(userId);
+      throw error;
+    }
+    return (data || []).map((row) => ({ ...row, source: 'cloud', storage_source: 'cloud', local_only: false }));
+  }
   const client = await context(userId, starterId);
   const { data, error } = await client.from('starter_device_links').select('*')
     .eq('user_id', userId).eq('starter_id', starterId).order('active_from', { ascending: false });
