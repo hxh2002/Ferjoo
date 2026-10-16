@@ -47,12 +47,11 @@ const namesError = ref('');
 const listElement = ref(null);
 const scrollY = ref(0);
 const pageSize = 20;
-const calendarOpen = ref(false);
 const calendarMonth = ref(Date.now());
 const calendarStats = ref({});
 const selectedDay = computed(() => from.value === to.value ? from.value : '');
 async function loadCalendar() {
-  if (!accountId.value || !calendarOpen.value) return;
+  if (!accountId.value) return;
   const owner = accountId.value; const starter = starterId.value; const month = calendarMonth.value;
   const date = new Date(month);
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -106,8 +105,7 @@ function changePage(value) {
 }
 const starterId = computed({ get: () => queryText('starter'), set: (value) => updateFilter('starter', value) });
 const type = computed({ get: () => ['feeding', 'observation', 'device'].includes(queryText('type')) ? queryText('type') : 'all', set: (value) => updateFilter('type', value) });
-const defaultFrom = localDateTimeValue(new Date(Date.now() - 30 * 86400000)).slice(0, 10);
-const from = computed({ get: () => route.query.from === undefined ? defaultFrom : queryText('from'), set: (value) => updateFilter('from', value) });
+const from = computed({ get: () => queryText('from'), set: (value) => updateFilter('from', value) });
 const to = computed({ get: () => queryText('to'), set: (value) => updateFilter('to', value) });
 const groups = computed(() => {
   const map = new Map();
@@ -220,7 +218,7 @@ watch(accountId, (owner, previous) => {
   loadNames(owner);
 }, { immediate: true, flush: 'sync' });
 watch([accountId, starterId, type, from, to, page], load, { immediate: true });
-watch([calendarOpen, calendarMonth, accountId, starterId], loadCalendar);
+watch([calendarMonth, accountId, starterId], loadCalendar, { immediate: true });
 watch(() => route.query.scroll, () => { if (!loading.value) restoreScroll(generation); });
 onMounted(() => { auth.init(); });
 onUnmounted(() => {
@@ -233,15 +231,11 @@ onUnmounted(() => {
 <template>
   <main class="m-page">
     <section class="m-card">
-      <p class="m-eyebrow">记录</p><h1>最近的事实与建议</h1>
       <div class="m-filters">
         <label class="m-field">对象<select v-model="starterId"><option value="">全部酵种</option><option v-if="starterId && !starters.some(item => item.id === starterId)" :value="starterId">名称不可用（当前筛选）</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name || '名称不可用' }}</option></select></label>
         <div class="m-types" role="group" aria-label="类型筛选"><button v-for="item in [['all','全部'],['observation','观察'],['feeding','喂养'],['device','设备数据']]" :key="item[0]" class="m-secondary" :class="{active:type===item[0]}" type="button" @click="type=item[0]">{{ item[1] }}</button></div>
-        <label class="m-field">开始日期（本地）<input v-model="from" type="date"></label>
-        <label class="m-field">结束日期（本地，含当天）<input v-model="to" type="date"></label>
       </div>
-      <button class="m-secondary" :aria-expanded="calendarOpen" @click="calendarOpen = !calendarOpen">{{ calendarOpen ? '收起日历' : '展开日历' }}</button>
-      <HistoryCalendar v-if="calendarOpen" :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" @change-month="changeMonth" @select="selectDay" />
+      <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" @change-month="changeMonth" @select="selectDay" />
       <button v-if="selectedDay" class="m-secondary" @click="selectDay('')">清除所选日期</button>
       <p v-if="loading" class="m-muted" role="status">正在读取记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <p v-if="namesError" class="m-muted">{{ namesError }}</p><p v-if="deviceNotice" class="m-muted" role="status">{{ deviceNotice }}</p>

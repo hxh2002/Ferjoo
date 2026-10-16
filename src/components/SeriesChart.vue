@@ -5,6 +5,7 @@ const props = defineProps({
   label: { type: String, required: true },
   unit: { type: String, default: '' },
   color: { type: String, default: '#C04B0A' },
+  baseline: { type: Number, default: null },
   points: { type: Array, default: () => [] } // [{ t: ISO string, v: number }]
 });
 
@@ -21,11 +22,14 @@ const samples = computed(() => (props.points || [])
   .slice().sort((a, b) => new Date(a.t) - new Date(b.t)));
 const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v) && !p.sensor_error));
 
+const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.baseline : null));
+
 const stats = computed(() => {
   if (!series.value.length) return null;
   const values = series.value.map((p) => p.v);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const bounds = baselineValue.value == null ? values : [...values, baselineValue.value];
+  const min = Math.min(...bounds);
+  const max = Math.max(...bounds);
   const last = values[values.length - 1];
   const delta = last - values[0];
   return {
@@ -90,6 +94,13 @@ const areaPath = computed(() => segments.value.filter((pts) => pts.length > 1)
   .map((pts) => `${linePathFor(pts)} L${pts.at(-1).x},${H} L${pts[0].x},${H} Z`).join(' '));
 
 const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
+
+const baselineY = computed(() => {
+  const s = stats.value; const b = baselineValue.value;
+  if (!s || b == null) return null;
+  const span = s.max - s.min;
+  return round(span === 0 ? H / 2 : H - PAD_Y - ((b - s.min) / span) * (H - PAD_Y * 2));
+});
 
 const hoverIdx = ref(null);
 watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
@@ -178,6 +189,14 @@ function fmtTime(t) {
             :y1="y"
             :y2="y"
           />
+          <line
+            v-if="baselineY != null"
+            class="series-baseline"
+            :x1="PAD_X"
+            :x2="W - PAD_X"
+            :y1="baselineY"
+            :y2="baselineY"
+          />
           <path v-if="areaPath" class="series-area" :d="areaPath" :fill="`url(#${gid})`" />
           <path
             v-if="linePath"
@@ -212,6 +231,11 @@ function fmtTime(t) {
           <strong>{{ fmt(hoverPoint.v) }}</strong>
           <span>{{ fmtTime(hoverPoint.t) }}</span>
         </div>
+        <span
+          v-if="baselineY != null"
+          class="series-baseline-tag"
+          :style="{ top: `${(baselineY / H) * 100}%` }"
+        >基线 {{ fmt(baselineValue) }}</span>
       </div>
       <div class="series-range">
         <span>min {{ fmt(stats?.min) }}</span>
@@ -222,3 +246,8 @@ function fmtTime(t) {
     <div v-else class="series-empty">暂无可绘制的数据</div>
   </div>
 </template>
+
+<style scoped>
+.series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.series-baseline-tag { position: absolute; left: 0; transform: translateY(-110%); padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.85); font-size: 10px; color: var(--ink-soft, #6b6259); pointer-events: none; }
+</style>

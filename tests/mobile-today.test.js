@@ -12,7 +12,7 @@ assert.deepEqual(errors, []);
 const compiled = compileScript(descriptor, { id: 'today-test' });
 assert.equal(compiled.bindings.refresh, 'setup-const');
 assert.match(source, /defineOptions\(\{ name: 'MobileToday' \}\)/);
-assert.match(source, /MobileMetricChart/);
+assert.match(source, /chart-feature/);
 assert.match(source, /SeriesChart/);
 assert.match(source, /listMeasurementsRange/);
 assert.match(source, /summarizeFeedingMeasurements/);
