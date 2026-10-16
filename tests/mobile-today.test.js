@@ -4,6 +4,7 @@ import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
+import * as heightAlerts from '../src/services/height-alert.service.js';
 
 const file = new URL('../src/views/mobile/MobileToday.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
@@ -58,7 +59,7 @@ function harness() {
     async createStarter(name) { if (state.createGate) return state.createGate.promise; if (state.fail === 'create') throw new Error('create down'); const created = { id: 'created', name }; state.starters.push(created); return created; }
   };
   const modules = {
-    vue: { ...Vue, onMounted: () => {} },
+    vue: { ...Vue, onMounted: () => {}, onActivated: () => {}, onDeactivated: () => {} },
     '../../composables/useAuth.js': { useAuth: () => ({ user, init() {} }) },
     '../../composables/useVisiblePolling.js': { useVisiblePolling() {} },
     '../../services/care.service.js': api,
@@ -69,6 +70,7 @@ function harness() {
       linkStarterDevice: async (args) => { if (state.linkGate) await state.linkGate.promise; if (state.linkFailure) throw new Error('link down'); state.links.push({ ...link, starter_id: args.starterId, device_id: args.deviceId }); }
     },
     '../../services/feeding-analysis.service.js': { summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
+    '../../services/height-alert.service.js': heightAlerts,
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
     '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
   };
@@ -91,6 +93,9 @@ assert.match(await h.html(), /连接设备，开始记录/);
 await login(h);
 assert.match(await h.html(), /膨胀率/);
 assert.match(await h.html(), /距上次喂养/);
+assert.match(await h.html(), /高度预约/);
+assert.match(await h.html(), /2\.5×/, 'thresholds are picked manually next to the round summary');
+assert.match(await h.html(), /开启系统提醒/);
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
 assert.equal(h.vm.evidence.length, rows.length);

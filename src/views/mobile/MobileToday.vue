@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onScopeDispose, ref, watch } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useVisiblePolling } from '../../composables/useVisiblePolling.js';
 import { createStarter, listCareRecords, listStarters } from '../../services/care.service.js';
@@ -7,6 +7,10 @@ import { listMeasurementsRange } from '../../services/device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { linkStarterDevice, listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { loadFeedingEvidence, summarizeFeedingMeasurements } from '../../services/feeding-analysis.service.js';
+import {
+  HEIGHT_ALERT_TARGETS, enableSystemNotification, heightAlertMessage, markHeightAlertNotified,
+  notificationPermission, pendingHeightAlerts, readHeightAlerts, sendSystemNotification, toggleHeightTarget, writeHeightAlerts
+} from '../../services/height-alert.service.js';
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import SeriesChart from '../../components/SeriesChart.vue';
 
@@ -19,6 +23,9 @@ const loading = ref(false); const saving = ref(false); const error = ref(''); co
 const deviceOpen = ref(false); const starterOpen = ref(false); const newStarterOpen = ref(false);
 const newName = ref(''); const now = ref(Date.now()); const explicitStarter = ref(false);
 const evidence = ref(null); const mutationError = ref('');
+const alerts = ref(readHeightAlerts(''));
+const alertPermission = ref(notificationPermission());
+const alertNotice = ref('');
 let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
 
 const activeDevice = computed(() => devices.value.find((item) => item.device_id === deviceId.value));
@@ -142,8 +149,44 @@ async function addStarter() {
   } catch (cause) { if (current(token, owner)) error.value = cause?.message || '新建或关联失败，请重试。'; }
   finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
 }
-watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; deviceOpen.value = false; starterOpen.value = false; mutationError.value = ''; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
-useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(() => { disposed = true; generation++; });
+let alertTimer = null; let alertRunning = false;
+function stopAlertTimer() { if (alertTimer) { clearInterval(alertTimer); alertTimer = null; } }
+// 有有效预约且已授权时，页面切到后台仍继续轮询，才能及时发出系统通知；无预约时不额外查询。
+function startAlertTimer() {
+  stopAlertTimer();
+  if (disposed || !alerts.value.targets.length || alertPermission.value !== 'granted') return;
+  alertTimer = setInterval(() => { if (document.hidden) void refresh(); }, 60000);
+}
+function toggleTarget(target) {
+  alertNotice.value = '';
+  alerts.value = writeHeightAlerts(accountId.value, toggleHeightTarget(alerts.value, target));
+  startAlertTimer();
+}
+async function enableAlerts() {
+  alertPermission.value = await enableSystemNotification();
+  alertNotice.value = alertPermission.value === 'granted' ? '已开启系统提醒'
+    : alertPermission.value === 'unsupported' ? '当前浏览器不支持系统通知'
+      : alertPermission.value === 'denied' ? '浏览器已拒绝通知权限，请在浏览器设置中开启' : '';
+  startAlertTimer();
+}
+async function evaluateAlerts() {
+  if (alertRunning || alertPermission.value !== 'granted' || !alerts.value.targets.length || !accountId.value) return;
+  const rows = pendingHeightAlerts({ state: alerts.value, feedingId: feeding.value?.id, baselineHeightMm: summary.value?.baselineHeightMm, currentHeightMm: summary.value?.currentHeightMm });
+  if (!rows.length) return;
+  alertRunning = true;
+  try {
+    for (const item of rows) {
+      if (!current(generation, accountId.value)) return;
+      const sent = await sendSystemNotification({ ...heightAlertMessage(item.target, item.ratio), tag: `ferjoo-height-${feeding.value.id}-${item.target}` });
+      if (!sent) { alertNotice.value = '系统通知发送失败，请检查浏览器通知设置'; continue; }
+      alerts.value = writeHeightAlerts(accountId.value, markHeightAlertNotified(alerts.value, item.target, feeding.value.id));
+      alertNotice.value = `${item.target}× 已提醒`;
+    }
+  } finally { alertRunning = false; }
+}
+watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; deviceOpen.value = false; starterOpen.value = false; mutationError.value = ''; alerts.value = readHeightAlerts(accountId.value); alertNotice.value = ''; stopAlertTimer(); clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
+watch(summary, () => { void evaluateAlerts(); });
+useVisiblePolling(refresh, 60000); onMounted(() => { auth.init(); alertPermission.value = notificationPermission(); startAlertTimer(); }); onActivated(() => { alertPermission.value = notificationPermission(); startAlertTimer(); }); onDeactivated(stopAlertTimer); onScopeDispose(() => { disposed = true; generation++; stopAlertTimer(); });
 </script>
 
 <template>
@@ -161,7 +204,10 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
     <section v-if="!accountId" class="m-card intro-card"><p class="eyebrow">今日</p><h1>连接设备，开始记录</h1><RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/today' } }">登录后开始</RouterLink></section>
     <template v-else>
       <p v-if="deviceError" class="m-error" role="alert">{{ deviceError }}</p>
-        <section v-if="starterId && feeding" class="feeding-summary"><strong>本轮喂养概况</strong><span v-if="summary?.baselinePending">暂定：喂养后 50 分钟内持续采集基线。</span><span>基线：{{ summary?.baselineHeightMm != null ? `${summary.baselineHeightMm.toFixed(1)} mm (${summary.baselineSource === 'manual' ? '人工' : '设备'})` : summary?.baselinePending ? '基线采集中（暂定）' : '暂定/未建立' }}</span><span>膨胀率：{{ summary?.expansionPercent != null ? `${summary.expansionPercent.toFixed(1)}%` : '暂不可计算' }}</span><span>距上次喂养：{{ relative(feeding.occurred_at) }}</span></section>
+        <div v-if="starterId && feeding" class="summary-row">
+        <section class="feeding-summary"><strong>本轮喂养概况</strong><span v-if="summary?.baselinePending">暂定：喂养后 50 分钟内持续采集基线。</span><span>基线：{{ summary?.baselineHeightMm != null ? `${summary.baselineHeightMm.toFixed(1)} mm (${summary.baselineSource === 'manual' ? '人工' : '设备'})` : summary?.baselinePending ? '基线采集中（暂定）' : '暂定/未建立' }}</span><span>膨胀率：{{ summary?.expansionPercent != null ? `${summary.expansionPercent.toFixed(1)}%` : '暂不可计算' }}</span><span>距上次喂养：{{ relative(feeding.occurred_at) }}</span></section>
+        <section class="alert-card"><strong>高度预约</strong><div class="alert-targets" role="group" aria-label="高度提醒阈值"><label v-for="target in HEIGHT_ALERT_TARGETS" :key="target" class="alert-target" :class="{ active: alerts.targets.includes(target) }"><input type="checkbox" :checked="alerts.targets.includes(target)" @change="toggleTarget(target)"><span>{{ target }}×</span></label></div><button v-if="alertPermission !== 'granted'" class="m-text-action" type="button" @click="enableAlerts">开启系统提醒</button><p class="m-muted small">{{ alertNotice || (alertPermission === 'granted' ? '达标时发送系统通知；同一轮每个阈值只提醒一次。' : '未开启通知权限时不会提醒。') }}</p></section>
+        </div>
         <section v-if="deviceId" class="chart-card"><div class="chart-title"><strong>{{ starter ? starter.name : '未分类设备数据' }}</strong><span>最近 24 小时</span></div><p v-if="!starter" class="m-muted small">当前为设备原始数据，尚未归类到酵种。</p><SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline"/><div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints"/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints"/></div></section>
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
       <section class="primary-actions"><RouterLink v-if="starterId" class="m-primary" :to="target('/feeding')">{{ feeding ? '再次喂养' : '记录喂养' }}</RouterLink><RouterLink v-if="feeding && starterId" class="m-secondary" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">手动诊断</RouterLink><p v-if="!starterId" class="m-muted">选择酵种后可记录喂养；当前仅展示设备原始数据。</p></section>
@@ -170,6 +216,6 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
 </template>
 
 <style scoped>
-.today-page{max-width:42rem;margin:auto}.chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem}.today-heading{display:grid;gap:.5rem;margin-bottom:.75rem}.picker-row{display:flex;gap:.5rem;align-items:center}.picker{border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-surface,#fffdf8);min-width:0}.picker-row .picker{flex:1}.picker summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:.5rem;padding:0 .75rem}.picker-label{flex-shrink:0;font-size:.75rem;color:var(--m-muted,#625e56)}.picker-value{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-menu,.starter-menu{display:grid;gap:.25rem;padding:.5rem 0}.picker-menu button,.picker-menu a,.starter-menu button{min-height:44px;padding:.5rem .75rem;border:1px solid var(--m-border,#d8d2c8);background:var(--m-surface,#fffdf8);text-align:left;font:inherit}.picker-menu a{color:var(--m-accent,#a44213)}.m-muted{font-size:.875rem;line-height:1.6;color:var(--m-muted,#625e56)}.m-muted.small{font-size:.8rem}.m-error{padding:.7rem;color:#86261f;border:1px solid #86261f}.chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}.chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}.small-charts{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.series-chart{min-width:0}.starter-section{padding-bottom:.25rem}.text-button{border:0;background:none;color:var(--m-accent,#a44213);min-height:44px;font:inherit}.compact-summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.starter-menu button{cursor:pointer}.starter-menu button.active{border-color:var(--m-accent,#a44213);color:var(--m-accent,#a44213)}.starter-menu small{display:block;color:var(--m-muted,#625e56);font-size:.75rem}.new-starter{display:grid;gap:.5rem;margin-top:.5rem}.new-starter input{min-height:44px;padding:.5rem;font:inherit}.risk-banner{padding:.75rem;background:#fff0ed;border-left:3px solid #a12c23;color:#86261f;margin:.75rem 0;display:flex;justify-content:space-between;gap:.5rem}.risk-banner a{color:inherit;font-weight:700}.primary-actions{display:grid;gap:.5rem;margin:.75rem 0}.primary-actions>*{text-align:center}button:disabled{opacity:.55}@media(max-width:360px){.small-charts{grid-template-columns:1fr}}
-.eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.feeding-summary{display:grid;gap:.5rem;padding:.75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;margin:.75rem 0}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;width:6px;height:6px;border-radius:50%;transform:translate(-50%,-50%)}.chart-card :deep(.series-range){display:flex;justify-content:space-between;font-size:.65rem;gap:.25rem}
+.today-page{max-width:42rem;margin:auto}.chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem}.today-heading{display:grid;gap:.5rem;margin-bottom:.75rem}.picker-row{display:flex;gap:.5rem;align-items:center}.picker{border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-surface,#fffdf8);min-width:0}.picker-row .picker{flex:1}.picker summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:.5rem;padding:0 .75rem}.picker-label{flex-shrink:0;font-size:.75rem;color:var(--m-muted,#625e56)}.picker-value{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-menu,.starter-menu{display:grid;gap:.25rem;padding:.5rem 0}.picker-menu button,.picker-menu a,.starter-menu button{min-height:44px;padding:.5rem .75rem;border:1px solid var(--m-border,#d8d2c8);background:var(--m-surface,#fffdf8);text-align:left;font:inherit}.picker-menu a{color:var(--m-accent,#a44213)}.m-muted{font-size:.875rem;line-height:1.6;color:var(--m-muted,#625e56)}.m-muted.small{font-size:.8rem}.m-error{padding:.7rem;color:#86261f;border:1px solid #86261f}.chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}.chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}.small-charts{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.series-chart{min-width:0}.starter-section{padding-bottom:.25rem}.text-button{border:0;background:none;color:var(--m-accent,#a44213);min-height:44px;font:inherit}.compact-summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.starter-menu button{cursor:pointer}.starter-menu button.active{border-color:var(--m-accent,#a44213);color:var(--m-accent,#a44213)}.starter-menu small{display:block;color:var(--m-muted,#625e56);font-size:.75rem}.new-starter{display:grid;gap:.5rem;margin-top:.5rem}.new-starter input{min-height:44px;padding:.5rem;font:inherit}.risk-banner{padding:.75rem;background:#fff0ed;border-left:3px solid #a12c23;color:#86261f;margin:.75rem 0;display:flex;justify-content:space-between;gap:.5rem}.risk-banner a{color:inherit;font-weight:700}.primary-actions{display:grid;gap:.5rem;margin:.75rem 0}.primary-actions>*{text-align:center}button:disabled{opacity:.55}@media(max-width:360px){.small-charts{grid-template-columns:1fr}.summary-row{grid-template-columns:1fr}}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:.75rem 0;align-items:start}.summary-row>*{display:grid;gap:.4rem;min-width:0;padding:.6rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;font-size:.8rem}.summary-row strong{font-size:.85rem}.alert-targets{display:flex;flex-wrap:wrap;gap:.25rem}.alert-target{display:inline-flex;align-items:center;gap:2px;min-height:44px;padding:0 .35rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px}.alert-target.active{border-color:var(--m-accent,#a44213);color:var(--m-accent,#a44213);font-weight:600}.alert-target input{width:16px;min-height:16px;height:16px;margin:0}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;width:6px;height:6px;border-radius:50%;transform:translate(-50%,-50%)}.chart-card :deep(.series-range){display:flex;justify-content:space-between;font-size:.65rem;gap:.25rem}
 </style>
