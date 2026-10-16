@@ -7,10 +7,16 @@ import { listStarters } from '../../services/care.service.js';
 import { getStarterDeviceLink, linkStarterDevice } from '../../services/starter-device.service.js';
 const starters = ref([]);
 const linkedStarter = ref('');
+const savedStarter = ref('');
 async function saveLink() {
   if (!linkedStarter.value) return;
   const c = context();
-  await perform(() => linkStarterDevice({ userId: c.user, starterId: linkedStarter.value, deviceId: c.device }), '酵种关联已更新；历史关联时间段保留。');
+  const starterId = linkedStarter.value;
+  await perform(async () => {
+    const result = await linkStarterDevice({ userId: c.user, starterId, deviceId: c.device });
+    if (current(c)) savedStarter.value = starterId;
+    return result;
+  }, '酵种关联已更新；历史关联时间段保留。');
 }
 import { mobileDeviceService, mobileError, normalizeBindCode } from '../../services/mobile-device.service.js';
 const router = useRouter();
@@ -20,6 +26,7 @@ const devices = ref([]);
 const device = ref(null);
 const members = ref([]);
 const code = ref('');
+const showBinding = ref(false);
 const confirmed = ref(false);
 const name = ref('');
 const target = ref('');
@@ -51,6 +58,7 @@ async function load() {
       if (!current(c)) return;
       starters.value = names;
       linkedStarter.value = names.find((item, index) => links[index]?.device_id === c.device)?.id || '';
+      savedStarter.value = linkedStarter.value;
       if (manager.value) {
         const list = await service.members(c.device);
         if (current(c)) members.value = list || [];
@@ -125,68 +133,78 @@ async function copy(value) {
 watch([userId, deviceId], () => {
   version += 1; devices.value = []; device.value = null; members.value = [];
   code.value = ''; confirmed.value = false; name.value = ''; target.value = '';
+  showBinding.value = false; starters.value = []; linkedStarter.value = ''; savedStarter.value = '';
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
   if (userId.value) load();
 }, { immediate: true, flush: 'sync' });
+watch(() => route.fullPath, () => { showBinding.value = false; }, { flush: 'sync' });
 watch(manager, (value) => { if (!value) members.value = []; });
 onMounted(async () => { try { await auth.init(); } catch { error.value = '登录状态读取失败，请稍后重试。'; } });
 onBeforeUnmount(() => { version += 1; });
 </script>
 <template>
-  <main class="m-page">
-    <RouterLink to="/me/devices" v-if="deviceId">返回我的设备</RouterLink>
-    <h1>{{ deviceId ? '设备设置' : '我的设备' }}</h1>
+  <main :key="`${userId}:${route.fullPath}`" class="m-page">
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
-    <button class="m-secondary" :disabled="loading || saving || !userId" @click="load">{{ loading ? '正在读取…' : '刷新设备' }}</button>
+    <div class="page-actions"><button class="m-text-action" :disabled="loading || saving || !userId" @click="load">{{ loading ? '正在读取…' : '刷新设备' }}</button></div>
     <template v-if="!deviceId">
-      <section class="m-card"><h2>绑定设备</h2>
-        <label class="m-field">绑定码<input v-model="code" autocomplete="off" autocapitalize="characters" maxlength="24" placeholder="八位字母或数字"></label>
-        <p class="m-muted">规范化绑定码：{{ normalizeBindCode(code) || '尚未输入' }}</p>
-        <label><input v-model="confirmed" type="checkbox">我确认：绑定后可查看这台设备的全部历史采样。</label>
-        <button class="m-primary" :disabled="saving || !userId" @click="claim">{{ saving ? '正在绑定…' : '确认绑定设备' }}</button>
-      </section>
-      <section class="m-card"><div class="section-heading"><h2>已绑定设备</h2><span v-if="devices.length" class="m-muted count">{{ devices.length }} 台</span></div><p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备；无需设备也可以手工观察。</p>
+      <section class="m-card">
+        <div class="section-heading"><h2>已绑定设备<span v-if="devices.length" class="m-muted count"> · {{ devices.length }} 台</span></h2><button class="m-text-action" :aria-expanded="showBinding" aria-controls="device-binding" @click="showBinding = !showBinding">{{ showBinding ? '收起绑定' : '+ 绑定' }}</button></div>
+        <p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备；无需设备也可以手工观察。</p>
         <RouterLink v-for="item in devices" :key="item.device_id" :to="`/me/devices/${encodeURIComponent(item.device_id)}`" class="m-list-row">
           <span class="row-main"><strong>{{ item.name || item.device_id }}</strong><small>{{ item.my_role === 'owner' ? '所有者' : '成员' }} · {{ item.quality }}</small>
-          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
+          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span aria-hidden="true">›</span>
         </RouterLink>
+      </section>
+      <section v-if="showBinding" id="device-binding" class="m-card"><h2>绑定设备</h2>
+        <form @submit.prevent="claim">
+          <label class="m-field">绑定码<input v-model="code" autocomplete="off" autocapitalize="characters" maxlength="24" placeholder="八位字母或数字"></label>
+          <label class="m-field binding-confirm"><input v-model="confirmed" type="checkbox">我确认：绑定后可查看这台设备的全部历史采样。</label>
+          <button class="m-primary" :disabled="saving || !userId">{{ saving ? '正在绑定…' : '确认绑定设备' }}</button>
+        </form>
       </section>
     </template>
     <template v-else-if="device">
       <section class="m-card"><h2>{{ device.name || device.device_id }}</h2>
         <p>我的设备角色：{{ device.my_role === 'owner' ? '所有者' : device.my_role === 'member' ? '成员' : '无成员身份（管理员访问）' }}</p>
         <p class="m-muted">最近收到数据：{{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '从未接收' }}。接收时间不等于最新采样时间。</p>
-        <RouterLink :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备趋势（全部设备历史）</RouterLink>
-        <form @submit.prevent="saveLink"><label class="m-field">关联酵种<select v-model="linkedStarter"><option value="">请选择酵种</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><p class="m-muted">更改仅影响该酵种今后的数据来源，历史按原关联时间段隔离。</p><button class="m-secondary" :disabled="saving || !linkedStarter">保存关联</button></form>
-        <form v-if="manager" @submit.prevent="rename"><label class="m-field">设备名称<input v-model="name" maxlength="80"></label><p class="m-muted">改名会对所有共享成员生效。</p><button class="m-primary" :disabled="saving">保存名称</button></form>
+        <RouterLink class="m-text-action" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备趋势（全部设备历史）</RouterLink>
       </section>
-      <section v-if="manager" class="m-card"><h2>共享设备</h2><p>持有绑定码的账号加入后，可查看这台设备的全部历史采样。个人观察、备注和报告不因此自动共享。</p>
+      <section class="m-card">
+        <details v-if="manager" class="m-disclosure">
+          <summary>设备名称 · {{ device.name || device.device_id }}</summary>
+          <form @submit.prevent="rename"><label class="m-field">设备名称<input v-model="name" maxlength="80"></label><p class="m-muted">改名会对所有共享成员生效。</p><button class="m-primary" :disabled="saving">保存名称</button></form>
+        </details>
+        <details class="m-disclosure">
+          <summary>关联酵种 · {{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</summary>
+          <form @submit.prevent="saveLink"><label class="m-field">关联酵种<select v-model="linkedStarter"><option value="">请选择酵种</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><p class="m-muted">更改仅影响该酵种今后的数据来源，历史按原关联时间段隔离。</p><button class="m-secondary" :disabled="saving || !linkedStarter">保存关联</button></form>
+        </details>
+      </section>
+      <details v-if="manager" class="m-card m-disclosure">
+        <summary>共享与成员管理</summary>
+        <p>持有绑定码的账号加入后，可查看这台设备的全部历史采样。个人观察、备注和报告不因此自动共享。</p>
         <p class="m-muted">当前绑定码可持续用于加入；解绑不能收回他人已保存的信息。</p>
-        <p class="m-code">{{ device.bind_code || '暂无绑定码' }}</p><button class="m-secondary" :disabled="!device.bind_code" @click="copy(device.bind_code)">复制绑定码</button>
-      </section>
-      <section v-if="manager" class="m-card"><h2>共享成员</h2><p class="m-muted">列表遵循现有管理员隐藏规则。暂不支持转让所有者。</p>
-        <div v-for="member in members" :key="member.system_user_id" class="m-list-row"><span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '所有者' : '成员' }}</span><button v-if="member.member_role !== 'owner'" class="m-secondary" :disabled="saving" @click="removeMember(member)">移除成员</button></div>
+        <p class="m-code">{{ device.bind_code || '暂无绑定码' }}</p><button class="m-text-action" :disabled="!device.bind_code" @click="copy(device.bind_code)">复制绑定码</button>
+        <h2>共享成员</h2><p class="m-muted">列表遵循现有管理员隐藏规则。暂不支持转让所有者。</p>
+        <div v-for="member in members" :key="member.system_user_id" class="m-list-row"><span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '所有者' : '成员' }}</span><button v-if="member.member_role !== 'owner'" class="m-text-action danger-action" :disabled="saving" @click="removeMember(member)">移除成员</button></div>
         <form @submit.prevent="addMember"><label class="m-field">系统用户编号<input v-model="target" placeholder="例如 U26010001" maxlength="9"></label><button class="m-primary" :disabled="saving">添加成员</button></form>
-      </section>
-      <section class="m-card"><h2>技术信息</h2><p class="m-code">设备编号：{{ device.device_id }}</p><p>型号：{{ device.model || '未提供' }}；固件：{{ device.firmware_version || '未提供' }}</p></section>
-      <section class="m-card"><h2>解绑设备</h2><p v-if="device.my_role === 'owner'" class="m-muted">所有者不能解绑自己，当前暂不支持所有权转让。</p>
-        <template v-else-if="device.my_role === 'member'"><p class="m-muted">解绑会撤销你的成员访问权限，不会删除设备原始数据。</p><button class="m-secondary" :disabled="saving || !mySystemId" @click="removeMember({ member_role: 'member', system_user_id: mySystemId }, true)">解绑自己</button></template>
+      </details>
+      <details class="m-card m-disclosure"><summary>技术信息</summary><p class="m-code">设备编号：{{ device.device_id }}</p><p>型号：{{ device.model || '未提供' }}；固件：{{ device.firmware_version || '未提供' }}</p></details>
+      <div class="unbind-action">
+        <p v-if="device.my_role === 'owner'" class="m-muted">所有者不能解绑自己，当前暂不支持所有权转让。</p>
+        <template v-else-if="device.my_role === 'member'"><p class="m-muted">解绑会撤销你的成员访问权限，不会删除设备原始数据。</p><button class="m-text-action danger-action" :disabled="saving || !mySystemId" @click="removeMember({ member_role: 'member', system_user_id: mySystemId }, true)">解绑自己</button></template>
         <p v-else class="m-muted">当前账号没有需要解除的设备成员关系。</p>
-      </section>
+      </div>
     </template>
   </main>
 </template>
 <style scoped>
-.m-page{padding-bottom:calc(6rem + env(safe-area-inset-bottom))}
-.m-code { overflow-wrap: anywhere; user-select: text; font-family: ui-monospace, monospace; }
+.page-actions{display:flex;justify-content:flex-end}
+.m-code{overflow-wrap:anywhere;user-select:text;font-family:ui-monospace,monospace}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.section-heading h2{margin:0}
-.count{font-size:.82rem}
-.row-main{display:grid;gap:3px;min-width:0}.row-main small{color:var(--text-secondary,#75665b);font-size:.82rem}
-.chevron{color:var(--text-secondary,#75665b);font-size:1.1rem;flex-shrink:0}
-.m-list-row .row-main + .chevron{margin-left:auto}
-.m-field input { width: 100%; min-width: 0; box-sizing: border-box; }
-.m-primary { margin-top: 12px; }
-h1{font-size:1.5rem;font-weight:600;margin:.25rem 0 1rem}
-h2{font-size:1.05rem}
+.count{font-size:.82rem;font-weight:400}
+.row-main{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}
+.binding-confirm{grid-template-columns:auto minmax(0,1fr);align-items:start}
+.m-text-action.danger-action{color:var(--danger-text)}
+.unbind-action{margin-top:24px}
 </style>

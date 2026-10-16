@@ -20,7 +20,8 @@ const extra = ref(false);
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
 const step = computed(() => [1, 2, 3].includes(draft.value.step) ? draft.value.step : 1);
-const summaryKeys = Object.keys(fieldLabels);
+const summaryKeys = computed(() => ['color', 'smell', ...Object.keys(fieldLabels).filter((key) => !['color', 'smell'].includes(key) && draft.value[key] !== '' && draft.value[key] != null)]);
+const emptySummaryKeys = computed(() => Object.keys(fieldLabels).filter((key) => !summaryKeys.value.includes(key)));
 watch([accountId, () => route.query.starter], () => {
   if (typeof route.query.starter === 'string' && route.query.starter !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId: route.query.starter });
@@ -101,9 +102,9 @@ function applyPending(key) {
 
 <template>
   <main class="m-page mobile-checkin">
-    <header><RouterLink class="m-secondary" to="/today">返回今天</RouterLink><h1>记录观察</h1><p class="m-muted">{{ steps[step - 1] }} · 第 {{ step }} / 3 步</p></header>
+    <p class="m-context m-muted">{{ steps[step - 1] }} · 第 {{ step }} / 3 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
-    <section class="m-card"><p v-if="draft.starterId">当前酵种：{{ starterName }}</p><p v-else>尚未选择酵种。可以仅生成建议，不保存云端；<RouterLink to="/today">去今天添加或选择酵种</RouterLink>。</p><p class="m-muted">生成与保存是两件事；云端保存需要登录并选择酵种。</p></section>
+    <details><summary>填写与保存说明</summary><p class="m-muted">可以仅生成建议，不保存云端；生成与保存是两件事，云端保存需要登录并选择酵种。</p></details>
     <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，暂在当前会话保留；关闭页面可能丢失，请及时完成任务。</p>
     <form ref="formElement" @submit.prevent="step === 3 ? generate() : next()">
       <section v-show="step === 1" class="m-card">
@@ -130,11 +131,12 @@ function applyPending(key) {
         <div v-show="extra"><label class="m-field">pH<input v-model="draft.ph" type="number" step="any" inputmode="decimal" :aria-invalid="!!errors.ph"><span v-if="errors.ph" class="m-error">{{ errors.ph }}</span></label><label class="m-field">备注<textarea v-model="draft.notes" rows="3" /></label></div>
       </section>
       <section v-show="step === 3" class="m-card">
-        <h2>核对本次输入</h2><p class="m-muted">来源：本次手工填写 / 逐项确认。未提供项保持为空；修改后生成新报告，不改写旧快照。</p>
+        <h2>核对本次输入</h2>
+        <p class="m-muted">请优先核对安全答案与已填项；安全不确定时不会给出正常结论。</p>
         <dl><template v-for="key in summaryKeys" :key="key"><dt>{{ fieldLabels[key] }}</dt><dd>{{ describeField(key, draft[key]) }}<small class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
         <p v-if="draft.notes" class="note">备注（请特别核查其中的异常描述）：{{ draft.notes }}</p>
         <p v-if="draft.quickText" class="note">原始一句话：{{ draft.quickText }}</p>
-        <p class="m-muted">仅在成熟阶段、实测温度可靠且已知时长时展示剩余经验估时；安全不确定时不会给出正常结论。</p>
+        <details><summary>未填项与建议说明</summary><dl v-if="emptySummaryKeys.length"><template v-for="key in emptySummaryKeys" :key="key"><dt>{{ fieldLabels[key] }}</dt><dd>{{ describeField(key, draft[key]) }}</dd></template></dl><p class="m-muted">来源：本次手工填写 / 逐项确认。未提供项保持为空；修改后生成新报告，不改写旧快照。仅在成熟阶段、实测温度可靠且已知时长时展示剩余经验估时。</p></details>
         <button type="button" class="m-secondary" @click="draft.step = 1">修改观察</button> <button type="button" class="m-secondary" @click="draft.step = 2">修改背景</button>
       </section>
       <p v-if="Object.keys(errors).length" class="m-error" role="alert">请检查标出的字段，已填写内容已保留。</p>
@@ -144,5 +146,14 @@ function applyPending(key) {
 </template>
 
 <style scoped>
-.mobile-checkin{max-width:42rem;margin:auto;padding-bottom:calc(11rem + env(safe-area-inset-bottom))}.m-card{margin:1rem 0;padding:1rem;border:1px solid #d8d2c8;background:#fffdf8}.m-field{display:grid;gap:.5rem;margin:1rem 0}.m-field input,.m-field select,.m-field textarea{box-sizing:border-box;width:100%;min-height:48px;padding:.75rem;font:inherit;border:1px solid #938d83;border-radius:0;background:#fff}.m-actions{position:fixed;bottom:calc(0px + env(safe-area-inset-bottom));left:0;right:0;z-index:20;display:flex;justify-content:center;gap:.75rem;padding:.75rem;background:#fffdf8;border-top:1px solid #d8d2c8}.m-primary,.m-secondary{min-height:44px;padding:.65rem 1rem;font:inherit;cursor:pointer}.m-primary{background:#a44213;color:white;border:1px solid #a44213}.m-secondary{border:1px solid #938d83;background:transparent;color:inherit}.m-error{color:#9b2920}.m-muted{color:#625e56;font-size:.92rem}.note,dd,li{overflow-wrap:anywhere;white-space:pre-wrap}dt{font-weight:600;margin-top:.75rem}dd{margin-left:0}summary{min-height:44px;cursor:pointer}li{margin:.75rem 0}[aria-invalid=true]{outline:2px solid #9b2920}
+.mobile-checkin{max-width:42rem;margin:auto}
+.m-context{margin:0;overflow-wrap:anywhere}
+.m-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem}
+.m-actions .m-primary{flex:1}
+.note,dd,li{overflow-wrap:anywhere;white-space:pre-wrap}
+dt{font-weight:600;margin-top:.75rem}
+dd{margin-left:0}
+summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
+li{margin:.75rem 0}
+[aria-invalid=true]{outline:2px solid var(--danger-text)}
 </style>

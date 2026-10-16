@@ -102,20 +102,28 @@ async function save() {
 
 <template>
   <main class="m-page mobile-feeding">
-    <header><RouterLink class="m-secondary" to="/today">返回今天</RouterLink><h1>记录喂养</h1><p class="m-muted">这里只记录已经发生的喂养，不会远程控制设备。</p></header>
-    <section class="m-card"><p v-if="draft.starterId">当前酵种：{{ starterName }}</p><p v-else>尚未选择酵种。<RouterLink to="/today">去今天添加或选择对象</RouterLink>。</p><p v-if="!storageAvailable" class="m-error">本机存储不可用，关闭页面可能丢失草稿。</p></section>
+    <p class="m-context m-muted"><span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span> · 记录已发生的喂养</p>
+    <p v-if="!storageAvailable" class="m-error">本机存储不可用，关闭页面可能丢失草稿。</p>
     <form class="m-card" @submit.prevent="save">
       <p v-if="locked" role="status">{{ draft.confirmed ? '本条已确认保存；刷新页面不会重复新增。' : '本条提交尚待确认，内容已锁定；请重试确认原提交后再记录下一条。' }}</p>
       <label class="m-field">这次什么时候喂的<input v-model="draft.occurredAt" type="datetime-local" :disabled="locked || saving" required></label>
-      <label class="m-field">喂养后起始高度（可选，mm）<input v-model="draft.baselineHeightMm" type="number" min="0" step="any" :disabled="locked || saving" @input="draft.baselineSource = 'manual'"><span class="m-muted">用于计算膨胀率。{{ deviceSample ? `设备最新读数：${deviceSample.height_mm ?? '未测量'}mm` : '可手工输入' }}</span></label>
-      <button v-if="deviceSample?.height_mm != null" type="button" class="m-secondary" :disabled="locked || saving" @click="useDeviceHeight">使用设备最新高度</button><p class="m-muted">高度来源：{{ draft.baselineHeightMm === '' ? '未提供' : draft.baselineSource === 'device' ? '设备读取（已确认）' : '手工记录' }}</p>
       <label class="m-field">喂养比例（老种 : 水 : 面粉）<select v-model="draft.ratio" :disabled="locked || saving" required><option disabled value="">请选择</option><option value="1:1:1">1 : 1 : 1</option><option value="1:2:2">1 : 2 : 2</option><option value="1:3:3">1 : 3 : 3</option><option value="1:5:5">1 : 5 : 5</option><option value="deep_reset">大比例刷新</option><option value="1:2:1">1 : 2 : 1</option></select></label>
+      <details :open="draft.baselineHeightMm !== ''">
+        <summary>喂养后起始高度（可选）<span v-if="draft.baselineHeightMm !== ''"> · {{ draft.baselineHeightMm }} mm</span></summary>
+        <label class="m-field">起始高度（mm）<input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="locked || saving" @input="draft.baselineSource = 'manual'"><span class="m-muted">用于计算膨胀率。{{ deviceSample ? `设备最新读数：${deviceSample.height_mm ?? '未测量'}mm` : '可手工输入' }}</span></label>
+        <button v-if="deviceSample?.height_mm != null" type="button" class="m-secondary" :disabled="locked || saving" @click="useDeviceHeight">使用设备最新高度</button><p class="m-muted">高度来源：{{ draft.baselineHeightMm === '' ? '未提供' : draft.baselineSource === 'device' ? '设备读取（已确认）' : '手工记录' }}</p>
+      </details>
+      <details><summary>记录说明</summary><p class="m-muted">这里只记录已经发生的喂养，不会远程控制设备。</p></details>
       <p v-if="error" class="m-error" role="alert">{{ error }}</p><p v-if="status" role="status">{{ status }}</p>
-      <div class="m-actions"><button v-if="draft.confirmed" type="button" class="m-primary" :disabled="saving" @click="startNext">开始下一条喂养记录</button><button v-else type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><RouterLink class="m-secondary" :to="{ path: '/checkin', query: draft.starterId ? { starter: draft.starterId } : {} }">记录观察</RouterLink></div>
+      <div class="m-actions"><button v-if="draft.confirmed" type="button" class="m-primary" :disabled="saving" @click="startNext">开始下一条喂养记录</button><button v-else type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><RouterLink v-if="draft.confirmed" class="m-secondary" :to="{ path: '/checkin', query: draft.starterId ? { starter: draft.starterId } : {} }">记录观察</RouterLink></div>
     </form>
   </main>
 </template>
 
 <style scoped>
-.mobile-feeding{max-width:42rem;margin:auto;padding-bottom:calc(9rem + env(safe-area-inset-bottom))}.m-card{margin:1rem 0;padding:1rem;border:1px solid #d8d2c8;background:#fffdf8}.m-field{display:grid;gap:.5rem;margin:1rem 0}.m-field input,.m-field select{box-sizing:border-box;width:100%;min-height:48px;padding:.75rem;font:inherit;border:1px solid #938d83;border-radius:0;background:#fff}.m-actions{position:fixed;bottom:calc(0px + env(safe-area-inset-bottom));left:0;right:0;z-index:20;display:flex;justify-content:center;gap:.75rem;padding:.75rem;background:#fffdf8;border-top:1px solid #d8d2c8}.m-primary,.m-secondary{min-height:44px;padding:.65rem 1rem;font:inherit;text-decoration:none}.m-primary{background:#a44213;color:#fff;border:1px solid #a44213}.m-secondary{border:1px solid #938d83;background:transparent;color:inherit}.m-error{color:#9b2920}.m-muted{color:#625e56;font-size:.92rem}button:disabled{opacity:.55}
+.mobile-feeding{max-width:42rem;margin:auto}
+.m-context{margin:0;overflow-wrap:anywhere}
+.m-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem}
+.m-actions .m-primary{flex:1}
+summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
 </style>

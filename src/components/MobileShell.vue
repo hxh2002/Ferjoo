@@ -35,6 +35,11 @@ const backTarget = computed(() => {
   if (route.path.startsWith('/records/')) return '/records';
   return '/today';
 });
+function goBack() {
+  // 有应用内浏览记录时回到实际上一页；直接打开/刷新无记录时回退到逻辑上级页面
+  if (window.history.state?.back) router.back();
+  else router.push(backTarget.value);
+}
 const scrollPositions = new Map();
 let frame;
 const removeGuard = router.beforeEach((to, from) => {
@@ -67,9 +72,9 @@ function go(path) {
       <RouterLink v-else class="mobile-account" to="/me">{{ auth.profile.value?.display_name || auth.user.value.email }}</RouterLink>
     </header>
     <header v-else class="mobile-topbar mobile-subbar">
-      <RouterLink class="mobile-back" :to="backTarget" aria-label="返回上一级">
+      <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span>返回</span>
-      </RouterLink>
+      </button>
       <h1>{{ title }}</h1>
     </header>
     <main class="mobile-main">
