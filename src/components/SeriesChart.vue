@@ -286,10 +286,10 @@ function fmtTime(t) {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-/* 孤立点沿用折线的方形笔触，不用圆形散点。 */
+/* 孤立点沿用折线的方形笔触，尺寸跟随当前图表的折线宽度，大图同步放大。 */
 .series-dot {
-  width: 4px;
-  height: 4px;
+  width: calc(var(--series-stroke, 1.8px) * 2.5);
+  height: calc(var(--series-stroke, 1.8px) * 2.5);
   border: 0;
   border-radius: 0;
   box-shadow: none;

@@ -1013,6 +1013,7 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 .chart-feature .series-body svg { height: 172px; }
 .chart-grid .series-chart:not(.chart-feature) .series-body svg { height: 76px; }
 .series-chart {
+  --series-stroke: 1.8px;
   padding: 14px 15px 10px;
   border-radius: 17px;
   border: 1px solid var(--line);
