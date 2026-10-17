@@ -13,9 +13,9 @@ const W = 100;
 const H = 44;
 const PAD_X = 5;
 const PAD_Y = 6;
-// 设备正常按分钟上报；超过 40 分钟没有新采样，说明这段没有数据，连线用浅灰表示。
-// 与趋势页判断采样窗口的规则保持一致。
-const GAP_MS = 40 * 60 * 1000;
+// 设备正常按分钟上报；相邻采样超过 30 分钟才视为真实空档并断开曲线，
+// 更短的空白说明中间仍有采集，直接直线连上即可。
+const GAP_MS = 30 * 60 * 1000;
 
 const gid = useId();
 const gridYs = [H * 0.25, H * 0.5, H * 0.75];
@@ -68,24 +68,18 @@ const coords = computed(() => {
   const tMin = new Date(pts[0].t).getTime();
   const tMax = new Date(pts.at(-1).t).getTime();
   const tSpan = Math.max(tMax - tMin, 1);
-  let cursor = 0;
   let prevT = null;
   return pts.map((p, index) => {
     const t = new Date(p.t).getTime();
-    // 两个有效采样之间只要有空值行，就说明这段没有数据。
-    let empty = false;
-    while (cursor < samples.value.length && new Date(samples.value[cursor].t).getTime() <= t) {
-      if (!Number.isFinite(samples.value[cursor++].v)) empty = true;
-    }
-    // 曲线始终连成一条，只把跨空档的那一段换成浅灰，避免伪造连续采样。
-    const bridgeBefore = index > 0 && (empty || t - prevT > GAP_MS);
+    // 只按真实时间间隔判断空档：中间夹了几条空值行不代表这里没有数据。
+    const breakBefore = index > 0 && t - prevT > GAP_MS;
     prevT = t;
     return {
       x: round(pts.length > 1 ? PAD_X + ((t - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
       y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
       t: p.t,
       v: p.v,
-      bridgeBefore
+      breakBefore
     };
   });
 });
@@ -94,26 +88,29 @@ function round(n) {
   return Number(n.toFixed(2));
 }
 
-function linePathFor(pts) {
-  if (pts.length < 2) return '';
-  return `M${pts.map((p) => `${p.x},${p.y}`).join(' L')}`;
-}
-
-// 曲线始终是一条连续路径：先连点成线，趋势完整。
-const linePath = computed(() => linePathFor(coords.value));
-const areaPath = computed(() => {
-  const pts = coords.value;
-  if (pts.length < 2) return '';
-  return `${linePathFor(pts)} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+// 长空档处彻底断开：按 breakBefore 切成若干段，短空白仍是一条直线连到底。
+const segments = computed(() => {
+  const result = [];
+  let current = [];
+  for (const point of coords.value) {
+    if (point.breakBefore && current.length) {
+      result.push(current);
+      current = [];
+    }
+    current.push(point);
+  }
+  if (current.length) result.push(current);
+  return result;
 });
-// 跨空档的连线单独画一层浅灰，覆盖在彩色折线上；其余部分仍是正常颜色。
-const bridgePaths = computed(() => coords.value.flatMap((point, index) => {
-  if (!point.bridgeBefore) return [];
-  const prev = coords.value[index - 1];
-  return [`M${prev.x},${prev.y} L${point.x},${point.y}`];
-}));
 
-const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
+const linePaths = computed(() => segments.value
+  .filter((seg) => seg.length > 1)
+  .map((seg) => `M${seg.map((p) => `${p.x},${p.y}`).join(' L')}`));
+
+// 面积同样按段闭合，长空档处不留填充。
+const areaPaths = computed(() => segments.value
+  .filter((seg) => seg.length > 1)
+  .map((seg) => `M${seg.map((p) => `${p.x},${p.y}`).join(' L')} L${seg[seg.length - 1].x},${H} L${seg[0].x},${H} Z`));
 
 const baselineY = computed(() => {
   const s = stats.value; const b = baselineValue.value;
@@ -130,8 +127,11 @@ const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[
 // 只有一个有效采样时才补点；其余点都在折线上，不再额外画散点。
 const dots = computed(() => {
   if (hoverPoint.value) return [];
-  if (coords.value.length === 1) return [coords.value[0]];
-  return lastPoint.value ? [lastPoint.value] : [];
+  // 长空档两侧的孤立单点无法连成线，必须单独补点，否则会整段消失。
+  const singles = segments.value.filter((seg) => seg.length === 1).map((seg) => seg[0]);
+  const lastSeg = segments.value[segments.value.length - 1];
+  if (lastSeg && lastSeg.length > 1) singles.push(lastSeg[lastSeg.length - 1]);
+  return singles;
 });
 
 const tipStyle = computed(() => {
@@ -225,18 +225,19 @@ function fmtTime(t) {
             :y1="baselineY"
             :y2="baselineY"
           />
-          <path v-if="areaPath" class="series-area" :d="areaPath" :fill="`url(#${gid})`" />
           <path
-            v-if="linePath"
-            class="series-line"
-            :d="linePath"
-            :style="{ stroke: color }"
+            v-for="(d, index) in areaPaths"
+            :key="`area-${index}`"
+            class="series-area"
+            :d="d"
+            :fill="`url(#${gid})`"
           />
           <path
-            v-for="(d, index) in bridgePaths"
-            :key="`bridge-${index}`"
-            class="series-bridge"
+            v-for="(d, index) in linePaths"
+            :key="`line-${index}`"
+            class="series-line"
             :d="d"
+            :style="{ stroke: color }"
           />
           <line
             v-if="hoverPoint"
@@ -287,15 +288,6 @@ function fmtTime(t) {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-/* 空档连线用不透明的浅灰完全盖住彩色折线，避免透出原本的蓝/橙/绿色。 */
-.series-bridge {
-  fill: none;
-  stroke: #c9c5be;
-  stroke-width: 2.6;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
 /* max、min、时间段与基线共用同一套标签样式，只靠位置区分。 */
 .series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); white-space: nowrap; pointer-events: none; }
 .series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
