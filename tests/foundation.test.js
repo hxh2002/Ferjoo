@@ -49,9 +49,9 @@ const points = [
 ];
 const geometry = renderChart(() => ({ points }), computed, ref, watch, () => 'test');
 assert.equal(geometry.coords.value[1].x, 13.18, 'x must follow real timestamps');
-assert.deepEqual(geometry.segments.value.map((segment) => segment.length), [2, 1, 1, 1, 1]);
+assert.deepEqual(geometry.segments.value.map((segment) => segment.length), [2, 1, 3]);
 assert.equal(geometry.coords.value.length, 6, 'sensor_error 行只要有有效值仍须保留采样点');
-assert.equal(geometry.dots.value.length, 4, '缺值断段后的孤立采样必须单独画点');
+assert.equal(geometry.dots.value.length, 2, '缺值断段后的孤立采样必须单独画点');
 assert.doesNotMatch(geometry.linePath.value, /C/, 'no Bezier interpolation');
 
 const userId = '11111111-1111-4111-8111-111111111111';

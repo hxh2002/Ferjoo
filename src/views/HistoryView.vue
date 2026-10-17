@@ -304,10 +304,10 @@ watch(activeWindow, async (w) => {
   }
 });
 
-const tempSeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.temperature_c), sensor_error: r.sensor_error })));
-const heightSeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.height_mm), sensor_error: r.sensor_error })));
-const humiditySeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.humidity_percent), sensor_error: r.sensor_error })));
-const batterySeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.battery_percent), sensor_error: r.sensor_error })));
+const tempSeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.temperature_c) })));
+const heightSeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.height_mm) })));
+const humiditySeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.humidity_percent) })));
+const batterySeries = computed(() => windowRecords.value.map((r) => ({ t: r.recorded_at, v: toNum(r.battery_percent) })));
 
 const selectedStatus = computed(() => deviceStatus(selectedDevice.value));
 const lastSeenText = computed(() => {

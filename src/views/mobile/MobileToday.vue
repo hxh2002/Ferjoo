@@ -44,9 +44,9 @@ const to = computed(() => new Date(now.value).toISOString());
 const eligibleStarters = computed(() => starters.value.filter((item) => !item.link?.device_id || item.link.device_id === deviceId.value));
 const summary = computed(() => feeding.value && link.value ? summarizeFeedingMeasurements({ measurements: evidence.value || measurements.value, feeding: feeding.value, link: link.value, now: now.value }) : null);
 const chartRows = computed(() => (starterId.value && !link.value ? [] : measurements.value.slice().sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at))));
-const heightPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'height_mm'), sensor_error: row.sensor_error })));
-const tempPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'temperature_c'), sensor_error: row.sensor_error })));
-const humidityPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'humidity_percent'), sensor_error: row.sensor_error })));
+const heightPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'height_mm') })));
+const tempPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'temperature_c') })));
+const humidityPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'humidity_percent') })));
 const heightBaseline = computed(() => summary.value?.baselineHeightMm > 0 ? summary.value.baselineHeightMm : null);
 // 概览只保留三个关键值，采集中/未建立等状态压进对应值里，避免多出一行说明。
 const baselineText = computed(() => summary.value?.baselineHeightMm != null ? `${summary.value.baselineHeightMm.toFixed(1)} mm · ${summary.value.baselineSource === 'manual' ? '人工' : '设备'}` : summary.value?.baselinePending ? '采集中' : '未建立');

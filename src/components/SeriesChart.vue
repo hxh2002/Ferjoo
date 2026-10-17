@@ -20,7 +20,7 @@ const gridYs = [H * 0.25, H * 0.5, H * 0.75];
 const samples = computed(() => (props.points || [])
   .filter((p) => Number.isFinite(Date.parse(p?.t)))
   .slice().sort((a, b) => new Date(a.t) - new Date(b.t)));
-// 只要该采样有有效值就必须画出；sensor_error 只用于打断曲线，不能连点一起丢掉。
+// 只要该采样有有效值就必须画出，不能因为整行被标记故障就连点一起丢掉。
 const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v)));
 
 const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.baseline : null));
@@ -80,15 +80,8 @@ const segments = computed(() => {
       previous = null;
       continue;
     }
-    // coords 只包含有值采样，索引必须在这里独立递增，故障点也要占一个位置。
+    // coords 只包含有值采样，索引必须在这里独立递增。
     const point = coords.value[index++];
-    if (sample.sensor_error) {
-      if (segment.length) result.push(segment);
-      segment = [];
-      result.push([point]);
-      previous = null;
-      continue;
-    }
     if (previous && Date.parse(sample.t) - Date.parse(previous.t) > 40 * 60 * 1000) {
       result.push(segment);
       segment = [];
@@ -271,8 +264,10 @@ function fmtTime(t) {
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 /* max、min、时间段与基线共用同一套标签样式，只靠位置区分。 */
-.series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); pointer-events: none; }
+.series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); white-space: nowrap; pointer-events: none; }
 .series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
 .series-max { top: 0; }
 .series-baseline-tag { transform: translateY(-110%); }
+/* 窄图里让时间段整体换到下一行并右对齐，而不是把标签文字拆成两行。 */
+.series-range > :last-child { margin-left: auto; }
 </style>
