@@ -13,7 +13,7 @@ const W = 100;
 const H = 44;
 const PAD_X = 5;
 const PAD_Y = 6;
-// 设备正常按分钟上报；超过 40 分钟没有新采样视为这一段没有数据，曲线必须断开。
+// 设备正常按分钟上报；超过 40 分钟没有新采样，说明这段没有数据，连线用浅灰表示。
 // 与趋势页判断采样窗口的规则保持一致。
 const GAP_MS = 40 * 60 * 1000;
 
@@ -77,14 +77,15 @@ const coords = computed(() => {
     while (cursor < samples.value.length && new Date(samples.value[cursor].t).getTime() <= t) {
       if (!Number.isFinite(samples.value[cursor++].v)) empty = true;
     }
-    const breakBefore = index > 0 && (empty || t - prevT > GAP_MS);
+    // 曲线始终连成一条，只把跨空档的那一段换成浅灰，避免伪造连续采样。
+    const bridgeBefore = index > 0 && (empty || t - prevT > GAP_MS);
     prevT = t;
     return {
       x: round(pts.length > 1 ? PAD_X + ((t - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
       y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
       t: p.t,
       v: p.v,
-      breakBefore
+      bridgeBefore
     };
   });
 });
@@ -98,21 +99,19 @@ function linePathFor(pts) {
   return `M${pts.map((p) => `${p.x},${p.y}`).join(' L')}`;
 }
 
-// 无数据处必须断开：按 breakBefore 切成若干段，段与段之间不画连线，也不填面积。
-const segments = computed(() => {
-  const list = [];
-  let current = [];
-  for (const point of coords.value) {
-    if (point.breakBefore && current.length) { list.push(current); current = []; }
-    current.push(point);
-  }
-  if (current.length) list.push(current);
-  return list;
+// 曲线始终是一条连续路径：先连点成线，趋势完整。
+const linePath = computed(() => linePathFor(coords.value));
+const areaPath = computed(() => {
+  const pts = coords.value;
+  if (pts.length < 2) return '';
+  return `${linePathFor(pts)} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
 });
-const linePaths = computed(() => segments.value.map(linePathFor).filter(Boolean));
-const areaPaths = computed(() => segments.value
-  .filter((pts) => pts.length > 1)
-  .map((pts) => `${linePathFor(pts)} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`));
+// 跨空档的连线单独画一层浅灰，覆盖在彩色折线上；其余部分仍是正常颜色。
+const bridgePaths = computed(() => coords.value.flatMap((point, index) => {
+  if (!point.bridgeBefore) return [];
+  const prev = coords.value[index - 1];
+  return [`M${prev.x},${prev.y} L${point.x},${point.y}`];
+}));
 
 const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
 
@@ -226,13 +225,18 @@ function fmtTime(t) {
             :y1="baselineY"
             :y2="baselineY"
           />
-          <path v-for="(d, index) in areaPaths" :key="`area-${index}`" class="series-area" :d="d" :fill="`url(#${gid})`" />
+          <path v-if="areaPath" class="series-area" :d="areaPath" :fill="`url(#${gid})`" />
           <path
-            v-for="(d, index) in linePaths"
-            :key="`line-${index}`"
+            v-if="linePath"
             class="series-line"
-            :d="d"
+            :d="linePath"
             :style="{ stroke: color }"
+          />
+          <path
+            v-for="(d, index) in bridgePaths"
+            :key="`bridge-${index}`"
+            class="series-line series-bridge"
+            :d="d"
           />
           <line
             v-if="hoverPoint"
@@ -283,6 +287,8 @@ function fmtTime(t) {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+/* 空档连线用浅灰盖住彩色折线，表示这一段没有真实采样。 */
+.series-bridge { stroke: rgba(107,98,89,.30); }
 /* max、min、时间段与基线共用同一套标签样式，只靠位置区分。 */
 .series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); white-space: nowrap; pointer-events: none; }
 .series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
