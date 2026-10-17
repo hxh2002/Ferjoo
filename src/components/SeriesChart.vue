@@ -288,6 +288,14 @@ function fmtTime(t) {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+/* 孤立点沿用折线的方形笔触，不用圆形散点。 */
+.series-dot {
+  width: 4px;
+  height: 4px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
 /* max、min、时间段与基线共用同一套标签样式，只靠位置区分。 */
 .series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); white-space: nowrap; pointer-events: none; }
 .series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
