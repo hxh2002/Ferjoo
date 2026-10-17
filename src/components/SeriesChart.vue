@@ -13,20 +13,30 @@ const W = 100;
 const H = 44;
 const PAD_X = 5;
 const PAD_Y = 6;
+// 设备正常按分钟上报；超过 40 分钟没有新采样视为这一段没有数据，曲线必须断开。
+// 与趋势页判断采样窗口的规则保持一致。
+const GAP_MS = 40 * 60 * 1000;
 
 const gid = useId();
 const gridYs = [H * 0.25, H * 0.5, H * 0.75];
 
-const samples = computed(() => (props.points || [])
-  .filter((p) => Number.isFinite(Date.parse(p?.t)))
-  .slice().sort((a, b) => new Date(a.t) - new Date(b.t)));
-// 只要该采样有有效值就必须画出，不能因为整行被标记故障就连点一起丢掉。
-const series = computed(() => {
-  const valid = samples.value.filter((p) => Number.isFinite(p?.v));
-  // 同一 recorded_at 可能有多条原始读数，落在同一个 x 但高度不同，连线会变成竖直尖峰；
-  // 趋势图只需要一条曲线，同一时间戳保留最后一条。
-  return valid.filter((p, i) => i === valid.length - 1 || new Date(valid[i + 1].t).getTime() !== new Date(p.t).getTime());
+const samples = computed(() => {
+  const sorted = (props.points || [])
+    .filter((p) => Number.isFinite(Date.parse(p?.t)))
+    .slice().sort((a, b) => new Date(a.t) - new Date(b.t));
+  // 同一 recorded_at 可能有多条原始读数，落在同一个 x 上会连成竖直尖峰。
+  // 同一时间戳优先保留有值的读数，其次保留最后一条。
+  const unique = [];
+  for (const point of sorted) {
+    const prev = unique.at(-1);
+    if (prev && new Date(prev.t).getTime() === new Date(point.t).getTime()) {
+      if (Number.isFinite(point.v) || !Number.isFinite(prev.v)) unique[unique.length - 1] = point;
+    } else unique.push(point);
+  }
+  return unique;
 });
+// 只要该采样有有效值就必须画出，不能因为整行被标记故障就连点一起丢掉。
+const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v)));
 
 const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.baseline : null));
 
@@ -58,12 +68,25 @@ const coords = computed(() => {
   const tMin = new Date(pts[0].t).getTime();
   const tMax = new Date(pts.at(-1).t).getTime();
   const tSpan = Math.max(tMax - tMin, 1);
-  return pts.map((p) => ({
-    x: round(pts.length > 1 ? PAD_X + ((new Date(p.t).getTime() - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
-    y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
-    t: p.t,
-    v: p.v
-  }));
+  let cursor = 0;
+  let prevT = null;
+  return pts.map((p, index) => {
+    const t = new Date(p.t).getTime();
+    // 两个有效采样之间只要有空值行，就说明这段没有数据。
+    let empty = false;
+    while (cursor < samples.value.length && new Date(samples.value[cursor].t).getTime() <= t) {
+      if (!Number.isFinite(samples.value[cursor++].v)) empty = true;
+    }
+    const breakBefore = index > 0 && (empty || t - prevT > GAP_MS);
+    prevT = t;
+    return {
+      x: round(pts.length > 1 ? PAD_X + ((t - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
+      y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
+      t: p.t,
+      v: p.v,
+      breakBefore
+    };
+  });
 });
 
 function round(n) {
@@ -75,14 +98,21 @@ function linePathFor(pts) {
   return `M${pts.map((p) => `${p.x},${p.y}`).join(' L')}`;
 }
 
-// 整段曲线只画一条路径：缺值点直接跳过，与旧版一致。按缺值切段会在每段边界
-// 产生竖直的面积色块，也会把连续趋势拆成多段，视觉上非常碎。
-const linePath = computed(() => linePathFor(coords.value));
-const areaPath = computed(() => {
-  const pts = coords.value;
-  if (pts.length < 2) return '';
-  return `${linePathFor(pts)} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+// 无数据处必须断开：按 breakBefore 切成若干段，段与段之间不画连线，也不填面积。
+const segments = computed(() => {
+  const list = [];
+  let current = [];
+  for (const point of coords.value) {
+    if (point.breakBefore && current.length) { list.push(current); current = []; }
+    current.push(point);
+  }
+  if (current.length) list.push(current);
+  return list;
 });
+const linePaths = computed(() => segments.value.map(linePathFor).filter(Boolean));
+const areaPaths = computed(() => segments.value
+  .filter((pts) => pts.length > 1)
+  .map((pts) => `${linePathFor(pts)} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`));
 
 const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
 
@@ -196,11 +226,12 @@ function fmtTime(t) {
             :y1="baselineY"
             :y2="baselineY"
           />
-          <path v-if="areaPath" class="series-area" :d="areaPath" :fill="`url(#${gid})`" />
+          <path v-for="(d, index) in areaPaths" :key="`area-${index}`" class="series-area" :d="d" :fill="`url(#${gid})`" />
           <path
-            v-if="linePath"
+            v-for="(d, index) in linePaths"
+            :key="`line-${index}`"
             class="series-line"
-            :d="linePath"
+            :d="d"
             :style="{ stroke: color }"
           />
           <line
