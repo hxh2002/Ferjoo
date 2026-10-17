@@ -70,27 +70,14 @@ function linePathFor(pts) {
   return `M${pts.map((p) => `${p.x},${p.y}`).join(' L')}`;
 }
 
-// 只在缺值处断线。采样间隔可能随休眠/低功耗模式变长，按固定间隔切段会把相邻有效点拆成孤立点，
-// 导致有数据却画不出折线。
-const segments = computed(() => {
-  const result = [];
-  let segment = [];
-  let index = 0;
-  for (const sample of samples.value) {
-    if (!Number.isFinite(sample.v)) {
-      if (segment.length) result.push(segment);
-      segment = [];
-      continue;
-    }
-    // coords 只包含有值采样，索引必须在这里独立递增。
-    segment.push(coords.value[index++]);
-  }
-  if (segment.length) result.push(segment);
-  return result;
+// 整段曲线只画一条路径：缺值点直接跳过，与旧版一致。按缺值切段会在每段边界
+// 产生竖直的面积色块，也会把连续趋势拆成多段，视觉上非常碎。
+const linePath = computed(() => linePathFor(coords.value));
+const areaPath = computed(() => {
+  const pts = coords.value;
+  if (pts.length < 2) return '';
+  return `${linePathFor(pts)} L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
 });
-const linePath = computed(() => segments.value.map(linePathFor).join(' '));
-const areaPath = computed(() => segments.value.filter((pts) => pts.length > 1)
-  .map((pts) => `${linePathFor(pts)} L${pts.at(-1).x},${H} L${pts[0].x},${H} Z`).join(' '));
 
 const lastPoint = computed(() => coords.value[coords.value.length - 1] || null);
 
@@ -106,13 +93,11 @@ const baselineBelow = computed(() => baselineY.value != null && baselineY.value 
 const hoverIdx = ref(null);
 watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
-// 连续段由线表达；缺值断开后只剩单个采样时没有线可画，必须单独补点，否则整段数据完全不可见。
+// 只有一个有效采样时才补点；其余点都在折线上，不再额外画散点。
 const dots = computed(() => {
   if (hoverPoint.value) return [];
-  const list = [];
-  for (const segment of segments.value) if (segment.length === 1) list.push(segment[0]);
-  if (lastPoint.value && !list.includes(lastPoint.value)) list.push(lastPoint.value);
-  return list;
+  if (coords.value.length === 1) return [coords.value[0]];
+  return lastPoint.value ? [lastPoint.value] : [];
 });
 
 const tipStyle = computed(() => {
@@ -185,7 +170,7 @@ function fmtTime(t) {
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient :id="gid" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" :stop-color="color" stop-opacity=".30" />
+              <stop offset="0%" :stop-color="color" stop-opacity=".20" />
               <stop offset="100%" :stop-color="color" stop-opacity="0" />
             </linearGradient>
           </defs>
