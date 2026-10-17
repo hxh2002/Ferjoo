@@ -236,11 +236,11 @@ function fmtTime(t) {
           class="series-baseline-tag"
           :style="{ top: `${(baselineY / H) * 100}%` }"
         >基线 {{ fmt(baselineValue) }}</span>
+        <span class="series-max">max {{ fmt(stats?.max) }}</span>
       </div>
       <div class="series-range">
         <span>min {{ fmt(stats?.min) }}</span>
         <span class="series-span">{{ fmtTime(stats?.firstAt) }} – {{ fmtTime(stats?.lastAt) }}</span>
-        <span>max {{ fmt(stats?.max) }}</span>
       </div>
     </div>
     <div v-else class="series-empty">暂无可绘制的数据</div>
@@ -250,4 +250,5 @@ function fmtTime(t) {
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .series-baseline-tag { position: absolute; left: 0; transform: translateY(-110%); padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.85); font-size: 10px; color: var(--ink-soft, #6b6259); pointer-events: none; }
+.series-max { position: absolute; top: 0; left: 0; z-index: 1; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; color: var(--ink-soft, #6b6259); pointer-events: none; }
 </style>
