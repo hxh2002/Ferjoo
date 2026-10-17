@@ -125,8 +125,8 @@ const hoverIdx = ref(null);
 watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
 // 只有一个有效采样时才补点；其余点都在折线上，不再额外画散点。
+// 悬停时也必须保留这些孤立点，不能被悬浮指示点替换掉。
 const dots = computed(() => {
-  if (hoverPoint.value) return [];
   // 长空档两侧的孤立单点无法连成线，必须单独补点，否则会整段消失。
   const singles = segments.value.filter((seg) => seg.length === 1).map((seg) => seg[0]);
   const lastSeg = segments.value[segments.value.length - 1];
@@ -249,18 +249,16 @@ function fmtTime(t) {
           />
         </svg>
         <span
+          v-for="(dot, index) in dots"
+          :key="`${dot.t}-${index}`"
+          class="series-dot"
+          :style="{ left: `${(dot.x / W) * 100}%`, top: `${(dot.y / H) * 100}%`, background: color }"
+        ></span>
+        <span
           v-if="hoverPoint"
           class="series-hover-dot"
           :style="{ left: `${(hoverPoint.x / W) * 100}%`, top: `${(hoverPoint.y / H) * 100}%`, background: color }"
         ></span>
-        <template v-else>
-          <span
-            v-for="(dot, index) in dots"
-            :key="`${dot.t}-${index}`"
-            class="series-dot"
-            :style="{ left: `${(dot.x / W) * 100}%`, top: `${(dot.y / H) * 100}%`, background: color }"
-          ></span>
-        </template>
         <div
           v-if="hoverPoint"
           class="series-tip"

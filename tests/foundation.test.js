@@ -36,7 +36,7 @@ for (const fn of ['getStarterDeviceLink', 'listStarterDeviceLinks', 'linkStarter
 assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
 const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/m, '');
-const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, stats, baselineY };`);
+const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
 const points = [
   { t: '2026-01-01T00:00:00Z', v: 1 },
   { t: '2026-01-01T00:10:00Z', v: 2 },
@@ -54,6 +54,10 @@ assert.equal(geometry.linePaths.value.join('').match(/L/g).length, 4, '所有有
 assert.equal(geometry.areaPaths.value.length, 2, '面积跟随曲线分段闭合');
 assert.equal(geometry.coords.value.length, 6, 'sensor_error 行只要有有效值仍须保留采样点');
 assert.equal(geometry.dots.value.length, 1, '只有末点需要单独补点');
+geometry.hoverIdx.value = 0;
+assert.ok(geometry.hoverPoint.value, '悬停应命中最近的采样点');
+assert.equal(geometry.dots.value.length, 1, '悬停时孤立点不得消失');
+geometry.hoverIdx.value = null;
 assert.equal(geometry.stats.value.dataMax, 7, 'max 文案取数据极值');
 assert.doesNotMatch(geometry.linePaths.value.join(''), /C/, 'no Bezier interpolation');
 const shortGap = renderChart(() => ({ points: [
