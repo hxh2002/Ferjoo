@@ -2,7 +2,15 @@ begin;
 
 create extension if not exists pg_net;
 create extension if not exists pg_cron;
-create extension if not exists supabase_vault with schema vault;
+
+-- 新托管项目（PG17）已移除旧版密钥保管扩展；改用 private schema 配置表存内部密钥。
+-- private 不经 PostgREST 暴露，且对所有 API 角色 revoke，只有本库属主的安全定义函数能读。
+create table private.height_push_config (
+  name text primary key check (name in ('height_push_worker_url', 'height_push_internal_secret')),
+  value text not null
+);
+alter table private.height_push_config enable row level security;
+revoke all on private.height_push_config from public, anon, authenticated, service_role;
 
 create table public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -192,8 +200,8 @@ grant execute on function public.claim_height_evaluations(), public.complete_hei
 create function private.dispatch_height_push() returns void language plpgsql security definer set search_path = pg_catalog, pg_temp as $$
 declare v_url text; v_secret text;
 begin
-  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'height_push_worker_url';
-  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'height_push_internal_secret';
+  select value into v_url from private.height_push_config where name = 'height_push_worker_url';
+  select value into v_secret from private.height_push_config where name = 'height_push_internal_secret';
   if v_url is null or v_secret is null then return; end if;
   if v_url !~ '^https://[a-z0-9]+[.]supabase[.]co/functions/v1/process-height-alerts$' then raise exception 'INVALID_WORKER_URL'; end if;
   perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type','application/json','x-height-push-secret',v_secret), body := '{}'::jsonb, timeout_milliseconds := 10000);

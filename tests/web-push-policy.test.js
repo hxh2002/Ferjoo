@@ -36,7 +36,11 @@ assert.match(migration, /for update skip locked/);
 assert.match(migration, /grant select, delete on public\.push_subscriptions to authenticated/);
 assert.match(migration, /grant select on public\.height_alert_settings to authenticated/);
 assert.match(migration, /cron\.schedule\('height-web-push', '\* \* \* \* \*'/);
-assert.match(migration, /vault\.decrypted_secrets/);
+// PG17 新项目没有 supabase_vault：密钥改存 private 配置表，且不得回退到 vault。
+assert.match(migration, /create table private\.height_push_config/);
+assert.match(migration, /revoke all on private\.height_push_config from public, anon, authenticated, service_role/);
+assert.match(migration, /from private\.height_push_config where name = 'height_push_worker_url'/);
+assert.doesNotMatch(migration, /vault|pgsodium/i);
 assert.doesNotMatch(migration, /VAPID_PRIVATE_KEY\s*[:=]\s*['"][^'"]+/);
 assert.match(migration, /create extension if not exists pg_net;/);
 

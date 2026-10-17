@@ -165,21 +165,22 @@ npm run dev
 
 ### 高度预约 Web Push 上线前置
 
-迁移 `020_height_web_push.sql` 使用 `pg_cron` 每分钟触发事务性扫描，`pg_net` 只调用同项目的 Edge Function；订阅、事件与投递表均有显式 grant/RLS，推送私钥不进入仓库。上线前由项目管理员在 Supabase 控制台核对扩展可用性，然后执行：
+迁移 `020_height_web_push.sql` 使用 `pg_cron` 每分钟触发事务性扫描，`pg_net` 只调用同项目的 Edge Function；订阅、事件与投递表均有显式 grant/RLS，推送私钥不进入仓库。内部密钥存放在 `private.height_push_config` 配置表（private schema 不经 API 暴露，对所有 API 角色 revoke；PG17 新项目不提供 supabase_vault，故不依赖 Vault）。上线前由项目管理员在 Supabase 控制台确认 `pg_cron`、`pg_net` 已启用，然后执行：
 
 ```bash
 supabase functions deploy process-height-alerts --no-verify-jwt
 supabase secrets set HEIGHT_PUSH_INTERNAL_SECRET='<至少32字符随机值>' VAPID_PUBLIC_KEY='<VAPID公钥>' VAPID_PRIVATE_KEY='<VAPID私钥>' VAPID_SUBJECT='mailto:ops@example.com'
 ```
 
-再以数据库管理员身份写入 Vault（值不要提交）：
+再以数据库管理员身份在 SQL Editor 写入配置（值不要提交）：
 
 ```sql
-select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/process-height-alerts', 'height_push_worker_url');
-select vault.create_secret('<与 HEIGHT_PUSH_INTERNAL_SECRET 相同的值>', 'height_push_internal_secret');
+insert into private.height_push_config(name, value) values
+  ('height_push_worker_url', 'https://<project-ref>.supabase.co/functions/v1/process-height-alerts'),
+  ('height_push_internal_secret', '<与 HEIGHT_PUSH_INTERNAL_SECRET 相同的值>');
 ```
 
-将 `VITE_VAPID_PUBLIC_KEY` 配到 Vercel；仅公钥可进入浏览器。迁移、函数部署、Vault/扩展权限、真实浏览器推送和 iOS 主屏幕行为未在本地环境验证，不要将本地测试视为已上线。投递是有限重试和去重，不承诺恰好一次；浏览器/供应商仍可能延迟或丢弃推送。
+将 `VITE_VAPID_PUBLIC_KEY` 配到 Vercel；仅公钥可进入浏览器。迁移、函数部署、扩展权限、真实浏览器推送和 iOS 主屏幕行为未在本地环境验证，不要将本地测试视为已上线。投递是有限重试和去重，不承诺恰好一次；浏览器/供应商仍可能延迟或丢弃推送。
 
 迁移 `021_device_ingest_upsert.sql` 只调整设备批量上传函数：同一 `(device_id, recorded_at)` 已存在即跳过，重放同一批数据幂等；不删除、不覆盖既有读数，也不新增唯一约束（数据库层自 013 起保持追加语义，十分钟桶去重在查询层完成）。
 
