@@ -1091,13 +1091,11 @@ th { font-size: 9px; letter-spacing: .08em; background: rgba(42,29,23,.06); }
 .series-tip span { font-size: 9px; opacity: .72; }
 .series-range {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 6px;
   margin-top: 6px;
-  font-size: 9px;
-  font-weight: 800;
-  color: var(--ink-soft);
 }
-.series-span { font-weight: 700; opacity: .7; }
 .series-empty {
   padding: 18px 8px;
   text-align: center;

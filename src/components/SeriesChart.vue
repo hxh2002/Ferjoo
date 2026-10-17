@@ -20,7 +20,8 @@ const gridYs = [H * 0.25, H * 0.5, H * 0.75];
 const samples = computed(() => (props.points || [])
   .filter((p) => Number.isFinite(Date.parse(p?.t)))
   .slice().sort((a, b) => new Date(a.t) - new Date(b.t)));
-const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v) && !p.sensor_error));
+// 只要该采样有有效值就必须画出；sensor_error 只用于打断曲线，不能连点一起丢掉。
+const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v)));
 
 const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.baseline : null));
 
@@ -73,9 +74,18 @@ const segments = computed(() => {
   let previous = null;
   let index = 0;
   for (const sample of samples.value) {
-    if (!Number.isFinite(sample.v) || sample.sensor_error) {
+    if (!Number.isFinite(sample.v)) {
       if (segment.length) result.push(segment);
       segment = [];
+      previous = null;
+      continue;
+    }
+    // coords 只包含有值采样，索引必须在这里独立递增，故障点也要占一个位置。
+    const point = coords.value[index++];
+    if (sample.sensor_error) {
+      if (segment.length) result.push(segment);
+      segment = [];
+      result.push([point]);
       previous = null;
       continue;
     }
@@ -83,7 +93,7 @@ const segments = computed(() => {
       result.push(segment);
       segment = [];
     }
-    segment.push(coords.value[index++]);
+    segment.push(point);
     previous = sample;
   }
   if (segment.length) result.push(segment);
@@ -105,6 +115,14 @@ const baselineY = computed(() => {
 const hoverIdx = ref(null);
 watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
+// 连续段由线表达；缺值断开后只剩单个采样时没有线可画，必须单独补点，否则整段数据完全不可见。
+const dots = computed(() => {
+  if (hoverPoint.value) return [];
+  const list = [];
+  for (const segment of segments.value) if (segment.length === 1) list.push(segment[0]);
+  if (lastPoint.value && !list.includes(lastPoint.value)) list.push(lastPoint.value);
+  return list;
+});
 
 const tipStyle = computed(() => {
   const p = hoverPoint.value;
@@ -218,11 +236,14 @@ function fmtTime(t) {
           class="series-hover-dot"
           :style="{ left: `${(hoverPoint.x / W) * 100}%`, top: `${(hoverPoint.y / H) * 100}%`, background: color }"
         ></span>
-        <span
-          v-else-if="lastPoint"
-          class="series-dot"
-          :style="{ left: `${(lastPoint.x / W) * 100}%`, top: `${(lastPoint.y / H) * 100}%`, background: color }"
-        ></span>
+        <template v-else>
+          <span
+            v-for="(dot, index) in dots"
+            :key="`${dot.t}-${index}`"
+            class="series-dot"
+            :style="{ left: `${(dot.x / W) * 100}%`, top: `${(dot.y / H) * 100}%`, background: color }"
+          ></span>
+        </template>
         <div
           v-if="hoverPoint"
           class="series-tip"
@@ -233,14 +254,14 @@ function fmtTime(t) {
         </div>
         <span
           v-if="baselineY != null"
-          class="series-baseline-tag"
+          class="series-tag series-baseline-tag"
           :style="{ top: `${(baselineY / H) * 100}%` }"
         >基线 {{ fmt(baselineValue) }}</span>
-        <span class="series-max">max {{ fmt(stats?.max) }}</span>
+        <span class="series-tag series-max">max {{ fmt(stats?.max) }}</span>
       </div>
       <div class="series-range">
-        <span>min {{ fmt(stats?.min) }}</span>
-        <span class="series-span">{{ fmtTime(stats?.firstAt) }} – {{ fmtTime(stats?.lastAt) }}</span>
+        <span class="series-tag">min {{ fmt(stats?.min) }}</span>
+        <span class="series-tag">{{ fmtTime(stats?.firstAt) }} – {{ fmtTime(stats?.lastAt) }}</span>
       </div>
     </div>
     <div v-else class="series-empty">暂无可绘制的数据</div>
@@ -249,6 +270,9 @@ function fmtTime(t) {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-.series-baseline-tag { position: absolute; left: 0; transform: translateY(-110%); padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.85); font-size: 10px; color: var(--ink-soft, #6b6259); pointer-events: none; }
-.series-max { position: absolute; top: 0; left: 0; z-index: 1; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; color: var(--ink-soft, #6b6259); pointer-events: none; }
+/* max、min、时间段与基线共用同一套标签样式，只靠位置区分。 */
+.series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); pointer-events: none; }
+.series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
+.series-max { top: 0; }
+.series-baseline-tag { transform: translateY(-110%); }
 </style>
