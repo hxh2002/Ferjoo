@@ -12,7 +12,7 @@ onMounted(() => auth.init());
 </script>
 <template>
 <main class="m-page">
-<header class="me-heading"><p class="m-eyebrow">我的</p><h1>{{ name }}</h1></header>
+<header class="me-heading"><h1>我的</h1></header>
 <p v-if="error" class="m-error" role="alert">{{ error }}</p>
 <section class="m-card profile-card">
   <div class="profile-row">
@@ -28,12 +28,11 @@ onMounted(() => auth.init());
   <div v-if="!auth.user.value" class="auth-links"><RouterLink class="m-primary" :to="{path:'/login',query:{redirect:'/me'}}">登录</RouterLink><RouterLink class="m-secondary" :to="{path:'/register',query:{redirect:'/me'}}">邀请码注册</RouterLink></div>
 </section>
 <section v-if="auth.user.value" class="m-card">
-  <div class="section-heading"><h2>设备</h2><RouterLink class="text-link" to="/me/devices">管理 ›</RouterLink></div>
+  <div class="section-heading"><h2>设备</h2><div class="device-actions"><RouterLink class="text-link" to="/me/devices">管理 ›</RouterLink><RouterLink class="text-link" to="/claim">绑定新设备</RouterLink></div></div>
   <RouterLink v-for="device in devices" :key="device.device_id" class="m-list-row" :to="`/me/devices/${encodeURIComponent(device.device_id)}`">
     <span class="row-main"><strong>{{ device.name || device.device_id }}</strong><small>{{ device.my_role === 'owner' ? '所有者' : '成员' }} · 最近接收 {{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
   </RouterLink>
   <p v-if="!devices.length" class="m-muted">暂无设备。</p>
-  <RouterLink class="m-secondary bind-link" to="/claim">绑定新设备</RouterLink>
 </section>
 <nav class="m-card nav-card" aria-label="更多">
   <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/invite"><span class="row-main"><strong>邀请好友</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
@@ -55,7 +54,7 @@ onMounted(() => auth.init());
 .auth-links{display:grid;gap:.625rem;margin-top:1rem}
 .row-main{display:grid;gap:2px;min-width:0}
 .chevron{color:var(--text-secondary,#75665b);font-size:1.1rem;flex-shrink:0}
-.bind-link{margin-top:.75rem;font-size:.9rem;min-height:44px}
+.device-actions{display:flex;align-items:center;gap:.85rem}
 .nav-card{padding:4px 18px}
 .logout{width:100%;margin-top:1rem}
 .text-link{color:var(--brand-action,#a54214);font-size:.875rem;text-decoration:none}

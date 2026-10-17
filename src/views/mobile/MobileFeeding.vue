@@ -143,7 +143,9 @@ async function save() {
 summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
 .weight-fields{min-width:0;margin:.75rem 0;padding:.5rem .75rem .75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px}
 .weight-fields legend{padding:0 .25rem;font-size:.8rem;color:var(--m-muted,#625e56)}
-.weight-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:.5rem 0}
+.weight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.4rem;margin:.5rem 0}
 .weight-item{display:grid;gap:.25rem;min-width:0;font-size:.75rem;color:var(--m-muted,#625e56)}
-.weight-item input{width:100%;min-height:44px;box-sizing:border-box;padding:.25rem .5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;font:inherit;font-size:1rem}
+.weight-item input{width:100%;min-height:44px;box-sizing:border-box;padding:.25rem .5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;font:inherit;font-size:1rem}.mobile-feeding form{display:grid;gap:.2rem}.mobile-feeding .m-context{font-size:.8rem;margin-bottom:.35rem}.mobile-feeding .m-card{padding:1rem}.mobile-feeding .m-field{gap:.35rem}.mobile-feeding .m-field>input,.mobile-feeding .m-field>select{margin-top:.05rem}.mobile-feeding details{border-top:1px solid var(--m-border,#d8d2c8);border-bottom:1px solid var(--m-border,#d8d2c8);margin:.5rem 0}.mobile-feeding details summary{font-size:.9rem;font-weight:600}.mobile-feeding .m-muted{font-size:.78rem;line-height:1.4}.mobile-feeding .m-actions{margin-top:.5rem}
+.mobile-feeding .weight-item input{padding:8px 5px;font-variant-numeric:tabular-nums}.weight-item:last-child{font-weight:700;color:var(--m-accent)}
+@media(max-width:359px){.weight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>

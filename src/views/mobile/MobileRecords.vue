@@ -236,7 +236,7 @@ onUnmounted(() => {
         <div class="m-types" role="group" aria-label="类型筛选"><button v-for="item in [['all','全部'],['observation','观察'],['feeding','喂养'],['device','设备数据']]" :key="item[0]" class="m-secondary" :class="{active:type===item[0]}" type="button" @click="type=item[0]">{{ item[1] }}</button></div>
       </div>
       <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" @change-month="changeMonth" @select="selectDay" />
-      <button v-if="selectedDay" class="m-secondary" @click="selectDay('')">清除所选日期</button>
+      <button v-if="selectedDay" class="m-clear-date" type="button" @click="selectDay('')">清除日期</button>
       <p v-if="loading" class="m-muted" role="status">正在读取记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <p v-if="namesError" class="m-muted">{{ namesError }}</p><p v-if="deviceNotice" class="m-muted" role="status">{{ deviceNotice }}</p>
     </section>
@@ -247,7 +247,7 @@ onUnmounted(() => {
         <section v-for="group in groups" :key="group[0]" class="m-card">
           <h2>{{ group[0] }}</h2>
           <RouterLink v-for="row in group[1]" :key="row.id" class="m-list-row" :to="detailTarget(row)">
-            <span><strong>{{ title(row) }}</strong><small>{{ starterName(row.starter_id) }} · {{ new Date(row.occurred_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }} · {{ row.kind === 'feeding' ? '喂养' : row.kind === 'device' ? '设备数据' : '观察' }}</small></span><b>详情</b>
+            <span><strong>{{ title(row) }}</strong><small>{{ starterName(row.starter_id) }} · {{ new Date(row.occurred_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</small></span><b>详情</b>
           </RouterLink>
         </section>
       </div>
@@ -263,14 +263,23 @@ onUnmounted(() => {
 .m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
 .m-record-list{max-height:60vh;max-height:60dvh;overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none}
 .m-card h1{font-size:1.4rem;font-weight:600;margin:.1rem 0 .875rem}
-.m-card h2{font-size:.95rem;margin:0 0 .25rem}
-.m-filters{display:grid;gap:.25rem;margin-bottom:.75rem}
-.m-field{margin:.5rem 0}
-.m-field select,.m-field input{box-sizing:border-box;width:100%;min-height:48px;padding:.7rem;font:inherit;border:1px solid #938d83;background:#fff}
-.m-types{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.5rem 0}
-.m-types span{font-size:.85rem;color:#625e56}
-.m-secondary{min-height:40px;padding:.4rem .85rem;border:1px solid #938d83;background:transparent;font:inherit;font-size:.9rem;cursor:pointer}
+.m-card h2{font-size:.85rem;color:#625e56;margin:0 0 .1rem}
+.m-filters{display:grid;gap:.1rem;grid-template-columns:minmax(0,1fr);margin-bottom:.25rem}
+.m-page>.m-card:first-child{padding:10px 12px}
+.m-field{display:flex;align-items:center;gap:.5rem;margin:.15rem 0;white-space:nowrap}
+.m-field select{flex:1;min-width:0}
+.m-types .m-secondary{flex-shrink:0;white-space:nowrap}
+.m-field select,.m-field input{box-sizing:border-box;width:100%;min-height:44px;padding:.45rem .65rem;font:inherit;border:1px solid #938d83;background:#fff}
+.m-types{display:flex;gap:.35rem;flex-wrap:nowrap;align-items:center;margin:.2rem 0 .4rem;overflow-x:auto;padding-bottom:2px}
+.m-types span{font-size:.75rem;color:#625e56}
+.m-secondary{min-height:36px;padding:.3rem .65rem;border:1px solid #938d83;background:transparent;font:inherit;font-size:.82rem;cursor:pointer}
 .m-secondary.active{border-color:#a44213;color:#a44213;font-weight:600;background:#fdf3ec}
 .m-list-row span{display:grid;gap:2px;min-width:0}
 .m-list-row b{color:#a44213;font-size:.85rem;font-weight:600;flex-shrink:0}
+.m-record-list>.m-card{padding:10px 12px;margin:8px 0}
+.m-list-row{min-height:50px}
+.m-list-row small{font-size:.74rem}
+.m-clear-date{border:0;padding:.2rem 0;background:transparent;color:#a44213;font:inherit;font-size:.78rem;cursor:pointer}
+.m-page>nav.m-types{justify-content:space-between;font-size:.75rem}
+.m-page>nav.m-types .m-secondary{font-size:.75rem}
 </style>

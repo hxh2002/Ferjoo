@@ -1,0 +1,14 @@
+{
+  "id": "/today",
+  "name": "Dr. Ferjoo 酵种医生",
+  "short_name": "Ferjoo",
+  "lang": "zh-CN",
+  "start_url": "/today",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffaf4",
+  "theme_color": "#ff7c2d",
+  "icons": [
+    { "src": "/assets/logo.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ]
+}

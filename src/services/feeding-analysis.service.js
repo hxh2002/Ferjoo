@@ -10,6 +10,7 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+/** @param {{ measurements?: any[], feeding?: any, link?: any, now?: number, nextFeedingAt?: any }} [options] */
 export function summarizeFeedingMeasurements({ measurements = [], feeding, link, now = Date.now(), nextFeedingAt } = {}) {
   const fedAt = time(feeding?.occurred_at);
   const currentTime = time(now);

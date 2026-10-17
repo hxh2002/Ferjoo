@@ -1,5 +1,10 @@
 :root.mobile-mode {
   --m-tab-height: 60px;
+  --m-accent: var(--brand-action);
+  --m-muted: var(--text-secondary);
+  --m-border: var(--border-default);
+  --m-card: var(--surface-card);
+  --m-surface: var(--surface-input);
   --ink: var(--text-primary);
   --ink-soft: var(--text-secondary);
   --orange-deep: var(--brand-action);
@@ -142,6 +147,25 @@ body.mobile-mode .crop-actions { display: flex; flex-wrap: wrap; gap: 8px; margi
 body.mobile-mode .crop-actions button { padding: 10px 16px; border: 1px solid var(--border-input); background: transparent; color: var(--text-primary); min-height: 48px; }
 body.mobile-mode .crop-actions .small-primary { border-color: var(--brand-action); background: var(--brand-action); color: #fff; }
 body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-text); background: var(--danger-bg); }
+.mobile-area .month-cal .cal-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.mobile-area .month-cal .cal-head > .eyebrow { display: none; }
+.mobile-area .month-cal .cal-nav { width: 100%; display: flex; flex-wrap: nowrap; gap: 2px; }
+.mobile-area .month-cal .cal-nav strong { flex: 1; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
+.mobile-area .month-cal .cal-nav button { border: 0; background: transparent; color: var(--text-secondary); padding: 0 8px; }
+.mobile-area .month-cal .cal-legend { gap: 10px; font-size: 11px; color: var(--text-secondary); padding: 0 2px 8px; }
+.mobile-area .month-cal .cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.mobile-area .month-cal .cal-legend .lg { width: 5px; height: 5px; border-radius: 50%; background: var(--text-secondary); }
+.mobile-area .month-cal .lg.feeding { background: var(--brand-action); }
+.mobile-area .month-cal .lg.observation { background: #2b6cb0; }
+.mobile-area .month-cal .lg.fer { background: #286247; }
+.mobile-area .month-cal .lg.sleep { background: #9a352a; }
+.mobile-area .month-cal .cal-week, .mobile-area .month-cal .cal-grid { display: grid; }
+.mobile-area .month-cal .cal-week { font-size: 11px; color: var(--text-secondary); padding: 4px 0; }
+.mobile-area .month-cal .cal-narrow { display: none; }
+.mobile-area .month-cal .cal-cell { font-size: 13px; font-variant-numeric: tabular-nums; }
+.mobile-area .month-cal .cal-cell.today:not(.selected) { color: var(--brand-action); font-weight: 800; box-shadow: inset 0 0 0 1px var(--border-default); }
+.mobile-area .month-cal .cal-cell.selected::after { background: #fff; }
+.mobile-area .month-cal .cal-cell.sleep::after { background: #9a352a; }
 @media (max-width: 347px) {
   .mobile-area .mobile-main .m-page { padding-left: 12px; padding-right: 12px; }
   .mobile-area :is(.auth-card, .profile-card) { padding: 12px; }

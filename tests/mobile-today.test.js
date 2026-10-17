@@ -71,6 +71,7 @@ function harness() {
     },
     '../../services/feeding-analysis.service.js': { summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
     '../../services/height-alert.service.js': heightAlerts,
+    '../../services/web-push.service.js': { hasCloudPushSubscription: async () => false, loadHeightTargets: async () => [], saveHeightTargets: async () => {}, subscribeHeightPush: async () => {}, webPushAvailable: () => false },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
     '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
   };
@@ -95,7 +96,7 @@ assert.match(await h.html(), /膨胀率/);
 assert.match(await h.html(), /距上次喂养/);
 assert.match(await h.html(), /高度预约/);
 assert.match(await h.html(), /2\.5×/, 'thresholds are picked manually next to the round summary');
-assert.match(await h.html(), /开启系统提醒/);
+assert.match(await h.html(), /开启云端推送/);
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
 assert.equal(h.vm.evidence.length, rows.length);

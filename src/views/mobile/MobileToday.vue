@@ -8,9 +8,9 @@ import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { linkStarterDevice, listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { loadFeedingEvidence, summarizeFeedingMeasurements } from '../../services/feeding-analysis.service.js';
 import {
-  HEIGHT_ALERT_TARGETS, enableSystemNotification, heightAlertMessage, markHeightAlertNotified,
-  notificationPermission, pendingHeightAlerts, readHeightAlerts, sendSystemNotification, toggleHeightTarget, writeHeightAlerts
+  HEIGHT_ALERT_TARGETS, enableSystemNotification, notificationPermission, toggleHeightTarget
 } from '../../services/height-alert.service.js';
+import { hasCloudPushSubscription, loadHeightTargets, saveHeightTargets, subscribeHeightPush, webPushAvailable } from '../../services/web-push.service.js';
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import SeriesChart from '../../components/SeriesChart.vue';
 
@@ -23,9 +23,10 @@ const loading = ref(false); const saving = ref(false); const error = ref(''); co
 const deviceOpen = ref(false); const starterOpen = ref(false); const newStarterOpen = ref(false);
 const newName = ref(''); const now = ref(Date.now()); const explicitStarter = ref(false);
 const evidence = ref(null); const mutationError = ref('');
-const alerts = ref(readHeightAlerts(''));
+const alerts = ref({ targets: [], notified: {} });
 const alertPermission = ref(notificationPermission());
 const alertNotice = ref('');
+const cloudPush = ref(false);
 let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
 
 const activeDevice = computed(() => devices.value.find((item) => item.device_id === deviceId.value));
@@ -152,43 +153,46 @@ async function addStarter() {
   } catch (cause) { if (current(token, owner)) error.value = cause?.message || '新建或关联失败，请重试。'; }
   finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
 }
-let alertTimer = null; let alertRunning = false;
-function stopAlertTimer() { if (alertTimer) { clearInterval(alertTimer); alertTimer = null; } }
-// 有有效预约且已授权时，页面切到后台仍继续轮询，才能及时发出系统通知；无预约时不额外查询。
-function startAlertTimer() {
-  stopAlertTimer();
-  if (disposed || !alerts.value.targets.length || alertPermission.value !== 'granted') return;
-  alertTimer = setInterval(() => { if (document.hidden) void refresh(); }, 60000);
+let alertGeneration = 0;
+const alertBusy = ref(false);
+async function loadAlerts() {
+  const token = ++alertGeneration; const id = starterId.value; const owner = accountId.value;
+  alerts.value = { targets: [], notified: {} }; alertNotice.value = '';
+  if (!owner || !id) return;
+  try {
+    const [targets, subscribed] = await Promise.all([loadHeightTargets(id), hasCloudPushSubscription()]);
+    if (token === alertGeneration && owner === accountId.value && id === starterId.value) { alerts.value = { targets, notified: {} }; cloudPush.value = subscribed; if (subscribed) alertNotice.value = '本机推送订阅已登记；实际发送依赖管理员完成云端部署配置。'; }
+  } catch (cause) { if (token === alertGeneration) alertNotice.value = cause.message; }
 }
-function toggleTarget(target) {
-  alertNotice.value = '';
-  alerts.value = writeHeightAlerts(accountId.value, toggleHeightTarget(alerts.value, target));
-  startAlertTimer();
+async function toggleTarget(target) {
+  if (alertBusy.value || !starterId.value) return;
+  const token = alertGeneration; const id = starterId.value; const owner = accountId.value;
+  const next = toggleHeightTarget(alerts.value, target);
+  alertBusy.value = true;
+  try {
+    await saveHeightTargets(id, next.targets);
+    if (token === alertGeneration && owner === accountId.value) { alerts.value = next; alertNotice.value = cloudPush.value ? '预约已云端保存' : '预约已保存；请开启本机云端推送'; }
+  } catch (cause) { if (token === alertGeneration) alertNotice.value = cause.message; }
+  finally { alertBusy.value = false; }
 }
 async function enableAlerts() {
+  const token = alertGeneration; const owner = accountId.value;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  if (ios && !navigator.standalone && !window.matchMedia('(display-mode: standalone)').matches) { alertNotice.value = 'iOS 请先在 Safari 分享菜单选择「添加到主屏幕」，再从主屏幕打开并开启通知（iOS 16.4+）。'; return; }
+  if (!webPushAvailable()) { alertNotice.value = '云端推送未配置或当前浏览器不支持 Web Push，请使用 HTTPS 和支持的浏览器。'; return; }
   alertPermission.value = await enableSystemNotification();
-  // 只在真正需要用户处理时占用一行文字，正常状态保持零说明。
-  alertNotice.value = alertPermission.value === 'unsupported' ? '浏览器不支持通知'
-    : alertPermission.value === 'denied' ? '已被浏览器拒绝，请在设置中开启' : '';
-  startAlertTimer();
-}
-async function evaluateAlerts() {
-  if (alertRunning || alertPermission.value !== 'granted' || !alerts.value.targets.length || !accountId.value) return;
-  const rows = pendingHeightAlerts({ state: alerts.value, feedingId: feeding.value?.id, baselineHeightMm: summary.value?.baselineHeightMm, currentHeightMm: summary.value?.currentHeightMm });
-  if (!rows.length) return;
-  alertRunning = true;
+  if (alertPermission.value !== 'granted') { alertNotice.value = alertPermission.value === 'denied' ? '已被浏览器拒绝，请在设置中开启' : '浏览器不支持通知'; return; }
+  alertBusy.value = true;
   try {
-    for (const item of rows) {
-      if (!current(generation, accountId.value)) return;
-      const sent = await sendSystemNotification({ ...heightAlertMessage(item.target, item.ratio), tag: `ferjoo-height-${feeding.value.id}-${item.target}` });
-      if (!sent) { alertNotice.value = '通知发送失败，请检查浏览器通知设置'; continue; }
-      alerts.value = writeHeightAlerts(accountId.value, markHeightAlertNotified(alerts.value, item.target, feeding.value.id));
-    }
-  } finally { alertRunning = false; }
+    await subscribeHeightPush();
+    if (token === alertGeneration && owner === accountId.value) { cloudPush.value = true; alertNotice.value = '本机推送订阅已登记；实际发送依赖管理员完成云端部署配置。'; }
+  } catch (cause) { if (token === alertGeneration) { cloudPush.value = false; alertNotice.value = cause.message || '云端推送启用失败，请重试'; } }
+  finally { alertBusy.value = false; }
 }
-watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; deviceOpen.value = false; starterOpen.value = false; mutationError.value = ''; alerts.value = readHeightAlerts(accountId.value); alertNotice.value = ''; stopAlertTimer(); clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
-watch(summary, () => { void evaluateAlerts(); });
-useVisiblePolling(refresh, 60000); onMounted(() => { auth.init(); alertPermission.value = notificationPermission(); startAlertTimer(); }); onActivated(() => { alertPermission.value = notificationPermission(); startAlertTimer(); }); onDeactivated(stopAlertTimer); onScopeDispose(() => { disposed = true; generation++; stopAlertTimer(); });
+watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; deviceOpen.value = false; starterOpen.value = false; mutationError.value = ''; alerts.value = { targets: [], notified: {} }; cloudPush.value = false; alertNotice.value = ''; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
+watch([accountId, starterId], loadAlerts, { flush: 'sync' });
+// All height delivery now belongs to the server; no page-local fallback can duplicate it.
+useVisiblePolling(refresh, 60000); onMounted(() => { auth.init(); alertPermission.value = notificationPermission(); }); onActivated(() => { alertPermission.value = notificationPermission(); }); onScopeDispose(() => { disposed = true; generation++; alertGeneration++; });
 </script>
 
 <template>
@@ -208,7 +212,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => { auth.init(); alertPermissio
       <p v-if="deviceError" class="m-error" role="alert">{{ deviceError }}</p>
         <div v-if="starterId && feeding" class="summary-row">
         <section class="feeding-summary"><strong>本轮概况</strong><span><i>基线</i>{{ baselineText }}</span><span><i>膨胀率</i>{{ expansionText }}</span><span><i>距上次喂养</i>{{ relative(feeding.occurred_at) }}</span></section>
-        <section class="alert-card"><strong>高度预约</strong><div class="alert-targets" role="group" aria-label="高度提醒阈值"><button v-for="target in HEIGHT_ALERT_TARGETS" :key="target" type="button" class="alert-target" :class="{ active: alerts.targets.includes(target) }" :aria-pressed="alerts.targets.includes(target)" @click="toggleTarget(target)">{{ target }}×</button></div><button v-if="alertPermission !== 'granted'" class="alert-notify" type="button" @click="enableAlerts">开启系统提醒</button><p v-if="alertNotice" class="alert-note">{{ alertNotice }}</p></section>
+        <section class="alert-card"><strong>高度预约</strong><div class="alert-targets" role="group" aria-label="高度提醒阈值"><button v-for="target in HEIGHT_ALERT_TARGETS" :key="target" type="button" class="alert-target" :class="{ active: alerts.targets.includes(target) }" :aria-pressed="alerts.targets.includes(target)" @click="toggleTarget(target)">{{ target }}×</button></div><button v-if="!cloudPush" class="alert-notify" type="button" :disabled="alertBusy" @click="enableAlerts">开启云端推送</button><p v-if="alertNotice" class="alert-note">{{ alertNotice }}</p></section>
         </div>
         <section v-if="deviceId" class="chart-card"><div class="chart-title"><strong>{{ starter ? starter.name : '未分类设备数据' }}</strong><span>最近 24 小时</span></div><SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline"/><div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints"/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints"/></div></section>
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
@@ -218,6 +222,9 @@ useVisiblePolling(refresh, 60000); onMounted(() => { auth.init(); alertPermissio
 </template>
 
 <style scoped>
-.today-page{max-width:42rem;margin:auto}.chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem}.today-heading{display:grid;gap:.5rem;margin-bottom:.75rem}.picker-row{display:flex;gap:.5rem;align-items:center}.picker{border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-surface,#fffdf8);min-width:0}.picker-row .picker{flex:1}.picker summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:.5rem;padding:0 .75rem}.picker-label{flex-shrink:0;font-size:.75rem;color:var(--m-muted,#625e56)}.picker-value{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-menu,.starter-menu{display:grid;gap:.25rem;padding:.5rem 0}.picker-menu button,.picker-menu a,.starter-menu button{min-height:44px;padding:.5rem .75rem;border:1px solid var(--m-border,#d8d2c8);background:var(--m-surface,#fffdf8);text-align:left;font:inherit}.picker-menu a{color:var(--m-accent,#a44213)}.m-muted{font-size:.875rem;line-height:1.6;color:var(--m-muted,#625e56)}.m-muted.small{font-size:.8rem}.m-error{padding:.7rem;color:#86261f;border:1px solid #86261f}.chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}.chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}.small-charts{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.series-chart{min-width:0}.starter-section{padding-bottom:.25rem}.text-button{border:0;background:none;color:var(--m-accent,#a44213);min-height:44px;font:inherit}.compact-summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.starter-menu button{cursor:pointer}.starter-menu button.active{border-color:var(--m-accent,#a44213);color:var(--m-accent,#a44213)}.starter-menu small{display:block;color:var(--m-muted,#625e56);font-size:.75rem}.new-starter{display:grid;gap:.5rem;margin-top:.5rem}.new-starter input{min-height:44px;padding:.5rem;font:inherit}.risk-banner{padding:.75rem;background:#fff0ed;border-left:3px solid #a12c23;color:#86261f;margin:.75rem 0;display:flex;justify-content:space-between;gap:.5rem}.risk-banner a{color:inherit;font-weight:700}.primary-actions{display:grid;gap:.5rem;margin:.75rem 0}.primary-actions>*{text-align:center}button:disabled{opacity:.55}@media(max-width:360px){.small-charts{grid-template-columns:1fr}.summary-row{grid-template-columns:1fr}}
-.eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:.75rem 0}.summary-row>*{display:flex;flex-direction:column;gap:.4rem;min-width:0;padding:.7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-card,#fff);font-size:.8rem;line-height:1.4}.summary-row strong{font-size:.85rem}.summary-row>*>span{display:flex;align-items:baseline;justify-content:space-between;gap:.4rem}.summary-row i{font-style:normal;font-size:.72rem;color:var(--m-muted,#6f6a61);flex-shrink:0}.alert-targets{display:flex;flex:1;gap:.35rem}.alert-target{flex:1;min-height:40px;padding:0 .4rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:var(--m-card,#fff);font:inherit;font-size:.85rem;color:inherit;cursor:pointer}.alert-target.active{border-color:var(--m-accent,#a44213);background:var(--m-accent,#a44213);color:#fff;font-weight:600}.alert-notify{align-self:flex-start;margin-top:auto;padding:0;border:0;background:none;font:inherit;font-size:.72rem;color:var(--m-accent,#a44213);cursor:pointer}.alert-note{margin:0;font-size:.68rem;color:#a12c23}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;width:6px;height:6px;border-radius:50%;transform:translate(-50%,-50%)}.chart-card :deep(.series-range){display:flex;justify-content:space-between;font-size:.65rem;gap:.25rem}
+.today-page{max-width:42rem;margin:auto}.chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem}.today-heading{display:grid;gap:.5rem;margin-bottom:.75rem}.picker-row{display:flex;gap:.5rem;align-items:center}.picker{border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-surface,#fffdf8);min-width:0}.picker-row .picker{flex:1}.picker summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:.5rem;padding:0 .75rem}.picker-label{flex-shrink:0;font-size:.75rem;color:var(--m-muted,#625e56)}.picker-value{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.picker-menu,.starter-menu{display:grid;gap:.25rem;padding:.5rem 0}.picker-menu button,.picker-menu a,.starter-menu button{min-height:44px;padding:.5rem .75rem;border:1px solid var(--m-border,#d8d2c8);background:var(--m-surface,#fffdf8);text-align:left;font:inherit}.picker-menu a{color:var(--m-accent,#a44213)}.m-muted{font-size:.875rem;line-height:1.6;color:var(--m-muted,#625e56)}.m-muted.small{font-size:.8rem}.m-error{padding:.7rem;color:#86261f;border:1px solid #86261f}.chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}.chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}.small-charts{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.series-chart{min-width:0}.starter-section{padding-bottom:.25rem}.text-button{border:0;background:none;color:var(--m-accent,#a44213);min-height:44px;font:inherit}.compact-summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.starter-menu button{cursor:pointer}.starter-menu button.active{border-color:var(--m-accent,#a44213);color:var(--m-accent,#a44213)}.starter-menu small{display:block;color:var(--m-muted,#625e56);font-size:.75rem}.new-starter{display:grid;gap:.5rem;margin-top:.5rem}.new-starter input{min-height:44px;padding:.5rem;font:inherit}.risk-banner{padding:.75rem;background:#fff0ed;border-left:3px solid #a12c23;color:#86261f;margin:.75rem 0;display:flex;justify-content:space-between;gap:.5rem}.risk-banner a{color:inherit;font-weight:700}.primary-actions{display:grid;gap:.5rem;margin:.75rem 0}.primary-actions>*{text-align:center}button:disabled{opacity:.55}@media(max-width:360px){.small-charts{gap:.5rem}.alert-targets{gap:.2rem}}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:.75rem 0}.summary-row>*{display:flex;flex-direction:column;gap:.4rem;min-width:0;padding:.7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-card,#fff);font-size:.8rem;line-height:1.4}.summary-row strong{font-size:.85rem}.summary-row>*>span{display:flex;align-items:baseline;justify-content:space-between;gap:.4rem}.summary-row i{font-style:normal;font-size:.72rem;color:var(--m-muted,#6f6a61);flex-shrink:0}.alert-targets{display:flex;flex:1;gap:.35rem}.alert-target{flex:1;min-height:40px;padding:0 .4rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:var(--m-card,#fff);font:inherit;font-size:.85rem;color:inherit;cursor:pointer}.alert-target.active{border-color:var(--m-accent,#a44213);background:var(--m-accent,#a44213);color:#fff;font-weight:600}.alert-notify{align-self:flex-start;margin-top:auto;padding:0;border:0;background:none;font:inherit;font-size:.72rem;color:var(--m-accent,#a44213);cursor:pointer}.alert-note{margin:0;font-size:.68rem;color:#a12c23}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;width:6px;height:6px;border-radius:50%;transform:translate(-50%,-50%)}.chart-card :deep(.series-range){display:flex;justify-content:space-between;font-size:.65rem;gap:.25rem}.chart-card :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}.chart-card :deep(.series-label){font-weight:700}.chart-card :deep(.series-value){font-size:.9rem}.chart-card :deep(.series-delta){font-size:.7rem}.small-charts{padding-top:.65rem;border-top:1px solid var(--m-border,#d8d2c8)}.small-charts :deep(.series-range){font-size:.58rem}.picker-menu button,.picker-menu a{border-left:0;border-right:0}.picker-menu button.active{background:color-mix(in srgb,var(--m-accent,#a44213) 8%,transparent)}
+.chart-card :deep(.chart-feature .series-value){font-size:1.75rem;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}.chart-card :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card);border:1px solid var(--m-border);padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}.chart-card :deep(.series-tip span){display:block;color:var(--m-muted)}.chart-card :deep(.series-guide){stroke:var(--m-muted);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}.chart-card :deep(.series-grid){stroke-dasharray:2 2}.chart-card :deep(.series-empty){min-height:76px;display:grid;place-items:center;font-size:.8rem;color:var(--m-muted);background:var(--m-surface)}.chart-card :deep(.chart-feature .series-empty){min-height:180px}.chart-title{margin-bottom:.65rem}.primary-actions{grid-template-columns:minmax(0,1fr) auto}.primary-actions>.m-muted{grid-column:1/-1}.summary-row{align-items:stretch}.alert-targets{align-items:center}.alert-target{flex-basis:0;padding:0 .1rem;min-height:44px}.summary-row>*>span{font-variant-numeric:tabular-nums}.alert-card{overflow:hidden}
+@media(max-width:380px){.summary-row>*{padding:.55rem;gap:.35rem}.summary-row>*>span{font-size:.72rem;gap:.15rem}.summary-row i{font-size:.65rem}.alert-target{font-size:.78rem}.summary-row strong{font-size:.78rem}}
+
 </style>

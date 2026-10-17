@@ -163,6 +163,26 @@ npm run dev
    - `VITE_SUPABASE_ANON_KEY`
 5. 运行 `npm install && npm run dev`。Vercel 生产环境变量另在平台配置，不提交 `.env`。
 
+### 高度预约 Web Push 上线前置
+
+迁移 `020_height_web_push.sql` 使用 `pg_cron` 每分钟触发事务性扫描，`pg_net` 只调用同项目的 Edge Function；订阅、事件与投递表均有显式 grant/RLS，推送私钥不进入仓库。上线前由项目管理员在 Supabase 控制台核对扩展可用性，然后执行：
+
+```bash
+supabase functions deploy process-height-alerts --no-verify-jwt
+supabase secrets set HEIGHT_PUSH_INTERNAL_SECRET='<至少32字符随机值>' VAPID_PUBLIC_KEY='<VAPID公钥>' VAPID_PRIVATE_KEY='<VAPID私钥>' VAPID_SUBJECT='mailto:ops@example.com'
+```
+
+再以数据库管理员身份写入 Vault（值不要提交）：
+
+```sql
+select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/process-height-alerts', 'height_push_worker_url');
+select vault.create_secret('<与 HEIGHT_PUSH_INTERNAL_SECRET 相同的值>', 'height_push_internal_secret');
+```
+
+将 `VITE_VAPID_PUBLIC_KEY` 配到 Vercel；仅公钥可进入浏览器。迁移、函数部署、Vault/扩展权限、真实浏览器推送和 iOS 主屏幕行为未在本地环境验证，不要将本地测试视为已上线。投递是有限重试和去重，不承诺恰好一次；浏览器/供应商仍可能延迟或丢弃推送。
+
+迁移 `021_device_ingest_upsert.sql` 只调整设备批量上传函数：同一 `(device_id, recorded_at)` 已存在即跳过，重放同一批数据幂等；不删除、不覆盖既有读数，也不新增唯一约束（数据库层自 013 起保持追加语义，十分钟桶去重在查询层完成）。
+
 Auth 提供商、邮件、回跳地址及平台集成等设置需在对应控制台单独核对，不能把迁移成功等同于所有平台配置已同步。
 
 ## 用户系统
@@ -347,7 +367,7 @@ Content-Type: application/json
 ```
 
 - `recorded_at` 为 ISO 8601 时间；各数值字段可省略或传 `null`。
-- 原始数据逐条落库，无分桶唯一约束：重复上传会保存为多条原始记录，网页端每个 10 分钟桶只展示 `recorded_at` 最新的一条，固件仍需做好本地去重。单批最多 288 条，超出返回 `TOO_MANY_MEASUREMENTS`。
+- 原始数据逐条落库，无分桶唯一约束：同一 `(device_id, recorded_at)` 已存在即跳过（重复投递同一批数据幂等，不覆盖已写入行），不同时间戳的读数仍逐条保存；网页端每个 10 分钟桶只展示 `recorded_at` 最新的一条，固件仍需做好本地去重。单批最多 288 条，超出返回 `TOO_MANY_MEASUREMENTS`。
 - `api_key` 仅在受控出厂生成/烧录流程中出现，数据库只存 SHA-256 摘要；设备不得携带用户 JWT，也不要添加 `Authorization` 请求头。
 - `anon` 角色没有表级读写权限，仅被单独授权执行设备上传 RPC；RPC 通过 `device_id + api_key` 校验设备，并限制数据格式、范围和批量大小。
 
