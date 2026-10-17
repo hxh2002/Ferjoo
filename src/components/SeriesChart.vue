@@ -28,16 +28,18 @@ const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.ba
 const stats = computed(() => {
   if (!series.value.length) return null;
   const values = series.value.map((p) => p.v);
+  const dataMin = Math.min(...values);
+  const dataMax = Math.max(...values);
+  // 基线只参与绘图范围，不参与 min/max 文案；否则基线高于数据时会把真正的数据极值顶掉。
   const bounds = baselineValue.value == null ? values : [...values, baselineValue.value];
-  const min = Math.min(...bounds);
-  const max = Math.max(...bounds);
   const last = values[values.length - 1];
-  const delta = last - values[0];
   return {
-    min,
-    max,
+    min: Math.min(...bounds),
+    max: Math.max(...bounds),
+    dataMin,
+    dataMax,
     last,
-    delta,
+    delta: last - values[0],
     firstAt: series.value[0].t,
     lastAt: series.value[series.value.length - 1].t
   };
@@ -68,26 +70,20 @@ function linePathFor(pts) {
   return `M${pts.map((p) => `${p.x},${p.y}`).join(' L')}`;
 }
 
+// 只在缺值处断线。采样间隔可能随休眠/低功耗模式变长，按固定间隔切段会把相邻有效点拆成孤立点，
+// 导致有数据却画不出折线。
 const segments = computed(() => {
   const result = [];
   let segment = [];
-  let previous = null;
   let index = 0;
   for (const sample of samples.value) {
     if (!Number.isFinite(sample.v)) {
       if (segment.length) result.push(segment);
       segment = [];
-      previous = null;
       continue;
     }
     // coords 只包含有值采样，索引必须在这里独立递增。
-    const point = coords.value[index++];
-    if (previous && Date.parse(sample.t) - Date.parse(previous.t) > 40 * 60 * 1000) {
-      result.push(segment);
-      segment = [];
-    }
-    segment.push(point);
-    previous = sample;
+    segment.push(coords.value[index++]);
   }
   if (segment.length) result.push(segment);
   return result;
@@ -104,6 +100,8 @@ const baselineY = computed(() => {
   const span = s.max - s.min;
   return round(span === 0 ? H / 2 : H - PAD_Y - ((b - s.min) / span) * (H - PAD_Y * 2));
 });
+// 基线贴近顶部时标签放到线下方，避免和左上角的 max 标签叠在一起。
+const baselineBelow = computed(() => baselineY.value != null && baselineY.value < H * 0.25);
 
 const hoverIdx = ref(null);
 watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
@@ -248,12 +246,13 @@ function fmtTime(t) {
         <span
           v-if="baselineY != null"
           class="series-tag series-baseline-tag"
+          :class="{ below: baselineBelow }"
           :style="{ top: `${(baselineY / H) * 100}%` }"
         >基线 {{ fmt(baselineValue) }}</span>
-        <span class="series-tag series-max">max {{ fmt(stats?.max) }}</span>
+        <span class="series-tag series-max">max {{ fmt(stats?.dataMax) }}</span>
       </div>
       <div class="series-range">
-        <span class="series-tag">min {{ fmt(stats?.min) }}</span>
+        <span class="series-tag">min {{ fmt(stats?.dataMin) }}</span>
         <span class="series-tag">{{ fmtTime(stats?.firstAt) }} – {{ fmtTime(stats?.lastAt) }}</span>
       </div>
     </div>
@@ -268,6 +267,9 @@ function fmtTime(t) {
 .series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
 .series-max { top: 0; }
 .series-baseline-tag { transform: translateY(-110%); }
+/* 基线贴顶时翻到线下方，避免与 max 标签重叠。 */
+.series-baseline-tag.below { transform: translateY(8%); }
 /* 窄图里让时间段整体换到下一行并右对齐，而不是把标签文字拆成两行。 */
+.series-range { flex-wrap: wrap; }
 .series-range > :last-child { margin-left: auto; }
 </style>

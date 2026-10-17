@@ -19,7 +19,7 @@ assert.match(source('src/views/DoctorView.vue'), /elapsedEnabled\.value \? form\
 assert.match(source('src/views/HistoryView.vue'), /value == null \|\| value === ''\) return NaN/);
 const chart = source('src/components/SeriesChart.vue');
 assert.match(chart, /tSpan/);
-assert.match(chart, /40 \* 60 \* 1000/);
+assert.doesNotMatch(chart, /40 \* 60 \* 1000/, '不得再按固定采样间隔切断曲线');
 assert.doesNotMatch(chart, /smoothPath| C\$\{/);
 for (const [name, sql] of [['018_feed_events.sql', source('supabase/migrations/018_feed_events.sql')], ['019_starter_device_links.sql', source('supabase/migrations/019_starter_device_links.sql')]]) {
   assert.match(sql, /enable row level security/i, `${name} must enable RLS`);
@@ -37,7 +37,7 @@ for (const fn of ['getStarterDeviceLink', 'listStarterDeviceLinks', 'linkStarter
 assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
 const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/m, '');
-const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePath, dots };`);
+const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePath, dots, stats, baselineY };`);
 const points = [
   { t: '2026-01-01T00:00:00Z', v: 1 },
   { t: '2026-01-01T00:10:00Z', v: 2 },
@@ -49,10 +49,15 @@ const points = [
 ];
 const geometry = renderChart(() => ({ points }), computed, ref, watch, () => 'test');
 assert.equal(geometry.coords.value[1].x, 13.18, 'x must follow real timestamps');
-assert.deepEqual(geometry.segments.value.map((segment) => segment.length), [2, 1, 3]);
+assert.deepEqual(geometry.segments.value.map((segment) => segment.length), [2, 4], '采样间隔变长时仍应连成折线');
 assert.equal(geometry.coords.value.length, 6, 'sensor_error 行只要有有效值仍须保留采样点');
-assert.equal(geometry.dots.value.length, 2, '缺值断段后的孤立采样必须单独画点');
+assert.equal(geometry.dots.value.length, 1, '只有末点需要单独补点');
+assert.equal(geometry.stats.value.dataMax, 7, 'max 文案取数据极值');
 assert.doesNotMatch(geometry.linePath.value, /C/, 'no Bezier interpolation');
+const withBaseline = renderChart(() => ({ points, baseline: 100 }), computed, ref, watch, () => 'test');
+assert.equal(withBaseline.stats.value.max, 100, '基线参与绘图范围');
+assert.equal(withBaseline.stats.value.dataMax, 7, '基线不得顶掉 max 文案');
+assert.equal(withBaseline.baselineY.value, 6, '基线贴顶时应落在顶部内边距');
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const starterId = '22222222-2222-4222-8222-222222222222';
