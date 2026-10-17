@@ -60,7 +60,7 @@ function goDevice() {
 
 <template>
   <div class="auth-page">
-    <AuthCard eyebrow="DEVICE BINDING" title="绑定设备" description="绑定后可查看这台设备的全部历史采样；个人观察和报告不会因此共享。">
+    <AuthCard eyebrow="DEVICE BINDING" title="绑定设备" description="绑定后可查看设备全部历史采样。">
       <div v-if="state === 'working'" class="claim-status">
         <p class="auth-description">正在绑定，请稍候…</p>
       </div>
@@ -87,14 +87,13 @@ function goDevice() {
               required
             />
           </label>
-          <p>规范化绑定码：{{ normalizedCode || '尚未输入' }}</p>
           <label><input v-model="confirmed" type="checkbox">我已了解：绑定后可查看设备全部历史采样。</label>
           <button class="diagnose-button" :disabled="!manualCode.trim() || !confirmed">
             <span>绑定设备</span>
             <b>BIND →</b>
           </button>
         </form>
-        <p class="auth-switch">绑定码在设备标签或随附卡片上，也可以直接扫码自动填写。</p>
+        <p class="auth-switch">绑定码在设备标签或随附卡片上，也可扫码自动填写。</p>
       </template>
     </AuthCard>
   </div>

@@ -151,7 +151,7 @@ onBeforeUnmount(() => { version += 1; });
     <template v-if="!deviceId">
       <section class="m-card">
         <div class="section-heading"><h2>已绑定设备<span v-if="devices.length" class="m-muted count"> · {{ devices.length }} 台</span></h2><button class="m-text-action" :aria-expanded="showBinding" aria-controls="device-binding" @click="showBinding = !showBinding">{{ showBinding ? '收起绑定' : '+ 绑定' }}</button></div>
-        <p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备；无需设备也可以手工观察。</p>
+        <p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备。</p>
         <RouterLink v-for="item in devices" :key="item.device_id" :to="`/me/devices/${encodeURIComponent(item.device_id)}`" class="m-list-row">
           <span class="row-main"><strong>{{ item.name || item.device_id }}</strong><small>{{ item.my_role === 'owner' ? '所有者' : '成员' }} · {{ item.quality }}</small>
           <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span aria-hidden="true">›</span>
@@ -168,32 +168,31 @@ onBeforeUnmount(() => { version += 1; });
     <template v-else-if="device">
       <section class="m-card"><h2>{{ device.name || device.device_id }}</h2>
         <p>我的设备角色：{{ device.my_role === 'owner' ? '所有者' : device.my_role === 'member' ? '成员' : '无成员身份（管理员访问）' }}</p>
-        <p class="m-muted">最近收到数据：{{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '从未接收' }}。接收时间不等于最新采样时间。</p>
+        <p class="m-muted">最近接收：{{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '从未接收' }}</p>
         <RouterLink class="m-text-action" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备趋势（全部设备历史）</RouterLink>
       </section>
       <section class="m-card">
         <details v-if="manager" class="m-disclosure">
           <summary>设备名称 · {{ device.name || device.device_id }}</summary>
-          <form @submit.prevent="rename"><label class="m-field">设备名称<input v-model="name" maxlength="80"></label><p class="m-muted">改名会对所有共享成员生效。</p><button class="m-primary" :disabled="saving">保存名称</button></form>
+          <form @submit.prevent="rename"><label class="m-field">设备名称<input v-model="name" maxlength="80"></label><button class="m-primary" :disabled="saving">保存名称</button></form>
         </details>
         <details class="m-disclosure">
           <summary>关联酵种 · {{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</summary>
-          <form @submit.prevent="saveLink"><label class="m-field">关联酵种<select v-model="linkedStarter"><option value="">请选择酵种</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><p class="m-muted">更改仅影响该酵种今后的数据来源，历史按原关联时间段隔离。</p><button class="m-secondary" :disabled="saving || !linkedStarter">保存关联</button></form>
+          <form @submit.prevent="saveLink"><label class="m-field">关联酵种<select v-model="linkedStarter"><option value="">请选择酵种</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><button class="m-secondary" :disabled="saving || !linkedStarter">保存关联</button></form>
         </details>
       </section>
       <details v-if="manager" class="m-card m-disclosure">
         <summary>共享与成员管理</summary>
-        <p>持有绑定码的账号加入后，可查看这台设备的全部历史采样。个人观察、备注和报告不因此自动共享。</p>
-        <p class="m-muted">当前绑定码可持续用于加入；解绑不能收回他人已保存的信息。</p>
+        <p>持有绑定码的账号加入后可查看全部历史采样。</p>
         <p class="m-code">{{ device.bind_code || '暂无绑定码' }}</p><button class="m-text-action" :disabled="!device.bind_code" @click="copy(device.bind_code)">复制绑定码</button>
-        <h2>共享成员</h2><p class="m-muted">列表遵循现有管理员隐藏规则。暂不支持转让所有者。</p>
+        <h2>共享成员</h2><p class="m-muted">暂不支持转让所有者。</p>
         <div v-for="member in members" :key="member.system_user_id" class="m-list-row"><span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '所有者' : '成员' }}</span><button v-if="member.member_role !== 'owner'" class="m-text-action danger-action" :disabled="saving" @click="removeMember(member)">移除成员</button></div>
         <form @submit.prevent="addMember"><label class="m-field">系统用户编号<input v-model="target" placeholder="例如 U26010001" maxlength="9"></label><button class="m-primary" :disabled="saving">添加成员</button></form>
       </details>
       <details class="m-card m-disclosure"><summary>技术信息</summary><p class="m-code">设备编号：{{ device.device_id }}</p><p>型号：{{ device.model || '未提供' }}；固件：{{ device.firmware_version || '未提供' }}</p></details>
       <div class="unbind-action">
-        <p v-if="device.my_role === 'owner'" class="m-muted">所有者不能解绑自己，当前暂不支持所有权转让。</p>
-        <template v-else-if="device.my_role === 'member'"><p class="m-muted">解绑会撤销你的成员访问权限，不会删除设备原始数据。</p><button class="m-text-action danger-action" :disabled="saving || !mySystemId" @click="removeMember({ member_role: 'member', system_user_id: mySystemId }, true)">解绑自己</button></template>
+        <p v-if="device.my_role === 'owner'" class="m-muted">所有者不能解绑自己。</p>
+        <template v-else-if="device.my_role === 'member'"><p class="m-muted">解绑只撤销你的访问权限。</p><button class="m-text-action danger-action" :disabled="saving || !mySystemId" @click="removeMember({ member_role: 'member', system_user_id: mySystemId }, true)">解绑自己</button></template>
         <p v-else class="m-muted">当前账号没有需要解除的设备成员关系。</p>
       </div>
     </template>

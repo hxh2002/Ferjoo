@@ -22,6 +22,12 @@ const returnTo = computed(() => {
 });
 const baseline = computed(() => record.value?.input?.baseline_height_mm ?? record.value?.feed_event?.baseline_height_mm ?? null);
 const baselineSource = computed(() => record.value?.input?.baseline_source ?? record.value?.feed_event?.baseline_source);
+const weights = computed(() => {
+  const input = record.value?.input || {};
+  const parts = [['老种', input.starter_g], ['水', input.water_g], ['面粉', input.flour_g], ['合计', input.total_g]];
+  const items = parts.filter(([, value]) => Number.isFinite(Number(value)) && Number(value) > 0).map(([label, value]) => `${label} ${Number(value)} g`);
+  return items.length ? items.join(' · ') : '';
+});
 const when = computed(() => record.value ? new Date(record.value.occurred_at).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 let generation = 0;
 watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
@@ -55,8 +61,8 @@ onScopeDispose(() => { generation++; });
     <section v-if="record" class="m-card">
       <p>酵种：{{ name }} · {{ when }}</p>
       <h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ describeField('ratio', record.ratio) }}</p>
+      <template v-if="weights"><h2>投喂重量</h2><p>{{ weights }}</p></template>
       <h2>起始高度</h2><p>{{ baseline == null ? '未记录' : `${baseline} mm` }}<span v-if="baseline != null">（{{ baselineSource === 'device' ? '设备读取' : baselineSource === 'manual' ? '手工记录' : '来源未记录' }}）</span></p>
-      <p>这是一条事实记录，不生成诊断建议。</p>
       <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
     </section>
   </main>

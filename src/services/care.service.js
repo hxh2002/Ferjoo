@@ -126,6 +126,10 @@ function saveRecord({ requestId, starterId, occurredAt: when, ratio, input = {},
       if (inputSnapshot.baseline_source != null && !['device', 'manual'].includes(inputSnapshot.baseline_source)) {
         fail('起始高度来源不正确。');
       }
+      for (const key of ['starter_g', 'water_g', 'flour_g', 'total_g']) {
+        const value = inputSnapshot[key];
+        if (value != null && (!Number.isFinite(Number(value)) || Number(value) <= 0)) fail('投喂重量必须是大于零的数值。');
+      }
     }
     const resultSnapshot = objectSnapshot(result, '结果快照');
     const normalizedRatio = kind === 'feeding'

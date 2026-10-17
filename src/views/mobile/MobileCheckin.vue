@@ -131,43 +131,42 @@ function applyPending(key) {
     <p class="m-context m-muted">{{ diagnosisMode ? '传感器诊断确认' : steps[step - 1] }} · 第 {{ step }} / 3 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
     <section v-if="diagnosisMode" class="m-card">
-      <p>这是本轮诊断确认，不恢复旧观察草稿。传感器不能判断颜色、气味或食品安全；养护阶段也请主动选择。</p>
-      <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，诊断截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '缺少有效样本' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定，前 50 分钟尚未结束' : '观察窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}（使用 {{ feedingEvidence.summary.baselineUsedCount }} 个起始样本，排除 {{ feedingEvidence.summary.baselineExcludedCount }} 个大偏移值）</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足，未计算' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未作为当前值预填。' : '' }}温度为本轮有效传感器采样平均，仍请核实探头是否代表酵种温度。</p></template>
+      <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
+      <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p></template>
       <p v-if="notice" role="status">{{ notice }}</p>
     </section>
-    <details><summary>填写与保存说明</summary><p class="m-muted">可以仅生成建议，不保存云端；生成与保存是两件事，云端保存需要登录并选择酵种。</p></details>
-    <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，暂在当前会话保留；关闭页面可能丢失，请及时完成任务。</p>
+    <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，关闭页面可能丢失草稿。</p>
     <form ref="formElement" @submit.prevent="step === 3 ? generate() : next()">
       <section v-show="step === 1" class="m-card">
         <h2>{{ diagnosisMode ? '确认本轮安全与涨幅' : '先确认本次安全观察' }}</h2>
-        <p class="m-muted">不要品尝生酵种。无法看清或无法判断，请选“不确定”。</p>
+        <p class="m-muted">不要品尝生酵种；无法判断请选“不确定”。</p>
         <label v-for="key in ['color', 'smell']" :key="key" class="m-field">
           <span>{{ fieldLabels[key] }}</span>
           <select v-model="draft[key]" :aria-invalid="!!errors[key]" :aria-describedby="`${key}-help`" @change="selectSafety(key)">
             <option disabled value="">请主动选择</option><option value="normal">未见异常</option><option value="suspicious">{{ key === 'color' ? '彩色斑块 / 绒毛霉菌' : '明显腐败 / 恶臭' }}</option><option value="unknown">不确定</option>
           </select>
-          <span :id="`${key}-help`" class="m-muted">{{ key === 'color' ? '检查粉红、绿、蓝、黑等异常斑块和绒毛状霉菌。' : '区分正常酸香、酒精气味与明显腐败气味。' }}</span>
+          <span :id="`${key}-help`" class="m-muted">{{ key === 'color' ? '看粉红、绿、蓝、黑斑块或绒毛。' : '区分酸香、酒精味与腐败味。' }}</span>
           <span v-if="errors[key]" class="m-error">{{ errors[key] }}</span>
         </label>
-        <label class="m-field"><span>请选择最主要的涨幅表现</span><select v-model="draft.height" :aria-invalid="!!errors.height" @change="markManual('height')"><option disabled value="">请选择</option><option v-for="item in mobileOptions.height" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span class="m-muted">{{ diagnosisMode ? '传感器只预填可核实的涨幅证据；阶段、颜色和气味仍必须由你确认。' : '相对喂养后起始高度；表面液层与涨幅本轮只能选最主要的一项。' }}</span><span class="m-muted">来源：{{ describeSource(draft, 'height') }}</span><span v-if="errors.height" class="m-error">{{ errors.height }}</span></label>
+        <label class="m-field"><span>请选择最主要的涨幅表现</span><select v-model="draft.height" :aria-invalid="!!errors.height" @change="markManual('height')"><option disabled value="">请选择</option><option v-for="item in mobileOptions.height" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span v-if="errors.height" class="m-error">{{ errors.height }}</span></label>
         <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
         <h2>{{ diagnosisMode ? '确认诊断背景' : '补充这一轮背景' }}</h2>
         <label v-for="key in ['stage', 'ratio']" :key="key" class="m-field"><span>{{ fieldLabels[key] }}</span><select v-model="draft[key]" :aria-invalid="!!errors[key]" @change="markManual(key)"><option disabled value="">请选择</option><option v-for="item in mobileOptions[key]" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span class="m-muted">来源：{{ describeSource(draft, key) }}</span><span v-if="errors[key]" class="m-error">{{ errors[key] }}</span></label>
-        <p class="m-muted">比例按重量，顺序为老种 : 水 : 面粉；不将自定义比例映射为相近比例，不知道请选“不确定”。</p>
+        <p class="m-muted">按重量，顺序为老种 : 水 : 面粉。</p>
         <label v-for="key in ['tempC', 'elapsedHours']" :key="key" class="m-field"><span>{{ fieldLabels[key] }}（可空）</span><input v-model="draft[key]" type="number" step="any" inputmode="decimal" :aria-invalid="!!errors[key]" placeholder="未测量 / 不记得请留空" @input="markManual(key)"><span class="m-muted">来源：{{ describeSource(draft, key) }}</span><span v-if="errors[key]" class="m-error">{{ errors[key] }}</span></label>
-        <p class="m-muted">温度指实测酵种温度，而非未经确认的设备环境温度；时间未知不伪造默认值。</p>
+        <p class="m-muted">温度填酵种实测值；未知留空。</p>
         <button type="button" class="m-secondary" :aria-expanded="extra" @click="extra = !extra">{{ extra ? '收起' : '补充' }} pH 与备注（可选）</button>
         <div v-show="extra"><label class="m-field">pH<input v-model="draft.ph" type="number" step="any" inputmode="decimal" :aria-invalid="!!errors.ph"><span v-if="errors.ph" class="m-error">{{ errors.ph }}</span></label><label class="m-field">备注<textarea v-model="draft.notes" rows="3" /></label></div>
       </section>
       <section v-show="step === 3" class="m-card">
         <h2>核对本次输入</h2>
-        <p class="m-muted">请优先核对安全答案与已填项；安全不确定时不会给出正常结论。</p>
+        <p class="m-muted">请核对安全答案与已填项。</p>
         <dl><template v-for="key in summaryKeys" :key="key"><dt>{{ fieldLabels[key] }}</dt><dd>{{ describeField(key, draft[key]) }}<small class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
         <p v-if="draft.notes" class="note">备注（请特别核查其中的异常描述）：{{ draft.notes }}</p>
         <p v-if="draft.quickText" class="note">原始一句话：{{ draft.quickText }}</p>
-        <details><summary>未填项与建议说明</summary><dl v-if="emptySummaryKeys.length"><template v-for="key in emptySummaryKeys" :key="key"><dt>{{ fieldLabels[key] }}</dt><dd>{{ describeField(key, draft[key]) }}</dd></template></dl><p class="m-muted">来源：本次手工填写 / 逐项确认。未提供项保持为空；修改后生成新报告，不改写旧快照。仅在成熟阶段、实测温度可靠且已知时长时展示剩余经验估时。</p></details>
+        <details><summary>未填项与建议说明</summary><dl v-if="emptySummaryKeys.length"><template v-for="key in emptySummaryKeys" :key="key"><dt>{{ fieldLabels[key] }}</dt><dd>{{ describeField(key, draft[key]) }}</dd></template></dl><p class="m-muted">未提供项保持为空；修改后生成新报告，不改写旧快照。</p></details>
         <button type="button" class="m-secondary" @click="draft.step = 1">修改观察</button> <button type="button" class="m-secondary" @click="draft.step = 2">修改背景</button>
       </section>
       <p v-if="Object.keys(errors).length" class="m-error" role="alert">请检查标出的字段，已填写内容已保留。</p>

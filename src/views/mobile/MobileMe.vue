@@ -32,7 +32,7 @@ onMounted(() => auth.init());
   <RouterLink v-for="device in devices" :key="device.device_id" class="m-list-row" :to="`/me/devices/${encodeURIComponent(device.device_id)}`">
     <span class="row-main"><strong>{{ device.name || device.device_id }}</strong><small>{{ device.my_role === 'owner' ? '所有者' : '成员' }} · 最近接收 {{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
   </RouterLink>
-  <p v-if="!devices.length" class="m-muted">暂无设备。无需设备也可完整记录观察。</p>
+  <p v-if="!devices.length" class="m-muted">暂无设备。</p>
   <RouterLink class="m-secondary bind-link" to="/claim">绑定新设备</RouterLink>
 </section>
 <nav class="m-card nav-card" aria-label="更多">

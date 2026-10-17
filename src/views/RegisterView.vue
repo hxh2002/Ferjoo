@@ -64,7 +64,7 @@ async function submit() {
 
 <template>
   <div class="auth-page">
-    <AuthCard eyebrow="JOIN DR. FERJOO" title="保存你的发酵轨迹。" description="当前采用邀请制注册：需要 8 位邀请码方可创建账号，账号创建后数据库会为你分配专属邀请码与系统用户编号。">
+    <AuthCard eyebrow="JOIN DR. FERJOO" title="保存你的发酵轨迹。" description="邀请制注册：需要 8 位邀请码创建账号。">
       <div v-if="!auth.configured" class="config-warning">
         当前未配置 Supabase。诊断功能需登录后使用，请先复制 .env.example 为 .env 并填写项目配置。
       </div>
