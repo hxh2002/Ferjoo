@@ -235,7 +235,7 @@ function fmtTime(t) {
           <path
             v-for="(d, index) in bridgePaths"
             :key="`bridge-${index}`"
-            class="series-line series-bridge"
+            class="series-bridge"
             :d="d"
           />
           <line
@@ -287,8 +287,15 @@ function fmtTime(t) {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-/* 空档连线用浅灰盖住彩色折线，表示这一段没有真实采样。 */
-.series-bridge { stroke: rgba(107,98,89,.30); }
+/* 空档连线用不透明的浅灰完全盖住彩色折线，避免透出原本的蓝/橙/绿色。 */
+.series-bridge {
+  fill: none;
+  stroke: #c9c5be;
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
 /* max、min、时间段与基线共用同一套标签样式，只靠位置区分。 */
 .series-tag { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.82); font-size: 9px; font-weight: 800; line-height: 1.6; color: var(--ink-soft, #6b6259); white-space: nowrap; pointer-events: none; }
 .series-max, .series-baseline-tag { position: absolute; left: 0; z-index: 1; }
