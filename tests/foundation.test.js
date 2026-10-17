@@ -60,6 +60,14 @@ const withBaseline = renderChart(() => ({ points, baseline: 100 }), computed, re
 assert.equal(withBaseline.stats.value.max, 100, '基线参与绘图范围');
 assert.equal(withBaseline.stats.value.dataMax, 7, '基线不得顶掉 max 文案');
 assert.equal(withBaseline.baselineY.value, 6, '基线贴顶时应落在顶部内边距');
+const duplicated = renderChart(() => ({ points: [
+  { t: '2026-01-01T00:00:00Z', v: 3 },
+  { t: '2026-01-01T00:00:00Z', v: 9 },
+  { t: '2026-01-01T00:10:00Z', v: 4 }
+] }), computed, ref, watch, () => 'test');
+assert.equal(duplicated.coords.value.length, 2, '同一时间戳只保留一条采样');
+assert.equal(duplicated.coords.value[0].v, 9, '同一时间戳保留最后一条读数');
+assert.equal(new Set(duplicated.coords.value.map((p) => p.x)).size, 2, 'x 不允许重复，避免竖直尖峰');
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const starterId = '22222222-2222-4222-8222-222222222222';

@@ -21,7 +21,12 @@ const samples = computed(() => (props.points || [])
   .filter((p) => Number.isFinite(Date.parse(p?.t)))
   .slice().sort((a, b) => new Date(a.t) - new Date(b.t)));
 // 只要该采样有有效值就必须画出，不能因为整行被标记故障就连点一起丢掉。
-const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v)));
+const series = computed(() => {
+  const valid = samples.value.filter((p) => Number.isFinite(p?.v));
+  // 同一 recorded_at 可能有多条原始读数，落在同一个 x 但高度不同，连线会变成竖直尖峰；
+  // 趋势图只需要一条曲线，同一时间戳保留最后一条。
+  return valid.filter((p, i) => i === valid.length - 1 || new Date(valid[i + 1].t).getTime() !== new Date(p.t).getTime());
+});
 
 const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.baseline : null));
 
