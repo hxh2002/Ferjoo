@@ -1,3 +1,5 @@
+import { heightBand } from '../lib/height-band.js';
+
 const BASELINE_MS = 50 * 60 * 1000;
 const FRESH_MS = 40 * 60 * 1000;
 const MAX_FEEDING_ROWS = 40000;
@@ -52,7 +54,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const currentHeightMm = latest && !heightStale ? number(latest.height_mm) : null;
   const expansionPercent = baselineHeightMm > 0 && currentHeightMm != null ? (currentHeightMm / baselineHeightMm - 1) * 100 : null;
   // 只映射实测涨幅；峰值、回落或液层需要用户确认。
-  const height = expansionPercent == null ? '' : expansionPercent > 200 ? 'over3' : expansionPercent >= 100 ? 'double' : expansionPercent >= 75 ? 'near' : expansionPercent > 10 ? 'slight' : 'none';
+  const height = heightBand(baselineHeightMm, currentHeightMm)?.value || '';
   const temperatureRows = rows.filter((row) => number(row.temperature_c) != null);
   const temperatures = temperatureRows.map((row) => number(row.temperature_c));
   const latestTemperature = temperatureRows.at(-1);

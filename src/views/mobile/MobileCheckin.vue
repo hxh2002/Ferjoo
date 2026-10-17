@@ -5,6 +5,7 @@ import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { mobileOptions, fieldLabels, describeField, describeSource, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport, loadObservationContext, emptyCheckin } from '../../services/mobile-diagnosis.service.js';
 import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
 
 const route = useRoute();
@@ -29,6 +30,13 @@ const extra = ref(false);
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
 const step = computed(() => [1, 2, 3].includes(draft.value.step) ? draft.value.step : 1);
+// 诊断页只按“最新高度 / 起始高度”的区间给默认值，用户仍可改成其他涨幅或“不确定”。
+const autoHeight = computed(() => {
+  if (!diagnosisMode.value) return null;
+  const summary = feedingEvidence.value?.summary;
+  return summary ? heightBand(summary.baselineHeightMm, summary.currentHeightMm) : null;
+});
+const heightOverridden = computed(() => !!autoHeight.value && draft.value.height !== autoHeight.value.value);
 const summaryKeys = computed(() => ['color', 'smell', ...Object.keys(fieldLabels).filter((key) => !['color', 'smell'].includes(key) && draft.value[key] !== '' && draft.value[key] != null)]);
 const emptySummaryKeys = computed(() => Object.keys(fieldLabels).filter((key) => !summaryKeys.value.includes(key)));
 watch([accountId, () => route.query.starter, () => route.query.mode, () => route.query.feeding], () => {
@@ -69,7 +77,10 @@ watch([accountId, () => draft.value.starterId, () => route.query.feeding, () => 
       target.evidenceSnapshot = { source: 'feeding-analysis.service', feedingId: feeding.id, measuredAt: evidence.now, windowFrom: summary.windowFrom, windowTo: summary.windowTo, latestMeasurementAt: summary.latestMeasurementAt, latestTemperatureAt: summary.latestTemperatureAt, baselineHeightMm: summary.baselineHeightMm, baselineSource: summary.baselineSource, expansionPercent: summary.expansionPercent, expansionSource: summary.latestMeasurementAt ? `height:${summary.latestMeasurementAt}` : null, heightStale: summary.heightStale, temperatureStale: summary.temperatureStale };
       if (summary.tempC != null) fill('tempC', Number(summary.tempC.toFixed(1)), `传感器轮次平均 · ${summary.temperatureCount} 个有效样本 · ${summary.latestTemperatureAt}`);
       if (summary.elapsedHours != null) fill('elapsedHours', Number(summary.elapsedHours.toFixed(1)), summary.historicalRound ? `历史轮次截至下一次喂养 ${summary.windowTo}` : `喂养至测量截点 ${summary.windowTo}`);
-      if (summary.height) fill('height', summary.height, `${summary.historicalRound ? '历史轮次' : '当前轮次'}传感器测量 · ${summary.latestMeasurementAt} · 有效高度 ${summary.heightCount} 个，起始样本 ${summary.baselineUsedCount} 个`);
+      if (summary.height) {
+        const band = heightBand(summary.baselineHeightMm, summary.currentHeightMm);
+        fill('height', summary.height, `自动区间计算 · ${band.ratio.toFixed(2)} 倍（${band.range}）· ${summary.historicalRound ? '历史轮次' : '当前轮次'}设备测量 · ${summary.latestMeasurementAt}`);
+      }
       if (summary.heightStale || summary.temperatureStale) notice.value = '最新高度或温度证据已超过 40 分钟，未作为当前值预填；请重新测量或手工确认。';
     } else if (sample?.temperature_c != null) fill('tempC', sample.temperature_c, `设备 Ferjoo Sensor · ${link.device_id} · 采样 ${new Date(sample.recorded_at).toLocaleString('zh-CN')}`);
     if (feeding) {
@@ -84,6 +95,11 @@ watch([accountId, () => draft.value.starterId, () => route.query.feeding, () => 
 onScopeDispose(() => { contextGeneration++; });
 function markManual(key) {
   draft.value.sources[key] = draft.value.sources[key] ? '手工修改（原自动预填 / 确认值已修改）' : '本次手工确认';
+}
+function restoreAutoHeight() {
+  if (!autoHeight.value) return;
+  draft.value.height = autoHeight.value.value;
+  draft.value.sources.height = `自动区间计算 · ${autoHeight.value.ratio.toFixed(2)} 倍 · 已恢复自动值`;
 }
 function back() { draft.value.step = step.value === 3 && [draft.value.color, draft.value.smell].includes('suspicious') ? 1 : step.value - 1; }
 onBeforeRouteLeave(() => { persist(); });
@@ -148,7 +164,7 @@ function applyPending(key) {
           <span :id="`${key}-help`" class="m-muted">{{ key === 'color' ? '看粉红、绿、蓝、黑斑块或绒毛。' : '区分酸香、酒精味与腐败味。' }}</span>
           <span v-if="errors[key]" class="m-error">{{ errors[key] }}</span>
         </label>
-        <label class="m-field"><span>请选择最主要的涨幅表现</span><select v-model="draft.height" :aria-invalid="!!errors.height" @change="markManual('height')"><option disabled value="">请选择</option><option v-for="item in mobileOptions.height" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span v-if="errors.height" class="m-error">{{ errors.height }}</span></label>
+        <div class="m-field"><label for="height-select">{{ fieldLabels.height }}<template v-if="diagnosisMode">（自动计算，可修改）</template></label><select id="height-select" v-model="draft.height" :aria-invalid="!!errors.height" @change="markManual('height')"><option disabled value="">请选择</option><option v-for="item in mobileOptions.height" :key="item.value" :value="item.value">{{ item.label }}</option><option value="unknown">不确定</option></select><span v-if="autoHeight" class="m-muted">自动：{{ autoHeight.ratio.toFixed(2) }} 倍（{{ autoHeight.baselineHeightMm.toFixed(1) }} → {{ autoHeight.currentHeightMm.toFixed(1) }} mm），落在 {{ autoHeight.range }} 区间。<button v-if="heightOverridden" type="button" class="link-button" @click="restoreAutoHeight">恢复自动值</button></span><span v-else-if="diagnosisMode && feedingEvidence" class="m-muted">缺少有效起始高度或最新高度，无法自动计算，请手动选择。</span><span v-if="errors.height" class="m-error">{{ errors.height }}</span></div>
         <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
@@ -186,4 +202,5 @@ dd{margin-left:0}
 summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
 li{margin:.75rem 0}
 [aria-invalid=true]{outline:2px solid var(--danger-text)}
+.link-button{padding:0;border:0;background:none;font:inherit;color:var(--brand-action,#a54214);text-decoration:underline;cursor:pointer}
 </style>

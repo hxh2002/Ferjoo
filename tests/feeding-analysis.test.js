@@ -89,6 +89,9 @@ assert.equal(summarize([row(70, 150, { mode: undefined }), row(75, 160, { mode: 
 
 // 不依赖云端凭据或网络，验证加载器边界。
 const source = await readFile(new URL('../src/services/feeding-analysis.service.js', import.meta.url), 'utf8');
+// data URL 无法解析相对 import，把区间模块的真实源码内联进来，避免复制一份判断逻辑。
+const bandSource = (await readFile(new URL('../src/lib/height-band.js', import.meta.url), 'utf8'))
+  .replace(/export const /g, 'const ').replace(/export function /g, 'function ');
 let rawCalls = [];
 let queriedLinks = [link];
 let selectedFeeding = feeding;
@@ -105,7 +108,8 @@ globalThis.__feedingEvidenceMocks = {
   links: { async listStarterDeviceLinks() { return queriedLinks; } },
   device: { async listMeasurementsRange(deviceId, options) { rawCalls.push({ deviceId, ...options }); return [...normal, row(90, 900)]; } },
 };
-const mockSource = source.replace("import('./care.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.care)')
+const mockSource = (bandSource + source.replace("import { heightBand } from '../lib/height-band.js';", ''))
+  .replace("import('./care.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.care)')
   .replace("import('./starter-device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.links)')
   .replace("import('./device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.device)');
 const { loadFeedingEvidence } = await import(`data:text/javascript;base64,${Buffer.from(mockSource).toString('base64')}`);
