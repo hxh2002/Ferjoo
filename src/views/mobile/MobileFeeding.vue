@@ -29,6 +29,8 @@ watch(accountId, () => {
 }, { flush: 'sync' });
 onScopeDispose(() => { generation += 1; });
 watch([accountId, () => route.query.starter, () => route.query.new], () => {
+  // 时间默认取当前时刻：草稿不再沿用上次进入时保存的旧时间，避免用户误提交错时间。
+  if (!locked.value) draft.value.occurredAt = localDateTimeValue();
   const starterId = typeof route.query.starter === 'string' ? route.query.starter : '';
   if (route.query.new === '1' && draft.value.confirmed) {
     startNext(starterId || draft.value.starterId);
