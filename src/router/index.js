@@ -27,7 +27,8 @@ const routes = [
       { path: 'devices/:deviceId/trend', name: 'mobile-trend', component: () => import('../views/mobile/MobileTrend.vue'), meta: { requiresAuth: true } },
       { path: 'me/invite', name: 'invite', component: () => import('../views/mobile/MobileInvite.vue'), meta: { requiresAuth: true } },
       { path: 'me/help', name: 'help', component: () => import('../views/mobile/MobileHelp.vue') },
-      { path: 'me/account', name: 'account', component: () => import('../views/mobile/MobileAccount.vue'), meta: { requiresAuth: true } }
+      { path: 'me/account', name: 'account', component: () => import('../views/mobile/MobileAccount.vue'), meta: { requiresAuth: true } },
+      { path: 'me/notifications', name: 'notifications', component: () => import('../views/mobile/MobileNotifications.vue'), meta: { requiresAuth: true } }
     ]
   }
 ];

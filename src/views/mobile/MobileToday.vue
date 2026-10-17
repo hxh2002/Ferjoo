@@ -161,7 +161,7 @@ async function loadAlerts() {
   if (!owner || !id) return;
   try {
     const [targets, subscribed] = await Promise.all([loadHeightTargets(id), hasCloudPushSubscription()]);
-    if (token === alertGeneration && owner === accountId.value && id === starterId.value) { alerts.value = { targets, notified: {} }; cloudPush.value = subscribed; if (subscribed) alertNotice.value = '本机推送订阅已登记；实际发送依赖管理员完成云端部署配置。'; }
+    if (token === alertGeneration && owner === accountId.value && id === starterId.value) { alerts.value = { targets, notified: {} }; cloudPush.value = subscribed; if (subscribed) alertNotice.value = '本机推送已开启，可在「我的 › 通知设置」管理。'; }
   } catch (cause) { if (token === alertGeneration) alertNotice.value = cause.message; }
 }
 async function toggleTarget(target) {
@@ -185,7 +185,7 @@ async function enableAlerts() {
   alertBusy.value = true;
   try {
     await subscribeHeightPush();
-    if (token === alertGeneration && owner === accountId.value) { cloudPush.value = true; alertNotice.value = '本机推送订阅已登记；实际发送依赖管理员完成云端部署配置。'; }
+    if (token === alertGeneration && owner === accountId.value) { cloudPush.value = true; alertNotice.value = '本机推送已开启，可在「我的 › 通知设置」管理。'; }
   } catch (cause) { if (token === alertGeneration) { cloudPush.value = false; alertNotice.value = cause.message || '云端推送启用失败，请重试'; } }
   finally { alertBusy.value = false; }
 }

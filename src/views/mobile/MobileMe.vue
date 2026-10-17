@@ -35,6 +35,7 @@ onMounted(() => auth.init());
   <p v-if="!devices.length" class="m-muted">暂无设备。</p>
 </section>
 <nav class="m-card nav-card" aria-label="更多">
+  <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/notifications"><span class="row-main"><strong>通知设置</strong><small>云端推送、提醒阈值与开启引导</small></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
   <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/invite"><span class="row-main"><strong>邀请好友</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
   <RouterLink class="m-list-row" to="/me/help"><span class="row-main"><strong>帮助与关于</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
   <RouterLink class="m-list-row" :to="{path:'/',query:{view:'desktop'}}"><span class="row-main"><strong>电脑端完整工具</strong><small>在浏览器中打开</small></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
