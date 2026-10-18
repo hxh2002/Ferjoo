@@ -4,7 +4,6 @@ import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
-import * as heightAlerts from '../src/services/height-alert.service.js';
 
 const file = new URL('../src/views/mobile/MobileToday.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
@@ -81,8 +80,6 @@ function harness() {
         return row;
       }
     },
-    '../../services/height-alert.service.js': heightAlerts,
-    '../../services/web-push.service.js': { hasCloudPushSubscription: async () => false, loadHeightTargets: async () => [], saveHeightTargets: async () => {}, subscribeHeightPush: async () => {}, webPushAvailable: () => false },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
     '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
   };
@@ -105,9 +102,10 @@ assert.match(await h.html(), /连接设备，开始记录/);
 await login(h);
 assert.match(await h.html(), /膨胀率/);
 assert.match(await h.html(), /距上次喂养/);
-assert.match(await h.html(), /高度预约/);
-assert.match(await h.html(), /2\.5×/, 'thresholds are picked manually next to the round summary');
-assert.match(await h.html(), /开启云端推送/);
+assert.match(await h.html(), /高度预约/, 'height alert entry stays on the home page');
+assert.match(await h.html(), /\/me\/notifications/, 'height alert controls are delegated to notification settings');
+assert.doesNotMatch(await h.html(), /开启云端推送/, 'today no longer embeds push setup');
+assert.doesNotMatch(await h.html(), /2\.5×/, 'alert thresholds are managed on the settings page');
 assert.match(await h.html(), /本轮发酵/, 'current feeding is shown as an explicit round');
 assert.match(await h.html(), /本轮开始/, 'round card states when the round started');
 assert.match(await h.html(), /结束本轮/, 'user can end the round without waiting for the next feeding');

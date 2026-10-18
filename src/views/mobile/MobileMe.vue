@@ -36,11 +36,11 @@ onMounted(() => auth.init());
 </section>
 <nav class="m-card nav-card" aria-label="更多">
   <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/notifications"><span class="row-main"><strong>通知设置</strong><small>云端推送、提醒阈值与开启引导</small></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
+  <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/account"><span class="row-main"><strong>账号安全</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
   <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/invite"><span class="row-main"><strong>邀请好友</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
   <RouterLink class="m-list-row" to="/me/help"><span class="row-main"><strong>帮助与关于</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
-  <RouterLink class="m-list-row" :to="{path:'/',query:{view:'desktop'}}"><span class="row-main"><strong>电脑端完整工具</strong><small>在浏览器中打开</small></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
-  <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/account"><span class="row-main"><strong>账号安全</strong></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
 </nav>
+<p class="desktop-entry"><RouterLink :to="{path:'/',query:{view:'desktop'}}">访问电脑端</RouterLink></p>
 <button v-if="auth.user.value" class="m-secondary logout" @click="logout">退出登录</button>
 </main>
 </template>
@@ -57,6 +57,8 @@ onMounted(() => auth.init());
 .chevron{color:var(--text-secondary,#75665b);font-size:1.1rem;flex-shrink:0}
 .device-actions{display:flex;align-items:center;gap:.85rem}
 .nav-card{padding:4px 18px}
+.desktop-entry{margin:.9rem 0 0;text-align:center}
+.desktop-entry a{font-size:.8rem;color:var(--text-secondary,#75665b);text-underline-offset:3px}
 .logout{width:100%;margin-top:1rem}
 .text-link{color:var(--brand-action,#a54214);font-size:.875rem;text-decoration:none}
 </style>
