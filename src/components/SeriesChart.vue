@@ -6,7 +6,12 @@ const props = defineProps({
   unit: { type: String, default: '' },
   color: { type: String, default: '#C04B0A' },
   baseline: { type: Number, default: null },
-  points: { type: Array, default: () => [] } // [{ t: ISO string, v: number }]
+  points: { type: Array, default: () => [] }, // [{ t: ISO string, v: number }]
+  // 传入固定的时间范围后，横轴始终铺满这段区间，两端留空也不压缩。
+  from: { type: String, default: '' },
+  to: { type: String, default: '' },
+  // 窄卡片里只显示时刻，跨天用偏移圆标表示，避免日期把一行挤成两行。
+  compactTime: { type: Boolean, default: false }
 });
 
 const W = 100;
@@ -40,6 +45,13 @@ const series = computed(() => samples.value.filter((p) => Number.isFinite(p?.v))
 
 const baselineValue = computed(() => (Number.isFinite(props.baseline) ? props.baseline : null));
 
+// 固定横轴：只有起止都有效时才启用，否则仍按实际数据范围绘制。
+const domain = computed(() => {
+  const start = Date.parse(props.from);
+  const end = Date.parse(props.to);
+  return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : null;
+});
+
 const stats = computed(() => {
   if (!series.value.length) return null;
   const values = series.value.map((p) => p.v);
@@ -65,8 +77,8 @@ const coords = computed(() => {
   if (!pts.length || !stats.value) return [];
   const { min, max } = stats.value;
   const span = max - min;
-  const tMin = new Date(pts[0].t).getTime();
-  const tMax = new Date(pts.at(-1).t).getTime();
+  const tMin = domain.value?.start ?? new Date(pts[0].t).getTime();
+  const tMax = domain.value?.end ?? new Date(pts.at(-1).t).getTime();
   const tSpan = Math.max(tMax - tMin, 1);
   let prevT = null;
   return pts.map((p, index) => {
@@ -75,7 +87,7 @@ const coords = computed(() => {
     const breakBefore = index > 0 && t - prevT > GAP_MS;
     prevT = t;
     return {
-      x: round(pts.length > 1 ? PAD_X + ((t - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
+      x: round(domain.value || pts.length > 1 ? PAD_X + ((t - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
       y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
       t: p.t,
       v: p.v,
@@ -122,7 +134,7 @@ const baselineY = computed(() => {
 const baselineBelow = computed(() => baselineY.value != null && baselineY.value < H * 0.25);
 
 const hoverIdx = ref(null);
-watch(() => [props.points, props.label, props.unit], () => { hoverIdx.value = null; });
+watch(() => [props.points, props.label, props.unit, props.from, props.to, props.compactTime], () => { hoverIdx.value = null; });
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
 // 只有一个有效采样时才补点；其余点都在折线上，不再额外画散点。
 // 悬停时也必须保留这些孤立点，不能被悬浮指示点替换掉。
@@ -188,6 +200,22 @@ function fmtTime(t) {
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return spanLong.value ? `${d.getMonth() + 1}/${d.getDate()} ${hm}` : hm;
 }
+function clockOf(t) {
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+// 固定横轴时右下角始终显示整段区间（整天即 00:00 – 23:59），不随数据收缩。
+const rangeText = computed(() => {
+  if (domain.value) return `${clockOf(domain.value.start)} – ${clockOf(domain.value.end - 60000)}`;
+  if (props.compactTime) return `${clockOf(stats.value?.firstAt)} – ${clockOf(stats.value?.lastAt)}`;
+  return `${fmtTime(stats.value?.firstAt)} – ${fmtTime(stats.value?.lastAt)}`;
+});
+const rangeDayOffset = computed(() => {
+  if (!props.compactTime || domain.value || !stats.value) return 0;
+  const first = new Date(stats.value.firstAt); const last = new Date(stats.value.lastAt);
+  return Math.round((Date.UTC(last.getFullYear(), last.getMonth(), last.getDate()) - Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) / 86400000);
+});
+const rangeTitle = computed(() => stats.value ? `${new Date(stats.value.firstAt).toLocaleString()} – ${new Date(stats.value.lastAt).toLocaleString()}` : '');
 </script>
 
 <template>
@@ -277,7 +305,7 @@ function fmtTime(t) {
       </div>
       <div class="series-range">
         <span class="series-tag">min {{ fmt(stats?.dataMin) }}</span>
-        <span class="series-tag">{{ fmtTime(stats?.firstAt) }} – {{ fmtTime(stats?.lastAt) }}</span>
+        <span class="series-tag series-time-range" :title="rangeTitle"><span v-if="rangeDayOffset" class="day-offset">{{ rangeDayOffset > 0 ? `−${rangeDayOffset}` : `+${Math.abs(rangeDayOffset)}` }}</span>{{ rangeText }}</span>
       </div>
     </div>
     <div v-else class="series-empty">暂无可绘制的数据</div>
@@ -301,7 +329,12 @@ function fmtTime(t) {
 .series-baseline-tag { transform: translateY(-110%); }
 /* 基线贴顶时翻到线下方，避免与 max 标签重叠。 */
 .series-baseline-tag.below { transform: translateY(8%); }
-/* 窄图里让时间段整体换到下一行并右对齐，而不是把标签文字拆成两行。 */
-.series-range { flex-wrap: wrap; }
-.series-range > :last-child { margin-left: auto; }
+/* 数值和时间段保持完整，避免窄卡片把数字拆成多行。 */
+.series-head { min-width: 0; gap: 4px; }
+.series-headline { min-width: 0; flex: 0 1 auto; flex-wrap: nowrap; gap: 4px; }
+.series-value, .series-delta { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.series-range { flex-wrap: nowrap; min-width: 0; gap: 4px; }
+.series-range > :last-child { margin-left: auto; min-width: 0; }
+.series-time-range { display: inline-flex; align-items: center; gap: 2px; }
+.series-time-range .day-offset { display: inline-grid; place-items: center; min-width: 1.05rem; height: 1.05rem; padding: 0 2px; border-radius: 50%; background: #b43a2b; color: #fff; font-size: 8px; line-height: 1; }
 </style>

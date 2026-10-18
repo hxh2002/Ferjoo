@@ -34,6 +34,9 @@ let version = 0; let hidden = false;
 
 const isToday = computed(() => day.value === todayValue.value);
 const rangeText = computed(() => isToday.value ? '今天 00:00 – 现在' : `${formatDayLabel(day.value)} 00:00 – 24:00`);
+// 图表横轴固定为整天，数据只覆盖其中一段时也保留两端的空档。
+const chartFrom = computed(() => dayStart.value.toISOString());
+const chartTo = computed(() => dayEnd.value.toISOString());
 const heightPoints = computed(() => points('height_mm'));
 const tempPoints = computed(() => points('temperature_c'));
 const humidityPoints = computed(() => points('humidity_percent'));
@@ -55,14 +58,23 @@ function formatClock(value) {
   const date = new Date(value);
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
-function formatWindowTime(value) {
-  const t = Date.parse(value);
-  if (!Number.isFinite(t)) return '--';
-  const date = new Date(t);
-  const clock = formatClock(date);
-  const sameDay = localDateTimeValue(date).slice(0, 10) === day.value;
-  return sameDay ? clock : `${date.getMonth() + 1}/${date.getDate()} ${clock}`;
+function formatWindowRange(fromValue, toValue) {
+  const from = Date.parse(fromValue); const to = Date.parse(toValue);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return { from: '--', to: '--', offset: '', crossDay: false, title: '' };
+  const fromDate = new Date(from); const toDate = new Date(to);
+  const offset = Math.round((new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate()) - new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())) / 86400000);
+  const stamp = (date) => date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return {
+    from: formatClock(fromDate), to: formatClock(toDate),
+    offset: offset ? `${offset > 0 ? '−' : '+'}${Math.abs(offset)}` : '',
+    crossDay: offset !== 0,
+    title: `${stamp(fromDate)} – ${stamp(toDate)}`
+  };
 }
+const displayedWindows = computed(() => windows.value.map((item) => ({
+  ...item,
+  range: formatWindowRange(item.from, item.closed ? item.to : new Date(now.value).toISOString())
+})));
 function durationText(hours) {
   if (!Number.isFinite(hours) || hours < 0) return '--';
   const minutes = Math.round(hours * 60);
@@ -197,12 +209,12 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
       <h2>发酵窗口</h2>
       <p v-if="!windows.length && !loading" class="m-muted">这一天没有发酵窗口。</p>
       <ol v-else class="window-list">
-        <li v-for="(item, index) in windows" :key="item.id" class="window-row">
+        <li v-for="(item, index) in displayedWindows" :key="item.id" class="window-row">
           <div class="window-head">
             <strong>第 {{ index + 1 }} 轮</strong>
             <span class="window-state" :data-state="item.closed ? 'closed' : 'active'">{{ item.closed ? '已结束' : '进行中' }}</span>
           </div>
-          <p class="window-range">{{ formatWindowTime(item.from) }} → {{ item.closed ? formatWindowTime(item.to) : '现在' }}</p>
+          <p class="window-range" :title="item.range.title"><span v-if="item.range.crossDay" class="day-offset">{{ item.range.offset }}</span><span>{{ item.range.from }}</span><span class="range-separator">–</span><span>{{ item.closed ? item.range.to : '现在' }}</span></p>
           <p class="window-duration">{{ item.closed ? '持续' : '已持续' }} {{ windowDuration(item) }}</p>
         </li>
       </ol>
@@ -211,10 +223,10 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
     <section class="chart-card">
       <div class="chart-title"><strong>单日数据</strong><span>{{ day }}</span></div>
       <div class="metric-grid">
-        <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="baseline" />
-        <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" />
-        <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" />
-        <SeriesChart label="电量" unit="%" color="#7A5C14" :points="batteryPoints" />
+        <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="baseline" :from="chartFrom" :to="chartTo" />
+        <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" :from="chartFrom" :to="chartTo" />
+        <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" :from="chartFrom" :to="chartTo" />
+        <SeriesChart label="电量" unit="%" color="#7A5C14" :points="batteryPoints" :from="chartFrom" :to="chartTo" />
       </div>
     </section>
   </main>
@@ -233,7 +245,7 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 .window-head strong{font-size:.85rem}
 .window-state{padding:.15rem .5rem;border-radius:999px;font-size:.7rem;font-weight:600;color:#2B6CB0;background:#e8f0fa;white-space:nowrap}
 .window-state[data-state="closed"]{color:#2B7A55;background:#e7f4ed}
-.window-range{margin:0;font-size:.8rem;font-weight:600;font-variant-numeric:tabular-nums}
+.window-range{display:inline-flex;align-items:center;gap:.2rem;min-width:0;margin:0;font-size:.8rem;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}.window-range .day-offset{display:inline-grid;place-items:center;min-width:1.05rem;height:1.05rem;padding:0 .16rem;border-radius:50%;background:#b43a2b;color:#fff;font-size:.62rem;line-height:1;font-weight:800}.window-range .range-separator{color:var(--m-muted,#625e56)}
 .window-duration{margin:0;font-size:.72rem;color:var(--m-muted,#625e56)}
 .chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}
 .chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.65rem}
@@ -253,8 +265,8 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 .chart-card :deep(.series-empty){min-height:96px;display:grid;place-items:center;font-size:.78rem;color:var(--m-muted,#625e56);background:var(--m-surface,#fffdf8)}
 .chart-card :deep(.series-value){font-size:1.15rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .chart-card :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}
-.chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.35rem;flex-wrap:wrap;justify-content:flex-end}
-.chart-card :deep(.series-label){font-weight:700}
-.chart-card :deep(.series-range){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem}
+.chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.25rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
+.chart-card :deep(.series-label){font-weight:700}.metric-grid :deep(.series-delta){display:none}
+.chart-card :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.25rem;min-width:0}.chart-card :deep(.series-time-range){white-space:nowrap}
 @media(max-width:360px){.metric-grid{gap:.5rem}}
 </style>

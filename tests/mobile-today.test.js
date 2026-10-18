@@ -107,7 +107,8 @@ assert.match(await h.html(), /\/me\/notifications/, 'height alert controls are d
 assert.doesNotMatch(await h.html(), /开启云端推送/, 'today no longer embeds push setup');
 assert.doesNotMatch(await h.html(), /2\.5×/, 'alert thresholds are managed on the settings page');
 assert.match(await h.html(), /本轮发酵/, 'current feeding is shown as an explicit round');
-assert.match(await h.html(), /本轮开始/, 'round card states when the round started');
+assert.match(await h.html(), /compact-range/, 'round card uses a compact time range');
+assert.match(await h.html(), /range-separator/, 'round card renders the time range separator');
 assert.match(await h.html(), /结束本轮/, 'user can end the round without waiting for the next feeding');
 assert.match(await h.html(), /进行中/);
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
@@ -143,8 +144,8 @@ assert.equal(h.state.closed.detail, 'fallen', 'manual end records the selected r
 assert.equal(h.vm.summary.windowStatus, 'closed', 'manual end closes the round immediately');
 const closedHtml = await h.html();
 assert.match(closedHtml, /已结束/);
-assert.match(closedHtml, /本轮开始/, 'closed round still shows when it started');
-assert.match(closedHtml, /结束/, 'closed round shows its end time');
+assert.match(closedHtml, /compact-range/, 'closed round still shows its compact time range');
+assert.match(closedHtml, /title="[^"]+–[^"]+"/, 'closed round keeps the full range in the title');
 assert.match(closedHtml, /查看本轮详情/);
 assert.doesNotMatch(closedHtml, /结束本轮/, 'closed round no longer offers manual end');
 h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
