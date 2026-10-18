@@ -50,6 +50,8 @@ const heightPoints = computed(() => chartRows.value.map((row) => ({ t: row.recor
 const tempPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'temperature_c') })));
 const humidityPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'humidity_percent') })));
 const heightBaseline = computed(() => summary.value?.baselineHeightMm > 0 ? summary.value.baselineHeightMm : null);
+// 高度图标出本轮开始喂养的位置。
+const heightMarkers = computed(() => summary.value?.windowFrom ? [{ t: summary.value.windowFrom, label: '开始喂养' }] : []);
 // 概览只保留三个关键值，采集中/未建立等状态压进对应值里，避免多出一行说明。
 const baselineText = computed(() => {
   const value = summary.value;
@@ -294,7 +296,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
           <span class="alert-entry-action">通知设置 ›</span>
         </RouterLink>
       </div>
-        <section v-if="deviceId" class="chart-card"><div class="chart-title"><strong>{{ starter ? starter.name : '未分类设备数据' }}</strong><span>最近 24 小时</span></div><SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" compact-time/><div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" compact-time/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" compact-time/></div></section>
+        <section v-if="deviceId" class="chart-card"><div class="chart-title"><strong>{{ starter ? starter.name : '未分类设备数据' }}</strong><span>最近 24 小时</span></div><SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" :markers="heightMarkers" compact-time/><div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" compact-time/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" compact-time/></div></section>
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
       <section class="primary-actions"><RouterLink v-if="starterId" class="m-primary" :to="target('/feeding')">{{ feeding ? '再次喂养' : '记录喂养' }}</RouterLink><RouterLink v-if="feeding && starterId" class="m-secondary" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">手动诊断</RouterLink><p v-if="!starterId" class="m-muted">选择酵种后可记录喂养。</p></section>
     </template>

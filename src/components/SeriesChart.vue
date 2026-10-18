@@ -11,7 +11,9 @@ const props = defineProps({
   from: { type: String, default: '' },
   to: { type: String, default: '' },
   // 窄卡片里只显示时刻，跨天用偏移圆标表示，避免日期把一行挤成两行。
-  compactTime: { type: Boolean, default: false }
+  compactTime: { type: Boolean, default: false },
+  // 需要标注的关键节点，例如开始喂养的时间；用竖直虚线标在曲线上。
+  markers: { type: Array, default: () => [] } // [{ t: ISO string, label: string }]
 });
 
 const W = 100;
@@ -216,6 +218,21 @@ const rangeDayOffset = computed(() => {
   return Math.round((Date.UTC(last.getFullYear(), last.getMonth(), last.getDate()) - Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) / 86400000);
 });
 const rangeTitle = computed(() => stats.value ? `${new Date(stats.value.firstAt).toLocaleString()} – ${new Date(stats.value.lastAt).toLocaleString()}` : '');
+
+// 标记点只画在可见时间范围内，超出部分直接忽略。
+const markerLines = computed(() => {
+  if (!props.markers?.length || !stats.value) return [];
+  const start = domain.value?.start ?? new Date(stats.value.firstAt).getTime();
+  const end = domain.value?.end ?? new Date(stats.value.lastAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+  return props.markers
+    .map((marker) => ({ t: Date.parse(marker?.t), label: marker?.label || '喂养' }))
+    .filter((marker) => Number.isFinite(marker.t) && marker.t >= start && marker.t <= end)
+    .map((marker) => ({
+      x: round(PAD_X + ((marker.t - start) / (end - start)) * (W - PAD_X * 2)),
+      title: `${marker.label} ${new Date(marker.t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+    }));
+});
 </script>
 
 <template>
@@ -277,6 +294,13 @@ const rangeTitle = computed(() => stats.value ? `${new Date(stats.value.firstAt)
           />
         </svg>
         <span
+          v-for="(marker, index) in markerLines"
+          :key="`marker-${index}`"
+          class="series-marker"
+          :style="{ left: `${(marker.x / W) * 100}%` }"
+          :title="marker.title"
+        ></span>
+        <span
           v-for="(dot, index) in dots"
           :key="`${dot.t}-${index}`"
           class="series-dot"
@@ -314,6 +338,25 @@ const rangeTitle = computed(() => stats.value ? `${new Date(stats.value.firstAt)
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+/* 喂养等关键节点：从顶部的圆点向下拉一条淡虚线，不抢曲线本身。 */
+.series-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed rgba(164, 66, 19, .45);
+  pointer-events: none;
+}
+.series-marker::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #a44213;
+}
 /* 孤立点沿用折线的方形笔触，尺寸跟随当前图表的折线宽度，大图同步放大。 */
 .series-dot {
   width: calc(var(--series-stroke, 1.8px) * 2.5);

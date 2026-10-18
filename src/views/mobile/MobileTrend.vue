@@ -41,6 +41,8 @@ const heightPoints = computed(() => points('height_mm'));
 const tempPoints = computed(() => points('temperature_c'));
 const humidityPoints = computed(() => points('humidity_percent'));
 const batteryPoints = computed(() => points('battery_percent'));
+// 明细表与桌面版一致，最新采样排在最前。
+const tableRows = computed(() => [...rows.value].reverse());
 
 function points(key) {
   return rows.value.map((row) => ({ t: row.recorded_at, v: number(row[key]) }));
@@ -49,6 +51,11 @@ function number(value) {
   const n = Number(value);
   return value == null || value === '' || !Number.isFinite(n) ? null : n;
 }
+function cell(value, digits) {
+  const n = number(value);
+  return n == null ? '—' : n.toFixed(digits);
+}
+function rowTime(row) { return formatClock(row.recorded_at); }
 function pad(value) { return String(value).padStart(2, '0'); }
 function formatDayLabel(value) {
   const date = new Date(`${value}T00:00:00`);
@@ -75,6 +82,8 @@ const displayedWindows = computed(() => windows.value.map((item) => ({
   ...item,
   range: formatWindowRange(item.from, item.closed ? item.to : new Date(now.value).toISOString())
 })));
+// 高度图用虚线标出每轮开始喂养的时刻。
+const feedingMarkers = computed(() => windows.value.map((item) => ({ t: item.from, label: '开始喂养' })));
 function durationText(hours) {
   if (!Number.isFinite(hours) || hours < 0) return '--';
   const minutes = Math.round(hours * 60);
@@ -223,11 +232,40 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
     <section class="chart-card">
       <div class="chart-title"><strong>单日数据</strong><span>{{ day }}</span></div>
       <div class="metric-grid">
-        <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="baseline" :from="chartFrom" :to="chartTo" />
+        <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="baseline" :from="chartFrom" :to="chartTo" :markers="feedingMarkers" />
         <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" :from="chartFrom" :to="chartTo" />
         <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" :from="chartFrom" :to="chartTo" />
         <SeriesChart label="电量" unit="%" color="#7A5C14" :points="batteryPoints" :from="chartFrom" :to="chartTo" />
       </div>
+      <p v-if="feedingMarkers.length" class="chart-note">高度图中的虚线为开始喂养的时刻。</p>
+    </section>
+
+    <section class="table-card">
+      <div class="chart-title"><strong>数据明细</strong><span>{{ tableRows.length }} 条 · 最新在前</span></div>
+      <p v-if="!tableRows.length && !loading" class="m-muted">这一天还没有采样数据。</p>
+      <div v-else class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">时间</th>
+              <th scope="col">高度<small>mm</small></th>
+              <th scope="col">温度<small>°C</small></th>
+              <th scope="col">湿度<small>%</small></th>
+              <th scope="col">电量<small>%</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in tableRows" :key="row.id" :class="{ 'is-bad': row.sensor_error }">
+              <td>{{ rowTime(row) }}</td>
+              <td>{{ cell(row.height_mm, 1) }}</td>
+              <td>{{ cell(row.temperature_c, 1) }}</td>
+              <td>{{ cell(row.humidity_percent, 0) }}</td>
+              <td>{{ cell(row.battery_percent, 0) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-if="tableRows.some((row) => row.sensor_error)" class="table-note">浅红行为传感器故障采样，数值可能不可用。</p>
     </section>
   </main>
 </template>
@@ -250,6 +288,7 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 .chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}
 .chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.65rem}
 .chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}
+.chart-note{margin:.4rem 0 0;font-size:.7rem;line-height:1.5;color:var(--m-muted,#625e56)}
 .metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
 .chart-card :deep(.series-chart){min-width:0;--series-stroke:1.5px}
 .chart-card :deep(.series-plot){position:relative;height:96px}
@@ -268,5 +307,15 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 .chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.25rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
 .chart-card :deep(.series-label){font-weight:700}.metric-grid :deep(.series-delta){display:none}
 .chart-card :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.25rem;min-width:0}.chart-card :deep(.series-time-range){white-space:nowrap}
+.table-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.table-card table{width:100%;border-collapse:collapse;font-size:.75rem;font-variant-numeric:tabular-nums}
+.table-card th,.table-card td{padding:.4rem .3rem;text-align:right;white-space:nowrap;border-bottom:1px solid #ece5d9}
+.table-card thead th{color:var(--m-muted,#625e56);font-weight:600;font-size:.7rem;border-bottom-color:var(--m-border,#d8d2c8)}
+.table-card th small{display:block;font-size:.62rem;font-weight:400}
+.table-card th:first-child,.table-card td:first-child{text-align:left}
+.table-card tbody tr.is-bad{background:#fdf1ee;color:#8a4a42}
+.table-card tbody tr:last-child td{border-bottom:0}
+.table-note{margin:.4rem 0 0;font-size:.7rem;line-height:1.5;color:var(--m-muted,#625e56)}
 @media(max-width:360px){.metric-grid{gap:.5rem}}
 </style>
