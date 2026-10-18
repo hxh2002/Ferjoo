@@ -56,6 +56,31 @@ for (const [mm, expected] of [[100, 'none'], [125, 'slight'], [180, 'near'], [20
   assert.equal(summarize([row(5, 100), row(15, 100), row(25, 100), row(70, mm)]).height, expected);
 }
 
+assert.equal(summarize([row(5, 100), row(15, 101)], { now: Date.parse(at(20)) }).baselineStatus, 'pending');
+assert.equal(summarize([row(5, 100), row(15, 101)], { now: Date.parse(at(60)) }).baselineStatus, 'insufficient');
+assert.equal(summarize([row(5, 100), row(15, 101)], { now: Date.parse(at(20)) }).dataQuality, 'partial');
+assert.equal(summarize().baselineStatus, 'established');
+assert.equal(summarize().dataQuality, 'complete');
+assert.equal(summarize([]).dataQuality, 'insufficient');
+
+// 手动结束只影响业务边界；设备断线只缩短可观测范围。
+result = summarize(normal, { now: Date.parse(at(300)), nextFeedingAt: at(200), windowEndedAt: at(60) });
+assert.equal(result.windowStatus, 'closed');
+assert.equal(result.windowEndReason, 'manual');
+assert.equal(result.windowClosedAt, at(60));
+assert.equal(result.windowTo, at(60));
+assert.equal(result.measurementCount, 5, '手动结束后的测量不再进入本轮');
+result = summarize(normal, { now: Date.parse(at(300)), nextFeedingAt: at(80), windowEndedAt: at(120) });
+assert.equal(result.windowEndReason, 'next_feeding', '下一次喂养早于手动结束时以下一次喂养为准');
+assert.equal(result.windowClosedAt, at(80));
+result = summarize(normal, { now: Date.parse(at(100)), windowEndedAt: at(150) });
+assert.equal(result.windowTo, at(100), '手动结束时间不会越过当前时间');
+result = summarize(normal, { now: Date.parse(at(100)), link: { ...link, active_to: at(50) } });
+assert.equal(result.windowStatus, 'in_progress', '设备断线不结束发酵窗口');
+assert.equal(result.windowActive, true);
+assert.equal(result.windowTo, at(50), '设备断线只缩短可观测终点');
+assert.equal(result.dataQuality, 'stale');
+
 result = summarize(normal, { now: Date.parse(at(120)) });
 assert.equal(result.staleEvidence, true);
 assert.equal(result.heightStale, true);
@@ -107,11 +132,20 @@ globalThis.__feedingEvidenceMocks = {
   },
   links: { async listStarterDeviceLinks() { return queriedLinks; } },
   device: { async listMeasurementsRange(deviceId, options) { rawCalls.push({ deviceId, ...options }); return [...normal, row(90, 900)]; } },
+  window: {
+    async loadWindowClosure(userId, feedingId) {
+      assert.equal(userId, 'owner');
+      assert.equal(feedingId, 'f1');
+      if (globalThis.__windowClosureFails) throw new Error('closure down');
+      return globalThis.__windowClosure || null;
+    }
+  },
 };
 const mockSource = (bandSource + source.replace("import { heightBand } from '../lib/height-band.js';", ''))
   .replace("import('./care.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.care)')
   .replace("import('./starter-device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.links)')
-  .replace("import('./device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.device)');
+  .replace("import('./device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.device)')
+  .replace("import('./fermentation-window.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.window)');
 const { loadFeedingEvidence } = await import(`data:text/javascript;base64,${Buffer.from(mockSource).toString('base64')}`);
 let evidence = await loadFeedingEvidence('owner', 's1', 'f1');
 assert.equal(rawCalls.length, 1);
@@ -119,6 +153,17 @@ assert.equal(rawCalls[0].bucketed, false);
 assert.equal(rawCalls[0].from, at(0));
 assert.equal(rawCalls[0].to, new Date(Date.parse(at(80)) - 1).toISOString());
 assert.equal(evidence.summary.currentHeightMm, 150, 'loader summary rejects readings from next round');
+globalThis.__windowClosure = { ended_at: at(60), reason: 'manual', detail: 'fallen' };
+evidence = await loadFeedingEvidence('owner', 's1', 'f1');
+assert.equal(evidence.closure.detail, 'fallen', 'manual closure is returned with the evidence');
+assert.equal(evidence.summary.windowEndReason, 'manual');
+assert.equal(evidence.summary.windowClosedAt, at(60), 'manual closure ends the round before the next feeding');
+delete globalThis.__windowClosure;
+globalThis.__windowClosureFails = true;
+evidence = await loadFeedingEvidence('owner', 's1', 'f1');
+assert.equal(evidence.closure, null, 'closure read failure does not block evidence');
+assert.equal(evidence.summary.windowEndReason, 'next_feeding');
+globalThis.__windowClosureFails = false;
 rawCalls = [];
 queriedLinks = [{ ...link, active_to: at(100) }, { ...link, device_id: 'new', active_from: at(100) }];
 evidence = await loadFeedingEvidence('owner', 's1', 'f1');

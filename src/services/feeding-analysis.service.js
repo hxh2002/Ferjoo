@@ -12,20 +12,28 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-/** @param {{ measurements?: any[], feeding?: any, link?: any, now?: number, nextFeedingAt?: any }} [options] */
-export function summarizeFeedingMeasurements({ measurements = [], feeding, link, now = Date.now(), nextFeedingAt } = {}) {
+/** @param {{ measurements?: any[], feeding?: any, link?: any, now?: number, nextFeedingAt?: any, windowEndedAt?: any }} [options] */
+export function summarizeFeedingMeasurements({ measurements = [], feeding, link, now = Date.now(), nextFeedingAt, windowEndedAt } = {}) {
   const fedAt = time(feeding?.occurred_at);
   const currentTime = time(now);
   const nextAt = time(nextFeedingAt);
+  const manualAt = time(windowEndedAt);
   const linkedAt = time(link?.active_from);
   const unlinkedAt = time(link?.active_to);
   const matches = !!link?.device_id && Number.isFinite(fedAt) && Number.isFinite(linkedAt)
     && linkedAt <= fedAt && (!Number.isFinite(unlinkedAt) || fedAt < unlinkedAt)
     && (!link.starter_id || link.starter_id === feeding?.starter_id);
-  const end = Math.min(currentTime, Number.isFinite(nextAt) ? nextAt : Infinity, Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity);
+  // 业务结束点只来自下一次喂养或用户手动结束；设备断线只缩短可观测范围，不结束本轮。
+  const scheduledEnd = Number.isFinite(nextAt) && Number.isFinite(fedAt) && nextAt >= fedAt ? nextAt : NaN;
+  const manualEnd = Number.isFinite(manualAt) && Number.isFinite(fedAt) && manualAt >= fedAt ? Math.min(manualAt, currentTime) : NaN;
+  const closedAt = Math.min(Number.isFinite(scheduledEnd) ? scheduledEnd : Infinity, Number.isFinite(manualEnd) ? manualEnd : Infinity);
+  const windowClosed = Number.isFinite(closedAt) && closedAt <= currentTime;
+  const windowEndReason = !windowClosed ? null
+    : Number.isFinite(manualEnd) && (!Number.isFinite(scheduledEnd) || manualEnd <= scheduledEnd) ? 'manual' : 'next_feeding';
+  const end = Math.min(currentTime, Number.isFinite(closedAt) ? closedAt : Infinity, Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity);
   const rows = matches ? measurements.filter((row) => {
     const at = time(row.recorded_at);
-    return at >= fedAt && at >= linkedAt && at <= currentTime && at < (Number.isFinite(nextAt) ? nextAt : Infinity)
+    return at >= fedAt && at >= linkedAt && at <= currentTime && at < (Number.isFinite(closedAt) ? closedAt : Infinity)
       && at < (Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity)
       && (!row.device_id || row.device_id === link.device_id) && row.mode === 'fer' && !row.sensor_error;
   }).sort((a, b) => time(a.recorded_at) - time(b.recorded_at)) : [];
@@ -46,11 +54,13 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const baselineHeightMm = manualBaseline > 0 ? manualBaseline : automaticBaseline;
   const baselineSource = manualBaseline > 0 ? 'manual' : automaticBaseline != null ? 'sensor-window' : null;
   const baselinePending = Number.isFinite(fedAt) && Number.isFinite(currentTime) && currentTime >= fedAt && currentTime < fedAt + BASELINE_MS
-    && (!Number.isFinite(nextAt) || currentTime < nextAt) && (!Number.isFinite(unlinkedAt) || currentTime < unlinkedAt);
+    && (!Number.isFinite(scheduledEnd) || currentTime < scheduledEnd) && (!Number.isFinite(unlinkedAt) || currentTime < unlinkedAt)
+    && (!Number.isFinite(manualEnd) || currentTime < manualEnd);
   const latest = heights.filter((row) => time(row.recorded_at) > fedAt + BASELINE_MS).at(-1);
-  const latestAt = time(latest?.recorded_at);
-  const historicalRound = Number.isFinite(nextAt) && nextAt <= currentTime;
-  const heightStale = !!latest && !historicalRound && Number.isFinite(currentTime) && currentTime - latestAt > FRESH_MS;
+  const freshest = heights.at(-1);
+  const freshestAt = time(freshest?.recorded_at);
+  const historicalRound = windowClosed;
+  const heightStale = !!freshest && (historicalRound ? end - freshestAt > FRESH_MS : currentTime - freshestAt > FRESH_MS);
   const currentHeightMm = latest && !heightStale ? number(latest.height_mm) : null;
   const expansionPercent = baselineHeightMm > 0 && currentHeightMm != null ? (currentHeightMm / baselineHeightMm - 1) * 100 : null;
   // 只映射实测涨幅；峰值、回落或液层需要用户确认。
@@ -58,14 +68,26 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const temperatureRows = rows.filter((row) => number(row.temperature_c) != null);
   const temperatures = temperatureRows.map((row) => number(row.temperature_c));
   const latestTemperature = temperatureRows.at(-1);
-  const temperatureStale = !!latestTemperature && !historicalRound && Number.isFinite(currentTime)
-    && currentTime - time(latestTemperature.recorded_at) > FRESH_MS;
+  const temperatureStale = !!latestTemperature
+    && (historicalRound ? end - time(latestTemperature.recorded_at) > FRESH_MS : currentTime - time(latestTemperature.recorded_at) > FRESH_MS);
   const meanTempC = mean(temperatures);
   // 轮次均温用于估时必须覆盖起点、终点及中间区间，任一缺口不得超过 40 分钟。
   const temperatureCoverageReliable = temperatureRows.length > 0 && end >= fedAt
     && time(temperatureRows[0].recorded_at) - fedAt <= FRESH_MS
     && end - time(latestTemperature.recorded_at) <= FRESH_MS
     && temperatureRows.every((row, index) => !index || time(row.recorded_at) - time(temperatureRows[index - 1].recorded_at) <= FRESH_MS);
+  const baselineWindowTruncated = Number.isFinite(fedAt) && end < fedAt + BASELINE_MS;
+  // 窗口状态与设备观测状态分开：设备缺测只降低数据质量，不结束本轮。
+  const windowStatus = !Number.isFinite(fedAt) ? 'not_started' : windowClosed ? 'closed' : 'in_progress';
+  const baselineStatus = !Number.isFinite(fedAt) ? null
+    : manualBaseline > 0 ? 'manual'
+      : automaticBaseline != null ? 'established'
+        : baselinePending ? 'pending' : 'insufficient';
+  const dataQuality = !Number.isFinite(fedAt) ? null
+    : !matches || !heights.length ? 'insufficient'
+      : baselineHeightMm == null ? (baselinePending ? 'partial' : 'insufficient')
+        : heightStale ? 'stale'
+          : baselineWindowTruncated ? 'partial' : 'complete';
   return {
     baselineHeightMm, baselinePending, baselineSource, expansionPercent, height, currentHeightMm,
     tempC: temperatureStale || !temperatureCoverageReliable ? null : meanTempC, meanTempC, temperatureCoverageReliable, heightStale, temperatureStale, staleEvidence: heightStale || temperatureStale,
@@ -74,20 +96,26 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     baselineSampleCount: values.length, baselineUsedCount: retained.length, baselineExcludedCount: excluded.length,
     latestMeasurementAt: latest?.recorded_at || null,
     latestTemperatureAt: latestTemperature?.recorded_at || null,
-    historicalRound, windowFrom: matches ? new Date(fedAt).toISOString() : null,
-    windowTo: matches && Number.isFinite(end) && end >= fedAt ? new Date(end).toISOString() : null,
-    baselineWindowTruncated: Number.isFinite(fedAt) && end < fedAt + BASELINE_MS,
+    historicalRound, windowStatus, windowActive: Number.isFinite(fedAt) && !windowClosed, windowClosed,
+    windowFrom: Number.isFinite(fedAt) ? new Date(fedAt).toISOString() : null,
+    windowTo: Number.isFinite(end) && Number.isFinite(fedAt) && end >= fedAt ? new Date(end).toISOString() : null,
+    windowClosedAt: windowClosed ? new Date(closedAt).toISOString() : null,
+    windowEndReason, nextFeedingAt: Number.isFinite(scheduledEnd) ? new Date(scheduledEnd).toISOString() : null,
+    baselineStatus, dataQuality, baselineWindowTruncated,
   };
 }
 
 export async function loadFeedingEvidence(userId, starterId, feedingId) {
-  const [{ getCareRecord, listCareRecords }, { listStarterDeviceLinks }, { listMeasurementsRange }] = await Promise.all([
+  const [{ getCareRecord, listCareRecords }, { listStarterDeviceLinks }, { listMeasurementsRange }, { loadWindowClosure }] = await Promise.all([
     import('./care.service.js'), import('./starter-device.service.js'), import('./device.service.js'),
+    import('./fermentation-window.service.js'),
   ]);
   const feeding = await getCareRecord(feedingId, { userId });
   if (feeding.kind !== 'feeding' || feeding.starter_id !== starterId) throw new Error('喂养记录与当前酵种不匹配。');
   const now = Date.now();
   const links = await listStarterDeviceLinks({ userId, starterId });
+  // 手动结束只是可选的业务事实；读取失败不能阻断诊断证据。
+  const closure = await loadWindowClosure(userId, feedingId).catch(() => null);
   const fedAt = time(feeding.occurred_at);
   const link = links.find((row) => time(row.active_from) <= fedAt && (row.active_to == null || fedAt < time(row.active_to))) || null;
   let nextFeedingAt = null;
@@ -108,6 +136,6 @@ export async function loadFeedingEvidence(userId, starterId, feedingId) {
     if (end >= fedAt) measurements = await listMeasurementsRange(link.device_id, { from: new Date(fedAt).toISOString(), to: new Date(end).toISOString(), bucketed: false });
     if (measurements.length >= 40000) throw new Error('测量记录达到 40000 行，结果可能不完整，请缩短查询范围后重试。');
   }
-  const summary = summarizeFeedingMeasurements({ measurements, feeding, link, now, nextFeedingAt });
-  return { feeding, link, measurements, nextFeedingAt, now, summary, unavailableReason };
+  const summary = summarizeFeedingMeasurements({ measurements, feeding, link, now, nextFeedingAt, windowEndedAt: closure?.ended_at });
+  return { feeding, link, measurements, nextFeedingAt, now, closure, summary, unavailableReason };
 }

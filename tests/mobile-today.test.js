@@ -17,6 +17,8 @@ assert.match(source, /chart-feature/);
 assert.match(source, /SeriesChart/);
 assert.match(source, /listMeasurementsRange/);
 assert.match(source, /summarizeFeedingMeasurements/);
+assert.match(source, /fermentation-window\.service\.js/);
+assert.match(source, /结束本轮/);
 assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
 assert.match(source, /\/me\/devices\?bind=1/);
 assert.match(source, /mode: 'diagnosis'/);
@@ -52,7 +54,7 @@ const deferred = () => { let resolve; let reject; const promise = new Promise((y
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); await Vue.nextTick(); };
 function harness() {
   const user = Vue.ref(null);
-  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }], links: [link], feeding, rows, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
+  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }], links: [link], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
   const api = {
     async listStarters({ userId }) { state.calls.push(userId); if (state.starterGate) return state.starterGate.promise; if (state.fail === 'starter') throw new Error('starter down'); return state.starters.slice(); },
     async listCareRecords({ starterId, kind }) { return state.feeding && starterId === state.feeding.starter_id && kind !== 'observation' ? [state.feeding] : []; },
@@ -70,6 +72,15 @@ function harness() {
       linkStarterDevice: async (args) => { if (state.linkGate) await state.linkGate.promise; if (state.linkFailure) throw new Error('link down'); state.links.push({ ...link, starter_id: args.starterId, device_id: args.deviceId }); }
     },
     '../../services/feeding-analysis.service.js': { summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
+    '../../services/fermentation-window.service.js': {
+      loadWindowClosure: async () => state.closure,
+      closeFeedingWindow: async (args) => {
+        state.closed = args;
+        const row = { id: 'closure', feeding_id: args.feedingId, ended_at: args.endedAt, reason: 'manual', detail: args.detail };
+        state.closure = row;
+        return row;
+      }
+    },
     '../../services/height-alert.service.js': heightAlerts,
     '../../services/web-push.service.js': { hasCloudPushSubscription: async () => false, loadHeightTargets: async () => [], saveHeightTargets: async () => {}, subscribeHeightPush: async () => {}, webPushAvailable: () => false },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
@@ -97,6 +108,10 @@ assert.match(await h.html(), /距上次喂养/);
 assert.match(await h.html(), /高度预约/);
 assert.match(await h.html(), /2\.5×/, 'thresholds are picked manually next to the round summary');
 assert.match(await h.html(), /开启云端推送/);
+assert.match(await h.html(), /本轮发酵/, 'current feeding is shown as an explicit round');
+assert.match(await h.html(), /本轮开始/, 'round card states when the round started');
+assert.match(await h.html(), /结束本轮/, 'user can end the round without waiting for the next feeding');
+assert.match(await h.html(), /进行中/);
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
 assert.equal(h.vm.evidence.length, rows.length);
@@ -121,6 +136,19 @@ h.state.feeding = feeding; await h.vm.refresh();
 h.state.links = []; await h.vm.refresh();
 assert.deepEqual(h.vm.evidence, [], 'removing link clears stale evidence');
 assert.deepEqual(h.vm.measurements, [], 'unlinked starter cannot retain raw chart data');
+const unlinkedHtml = await h.html();
+assert.match(unlinkedHtml, /本轮发酵/, 'round card still renders without a device link');
+assert.match(unlinkedHtml, /未关联设备/, 'missing device data is described as data quality, not as a finished round');
+assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
+await h.vm.endRound('fallen'); await settle();
+assert.equal(h.state.closed.detail, 'fallen', 'manual end records the selected reason');
+assert.equal(h.vm.summary.windowStatus, 'closed', 'manual end closes the round immediately');
+const closedHtml = await h.html();
+assert.match(closedHtml, /已结束/);
+assert.match(closedHtml, /本轮开始/, 'closed round still shows when it started');
+assert.match(closedHtml, /结束/, 'closed round shows its end time');
+assert.match(closedHtml, /查看本轮详情/);
+assert.doesNotMatch(closedHtml, /结束本轮/, 'closed round no longer offers manual end');
 h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
 await h.vm.addStarter(); await settle();
 assert.equal(h.vm.starterId, 'created'); assert.equal(h.vm.link.device_id, 'd1');
