@@ -336,5 +336,5 @@ const rangeTitle = computed(() => stats.value ? `${new Date(stats.value.firstAt)
 .series-range { flex-wrap: nowrap; min-width: 0; gap: 4px; }
 .series-range > :last-child { margin-left: auto; min-width: 0; }
 .series-time-range { display: inline-flex; align-items: center; gap: 2px; }
-.series-time-range .day-offset { display: inline-grid; place-items: center; min-width: 1.05rem; height: 1.05rem; padding: 0 2px; border-radius: 50%; background: #b43a2b; color: #fff; font-size: 8px; line-height: 1; }
+.series-time-range .day-offset { display: inline-grid; place-items: center; min-width: 0.9rem; height: 0.9rem; padding: 0 1px; border-radius: 50%; background: #f2dcd7; color: #a4524a; font-size: 7.5px; line-height: 1; font-weight: 600; }
 </style>
