@@ -158,6 +158,7 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 .mobile-area .month-cal .lg.feeding { background: var(--brand-action); }
 .mobile-area .month-cal .lg.observation { background: #2b6cb0; }
 .mobile-area .month-cal .lg.fer { background: #286247; }
+.mobile-area .month-cal .lg.device { background: #7a5c14; }
 .mobile-area .month-cal .lg.sleep { background: #9a352a; }
 .mobile-area .month-cal .cal-week, .mobile-area .month-cal .cal-grid { display: grid; }
 .mobile-area .month-cal .cal-week { font-size: 11px; color: var(--text-secondary); padding: 4px 0; }

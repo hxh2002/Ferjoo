@@ -44,11 +44,17 @@ const rows = ref([]);
 const loading = ref(false);
 const error = ref('');
 const namesError = ref('');
-const listElement = ref(null);
 const scrollY = ref(0);
 const pageSize = 20;
 const calendarMonth = ref(Date.now());
 const calendarStats = ref({});
+// 记录页按记录类型着色；同一天有多种记录时按喂养 > 观察 > 设备数据取其一。
+const calendarLegend = [
+  { key: 'observation', label: '观察' },
+  { key: 'feeding', label: '喂养' },
+  { key: 'device', label: '设备数据' }
+];
+const calendarPriority = { device: 1, observation: 2, feeding: 3 };
 const selectedDay = computed(() => from.value === to.value ? from.value : '');
 async function loadCalendar() {
   if (!accountId.value) return;
@@ -65,10 +71,13 @@ async function loadCalendar() {
       if (batch.length < 200) break;
     }
     const stats = {};
-    for (const row of records) { const key = localDateTimeValue(new Date(row.occurred_at)).slice(0, 10); stats[key] = row.kind; }
+    for (const row of records) {
+      const key = localDateTimeValue(new Date(row.occurred_at)).slice(0, 10);
+      if (!stats[key] || calendarPriority[row.kind] > calendarPriority[stats[key]]) stats[key] = row.kind;
+    }
     const devices = await deviceRecords(owner, start, end);
     if (owner !== accountId.value || starter !== starterId.value || month !== calendarMonth.value) return;
-    for (const row of devices.rows) if (!stats[row.day]) stats[row.day] = 'fer';
+    for (const row of devices.rows) if (!stats[row.day]) stats[row.day] = 'device';
     calendarStats.value = stats;
   } catch { calendarStats.value = {}; }
 }
@@ -99,7 +108,7 @@ function updateFilter(key, value) {
   router.replace({ path: '/records', query });
 }
 function changePage(value) {
-  const query = { ...route.query, ...filterQuery(), page: String(value), scroll: String(scrollY.value) };
+  const query = { ...route.query, ...filterQuery(), page: String(value), scroll: String(Math.max(0, window.scrollY)) };
   listPositions.delete(positionKey(query));
   router.replace({ path: '/records', query });
 }
@@ -131,10 +140,11 @@ function recordRange() {
 }
 async function restoreScroll(token) {
   await nextTick();
-  if (disposed || token !== generation || !listElement.value) return;
+  if (disposed || token !== generation) return;
   const top = listPositions.get(positionKey()) ?? Number(queryText('scroll'));
-  listElement.value.scrollTop = Number.isFinite(top) && top >= 0 ? top : 0;
-  scrollY.value = listElement.value.scrollTop;
+  const value = Number.isFinite(top) && top >= 0 ? top : 0;
+  window.scrollTo({ top: value, behavior: 'instant' });
+  scrollY.value = value;
 }
 async function loadNames(owner) {
   const token = ++namesGeneration;
@@ -205,12 +215,12 @@ function title(row) {
 }
 function detailTarget(row) {
   const returnTo = router.resolve({ path: '/records', query: { ...filterQuery(), scroll: String(Math.max(0, scrollY.value)) } }).fullPath;
-  if (row.kind === 'device') return { path: `/devices/${encodeURIComponent(row.device_id)}/trend`, query: { starter: row.starter_id, returnTo } };
+  if (row.kind === 'device') return { path: `/devices/${encodeURIComponent(row.device_id)}/trend`, query: { starter: row.starter_id, day: row.day, returnTo } };
   return { path: `/records/${row.id}`, query: { returnTo } };
 }
 function trackScroll() {
-  if (loading.value || !listElement.value) return;
-  scrollY.value = listElement.value.scrollTop;
+  if (loading.value) return;
+  scrollY.value = Math.max(0, window.scrollY);
   listPositions.set(positionKey(), scrollY.value);
 }
 watch(accountId, (owner, previous) => {
@@ -220,11 +230,12 @@ watch(accountId, (owner, previous) => {
 watch([accountId, starterId, type, from, to, page], load, { immediate: true });
 watch([calendarMonth, accountId, starterId], loadCalendar, { immediate: true });
 watch(() => route.query.scroll, () => { if (!loading.value) restoreScroll(generation); });
-onMounted(() => { auth.init(); });
+onMounted(() => { auth.init(); window.addEventListener('scroll', trackScroll, { passive: true }); });
 onUnmounted(() => {
   disposed = true;
   generation++;
   namesGeneration++;
+  window.removeEventListener('scroll', trackScroll);
 });
 </script>
 
@@ -235,22 +246,20 @@ onUnmounted(() => {
         <label class="m-field">对象<select v-model="starterId"><option value="">全部酵种</option><option v-if="starterId && !starters.some(item => item.id === starterId)" :value="starterId">名称不可用（当前筛选）</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name || '名称不可用' }}</option></select></label>
         <div class="m-types" role="group" aria-label="类型筛选"><button v-for="item in [['all','全部'],['observation','观察'],['feeding','喂养'],['device','设备数据']]" :key="item[0]" class="m-secondary" :class="{active:type===item[0]}" type="button" @click="type=item[0]">{{ item[1] }}</button></div>
       </div>
-      <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" @change-month="changeMonth" @select="selectDay" />
+      <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" :legend="calendarLegend" @change-month="changeMonth" @select="selectDay" />
       <button v-if="selectedDay" class="m-clear-date" type="button" @click="selectDay('')">清除日期</button>
       <p v-if="loading" class="m-muted" role="status">正在读取记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <p v-if="namesError" class="m-muted">{{ namesError }}</p><p v-if="deviceNotice" class="m-muted" role="status">{{ deviceNotice }}</p>
     </section>
     <section v-if="!auth.user.value" class="m-card"><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></section>
     <template v-else>
-      <div ref="listElement" class="m-record-list" role="region" aria-label="记录列表，可滚动" tabindex="0" @scroll="trackScroll">
-        <p v-if="!loading && !error && !rows.length" class="m-muted">当前范围没有记录。</p>
-        <section v-for="group in groups" :key="group[0]" class="m-card">
-          <h2>{{ group[0] }}</h2>
-          <RouterLink v-for="row in group[1]" :key="row.id" class="m-list-row" :to="detailTarget(row)">
-            <span><strong>{{ title(row) }}</strong><small>{{ starterName(row.starter_id) }} · {{ new Date(row.occurred_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</small></span><b>详情</b>
-          </RouterLink>
-        </section>
-      </div>
+      <p v-if="!loading && !error && !rows.length" class="m-muted">当前范围没有记录。</p>
+      <section v-for="group in groups" :key="group[0]" class="m-card">
+        <h2>{{ group[0] }}</h2>
+        <RouterLink v-for="row in group[1]" :key="row.id" class="m-list-row" :to="detailTarget(row)">
+          <span><strong>{{ title(row) }}</strong><small>{{ starterName(row.starter_id) }} · {{ new Date(row.occurred_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</small></span><b>详情</b>
+        </RouterLink>
+      </section>
       <nav class="m-types" aria-label="记录分页">
         <span>已显示 {{ rows.length }} 条 · 每次 {{ pageSize }} 条</span>
         <button class="m-secondary" type="button" :disabled="loading || !hasMore" @click="changePage(page + 1)">{{ hasMore ? '加载更多记录' : '当前记录已加载' }}</button>
@@ -261,7 +270,6 @@ onUnmounted(() => {
 
 <style scoped>
 .m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
-.m-record-list{max-height:60vh;max-height:60dvh;overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none}
 .m-card h1{font-size:1.4rem;font-weight:600;margin:.1rem 0 .875rem}
 .m-card h2{font-size:.85rem;color:#625e56;margin:0 0 .1rem}
 .m-filters{display:grid;gap:.1rem;grid-template-columns:minmax(0,1fr);margin-bottom:.25rem}
@@ -276,7 +284,7 @@ onUnmounted(() => {
 .m-secondary.active{border-color:#a44213;color:#a44213;font-weight:600;background:#fdf3ec}
 .m-list-row span{display:grid;gap:2px;min-width:0}
 .m-list-row b{color:#a44213;font-size:.85rem;font-weight:600;flex-shrink:0}
-.m-record-list>.m-card{padding:10px 12px;margin:8px 0}
+.m-page>section.m-card{padding:10px 12px;margin:8px 0}
 .m-list-row{min-height:50px}
 .m-list-row small{font-size:.74rem}
 .m-clear-date{border:0;padding:.2rem 0;background:transparent;color:#a44213;font:inherit;font-size:.78rem;cursor:pointer}

@@ -169,7 +169,7 @@ onBeforeUnmount(() => { version += 1; });
       <section class="m-card"><h2>{{ device.name || device.device_id }}</h2>
         <p>我的设备角色：{{ device.my_role === 'owner' ? '所有者' : device.my_role === 'member' ? '成员' : '无成员身份（管理员访问）' }}</p>
         <p class="m-muted">最近接收：{{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '从未接收' }}</p>
-        <RouterLink class="m-text-action" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备趋势（全部设备历史）</RouterLink>
+        <RouterLink class="m-text-action" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备数据</RouterLink>
       </section>
       <section class="m-card">
         <details v-if="manager" class="m-disclosure">

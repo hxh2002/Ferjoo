@@ -45,6 +45,20 @@ export function loadWindowClosure(userId, feedingId) {
   });
 }
 
+export function loadWindowClosures(userId, feedingIds) {
+  return run(async () => {
+    const ids = [...new Set(Array.isArray(feedingIds) ? feedingIds : [])];
+    if (!ids.length) return [];
+    const { data, error } = await requireClient().from('fermentation_window_closures')
+      .select(FIELDS)
+      .eq('user_id', requiredUuid(userId, '账号 ID'))
+      .in('feeding_id', ids.map((id) => requiredUuid(id, '喂养记录 ID')))
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  });
+}
+
 export function closeFeedingWindow({ feedingId, endedAt, detail = null } = {}) {
   return run(async () => {
     const at = new Date(endedAt);

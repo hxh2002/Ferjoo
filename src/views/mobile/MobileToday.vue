@@ -54,7 +54,7 @@ const heightBaseline = computed(() => summary.value?.baselineHeightMm > 0 ? summ
 const baselineText = computed(() => {
   const value = summary.value;
   if (!value) return '未建立';
-  if (value.baselineHeightMm != null) return `${value.baselineHeightMm.toFixed(1)} mm · ${value.baselineStatus === 'manual' ? '手工确认' : '设备基线'}`;
+  if (value.baselineHeightMm != null) return `${value.baselineHeightMm.toFixed(1)} mm${value.baselineStatus === 'manual' ? ' · 手工确认' : ''}`;
   if (value.baselineStatus === 'pending') return `建立中 · ${value.baselineUsedCount}/3 个样本`;
   return '尚未建立';
 });

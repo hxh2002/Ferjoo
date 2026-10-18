@@ -1,12 +1,21 @@
 <script setup>
 import { computed } from 'vue';
 
-// 分辨率 1：月份总览。每个日期三种状态：
+// 分辨率 1：月份总览。状态由使用方通过 legend 声明，默认沿用设备视图：
 // none=无数据（灰） sleep=只有休眠数据（红） fer=有有效发酵数据（绿）。
 const props = defineProps({
   month: { type: Number, required: true }, // 当月任意时间戳
-  stats: { type: Object, default: () => ({}) }, // { 'YYYY-MM-DD': 'none'|'sleep'|'fer' }
-  selected: { type: String, default: '' }
+  stats: { type: Object, default: () => ({}) }, // { 'YYYY-MM-DD': 状态键 }
+  selected: { type: String, default: '' },
+  legend: {
+    type: Array,
+    default: () => [
+      { key: 'observation', label: '观察' },
+      { key: 'feeding', label: '喂养' },
+      { key: 'sleep', label: '仅休眠' },
+      { key: 'fer', label: '发酵中' }
+    ]
+  }
 });
 const emit = defineEmits(['select', 'change-month']);
 
@@ -52,10 +61,7 @@ const cells = computed(() => {
         <button type="button" class="cal-today" @click="emit('change-month', 0)">今天</button>
       </div>
       <div class="cal-legend" aria-hidden="true">
-        <span><i class="lg observation"></i>观察</span>
-        <span><i class="lg feeding"></i>喂养</span>
-        <span><i class="lg sleep"></i>仅休眠</span>
-        <span><i class="lg fer"></i>发酵中</span>
+        <span v-for="item in legend" :key="item.key"><i class="lg" :class="item.key"></i>{{ item.label }}</span>
       </div>
     </div>
     <label class="cal-narrow">选择日期<input type="date" :value="selected" @change="emit('select', $event.target.value)"></label>
@@ -74,6 +80,6 @@ const cells = computed(() => {
   </div>
 </template>
 <style scoped>
-.cal-narrow{display:none}.cal-week,.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}.cal-week{text-align:center}.cal-cell{position:relative;min-height:44px;min-width:0;border:0;background:transparent;color:#30251f;font:inherit}.cal-cell.selected{background:#a54214;color:#fff}.cal-cell.off{opacity:.5}.cal-cell.fer:after,.cal-cell.sleep:after,.cal-cell.observation:after,.cal-cell.feeding:after{content:'';display:block;width:5px;height:5px;position:absolute;bottom:4px;left:calc(50% - 2px);background:#286247}.cal-cell.observation:after{background:#2b6cb0}.cal-cell.feeding:after{background:#a54214}.cal-nav{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.cal-nav button{min-height:44px;min-width:44px}.cal-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px}.cal-narrow input{width:100%;box-sizing:border-box;min-height:48px;font:inherit}
+.cal-narrow{display:none}.cal-week,.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}.cal-week{text-align:center}.cal-cell{position:relative;min-height:44px;min-width:0;border:0;background:transparent;color:#30251f;font:inherit}.cal-cell.selected{background:#a54214;color:#fff}.cal-cell.off{opacity:.5}.cal-cell.fer:after,.cal-cell.sleep:after,.cal-cell.observation:after,.cal-cell.feeding:after,.cal-cell.device:after{content:'';display:block;width:5px;height:5px;position:absolute;bottom:4px;left:calc(50% - 2px);background:#286247}.cal-cell.observation:after{background:#2b6cb0}.cal-cell.feeding:after{background:#a54214}.cal-cell.device:after{background:#7a5c14}.cal-nav{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.cal-nav button{min-height:44px;min-width:44px}.cal-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px}.cal-narrow input{width:100%;box-sizing:border-box;min-height:48px;font:inherit}
 @media(max-width:347px){.cal-week,.cal-grid{display:none}.cal-narrow{display:grid;gap:8px}}
 </style>

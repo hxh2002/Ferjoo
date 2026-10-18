@@ -88,10 +88,10 @@ export function createStarter(name) {
   });
 }
 
-export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, userId } = {}) {
+export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, userId, ascending = false } = {}) {
   return run(async () => {
     const client = requireClient();
-    let query = client.from('care_records').select(RECORD_FIELDS).order('occurred_at', { ascending: false }).order('id', { ascending: false });
+    let query = client.from('care_records').select(RECORD_FIELDS).order('occurred_at', { ascending: ascending === true }).order('id', { ascending: ascending === true });
     if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
     if (starterId !== undefined && starterId !== null && starterId !== '') query = query.eq('starter_id', requiredUuid(starterId, '酵种 ID'));
     if (from !== undefined) query = query.gte('occurred_at', queryTime(from));

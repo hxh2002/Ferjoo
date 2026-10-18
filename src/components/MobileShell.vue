@@ -18,7 +18,7 @@ const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
 const title = computed(() => {
   if (typeof route.meta.title === 'string') return route.meta.title;
-  if (route.path.startsWith('/devices/')) return '设备趋势';
+  if (route.path.startsWith('/devices/')) return '设备数据';
   if (route.path.startsWith('/records/')) return '记录详情';
   if (route.path.startsWith('/reports/')) return '诊断报告';
   if (route.path.startsWith('/me/devices/')) return '设备设置';
