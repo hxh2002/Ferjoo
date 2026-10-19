@@ -54,7 +54,7 @@ h2{font-size:20px}
 .about-card h2{font-size:1.25rem;margin:0 0 .5rem}
 .about-card p{font-size:.85rem;color:#625e56;margin:0}
 .about-socials{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:1rem}
-.about-social{position:relative;width:52px;height:52px;border:1px solid #d8d2c8;border-radius:14px;display:grid;place-items:center;background:#fff;color:inherit;text-decoration:none}
+.about-social{position:relative;width:52px;height:52px;border:1px solid var(--m-border);border-radius:var(--m-radius-button);display:grid;place-items:center;background:var(--m-surface);color:inherit;text-decoration:none}
 .about-social svg{width:22px;height:22px;fill:currentColor}
 .about-social span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 </style>

@@ -244,6 +244,7 @@ const markerLines = computed(() => {
         <strong class="series-value">{{ fmt(stats?.last) }}</strong>
       </div>
     </div>
+    <slot name="after-header" />
     <div v-if="series.length" class="series-body">
       <div class="series-plot" @pointermove="onMove" @pointerleave="clearHover">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">

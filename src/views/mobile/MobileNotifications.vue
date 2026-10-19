@@ -183,7 +183,7 @@ onMounted(() => auth.init().then(load));
 .starter-head{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
 .starter-head small{font-size:.75rem;color:var(--text-secondary,#75665b)}
 .targets{display:flex;gap:.35rem}
-.target{flex:1;min-height:44px;padding:0 .3rem;border:1px solid var(--border-default,#d8d2c8);background:transparent;font:inherit;font-size:.9rem;color:inherit;cursor:pointer}
+.target{flex:1;min-height:44px;padding:0 .3rem;border:1px solid var(--m-border);border-radius:var(--m-radius-button);background:var(--m-surface);font:inherit;font-size:.9rem;color:inherit;cursor:pointer}
 .target.active{border-color:var(--brand-action,#a54214);background:var(--brand-action,#a54214);color:#fff;font-weight:600}
 .target:disabled{opacity:.55}
 .rules{margin:0;padding-left:1.1rem;display:grid;gap:.4rem;font-size:.85rem;line-height:1.6;color:var(--text-secondary,#75665b)}
