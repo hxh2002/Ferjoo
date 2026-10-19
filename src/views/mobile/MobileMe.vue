@@ -32,7 +32,7 @@ onMounted(() => auth.init());
   <RouterLink v-for="device in devices" :key="device.device_id" class="m-list-row" :to="`/me/devices/${encodeURIComponent(device.device_id)}`">
     <span class="row-main"><strong>{{ device.name || device.device_id }}</strong><small>{{ device.my_role === 'owner' ? '所有者' : '成员' }} · 最近接收 {{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
   </RouterLink>
-  <p v-if="!devices.length" class="m-muted">暂无设备。</p>
+  <div v-if="!devices.length" class="device-empty"><img src="/assets/jojo2.png" alt="Jojo 吉祥物"><p class="m-muted">暂无设备。</p></div>
 </section>
 <nav class="m-card nav-card" aria-label="更多">
   <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/notifications"><span class="row-main"><strong>通知设置</strong><small>云端推送、提醒阈值与开启引导</small></span><span class="chevron" aria-hidden="true">›</span></RouterLink>
@@ -61,4 +61,5 @@ onMounted(() => auth.init());
 .desktop-entry a{font-size:.8rem;color:var(--text-secondary,#75665b);text-underline-offset:3px}
 .logout{width:100%;margin-top:1rem}
 .text-link{color:var(--brand-action,#a54214);font-size:.875rem;text-decoration:none}
+.device-empty{display:flex;align-items:center;gap:.65rem}.device-empty img{width:64px;height:64px;object-fit:contain}.device-empty p{margin:0}
 </style>

@@ -251,9 +251,9 @@ onUnmounted(() => {
       <p v-if="loading" class="m-muted" role="status">正在读取记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <p v-if="namesError" class="m-muted">{{ namesError }}</p><p v-if="deviceNotice" class="m-muted" role="status">{{ deviceNotice }}</p>
     </section>
-    <section v-if="!auth.user.value" class="m-card"><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></section>
+    <section v-if="!auth.user.value" class="m-card records-empty"><img class="jojo-mascot" src="/assets/jojo1.png" alt="Jojo 吉祥物"><div><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></div></section>
     <template v-else>
-      <p v-if="!loading && !error && !rows.length" class="m-muted">当前范围没有记录。</p>
+      <div v-if="!loading && !error && !rows.length" class="m-card records-empty"><img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物"><p>当前范围没有记录。</p></div>
       <section v-for="group in groups" :key="group[0]" class="m-card">
         <h2>{{ group[0] }}</h2>
         <RouterLink v-for="row in group[1]" :key="row.id" class="m-list-row" :to="detailTarget(row)">
@@ -288,6 +288,7 @@ onUnmounted(() => {
 .m-list-row{min-height:50px}
 .m-list-row small{font-size:.74rem}
 .m-clear-date{border:0;padding:.2rem 0;background:transparent;color:#a44213;font:inherit;font-size:.78rem;cursor:pointer}
+.records-empty{display:flex;align-items:center;gap:.75rem}.records-empty p{margin:.1rem 0 .35rem}.jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}
 .m-page>nav.m-types{justify-content:space-between;font-size:.75rem}
 .m-page>nav.m-types .m-secondary{font-size:.75rem}
 </style>

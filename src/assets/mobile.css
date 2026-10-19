@@ -3,15 +3,20 @@
   --m-accent: var(--brand-action);
   --m-muted: var(--text-secondary);
   --m-border: var(--border-default);
-  --m-card: var(--surface-card);
-  --m-surface: var(--surface-input);
+  --m-card: rgba(255, 253, 248, .78);
+  --m-surface: rgba(255, 253, 248, .66);
+  --m-glass: rgba(255, 253, 248, .72);
+  --m-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 10px 28px rgba(77, 48, 30, .08);
   --ink: var(--text-primary);
   --ink-soft: var(--text-secondary);
   --orange-deep: var(--brand-action);
   --paper: var(--surface-input);
   --line: var(--border-default);
   --line-strong: var(--border-input);
-  --radius: 0;
+  --radius: 20px;
+  --m-radius-card: 20px;
+  --m-radius-button: 13px;
+  --m-radius-input: 12px;
   font-family: var(--font-sans);
   font-synthesis: none;
   color: var(--text-primary);
@@ -21,30 +26,21 @@
 body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: var(--surface-page); font-size: 16px; }
 body.mobile-mode::before { display: none; }
 body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-sizing: border-box; }
-.mobile-area { min-height: 100vh; background: var(--surface-page); color: var(--text-primary); overflow-wrap: anywhere; }
-.mobile-area :is(button, input, select, textarea), body.mobile-mode .modal-backdrop :is(button, input, select, textarea) { font: inherit; color: inherit; border-radius: 0; }
+.mobile-area { min-height: 100vh; color: var(--text-primary); overflow-wrap: anywhere; background: radial-gradient(circle at 12% 0%, rgba(255, 211, 170, .32), transparent 34rem), radial-gradient(circle at 92% 18%, rgba(255, 239, 214, .56), transparent 30rem), var(--surface-page); }
+.mobile-area :is(button, input, select, textarea) { font: inherit; color: inherit; border-radius: var(--m-radius-button); }
 .mobile-area a { color: var(--brand-action); }
 .mobile-area :is(button, a) { -webkit-tap-highlight-color: transparent; }
-.mobile-area :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea, .m-primary, .m-secondary), body.mobile-mode .modal-backdrop :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea) { min-height: 44px; }
-.mobile-area :is(input, select, textarea), body.mobile-mode .modal-backdrop :is(input, select, textarea) {
-  min-width: 0; max-width: 100%; width: 100%; padding: 10px 12px; font-size: 16px !important;
-  border: 1px solid var(--border-input); background: var(--surface-input); color: var(--text-primary); border-radius: 0 !important;
-}
-.mobile-area input:is([type="checkbox"], [type="radio"]), body.mobile-mode .modal-backdrop input:is([type="checkbox"], [type="radio"]) { width: 24px; min-height: 24px; height: 24px; flex-shrink: 0; padding: 0; margin: 10px 8px 10px 0; accent-color: var(--brand-action); }
+.mobile-area :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea, .m-primary, .m-secondary) { min-height: 44px; }
+.mobile-area :is(input, select, textarea) { min-width: 0; max-width: 100%; width: 100%; padding: 10px 12px; font-size: 16px; border: 1px solid var(--border-input); background: var(--m-surface); color: var(--text-primary); border-radius: var(--m-radius-input); }
+.mobile-area input:is([type="checkbox"], [type="radio"]) { width: 24px; min-height: 24px; height: 24px; flex-shrink: 0; padding: 0; margin: 10px 8px 10px 0; accent-color: var(--brand-action); }
 .mobile-area textarea { resize: vertical; }
 .mobile-area :is(button, a) { white-space: normal; overflow-wrap: anywhere; }
 .mobile-area :is(button, input, select, textarea):disabled { opacity: .55; cursor: not-allowed; }
-.mobile-area :focus-visible, body.mobile-mode .modal-backdrop :focus-visible { outline: 2px solid var(--brand-action); outline-offset: 2px; }
-.mobile-area :is(input, select, textarea):focus, body.mobile-mode .modal-backdrop :is(input, select, textarea):focus { outline: 2px solid var(--brand-action); outline-offset: 2px; }
+.mobile-area :focus-visible { outline: 2px solid var(--brand-action); outline-offset: 2px; }
 .mobile-area :is(img, canvas, video) { max-width: 100%; }
 .mobile-area :is(fieldset, .m-page, .m-card, .panel, form, label) { min-width: 0; }
-.mobile-area :is(.m-card, .panel, button, .m-primary, .m-secondary, .btn-primary, .btn-secondary) { border-radius: 0 !important; }
 .mobile-area .mobile-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
-.mobile-area .mobile-topbar {
-  position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  min-height: 52px; padding: calc(4px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 3px max(16px, env(safe-area-inset-left));
-  border-bottom: 1px solid var(--border-default); background: var(--surface-page);
-}
+.mobile-area .mobile-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: calc(6px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 4px max(16px, env(safe-area-inset-left)); border-bottom: 1px solid rgba(164, 66, 20, .12); background: var(--m-glass); -webkit-backdrop-filter: blur(18px) saturate(1.08); backdrop-filter: blur(18px) saturate(1.08); box-shadow: 0 4px 18px rgba(77, 48, 30, .06); }
 .mobile-area .mobile-brand { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; }
 .mobile-area .mobile-brand img { display: block; width: 88px; height: auto; }
 .mobile-area :is(.mobile-login, .mobile-account) { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
@@ -55,88 +51,81 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area .mobile-back { display: inline-flex; align-items: center; min-height: 44px; gap: 4px; flex-shrink: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: none; cursor: pointer; }
 .mobile-area :is(.mobile-back, .mobile-tabbar) svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .mobile-area .mobile-main { flex: 1; width: 100%; min-width: 0; }
-.mobile-area .has-tabs > .mobile-main { padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom)); }
-.mobile-area .mobile-main .m-page { width: 100%; padding: 14px 16px 24px; }
-.mobile-area .mobile-main .m-page h1 { margin: 0 0 8px; font-size: var(--text-xl); line-height: 1.2; font-weight: 600; letter-spacing: 0; }
+.mobile-area .has-tabs > .mobile-main { padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 16px); }
+.mobile-area .mobile-main .m-page { width: 100%; padding: 16px 16px 24px; }
+.mobile-area .mobile-main .m-page h1 { margin: 0 0 8px; font-size: var(--text-xl); line-height: 1.2; font-weight: 600; }
 .mobile-area .mobile-main .m-page h2 { margin: 0 0 10px; font-size: var(--text-lg); line-height: 1.3; font-weight: 600; }
 .mobile-area p { line-height: 1.6; }
-.mobile-area .m-card { background: var(--surface-card); border: 1px solid var(--border-default); padding: 14px; margin: 12px 0; }
+.mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) { background: linear-gradient(180deg, rgba(255,255,255,.34), transparent 28%), var(--m-card); border: 1px solid rgba(164, 66, 20, .14); border-radius: var(--m-radius-card); box-shadow: var(--m-shadow); }
+.mobile-area :is(.m-card, .panel, .profile-plate) { padding: 16px; margin: 12px 0; }
+.mobile-area .mobile-main :is(.m-card, .panel, .profile-plate) :is(.m-card, .panel, .profile-plate), .mobile-area .mobile-main :is(.window-row, .close-panel, .weight-fields) { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-input); box-shadow: none; }
+.mobile-area .mobile-main :is(button, .m-primary, .m-secondary, .btn-primary, .btn-secondary) { min-height: 44px; border-radius: var(--m-radius-button); }
+.mobile-area .mobile-main :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; border-radius: var(--m-radius-input); }
+.mobile-area .mobile-main .picker-menu { padding: 6px; }
+.mobile-area .mobile-main .picker-menu :is(button, a) { border: 1px solid transparent; border-radius: var(--m-radius-input); background: transparent; }
+.mobile-area .mobile-main .picker-menu button.active { border-color: var(--brand-action); background: var(--orange-soft); }
+.mobile-area .mobile-main .picker-menu .m-primary { background: var(--brand-action); color: #fff; }
 .mobile-area .m-card h2 { margin-top: 0; }
-.mobile-area .m-eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--brand-action); }
+.mobile-area .m-eyebrow, .mobile-area .eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--brand-action); }
 .mobile-area .m-list-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0; border-top: 1px solid var(--border-default); color: inherit; text-decoration: none; }
 .mobile-area .m-list-row:first-of-type { border-top: 0; }
-.mobile-area .m-list-row small { color: var(--text-secondary); font-size: 13px; }
-.mobile-area .m-primary, .mobile-area .m-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 10px 16px; font: inherit; font-weight: 600; text-decoration: none; box-sizing: border-box; cursor: pointer; border: 1px solid var(--border-input); background: transparent; color: var(--text-primary); }
-.mobile-area .m-primary { background: var(--brand-action); border-color: var(--brand-action); color: #fff; }
-.mobile-area .m-secondary { min-height: 44px; padding: 8px 12px; }
+.mobile-area .m-list-row small, .mobile-area .m-muted { color: var(--text-secondary); }
+.mobile-area :is(.m-primary, .m-secondary, .btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; border: 1px solid var(--border-input); border-radius: var(--m-radius-button); }
+.mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary) { background: var(--brand-action); border-color: var(--brand-action); color: #fff; }
+.mobile-area :is(.m-secondary, .btn-secondary, .ghost-button) { background: rgba(255,255,255,.22); color: var(--text-primary); }
+.mobile-area .diagnose-button { width: 100%; margin-top: 12px; flex-wrap: wrap; }
 .mobile-area .m-field { display: grid; gap: 6px; margin: 10px 0; font-size: 14px; font-weight: 600; }
-.mobile-area .m-text-action { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 6px 8px; border: 0; background: transparent; color: var(--brand-action); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.mobile-area .m-text-action, .mobile-area .text-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 6px 8px; border: 0; background: transparent; color: var(--brand-action); font: inherit; text-decoration: underline; cursor: pointer; }
 .mobile-area .m-disclosure { margin: 10px 0; }
 .mobile-area .m-disclosure > summary { min-height: 44px; padding: 10px 0; font-weight: 600; cursor: pointer; }
 .mobile-area .m-disclosure[open] > summary { margin-bottom: 6px; }
-.mobile-area .m-disclosure > :not(summary) { margin-top: 6px; margin-bottom: 10px; }
-.mobile-area .m-disclosure > :last-child:not(summary) { margin-bottom: 0; }
-.mobile-area .m-error { padding: 12px; border: 1px solid currentColor; color: var(--danger-text); background: var(--danger-bg); font-size: 14px; line-height: 1.6; }
-.mobile-area .m-muted { color: var(--text-secondary); }
-.mobile-area .mobile-tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--border-default); background: var(--surface-page); padding-bottom: env(safe-area-inset-bottom);
-}
-.mobile-area .mobile-tabbar button {
-  min-height: var(--m-tab-height); min-width: 0; padding: 6px; border: 0; background: transparent; color: var(--text-secondary);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer;
-}
+.mobile-area :is(.m-error, .form-error, .form-success, .config-warning) { padding: 12px; border: 1px solid currentColor; border-radius: var(--m-radius-input); font-size: 14px; line-height: 1.6; }
+.mobile-area .m-error, .mobile-area .form-error { color: var(--danger-text); background: var(--danger-bg); }
+.mobile-area .form-success { color: var(--success-text); background: var(--success-bg); }
+.mobile-area .config-warning { color: var(--warning-text); background: var(--warning-bg); }
+.mobile-area .mobile-tabbar { position: fixed; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(320px, calc(100% - 24px)); padding: 5px; border: 1px solid rgba(164, 66, 20, .16); border-radius: 20px; background: var(--m-glass); -webkit-backdrop-filter: blur(20px) saturate(1.08); backdrop-filter: blur(20px) saturate(1.08); box-shadow: 0 12px 30px rgba(77, 48, 30, .15); }
+.mobile-area .mobile-tabbar button { min-height: 50px; min-width: 0; padding: 4px 6px; border: 0; border-radius: 14px; background: transparent; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
 .mobile-area .mobile-tabbar strong { font-size: 13px; font-weight: 500; }
-.mobile-area .mobile-tabbar button.active { color: var(--brand-action); box-shadow: inset 0 2px 0 var(--brand-primary); }
+.mobile-area .mobile-tabbar button.active { color: #fff; background: var(--brand-action); box-shadow: none; }
 .mobile-area .mobile-tabbar button.active strong { font-weight: 700; }
-.mobile-area :is(.btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 16px;
-  font-size: 17px; font-weight: 600; border: 1px solid var(--border-input); background: transparent; color: var(--text-primary); cursor: pointer; text-decoration: none;
-}
-.mobile-area :is(.btn-primary, .diagnose-button, .small-primary) { background: var(--brand-action); border-color: var(--brand-action); color: #fff; }
-.mobile-area :is(.btn-secondary, .ghost-button) { min-height: 44px; padding: 8px 12px; font-size: 16px; }
-.mobile-area .diagnose-button { width: 100%; margin-top: 12px; flex-wrap: wrap; }
-.mobile-area .diagnose-button b { font-size: 12px; }
-.mobile-area :is(.auth-page, .profile-page) { width: 100%; max-width: 680px; margin: auto; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); }
-.mobile-area .panel { padding: 14px; background: var(--surface-card); border: 1px solid var(--border-default); }
+.mobile-area :is(.auth-page, .profile-page) { width: 100%; max-width: 680px; margin: auto; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
 .mobile-area .auth-card { width: 100%; max-width: 570px; margin: auto; }
 .mobile-area :is(.auth-card h1, .profile-heading h1) { margin: 0 0 12px; font-size: 28px; line-height: 1.2; font-weight: 600; }
 .mobile-area :is(.auth-description, .auth-switch, .avatar-hint, .invite-note, .invite-meter small) { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
-.mobile-area .auth-description { margin: 0 0 12px; }
-.mobile-area .auth-switch { text-align: center; }
 .mobile-area :is(.auth-form, .profile-form, .profile-side, .profile-grid) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .mobile-area :is(.auth-form, .profile-form) label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
-.mobile-area .required-mark { color: var(--danger-text); }
-.mobile-area :is(.form-error, .form-success, .config-warning) { padding: 12px; border: 1px solid currentColor; font-size: 14px; line-height: 1.6; }
-.mobile-area .form-error { color: var(--danger-text); background: var(--danger-bg); }
-.mobile-area .form-success { color: var(--success-text); background: var(--success-bg); }
-.mobile-area .config-warning { color: var(--warning-text); background: var(--warning-bg); margin-bottom: 16px; }
-.mobile-area .eyebrow { margin: 0 0 12px; font-size: 12px; font-weight: 700; letter-spacing: .1em; }
-.mobile-area .eyebrow.dark { color: var(--brand-action); }
-.mobile-area .profile-heading { margin: 0 0 20px; color: var(--text-primary); }
-.mobile-area .profile-plate { padding: 14px; border: 1px solid var(--border-default); background: var(--surface-card); }
-.mobile-area .profile-plate :is(small, strong, span) { display: block; margin: 4px 0; }
+.mobile-area .profile-plate { margin: 0 0 14px; }
 .mobile-area .profile-top { display: grid; gap: 20px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--border-default); }
+.mobile-area .auth-description { margin: 0 0 12px; }
+.mobile-area .auth-switch { text-align: center; }
+.mobile-area .required-mark { color: var(--danger-text); }
+.mobile-area .profile-heading { margin: 0 0 20px; color: var(--text-primary); }
+.mobile-area .profile-plate :is(small, strong, span) { display: block; margin: 4px 0; }
 .mobile-area .avatar-editor { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.mobile-area .avatar-frame { display: grid; place-items: center; width: 128px; height: 128px; overflow: hidden; background: var(--orange-soft); border: 1px solid var(--border-default); }
+.mobile-area .avatar-frame { display: grid; place-items: center; width: 128px; height: 128px; overflow: hidden; background: var(--orange-soft); border: 1px solid var(--border-default); border-radius: 50%; }
 .mobile-area .avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
 .mobile-area .avatar-placeholder { font-size: 44px; color: var(--brand-action); }
 .mobile-area .avatar-file-input { display: none; }
-.mobile-area .text-button { background: transparent; border: 0; color: var(--brand-action); text-decoration: underline; cursor: pointer; }
 .mobile-area .meta-list { display: grid; gap: 12px; margin: 0; }
 .mobile-area .meta-list div { display: grid; gap: 4px; }
 .mobile-area .meta-list dt { font-size: 12px; color: var(--text-secondary); }
 .mobile-area .meta-list dd { margin: 0; overflow-wrap: anywhere; }
 .mobile-area .panel-heading { margin-bottom: 16px; }
 .mobile-area .panel-heading h2 { margin: 0; font-size: 22px; }
-.mobile-area .invite-hero { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px; margin-bottom: 16px; background: var(--orange-soft); }
+.mobile-area .invite-hero { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px; margin-bottom: 16px; background: var(--orange-soft); border-radius: var(--m-radius-input); }
 .mobile-area .invite-code { font-family: ui-monospace, monospace; font-size: 28px; font-weight: 700; overflow-wrap: anywhere; }
 .mobile-area .invite-meter-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 14px; }
 .mobile-area .meter-track { height: 8px; background: var(--border-default); }
 .mobile-area .meter-fill { height: 100%; background: var(--brand-primary); }
 .mobile-area .claim-status { display: grid; gap: 12px; }
+.mobile-area .m-disclosure > :not(summary) { margin-top: 6px; margin-bottom: 10px; }
+.mobile-area .m-disclosure > :last-child:not(summary) { margin-bottom: 0; }
+.mobile-area .m-list-row small { font-size: 13px; }
+.mobile-area .diagnose-button b { font-size: 12px; }
 body.mobile-mode .modal-backdrop { position: fixed; inset: 0; z-index: 99; display: grid; place-items: center; padding: 12px; background: rgba(48, 37, 31, .55); font-family: var(--font-sans); }
-body.mobile-mode .crop-modal { position: relative; width: min(500px, 100%); padding: 64px 16px 24px; background: var(--surface-card); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: 0; }
+body.mobile-mode .crop-modal { position: relative; width: min(500px, 100%); padding: 64px 16px 24px; background: var(--surface-card); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: var(--m-radius-card); box-shadow: var(--m-shadow); }
+body.mobile-mode .modal-backdrop :is(button, input, select, textarea) { font: inherit; color: inherit; min-height: 44px; border-radius: var(--m-radius-input); }
+body.mobile-mode .modal-backdrop :focus-visible { outline: 2px solid var(--brand-action); outline-offset: 2px; }
 body.mobile-mode .modal-close { position: absolute; top: 8px; right: 8px; width: 48px; border: 1px solid var(--border-input); background: transparent; font-size: 24px; }
 body.mobile-mode .crop-modal h2 { margin: 0 0 12px; font-size: 24px; }
 body.mobile-mode .crop-tip { font-size: 14px; line-height: 1.6; }
@@ -167,6 +156,17 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 .mobile-area .month-cal .cal-cell.today:not(.selected) { color: var(--brand-action); font-weight: 800; box-shadow: inset 0 0 0 1px var(--border-default); }
 .mobile-area .month-cal .cal-cell.selected::after { background: #fff; }
 .mobile-area .month-cal .cal-cell.sleep::after { background: #9a352a; }
+@supports not (backdrop-filter: blur(1px)) {
+  .mobile-area .mobile-topbar, .mobile-area .mobile-tabbar, .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) { background: rgba(255, 253, 248, .97); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .mobile-area .mobile-topbar, .mobile-area .mobile-tabbar, .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) { background: var(--surface-card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) :is(.m-card, .panel, .profile-plate) { background: var(--surface-card); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root.mobile-mode { scroll-behavior: auto; }
+  .mobile-area *, .mobile-area *::before, .mobile-area *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
 @media (max-width: 347px) {
   .mobile-area .mobile-main .m-page { padding-left: 12px; padding-right: 12px; }
   .mobile-area :is(.auth-card, .profile-card) { padding: 12px; }

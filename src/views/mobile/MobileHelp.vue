@@ -9,7 +9,7 @@ const socials = [
 </script>
 <template>
 <main class="m-page help-page">
-  <section class="about-card">
+  <section class="m-card about-card">
     <img class="about-logo" :src="classicAssets.logoBrand" alt="Dr. Ferjoo">
     <h2>让每一次发酵，都有迹可循。</h2>
     <p>Ferjoo 记录酵种养护事实与观察，估时是经验范围，不是质量或安全保证。</p>
@@ -31,7 +31,7 @@ const socials = [
       </a>
     </div>
   </section>
-  <section>
+  <section class="m-card help-info">
     <h2>开始养护</h2>
     <p>先添加酵种，记录喂养时间和比例，再通过「记录观察」获取建议。没有设备也可手工使用。</p>
     <h2>设备与趋势</h2>
@@ -45,7 +45,8 @@ const socials = [
 </template>
 <style scoped>
 .help-page{max-width:42rem;margin:auto;padding:20px;color:#30251f}
-section{padding:16px;border:1px solid #d8d2c8;background:#fffdf8;margin-top:16px}
+section{margin-top:16px}
+.help-info{ text-align:left }
 p{line-height:1.7}
 h2{font-size:20px}
 .about-card{text-align:center}
