@@ -132,6 +132,10 @@ async function save() {
       <p v-if="error" class="m-error" role="alert">{{ error }}</p><p v-if="status" role="status">{{ status }}</p>
       <div class="m-actions"><button v-if="!draft.confirmed" type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><template v-else><RouterLink v-if="savedFeedingId" class="m-primary" :to="{ path: '/checkin', query: { starter: draft.starterId, feeding: savedFeedingId, mode: 'diagnosis' } }">可选：诊断本轮</RouterLink><RouterLink class="m-secondary" to="/today">回今日</RouterLink><button type="button" class="m-secondary" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条喂养记录</button></template></div>
     </form>
+    <RouterLink class="m-card feeding-alert" to="/me/notifications">
+      <span class="feeding-alert-main"><strong>高度预约</strong><small>达到目标膨胀倍数时推送提醒，在通知设置中统一管理。</small></span>
+      <span class="feeding-alert-action" aria-hidden="true">›</span>
+    </RouterLink>
   </main>
 </template>
 
@@ -147,5 +151,10 @@ summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
 .weight-item{display:grid;gap:.25rem;min-width:0;font-size:.75rem;color:var(--m-muted,#625e56)}
 .weight-item input{width:100%;min-height:44px;box-sizing:border-box;padding:.25rem .5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;font:inherit;font-size:1rem}.mobile-feeding form{display:grid;gap:.2rem}.mobile-feeding .m-context{font-size:.8rem;margin-bottom:.35rem}.mobile-feeding .m-card{padding:1rem}.mobile-feeding .m-field{gap:.35rem}.mobile-feeding .m-field>input,.mobile-feeding .m-field>select{margin-top:.05rem}.mobile-feeding details{border-top:1px solid var(--m-border,#d8d2c8);border-bottom:1px solid var(--m-border,#d8d2c8);margin:.5rem 0}.mobile-feeding details summary{font-size:.9rem;font-weight:600}.mobile-feeding .m-muted{font-size:.78rem;line-height:1.4}.mobile-feeding .m-actions{margin-top:.5rem}
 .mobile-feeding .weight-item input{padding:8px 5px;font-variant-numeric:tabular-nums}.weight-item:last-child{font-weight:700;color:var(--m-accent)}
+.feeding-alert{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:.75rem 0 0;padding:.75rem .9rem;text-decoration:none;color:inherit}
+.feeding-alert-main{display:grid;gap:.15rem;min-width:0}
+.feeding-alert-main strong{font-size:.85rem}
+.feeding-alert-main small{font-size:.72rem;line-height:1.4;color:var(--m-muted,#625e56)}
+.feeding-alert-action{flex:none;font-size:1.1rem;color:var(--m-muted,#625e56)}
 @media(max-width:359px){.weight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
