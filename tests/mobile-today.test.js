@@ -215,6 +215,18 @@ assert.equal(mutation.vm.newName, '新账号未提交');
 assert.ok(!mutation.vm.starters.some(item => item.id === 'old-created'), 'old mutation cannot populate a new account');
 assert.equal(mutation.vm.saving, false); mutation.stop();
 
+const store = new Map();
+globalThis.localStorage = { getItem: (key) => (store.has(key) ? store.get(key) : null), setItem: (key, value) => store.set(key, String(value)), removeItem: (key) => store.delete(key) };
+const remembered = harness(); await login(remembered, 'a');
+remembered.vm.selectDevice('d2'); await settle();
+assert.equal(store.get('ferjoo.mobile.today.device:a'), 'd2', 'an explicit device choice is remembered per account');
+const restored = harness(); await login(restored, 'a');
+assert.equal(restored.vm.deviceId, 'd2', 'reload restores the device the user last chose');
+const otherAccount = harness(); await login(otherAccount, 'b');
+assert.equal(otherAccount.vm.deviceId, 'd1', 'another account never inherits the remembered device');
+remembered.stop(); restored.stop(); otherAccount.stop();
+delete globalThis.localStorage;
+
 assert.ok(source.indexOf('class="starter-section"') < source.indexOf('class="chart-card"'));
 assert.match(source, /:open="starterOpen" @toggle="starterOpen = \$event.target.open"/);
 assert.match(source, /summary::after/); assert.match(source, /:deep\(svg\).*height:76px/);

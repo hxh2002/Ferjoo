@@ -25,6 +25,16 @@ const closeOpen = ref(false); const closing = ref(false); const closeError = ref
 let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
 // 与 feeding-analysis 的新鲜度窗口保持一致，仅用于「数据是否还新鲜」的提示。
 const FRESH_MS = 40 * 60000;
+// 记住每个账号手动选过的酵种罐，刷新后回到上次离开时的设备。
+const DEVICE_STORAGE = 'ferjoo.mobile.today.device';
+function readSavedDevice(owner) {
+  if (!owner || typeof localStorage === 'undefined') return '';
+  try { return localStorage.getItem(`${DEVICE_STORAGE}:${owner}`) || ''; } catch { return ''; }
+}
+function rememberDevice(owner, id) {
+  if (!owner || !id || typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(`${DEVICE_STORAGE}:${owner}`, id); } catch { /* 存储不可用时退回默认设备 */ }
+}
 
 const activeDevice = computed(() => devices.value.find((item) => item.device_id === deviceId.value));
 const starter = computed(() => starters.value.find((item) => item.id === starterId.value));
@@ -178,7 +188,7 @@ function current(token, owner) { return !disposed && token === generation && own
 function clearSelected() { records.value = []; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeOpen.value = false; closeError.value = ''; }
 function selectDevice(id) {
   if (saving.value || id === deviceId.value) return;
-  generation++; deviceId.value = id;
+  generation++; deviceId.value = id; rememberDevice(accountId.value, id);
   const keepEmpty = explicitStarter.value && !starterId.value;
   starterId.value = ''; explicitStarter.value = keepEmpty;
   deviceOpen.value = false; clearSelected(); void refresh();
@@ -219,7 +229,11 @@ async function refresh() {
       contexts.sort((a, b) => (Date.parse(b.latest?.occurred_at) || 0) - (Date.parse(a.latest?.occurred_at) || 0));
       devices.value = deviceResult.value || []; starters.value = contexts;
       const sortedDevices = devices.value.slice().sort((a, b) => { const aa = Date.parse(a.created_at); const bb = Date.parse(b.created_at); return (Number.isFinite(aa) ? aa : Infinity) - (Number.isFinite(bb) ? bb : Infinity); });
-      if (!devices.value.some(row => row.device_id === deviceId.value)) deviceId.value = sortedDevices[0]?.device_id || '';
+      if (!devices.value.some(row => row.device_id === deviceId.value)) {
+        // 优先回到上次手动选择的设备；首次进入或设备已移除时才用最早的设备。
+        const savedDevice = readSavedDevice(owner);
+        deviceId.value = devices.value.some(row => row.device_id === savedDevice) ? savedDevice : sortedDevices[0]?.device_id || '';
+      }
       let selected = contexts.find(row => row.id === starterId.value);
       if (!explicitStarter.value && !selected) { selected = contexts.find(row => row.link?.device_id === deviceId.value); if (selected) starterId.value = selected.id; }
       if (!selected || selected.link?.device_id && selected.link.device_id !== deviceId.value) { starterId.value = ''; selected = null; }
