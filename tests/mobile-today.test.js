@@ -56,7 +56,11 @@ function harness() {
   const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }], links: [link], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
   const api = {
     async listStarters({ userId }) { state.calls.push(userId); if (state.starterGate) return state.starterGate.promise; if (state.fail === 'starter') throw new Error('starter down'); return state.starters.slice(); },
-    async listCareRecords({ starterId, kind }) { return state.feeding && starterId === state.feeding.starter_id && kind !== 'observation' ? [state.feeding] : []; },
+    async listCareRecords({ starterId, kind }) {
+      if (kind === 'observation') return [];
+      const rows = kind === 'feeding' ? (state.feedings || [state.feeding]) : [state.feeding];
+      return rows.filter((row) => row && starterId === row.starter_id);
+    },
     async createStarter(name) { if (state.createGate) return state.createGate.promise; if (state.fail === 'create') throw new Error('create down'); const created = { id: 'created', name }; state.starters.push(created); return created; }
   };
   const modules = {
@@ -90,7 +94,7 @@ function harness() {
     const app = Vue.createSSRApp({ setup: () => ({ ...bindings }), render });
     app.component('RouterLink', { props: ['to'], setup: ({ to }, { slots }) => () => Vue.h('a', { href: typeof to === 'string' ? to : to.path }, slots.default?.()) });
     app.component('MobileMetricChart', { render: () => Vue.h('div') });
-    app.component('SeriesChart', { render: () => Vue.h('div') });
+    app.component('SeriesChart', { setup: (_, { slots }) => () => Vue.h('div', { class: 'series-chart' }, slots['after-header']?.()) });
     return renderToString(app);
   }
   return { state, user, vm: Vue.proxyRefs(bindings), html, stop: () => scope.stop() };
@@ -109,7 +113,11 @@ assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable 
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
 assert.match(await h.html(), /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(await h.html(), /传感器异常/, 'sensor error is surfaced as an explicit jar state');
-assert.match(await h.html(), /当前高度/, 'the merged round card includes the current height');
+assert.equal(h.vm.baselineText, '尚未建立', 'baseline value and source are reported next to the chart');
+assert.match(source, /基线 \{\{ baselineText \}\}/, 'the chart header carries the baseline text');
+assert.doesNotMatch(await h.html(), /当前高度/, 'the round card no longer repeats the height already shown on the chart');
+assert.match(await h.html(), /class="action-card"/, 'main actions are grouped into a dedicated action card');
+assert.doesNotMatch(await h.html(), /查看设备曲线/, 'the chart jump link is removed');
 assert.match(await h.html(), /未计入膨胀率/, 'chart explains which samples are excluded from the expansion');
 assert.match(await h.html(), /段超过 40 分钟无采样/, 'chart states the size of measurement gaps');
 assert.doesNotMatch(await h.html(), /开启云端推送/, 'today no longer embeds push setup');
@@ -161,8 +169,9 @@ assert.match(closedHtml, /已结束/);
 assert.match(closedHtml, /峰值后回落/, 'closed round states the manual end reason');
 assert.match(closedHtml, /compact-range/, 'closed round still shows its compact time range');
 assert.match(closedHtml, /title="[^"]+–[^"]+"/, 'closed round keeps the full range in the title');
-assert.match(closedHtml, /查看本轮详情/);
+assert.match(closedHtml, /查看详情/);
 assert.doesNotMatch(closedHtml, /结束本轮/, 'closed round no longer offers manual end');
+assert.ok(h.vm.heightMarkers.some((marker) => marker.label === '本轮终点'), 'a closed round marks its end on the chart');
 h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
 await h.vm.addStarter(); await settle();
 assert.equal(h.vm.starterId, 'created'); assert.equal(h.vm.link.device_id, 'd1');
@@ -226,6 +235,16 @@ const otherAccount = harness(); await login(otherAccount, 'b');
 assert.equal(otherAccount.vm.deviceId, 'd1', 'another account never inherits the remembered device');
 remembered.stop(); restored.stop(); otherAccount.stop();
 delete globalThis.localStorage;
+
+const marked = harness(); await login(marked);
+marked.state.feedings = [feeding, { ...feeding, id: 'prev-feeding', occurred_at: iso(200) }];
+await marked.vm.refresh(); await settle();
+const markers = marked.vm.heightMarkers;
+assert.deepEqual(markers.map((marker) => marker.label), ['上轮起点', '上轮终点', '本轮起点'], 'the chart marks previous and current feeding boundaries');
+assert.equal(Date.parse(markers[1].t), Date.parse(markers[2].t) - 5 * 60000, 'the previous end line keeps five minutes away from the current start line');
+assert.equal(markers[2].row, 'top');
+assert.ok(Date.parse(marked.vm.chartFrom) <= Date.parse(markers[2].t), 'the chart window starts before the feeding line so it stays visible');
+marked.stop();
 
 assert.ok(source.indexOf('class="starter-section"') < source.indexOf('class="chart-card"'));
 assert.match(source, /:open="starterOpen" @toggle="starterOpen = \$event.target.open"/);

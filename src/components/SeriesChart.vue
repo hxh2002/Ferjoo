@@ -13,7 +13,9 @@ const props = defineProps({
   // 窄卡片里只显示时刻，跨天用偏移圆标表示，避免日期把一行挤成两行。
   compactTime: { type: Boolean, default: false },
   // 需要标注的关键节点，例如开始喂养的时间；用竖直虚线标在曲线上。
-  markers: { type: Array, default: () => [] } // [{ t: ISO string, label: string }]
+  markers: { type: Array, default: () => [] }, // [{ t: ISO string, label: string, row?: 'top' | 'bottom', accent?: boolean }]
+  // 只有明确要求时才在图内显示节点文字，避免影响其他调用方的紧凑布局。
+  markerLabels: { type: Boolean, default: false }
 });
 
 const W = 100;
@@ -213,8 +215,11 @@ const rangeText = computed(() => {
   return `${fmtTime(stats.value?.firstAt)} – ${fmtTime(stats.value?.lastAt)}`;
 });
 const rangeDayOffset = computed(() => {
-  if (!props.compactTime || domain.value || !stats.value) return 0;
-  const first = new Date(stats.value.firstAt); const last = new Date(stats.value.lastAt);
+  if (!props.compactTime || !stats.value) return 0;
+  const start = domain.value?.start ?? new Date(stats.value.firstAt).getTime();
+  // 固定横轴时右端显示的是 end - 1 分钟，跨天判断也按这个时刻算。
+  const end = (domain.value ? domain.value.end - 60000 : new Date(stats.value.lastAt).getTime());
+  const first = new Date(start); const last = new Date(end);
   return Math.round((Date.UTC(last.getFullYear(), last.getMonth(), last.getDate()) - Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) / 86400000);
 });
 const rangeTitle = computed(() => stats.value ? `${new Date(stats.value.firstAt).toLocaleString()} – ${new Date(stats.value.lastAt).toLocaleString()}` : '');
@@ -226,12 +231,26 @@ const markerLines = computed(() => {
   const end = domain.value?.end ?? new Date(stats.value.lastAt).getTime();
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
   return props.markers
-    .map((marker) => ({ t: Date.parse(marker?.t), label: marker?.label || '喂养' }))
-    .filter((marker) => Number.isFinite(marker.t) && marker.t >= start && marker.t <= end)
     .map((marker) => ({
-      x: round(PAD_X + ((marker.t - start) / (end - start)) * (W - PAD_X * 2)),
-      title: `${marker.label} ${new Date(marker.t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
-    }));
+      t: Date.parse(marker?.t),
+      label: marker?.label || '喂养',
+      row: marker?.row === 'bottom' ? 'bottom' : 'top',
+      accent: !!marker?.accent
+    }))
+    .filter((marker) => Number.isFinite(marker.t) && marker.t >= start && marker.t <= end)
+    .map((marker) => {
+      const x = round(PAD_X + ((marker.t - start) / (end - start)) * (W - PAD_X * 2));
+      const percent = (x / W) * 100;
+      return {
+        x,
+        label: marker.label,
+        row: marker.row,
+        accent: marker.accent,
+        // 贴近两端时改用左/右对齐，标签文字不会被裁掉。
+        align: percent < 12 ? 'start' : percent > 88 ? 'end' : 'center',
+        title: `${marker.label} ${new Date(marker.t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+      };
+    });
 });
 </script>
 
@@ -298,9 +317,10 @@ const markerLines = computed(() => {
           v-for="(marker, index) in markerLines"
           :key="`marker-${index}`"
           class="series-marker"
+          :class="{ accent: marker.accent }"
           :style="{ left: `${(marker.x / W) * 100}%` }"
           :title="marker.title"
-        ></span>
+        ><span v-if="markerLabels" class="series-marker-label" :class="[marker.row, marker.align]">{{ marker.label }}</span></span>
         <span
           v-for="(dot, index) in dots"
           :key="`${dot.t}-${index}`"
@@ -358,6 +378,25 @@ const markerLines = computed(() => {
   border-radius: 50%;
   background: #a44213;
 }
+/* 本轮起点用更实的线强调；上轮与终点的标签放下排，避免和左上的 max 标签重叠。 */
+.series-marker.accent { border-left-color: rgba(164, 66, 19, .85); }
+.series-marker-label {
+  position: absolute;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .88);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.7;
+  color: #8a8078;
+  white-space: nowrap;
+}
+.series-marker-label.top { top: 14px; }
+.series-marker-label.bottom { bottom: 0; }
+.series-marker-label.center { transform: translateX(-50%); }
+.series-marker-label.start { left: 2px; }
+.series-marker-label.end { right: 2px; }
+.series-marker.accent .series-marker-label { color: #a44213; background: rgba(255, 240, 236, .92); }
 /* 孤立点沿用折线的方形笔触，尺寸跟随当前图表的折线宽度，大图同步放大。 */
 .series-dot {
   width: calc(var(--series-stroke, 1.8px) * 2.5);

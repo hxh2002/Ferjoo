@@ -15,7 +15,7 @@ defineOptions({ name: 'MobileToday' });
 const auth = useAuth();
 const accountId = computed(() => auth.user.value?.id || '');
 const devices = ref([]); const starters = ref([]); const measurements = ref([]);
-const deviceId = ref(''); const starterId = ref(''); const records = ref([]); const link = ref(null);
+const deviceId = ref(''); const starterId = ref(''); const records = ref([]); const link = ref(null); const previousFeeding = ref(null);
 const loading = ref(false); const saving = ref(false); const error = ref(''); const deviceError = ref('');
 const deviceOpen = ref(false); const starterOpen = ref(false); const newStarterOpen = ref(false); const contextOpen = ref(false);
 const newName = ref(''); const now = ref(Date.now()); const explicitStarter = ref(false);
@@ -62,8 +62,30 @@ const heightPoints = computed(() => chartRows.value.map((row) => ({ t: row.recor
 const tempPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'temperature_c') })));
 const humidityPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'humidity_percent') })));
 const heightBaseline = computed(() => summary.value?.baselineHeightMm > 0 ? summary.value.baselineHeightMm : null);
-// 高度图标出本轮开始喂养的位置。
-const heightMarkers = computed(() => summary.value?.windowFrom ? [{ t: summary.value.windowFrom, label: '开始喂养' }] : []);
+// 有明确喂养起点时，横轴从喂养前 5 分钟开始，喂养竖线才不会被画到图外或贴边。
+const chartFrom = computed(() => {
+  const base = link.value?.active_from && Date.parse(link.value.active_from) > Date.parse(from.value) ? link.value.active_from : from.value;
+  const earliest = Date.parse(previousFeeding.value?.occurred_at || feeding.value?.occurred_at);
+  if (!Number.isFinite(earliest)) return base;
+  return new Date(Math.max(Date.parse(from.value), Math.min(Date.parse(base), earliest - 5 * 60000))).toISOString();
+});
+const chartTo = computed(() => to.value);
+// 四条竖线：上轮起点/终点、本轮起点/终点。上轮终点按定义等于本轮喂养时间，
+// 与本轮起点重合时左移 5 分钟，避免两条线叠成一条。
+const heightMarkers = computed(() => {
+  const startAt = Date.parse(summary.value?.windowFrom);
+  if (!Number.isFinite(startAt)) return [];
+  const markers = [];
+  const previousAt = Date.parse(previousFeeding.value?.occurred_at);
+  if (Number.isFinite(previousAt)) {
+    markers.push({ t: new Date(previousAt).toISOString(), label: '上轮起点', row: 'bottom' });
+    if (startAt - previousAt > 5 * 60000) markers.push({ t: new Date(startAt - 5 * 60000).toISOString(), label: '上轮终点', row: 'bottom' });
+  }
+  markers.push({ t: new Date(startAt).toISOString(), label: '本轮起点', row: 'top', accent: true });
+  const endAt = Date.parse(summary.value?.windowClosedAt);
+  if (Number.isFinite(endAt) && endAt - startAt > 5 * 60000) markers.push({ t: new Date(endAt).toISOString(), label: '本轮终点', row: 'top' });
+  return markers;
+});
 // 概览只保留三个关键值，采集中/未建立等状态压进对应值里，避免多出一行说明。
 const baselineText = computed(() => {
   const value = summary.value;
@@ -74,7 +96,6 @@ const baselineText = computed(() => {
   return '尚未建立';
 });
 const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '-');
-const currentHeightText = computed(() => Number.isFinite(summary.value?.currentHeightMm) ? `${summary.value.currentHeightMm.toFixed(1)} mm` : '-');
 const closeReasonLabels = { fallen: '峰值后回落', no_peak: '未见明显峰值', abnormal: '中途异常', record_only: '手动结束记录' };
 // 已结束的轮次必须说清是「被下一次喂养截断」还是「手动结束」，手动结束还要带上原因。
 const endReasonText = computed(() => {
@@ -115,7 +136,7 @@ const jarStatus = computed(() => {
   if (Number.isFinite(at) && now.value - at <= FRESH_MS) return { tone: 'ok', label: '数据正常', detail };
   return { tone: 'warn', label: '数据偏旧', detail };
 });
-const chartRangeLabel = computed(() => link.value?.active_from && Date.parse(link.value.active_from) > Date.parse(from.value) ? '自关联起' : '最近 24 小时');
+const chartRangeLabel = computed(() => Math.abs(Date.parse(chartFrom.value) - Date.parse(from.value)) <= 60000 ? '最近 24 小时' : `自 ${clockText(chartFrom.value)} 起`);
 // 图里被排除的样本和断档要说明白，否则用户会把缺口误读成发酵停止。
 const chartNote = computed(() => {
   const rows = chartRows.value;
@@ -135,15 +156,6 @@ const windowRange = computed(() => {
   return compactTimeRange(value.windowFrom, end);
 });
 // 设备缺测只说明观测质量，不能暗示发酵已经结束。
-const dataNote = computed(() => {
-  const value = summary.value;
-  if (!value) return '';
-  if (!link.value) return '该酵种未关联设备，本轮只记录喂养事实；膨胀率暂时无法计算。';
-  if (value.heightStale) return '设备数据已超过 40 分钟未更新，本轮仍在进行；膨胀率暂不计算。';
-  if (value.baselineStatus === 'pending') return `正在建立基线，已收集 ${value.baselineUsedCount}/3 个有效高度样本。`;
-  if (value.baselineStatus === 'insufficient' && value.windowActive) return '有效高度样本不足，尚未建立基线。';
-  return '';
-});
 const closeReasons = [
   { value: 'fallen', label: '已达到峰值后回落' },
   { value: 'no_peak', label: '没有明显达到峰值' },
@@ -176,16 +188,9 @@ function compactTimeRange(fromValue, toValue) {
     fullTo: new Date(to).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   };
 }
-function durationText(hours) {
-  if (!Number.isFinite(hours) || hours < 0) return '--';
-  const minutes = Math.round(hours * 60);
-  const h = Math.floor(minutes / 60); const m = minutes % 60;
-  return h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
-}
 function target(path, extra = {}) { return { path, query: { ...(starterId.value ? { starter: starterId.value } : {}), ...extra } }; }
-function scrollToChart() { if (typeof document !== 'undefined') document.getElementById('device-chart')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function current(token, owner) { return !disposed && token === generation && owner === accountId.value; }
-function clearSelected() { records.value = []; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeOpen.value = false; closeError.value = ''; }
+function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeOpen.value = false; closeError.value = ''; }
 function selectDevice(id) {
   if (saving.value || id === deviceId.value) return;
   generation++; deviceId.value = id; rememberDevice(accountId.value, id);
@@ -220,10 +225,10 @@ async function refresh() {
       const contexts = await Promise.all(rows.map(async (item) => {
         const [latest, feedRows, obsRows] = await Promise.all([
           listCareRecords({ userId: owner, starterId: item.id, limit: 1 }),
-          listCareRecords({ userId: owner, starterId: item.id, kind: 'feeding', limit: 1 }),
+          listCareRecords({ userId: owner, starterId: item.id, kind: 'feeding', limit: 2 }),
           listCareRecords({ userId: owner, starterId: item.id, kind: 'observation', limit: 1 })
         ]);
-        return { ...item, link: linkMap.get(item.id) || null, latest: latest[0] || null, feeding: feedRows[0] || null, observation: obsRows[0] || null };
+        return { ...item, link: linkMap.get(item.id) || null, latest: latest[0] || null, feeding: feedRows[0] || null, previousFeeding: feedRows[1] || null, observation: obsRows[0] || null };
       }));
       if (!current(token, owner)) return;
       contexts.sort((a, b) => (Date.parse(b.latest?.occurred_at) || 0) - (Date.parse(a.latest?.occurred_at) || 0));
@@ -239,6 +244,7 @@ async function refresh() {
       if (!selected || selected.link?.device_id && selected.link.device_id !== deviceId.value) { starterId.value = ''; selected = null; }
       link.value = selected?.link || null;
       records.value = [selected?.feeding, selected?.observation].filter(Boolean).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
+      previousFeeding.value = selected?.previousFeeding || null;
       const session = loadSessionReport(owner);
       report.value = session?.accountId === owner && session.starterId === starterId.value ? session : null;
       evidence.value = []; nextFeedingAt.value = null; closure.value = null;
@@ -259,7 +265,7 @@ async function refresh() {
       }
       if (!current(token, owner)) return;
       if (!deviceId.value || starterId.value && !link.value) { measurements.value = []; return; }
-      const rangeFrom = link.value?.active_from && Date.parse(link.value.active_from) > Date.parse(from.value) ? link.value.active_from : from.value;
+      const rangeFrom = chartFrom.value;
       const measuredRows = await listMeasurementsRange(deviceId.value, { from: rangeFrom, to: to.value, bucketed: false });
       if (!current(token, owner)) return;
       measurements.value = measuredRows.filter(row => {
@@ -342,33 +348,8 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
       <div v-if="starterId" class="round-section">
         <section v-if="feeding" class="round-card">
           <div class="round-head"><strong>本轮发酵</strong><span class="round-state" :data-tone="roundTone">{{ roundStateText }}</span></div>
-          <p class="round-window"><span v-if="windowRange" class="compact-range" :title="`${windowRange.fullFrom} – ${windowRange.fullTo}`"><span v-if="windowRange.crossDay" class="day-offset">{{ windowRange.offset }}</span><span>{{ windowRange.from }}</span><span class="range-separator">–</span><span>{{ windowRange.to }}</span></span><span v-if="summary?.windowActive" class="round-duration">已持续 {{ durationText(summary?.elapsedHours) }}</span></p>
-          <dl class="round-metrics">
-            <div><dt>当前高度</dt><dd>{{ currentHeightText }}</dd></div>
-            <div><dt>膨胀率</dt><dd>{{ expansionText }}</dd></div>
-            <div><dt>基线</dt><dd>{{ baselineText }}</dd></div>
-            <div v-if="summary?.windowActive"><dt>距上次喂养</dt><dd>{{ relative(feeding.occurred_at) }}</dd></div>
-            <div v-else><dt>本轮时长</dt><dd>{{ durationText(summary?.elapsedHours) }}</dd></div>
-          </dl>
-          <p v-if="dataNote" class="round-note">{{ dataNote }}</p>
-          <p v-if="closeError" class="m-error" role="alert">{{ closeError }}</p>
-          <div class="round-actions">
-            <template v-if="summary?.windowActive">
-              <RouterLink class="m-primary" :to="target('/feeding')">记录下一次喂养</RouterLink>
-              <button v-if="!closeOpen" type="button" class="m-secondary" @click="closeOpen = true">结束本轮</button>
-              <div v-else class="close-panel" role="group" aria-label="结束本轮原因">
-                <p>这次发酵处于什么状态？</p>
-                <button v-for="option in closeReasons" :key="option.value" type="button" :disabled="closing" @click="endRound(option.value)">{{ option.label }}</button>
-                <button type="button" class="text-button" :disabled="closing" @click="closeOpen = false">继续观察</button>
-              </div>
-              <RouterLink class="round-link" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">查看本轮详情</RouterLink>
-            </template>
-            <template v-else>
-              <RouterLink class="m-primary" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">查看本轮详情</RouterLink>
-              <RouterLink class="m-secondary" :to="target('/feeding')">记录下一次喂养</RouterLink>
-            </template>
-            <button v-if="deviceId && link" type="button" class="round-link round-link-button" @click="scrollToChart">查看设备曲线</button>
-          </div>
+          <p v-if="windowRange" class="round-window"><span class="compact-range" :title="`${windowRange.fullFrom} – ${windowRange.fullTo}`"><span v-if="windowRange.crossDay" class="day-offset">{{ windowRange.offset }}</span><span>{{ windowRange.from }}</span><span class="range-separator">–</span><span>{{ windowRange.to }}</span></span></p>
+          <p class="round-since">距上次喂养 {{ relative(feeding.occurred_at) }}</p>
         </section>
         <section v-else class="round-card round-empty">
           <img class="jojo-mascot jojo-empty" src="/assets/jojo2.png" alt="Jojo 吉祥物" loading="lazy">
@@ -377,7 +358,31 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
           <RouterLink class="m-primary round-empty-action" :to="target('/feeding')">记录喂养</RouterLink>
         </section>
       </div>
-        <section v-if="deviceId" id="device-chart" class="chart-card"><div class="chart-title"><strong>{{ starter ? starter.name : '未关联酵种的设备数据' }}</strong><span>{{ chartRangeLabel }}</span></div><p v-if="chartNote" class="chart-note">{{ chartNote }}</p><SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" :markers="heightMarkers" compact-time><template #after-header><div class="height-expansion"><span>膨胀率</span><strong>{{ expansionText }}</strong></div></template></SeriesChart><div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" compact-time/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" compact-time/></div></section>
+        <section v-if="deviceId" class="chart-card">
+          <div class="chart-title"><strong>{{ starter ? starter.name : '未关联酵种的设备数据' }}</strong><span>{{ chartRangeLabel }}</span></div>
+          <p v-if="chartNote" class="chart-note">{{ chartNote }}</p>
+          <SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" :markers="heightMarkers" :from="chartFrom" :to="chartTo" marker-labels compact-time>
+            <template #after-header><div class="height-meta"><span>基线 {{ baselineText }}</span><span class="height-expansion"><span>膨胀率</span><strong>{{ expansionText }}</strong></span></div></template>
+          </SeriesChart>
+          <div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" compact-time/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" compact-time/></div>
+        </section>
+      <section v-if="starterId && feeding" class="action-card">
+        <div class="action-head"><strong>操作</strong></div>
+        <p v-if="closeError" class="m-error" role="alert">{{ closeError }}</p>
+        <div class="action-grid">
+          <RouterLink class="m-primary action-wide" :to="target('/feeding')">记录下一次喂养</RouterLink>
+          <template v-if="summary?.windowActive">
+            <button v-if="!closeOpen" type="button" class="m-secondary" @click="closeOpen = true">结束本轮</button>
+            <RouterLink class="m-secondary" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">查看详情</RouterLink>
+            <div v-if="closeOpen" class="close-panel action-wide" role="group" aria-label="结束本轮原因">
+              <p>这次发酵处于什么状态？</p>
+              <button v-for="option in closeReasons" :key="option.value" type="button" :disabled="closing" @click="endRound(option.value)">{{ option.label }}</button>
+              <button type="button" class="text-button" :disabled="closing" @click="closeOpen = false">继续观察</button>
+            </div>
+          </template>
+          <RouterLink v-else class="m-secondary action-wide" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">查看详情</RouterLink>
+        </div>
+      </section>
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
       <p v-if="!starterId" class="m-muted small picker-hint">选择酵种后可记录喂养，并查看这一轮发酵。</p>
     </template>
@@ -386,8 +391,8 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
 
 <style scoped>
 .today-page{max-width:42rem;margin:auto}.chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem}.today-heading{display:grid;gap:.4rem;margin-bottom:.75rem}.status-row{display:flex;align-items:center;gap:.4rem}.picker-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.4rem;align-items:center}.picker{position:relative;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-surface,#fffdf8);min-width:0}.picker summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:.35rem;padding:0 .5rem}.picker-label{flex-shrink:0;font-size:.68rem;color:var(--m-muted,#625e56)}.picker-value{font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.refresh-icon{flex:none;width:38px;height:38px;padding:0;display:grid;place-items:center;border:1px solid var(--m-border,#d8d2c8);border-radius:50%;background:var(--m-surface,#fffdf8);color:var(--m-accent,#a44213);cursor:pointer}.refresh-icon svg{width:17px;height:17px}.refresh-icon.spinning svg{animation:refresh-spin .9s linear infinite}@keyframes refresh-spin{to{transform:rotate(360deg)}}.picker-menu,.starter-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:25;width:min(19rem,calc(100vw - 2rem));display:grid;gap:.25rem;padding:.4rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px;background:var(--m-card,#fffdf8);box-shadow:0 12px 28px rgba(77,48,30,.16);max-height:60vh;overflow:auto}.starter-menu{left:auto;right:0}.picker-menu button,.picker-menu a,.starter-menu button{min-height:44px;padding:.5rem .75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:var(--m-surface,#fffdf8);text-align:left;font:inherit}.picker-menu a{color:var(--m-accent,#a44213)}.m-muted{font-size:.875rem;line-height:1.6;color:var(--m-muted,#625e56)}.m-muted.small{font-size:.8rem}.m-error{padding:.7rem;color:#86261f;border:1px solid #86261f}.chart-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}.chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}.small-charts{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.series-chart{min-width:0}.starter-section{padding-bottom:.25rem}.text-button{border:0;background:none;color:var(--m-accent,#a44213);min-height:44px;font:inherit}.compact-summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.starter-menu button{cursor:pointer}.starter-menu button.active{border-color:var(--m-accent,#a44213);color:var(--m-accent,#a44213)}.starter-menu small{display:block;color:var(--m-muted,#625e56);font-size:.75rem}.new-starter{display:grid;gap:.5rem;margin-top:.5rem}.new-starter input{min-height:44px;padding:.5rem;font:inherit}.risk-banner{padding:.75rem;background:#fff0ed;border-left:3px solid #a12c23;color:#86261f;margin:.75rem 0;display:flex;justify-content:space-between;gap:.5rem}.risk-banner a{color:inherit;font-weight:700}button:disabled{opacity:.55}@media(max-width:360px){.small-charts{gap:.5rem}}
-.eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.jar-status{display:flex;align-items:center;gap:.4rem;min-width:0;min-height:38px;padding:0 .75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:var(--m-surface,#fffdf8);font-family:inherit;font-size:.72rem;line-height:1.2;color:var(--m-muted,#625e56)}.status-toggle{flex:1;text-align:left;cursor:pointer}.status-caret{flex:none;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;transition:transform .15s}.status-toggle[aria-expanded="true"] .status-caret{transform:rotate(180deg)}.jar-dot{width:7px;height:7px;border-radius:50%;background:#9b958a;flex:none}.jar-status strong{font-size:.75rem;font-weight:700;color:var(--text-primary,#30251f)}.jar-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.jar-status[data-tone="ok"] .jar-dot{background:#2B7A55}.jar-status[data-tone="warn"] .jar-dot{background:#B4761F}.jar-status[data-tone="fault"] .jar-dot{background:#A12C23}.jar-status[data-tone="fault"] strong{color:#A12C23}.chart-note{margin:-.4rem 0 .6rem;font-size:.7rem;line-height:1.5;color:var(--m-muted,#625e56)}.round-link-button{justify-self:start;border:0;background:none;padding:0;font-family:inherit;cursor:pointer}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.round-section{display:grid;gap:.5rem;margin:.75rem 0}.round-section>*,.round-empty{min-width:0;padding:.7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-card,#fff);font-size:.8rem;line-height:1.4}.round-card{display:grid;gap:.45rem}.round-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem}.round-head strong{font-size:.9rem}.round-state{padding:.15rem .5rem;border-radius:999px;font-size:.7rem;font-weight:600;color:#2B7A55;background:#e7f4ed;white-space:nowrap}.round-state[data-tone="warn"]{color:#8a5a12;background:#fbefd9}.round-state[data-tone="neutral"]{color:#625e56;background:#efeae2}.round-window{margin:0;font-size:.75rem;color:var(--m-muted,#625e56);min-width:0;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}.compact-range{display:inline-flex;align-items:center;gap:.18rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--text-primary,#30251f);font-weight:700}.range-separator{color:var(--m-muted,#625e56)}.day-offset{display:inline-grid;place-items:center;min-width:.68rem;height:.68rem;padding:0 .04rem;border-radius:50%;background:#f2dcd7;color:#a4524a;font-size:.46rem;line-height:1;font-weight:600}.round-duration{white-space:nowrap;font-variant-numeric:tabular-nums}.round-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem .5rem;margin:0}.round-metrics>div{display:grid;gap:.15rem;min-width:0}.round-metrics dt{font-size:.7rem;color:var(--m-muted,#6f6a61);white-space:nowrap}.round-metrics dd{margin:0;min-width:0;font-size:clamp(.66rem,2.8vw,.8rem);font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.round-note{margin:0;font-size:.72rem;line-height:1.5;color:#a12c23}.round-actions{display:grid;gap:.4rem}.round-actions>.m-secondary{min-height:44px}.round-actions>.m-primary{text-align:center}.close-panel{display:grid;gap:.35rem;padding:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px}.close-panel p{margin:0;font-size:.75rem;color:var(--m-muted,#625e56)}.close-panel button{min-height:40px;padding:.4rem .6rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:var(--m-surface,#fffdf8);font:inherit;text-align:left;cursor:pointer}.close-panel .text-button{text-align:center;color:var(--m-accent,#a44213);border:0;background:none}.round-link{font-size:.8rem;font-weight:600;color:var(--m-accent,#a44213)}.round-empty{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin:.75rem 0}.round-empty-action{flex-basis:100%;text-align:center}.round-empty-copy{display:grid;gap:.35rem;min-width:0}.round-empty strong{font-size:.9rem}.round-empty p{margin:0;font-size:.78rem;line-height:1.5;color:var(--m-muted,#625e56)}.jojo-mascot{display:block;object-fit:contain;flex:none}.jojo-login{width:min(52vw,190px);height:auto;margin:.2rem auto .85rem}.jojo-empty{width:72px;height:72px}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-chart){--series-stroke:1.5px}.chart-card :deep(.chart-feature){--series-stroke:2px}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}.chart-card :deep(.series-dot){border-radius:0}.chart-card :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}.chart-card :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.25rem;min-width:0}.chart-card :deep(.series-time-range){white-space:nowrap}.chart-card :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.25rem;margin-bottom:.25rem;min-width:0}.chart-card :deep(.series-label){min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700}.chart-card :deep(.series-headline){min-width:0;flex-wrap:nowrap;gap:.25rem}.chart-card :deep(.series-value),.chart-card :deep(.series-delta){flex-shrink:0}.chart-card :deep(.series-value){font-size:.9rem}.chart-card :deep(.series-delta){font-size:.7rem}.small-charts :deep(.series-delta){display:none}.small-charts{padding-top:.65rem;border-top:1px solid var(--m-border,#d8d2c8)}.picker-menu button,.picker-menu a{border-left:0;border-right:0}.picker-menu button.active{background:color-mix(in srgb,var(--m-accent,#a44213) 8%,transparent)}
-.chart-card :deep(.chart-feature .series-value){font-size:1.75rem;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.25rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}.chart-card :deep(.height-expansion){display:flex;align-items:center;justify-content:flex-end;gap:.3rem;margin:-.15rem 0 .2rem;color:var(--m-muted,#625e56);font-size:.72rem;line-height:1.2}.chart-card :deep(.height-expansion strong){color:var(--text-primary,#30251f);font-size:.78rem;font-variant-numeric:tabular-nums}.chart-card :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card);border:1px solid var(--m-border);padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}.chart-card :deep(.series-tip span){display:block;color:var(--m-muted)}.chart-card :deep(.series-guide){stroke:var(--m-muted);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}.chart-card :deep(.series-grid){stroke-dasharray:2 2}.chart-card :deep(.series-empty){min-height:76px;display:grid;place-items:center;font-size:.8rem;color:var(--m-muted);background:var(--m-surface)}.chart-card :deep(.chart-feature .series-empty){min-height:180px}.chart-title{margin-bottom:.65rem}.round-section{align-items:stretch}
-@media(max-width:380px){.round-metrics{gap:.3rem}.round-metrics dt{font-size:.66rem}.round-metrics dd{font-size:.76rem}}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.jar-status{display:flex;align-items:center;gap:.4rem;min-width:0;min-height:38px;padding:0 .75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:var(--m-surface,#fffdf8);font-family:inherit;font-size:.72rem;line-height:1.2;color:var(--m-muted,#625e56)}.status-toggle{flex:1;text-align:left;cursor:pointer}.status-caret{flex:none;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;transition:transform .15s}.status-toggle[aria-expanded="true"] .status-caret{transform:rotate(180deg)}.jar-dot{width:7px;height:7px;border-radius:50%;background:#9b958a;flex:none}.jar-status strong{font-size:.75rem;font-weight:700;color:var(--text-primary,#30251f)}.jar-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.jar-status[data-tone="ok"] .jar-dot{background:#2B7A55}.jar-status[data-tone="warn"] .jar-dot{background:#B4761F}.jar-status[data-tone="fault"] .jar-dot{background:#A12C23}.jar-status[data-tone="fault"] strong{color:#A12C23}.chart-note{margin:-.4rem 0 .6rem;font-size:.7rem;line-height:1.5;color:var(--m-muted,#625e56)}.action-card{display:grid;gap:.55rem;margin:.75rem 0;padding:.7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-card,#fff)}.action-head strong{font-size:.9rem}.action-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.45rem}.action-grid>.m-primary,.action-grid>.m-secondary{min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center}.action-wide{grid-column:1/-1}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.round-section{display:grid;gap:.5rem;margin:.75rem 0}.round-section>*,.round-empty{min-width:0;padding:.7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-card,#fff);font-size:.8rem;line-height:1.4}.round-card{display:grid;gap:.45rem}.round-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem}.round-head strong{font-size:.9rem}.round-state{padding:.15rem .5rem;border-radius:999px;font-size:.7rem;font-weight:600;color:#2B7A55;background:#e7f4ed;white-space:nowrap}.round-state[data-tone="warn"]{color:#8a5a12;background:#fbefd9}.round-state[data-tone="neutral"]{color:#625e56;background:#efeae2}.round-window{margin:0;font-size:.75rem;color:var(--m-muted,#625e56);min-width:0;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}.round-since{margin:0;font-size:.75rem;color:var(--m-muted,#625e56)}.compact-range{display:inline-flex;align-items:center;gap:.18rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--text-primary,#30251f);font-weight:700}.range-separator{color:var(--m-muted,#625e56)}.day-offset{display:inline-grid;place-items:center;min-width:.68rem;height:.68rem;padding:0 .04rem;border-radius:50%;background:#f2dcd7;color:#a4524a;font-size:.46rem;line-height:1;font-weight:600}.close-panel{display:grid;gap:.35rem;padding:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px}.close-panel p{margin:0;font-size:.75rem;color:var(--m-muted,#625e56)}.close-panel button{min-height:40px;padding:.4rem .6rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:var(--m-surface,#fffdf8);font:inherit;text-align:left;cursor:pointer}.close-panel .text-button{text-align:center;color:var(--m-accent,#a44213);border:0;background:none}.round-empty{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin:.75rem 0}.round-empty-action{flex-basis:100%;text-align:center}.round-empty-copy{display:grid;gap:.35rem;min-width:0}.round-empty strong{font-size:.9rem}.round-empty p{margin:0;font-size:.78rem;line-height:1.5;color:var(--m-muted,#625e56)}.jojo-mascot{display:block;object-fit:contain;flex:none}.jojo-login{width:min(52vw,190px);height:auto;margin:.2rem auto .85rem}.jojo-empty{width:72px;height:72px}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-chart){--series-stroke:1.5px}.chart-card :deep(.chart-feature){--series-stroke:2px}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}.chart-card :deep(.series-dot){border-radius:0}.chart-card :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}.chart-card :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.25rem;min-width:0}.chart-card :deep(.series-time-range){white-space:nowrap}.chart-card :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.25rem;margin-bottom:.25rem;min-width:0}.chart-card :deep(.series-label){min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700}.chart-card :deep(.series-headline){min-width:0;flex-wrap:nowrap;gap:.25rem}.chart-card :deep(.series-value),.chart-card :deep(.series-delta){flex-shrink:0}.chart-card :deep(.series-value){font-size:.9rem}.chart-card :deep(.series-delta){font-size:.7rem}.small-charts :deep(.series-delta){display:none}.small-charts{padding-top:.65rem;border-top:1px solid var(--m-border,#d8d2c8)}.picker-menu button,.picker-menu a{border-left:0;border-right:0}.picker-menu button.active{background:color-mix(in srgb,var(--m-accent,#a44213) 8%,transparent)}
+.chart-card :deep(.chart-feature .series-value){font-size:1.75rem;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.25rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}.height-meta{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;margin:-.1rem 0 .2rem;font-size:.7rem;line-height:1.3;color:var(--m-muted,#625e56)}.height-meta>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.height-meta .height-expansion{display:inline-flex;align-items:baseline;gap:.3rem;margin:0;flex:none;color:inherit;font-size:inherit;line-height:inherit}.height-meta .height-expansion strong{color:var(--text-primary,#30251f);font-size:.75rem;font-variant-numeric:tabular-nums}.chart-card :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card);border:1px solid var(--m-border);padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}.chart-card :deep(.series-tip span){display:block;color:var(--m-muted)}.chart-card :deep(.series-guide){stroke:var(--m-muted);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}.chart-card :deep(.series-grid){stroke-dasharray:2 2}.chart-card :deep(.series-empty){min-height:76px;display:grid;place-items:center;font-size:.8rem;color:var(--m-muted);background:var(--m-surface)}.chart-card :deep(.chart-feature .series-empty){min-height:180px}.chart-title{margin-bottom:.65rem}.round-section{align-items:stretch}
+@media(max-width:380px){.action-grid{gap:.35rem}.action-grid>.m-primary,.action-grid>.m-secondary{font-size:.82rem}}
 
 </style>
