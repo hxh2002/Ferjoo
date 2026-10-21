@@ -146,7 +146,12 @@ assert.deepEqual(h.vm.measurements, [], 'unlinked starter cannot retain raw char
 const unlinkedHtml = await h.html();
 assert.match(unlinkedHtml, /本轮发酵/, 'round card still renders without a device link');
 assert.match(unlinkedHtml, /未关联设备/, 'missing device data is described as data quality, not as a finished round');
-assert.match(unlinkedHtml, />关联</, 'an unlinked starter offers a direct associate action');
+assert.doesNotMatch(unlinkedHtml, /picker-row/, 'device and starter pickers stay collapsed into the status bar');
+h.vm.contextOpen = true;
+const expandedHtml = await h.html();
+assert.match(expandedHtml, /picker-row/, 'opening the status bar reveals the device and starter pickers');
+assert.match(expandedHtml, /关联当前设备/, 'switching and associating stay reachable once expanded');
+h.vm.contextOpen = false;
 assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
 await h.vm.endRound('fallen'); await settle();
 assert.equal(h.state.closed.detail, 'fallen', 'manual end records the selected reason');
