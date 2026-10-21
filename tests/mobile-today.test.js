@@ -110,6 +110,8 @@ assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert
 assert.match(await h.html(), /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(await h.html(), /传感器异常/, 'sensor error is surfaced as an explicit jar state');
 assert.match(await h.html(), /当前高度/, 'the merged round card includes the current height');
+assert.match(await h.html(), /未计入膨胀率/, 'chart explains which samples are excluded from the expansion');
+assert.match(await h.html(), /段超过 40 分钟无采样/, 'chart states the size of measurement gaps');
 assert.doesNotMatch(await h.html(), /开启云端推送/, 'today no longer embeds push setup');
 assert.doesNotMatch(await h.html(), /2\.5×/, 'alert thresholds are managed on the settings page');
 assert.match(await h.html(), /本轮发酵/, 'current feeding is shown as an explicit round');
@@ -144,12 +146,14 @@ assert.deepEqual(h.vm.measurements, [], 'unlinked starter cannot retain raw char
 const unlinkedHtml = await h.html();
 assert.match(unlinkedHtml, /本轮发酵/, 'round card still renders without a device link');
 assert.match(unlinkedHtml, /未关联设备/, 'missing device data is described as data quality, not as a finished round');
+assert.match(unlinkedHtml, />关联</, 'an unlinked starter offers a direct associate action');
 assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
 await h.vm.endRound('fallen'); await settle();
 assert.equal(h.state.closed.detail, 'fallen', 'manual end records the selected reason');
 assert.equal(h.vm.summary.windowStatus, 'closed', 'manual end closes the round immediately');
 const closedHtml = await h.html();
 assert.match(closedHtml, /已结束/);
+assert.match(closedHtml, /峰值后回落/, 'closed round states the manual end reason');
 assert.match(closedHtml, /compact-range/, 'closed round still shows its compact time range');
 assert.match(closedHtml, /title="[^"]+–[^"]+"/, 'closed round keeps the full range in the title');
 assert.match(closedHtml, /查看本轮详情/);
