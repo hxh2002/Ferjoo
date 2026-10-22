@@ -3,199 +3,192 @@ const listPositions = new Map();
 </script>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
 import HistoryCalendar from '../../components/HistoryCalendar.vue';
-import { localDateTimeValue } from '../../lib/localDateTime.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
-const deviceNotice = ref('');
-async function deviceRecords(owner, start, end) {
-  const names = await listStarters({ userId: owner });
-  const selected = starterId.value ? names.filter(item => item.id === starterId.value) : names;
-  const service = await mobileDeviceService(); const summaries = new Map(); let partial = false;
-  for (const starter of selected) {
-    const links = await listStarterDeviceLinks({ userId: owner, starterId: starter.id });
-    for (const link of links) {
-      const first = Math.max(start?.getTime() ?? Date.now() - 30 * 86400000, Date.parse(link.active_from));
-      const last = Math.min(end?.getTime() ?? Date.now(), link.active_to ? Date.parse(link.active_to) : Date.now(), Date.now());
-      if (last - first < 600000) continue;
-      const result = await service.range(link.device_id, { from: new Date(first).toISOString(), to: new Date(last).toISOString() });
-      if (!result.complete) partial = true;
-      for (const sample of result.rows) {
-        const day = localDateTimeValue(new Date(sample.recorded_at)).slice(0, 10);
-        const key = `${starter.id}:${link.device_id}:${day}`;
-        const row = summaries.get(key) || { id: key, kind: 'device', starter_id: starter.id, device_id: link.device_id, occurred_at: sample.recorded_at, count: 0, day };
-        row.count++; if (Date.parse(sample.recorded_at) > Date.parse(row.occurred_at)) row.occurred_at = sample.recorded_at;
-        summaries.set(key, row);
-      }
-    }
-  }
-  return { rows: [...summaries.values()], partial };
-}
+import { loadWindowClosures } from '../../services/fermentation-window.service.js';
+import {
+  createRecordsLoader, normalizeRecordsQuery, recentRecordDays, recordDeviceMetrics,
+  recordsDayModel, recordsDetailTarget, validLocalDay
+} from '../../lib/mobile-records.js';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
+defineOptions({ name: 'MobileRecords' });
+
 const starters = ref([]);
-const rows = ref([]);
+const facts = ref([]);
+const model = ref(null);
+const marks = ref({});
 const loading = ref(false);
 const error = ref('');
-const namesError = ref('');
-const scrollY = ref(0);
-const pageSize = 20;
-const calendarMonth = ref(Date.now());
-const calendarStats = ref({});
-// 记录页按记录类型着色；同一天有多种记录时按喂养 > 观察 > 设备数据取其一。
-const calendarLegend = [
-  { key: 'observation', label: '观察' },
-  { key: 'feeding', label: '喂养' },
-  { key: 'device', label: '设备数据' }
-];
-const calendarPriority = { device: 1, observation: 2, feeding: 3 };
-const selectedDay = computed(() => from.value === to.value ? from.value : '');
-async function loadCalendar() {
-  if (!accountId.value) return;
-  const owner = accountId.value; const starter = starterId.value; const month = calendarMonth.value;
-  const date = new Date(month);
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-  try {
-    const records = [];
-    for (let offset = 0; ; offset += 200) {
-      const batch = await listCareRecords({ userId: owner, ...(starter ? { starterId: starter } : {}), from: start.toISOString(), to: end.toISOString(), limit: 200, offset });
-      if (owner !== accountId.value || starter !== starterId.value || month !== calendarMonth.value) return;
-      records.push(...batch);
-      if (batch.length < 200) break;
-    }
-    const stats = {};
-    for (const row of records) {
-      const key = localDateTimeValue(new Date(row.occurred_at)).slice(0, 10);
-      if (!stats[key] || calendarPriority[row.kind] > calendarPriority[stats[key]]) stats[key] = row.kind;
-    }
-    const devices = await deviceRecords(owner, start, end);
-    if (owner !== accountId.value || starter !== starterId.value || month !== calendarMonth.value) return;
-    for (const row of devices.rows) if (!stats[row.day]) stats[row.day] = 'device';
-    calendarStats.value = stats;
-  } catch { calendarStats.value = {}; }
-}
-function changeMonth(delta) {
-  const date = new Date(calendarMonth.value);
-  calendarMonth.value = delta === 0 ? Date.now() : new Date(date.getFullYear(), date.getMonth() + delta, 1).getTime();
-}
-function selectDay(day) { router.replace({ path: '/records', query: { ...filterQuery(), from: day, to: day, page: '1', scroll: '0' } }); }
+const notice = ref('');
 const hasMore = ref(false);
+const scrollY = ref(0);
+const stripRef = ref(null);
+const calendarOpen = ref(false);
+const calendarMonth = ref(Date.now());
+
+const loader = createRecordsLoader({ listCareRecords, listStarterDeviceLinks, loadWindowClosures, mobileDeviceService });
 const accountId = computed(() => auth.user.value?.id || '');
-let generation = 0;
-let namesGeneration = 0;
-let disposed = false;
 const queryText = (key) => typeof route.query[key] === 'string' ? route.query[key] : '';
-const page = computed(() => {
-  const value = Number(queryText('page'));
-  return Number.isSafeInteger(value) && value >= 1 && value <= 1000000 ? value : 1;
-});
-function filterQuery() {
-  return { starter: starterId.value, type: type.value, from: from.value, to: to.value, page: String(page.value) };
+
+function pad(value) {
+  return String(value).padStart(2, '0');
 }
-function positionKey(query = filterQuery()) {
-  return JSON.stringify([accountId.value, query.starter, query.type, query.from, query.to, query.page]);
+function formatClock(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? `${pad(date.getHours())}:${pad(date.getMinutes())}` : '--';
 }
-function updateFilter(key, value) {
-  const query = { ...route.query, ...filterQuery(), [key]: value, page: '1', scroll: '0' };
-  listPositions.delete(positionKey(query));
-  router.replace({ path: '/records', query });
-}
-function changePage(value) {
-  const query = { ...route.query, ...filterQuery(), page: String(value), scroll: String(Math.max(0, window.scrollY)) };
-  listPositions.delete(positionKey(query));
-  router.replace({ path: '/records', query });
-}
-const starterId = computed({ get: () => queryText('starter'), set: (value) => updateFilter('starter', value) });
-const type = computed({ get: () => ['feeding', 'observation', 'device'].includes(queryText('type')) ? queryText('type') : 'all', set: (value) => updateFilter('type', value) });
-const from = computed({ get: () => queryText('from'), set: (value) => updateFilter('from', value) });
-const to = computed({ get: () => queryText('to'), set: (value) => updateFilter('to', value) });
-const groups = computed(() => {
-  const map = new Map();
-  for (const row of rows.value) {
-    const key = new Date(row.occurred_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(row);
-  }
-  return [...map.entries()];
-});
-function localDay(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('请选择有效的本地日期。');
+function formatDayLabel(value) {
   const date = new Date(`${value}T00:00:00`);
-  if (!Number.isFinite(date.getTime()) || date.getFullYear() !== Number(value.slice(0, 4)) || date.getMonth() + 1 !== Number(value.slice(5, 7)) || date.getDate() !== Number(value.slice(8, 10))) throw new Error('请选择有效的本地日期。');
-  return date;
+  if (!Number.isFinite(date.getTime())) return value;
+  return `${date.getMonth() + 1}月${date.getDate()}日 周${'日一二三四五六'[date.getDay()]}`;
 }
-function recordRange() {
-  const start = from.value ? localDay(from.value) : null;
-  const end = to.value ? localDay(to.value) : null;
-  if (start && end && start > end) throw new Error('开始日期不能晚于结束日期。');
-  if (end) end.setDate(end.getDate() + 1);
-  return { start, end };
+function durationText(fromMs, toMs) {
+  const minutes = Math.max(0, Math.round((toMs - fromMs) / 60000));
+  const hours = Math.floor(minutes / 60);
+  return hours ? `${hours} 小时 ${minutes % 60} 分钟` : `${minutes} 分钟`;
 }
-async function restoreScroll(token) {
-  await nextTick();
-  if (disposed || token !== generation) return;
-  const top = listPositions.get(positionKey()) ?? Number(queryText('scroll'));
-  const value = Number.isFinite(top) && top >= 0 ? top : 0;
-  window.scrollTo({ top: value, behavior: 'instant' });
-  scrollY.value = value;
+// 跨天轮次用圆形小标提示偏移，避免把两天时间挤成一行长文本。
+function rangeText(fromMs, toMs) {
+  const fromDate = new Date(fromMs);
+  const toDate = new Date(toMs);
+  const offset = Math.round((new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate()) - new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())) / 86400000);
+  return {
+    from: formatClock(fromMs), to: formatClock(toMs),
+    offset: offset ? `${offset > 0 ? '+' : '−'}${Math.abs(offset)}` : '',
+    title: `${fromDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${toDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+  };
 }
-async function loadNames(owner) {
-  const token = ++namesGeneration;
-  const current = () => !disposed && token === namesGeneration && owner === accountId.value;
-  starters.value = [];
-  namesError.value = '';
-  if (!owner) return;
-  try {
-    const names = await listStarters({ userId: owner });
-    if (current()) starters.value = names;
-  } catch {
-    if (current()) namesError.value = '酵种名称暂不可用，记录仍可读取。';
-  }
+function ratioText(value) {
+  return value === 'deep_reset' ? '大比例刷新' : value || '比例未记录';
 }
+function starterName(id) {
+  return starters.value.find((item) => item.id === id)?.name || '名称不可用';
+}
+function metric(value) {
+  return Number(value).toFixed(1);
+}
+
+// 旧链接里的 type/starter/page 等参数由规范化统一收敛，避免空白页。
+const query = computed(() => normalizeRecordsQuery(route.query));
+const selectedDay = computed(() => query.value.from);
+const page = computed(() => Number(query.value.page) || 1);
+const isToday = computed(() => selectedDay.value === recentRecordDays().at(-1));
+const dayLabel = computed(() => formatDayLabel(selectedDay.value));
+const days = computed(() => recentRecordDays().map((value) => ({
+  value,
+  weekday: `周${'日一二三四五六'[new Date(`${value}T00:00:00`).getDay()]}`,
+  day: Number(value.slice(8, 10))
+})));
+const stripRange = computed(() => `${days.value[0].value.slice(5).replace('-', '/')} – ${days.value.at(-1).value.slice(5).replace('-', '/')}`);
+const inStrip = computed(() => days.value.some((item) => item.value === selectedDay.value));
+const positionKey = () => JSON.stringify([accountId.value, selectedDay.value]);
+// 展开日历只保留“有记录”一种标记，不恢复四态图例。
+const calendarStats = computed(() => Object.fromEntries(Object.keys(marks.value).map((key) => [key, 'feeding'])));
+
+function returnTo() {
+  const value = { from: selectedDay.value, to: selectedDay.value, page: String(page.value), scroll: String(Math.round(scrollY.value)) };
+  return router.resolve({ path: '/records', query: value }).fullPath;
+}
+const feedingTarget = computed(() => ({ path: '/feeding' }));
+
+function roundItem(row, carried, now) {
+  const summary = row.summary || {};
+  const from = Date.parse(summary.windowFrom || row.occurred_at);
+  const closed = summary.windowStatus === 'closed';
+  const to = Date.parse(summary.windowClosedAt || (closed ? summary.windowTo : new Date(now).toISOString())) || now;
+  const bits = [];
+  if (summary.baselineHeightMm > 0) bits.push(`基线 ${metric(summary.baselineHeightMm)} mm · ${summary.baselineSource === 'manual' ? '手工' : '自动'}`);
+  if (summary.currentHeightMm != null && summary.expansionPercent != null) bits.push(`当前 ${metric(summary.currentHeightMm)} mm · 膨胀 ${summary.expansionPercent >= 0 ? '+' : ''}${summary.expansionPercent.toFixed(1)}%`);
+  if (row.boundaryPending) bits.push('轮次结束待核实');
+  else if (closed) bits.push(summary.windowEndReason === 'manual' ? '手动结束' : '下一次喂养结束');
+  if (summary.dataQuality === 'insufficient') bits.push('暂无设备数据');
+  else if (summary.heightStale) bits.push('设备数据偏旧');
+  return {
+    id: `round:${row.id}`, at: from,
+    title: `${carried ? '跨日 · 上一轮' : '喂养'} · ${ratioText(row.ratio)}`,
+    range: rangeText(from, to),
+    meta: `${starterName(row.starter_id)} · ${durationText(from, to)}`,
+    extra: bits.join(' · '),
+    state: closed ? '已结束' : '进行中',
+    tone: closed ? 'closed' : 'active',
+    to: recordsDetailTarget(row, returnTo())
+  };
+}
+function observationItem(row) {
+  return {
+    id: `observation:${row.id}`, at: Date.parse(row.occurred_at),
+    title: row.result?.title || '观察记录',
+    range: null,
+    meta: `${starterName(row.starter_id)} · ${formatClock(row.occurred_at)}`,
+    extra: '', state: '', tag: '观察',
+    to: recordsDetailTarget(row, returnTo())
+  };
+}
+function deviceItem(row) {
+  const latest = row.samples?.length ? row.samples.at(-1).recorded_at : null;
+  return {
+    id: row.id, at: latest ? Date.parse(latest) : Date.parse(`${row.day}T12:00:00`),
+    title: `设备数据 · ${row.samples?.length || 0} 条采样`,
+    range: null,
+    meta: `${starterName(row.starter_id)} · 最新 ${formatClock(latest)}`,
+    extra: recordDeviceMetrics(row.samples || []),
+    state: '', tag: '设备',
+    to: recordsDetailTarget(row, returnTo())
+  };
+}
+// 一次喂养就是一轮；观察和设备摘要是同一天时间线上的事件，不再单独成为记录类型。
+const timeline = computed(() => {
+  if (!model.value) return [];
+  const now = Date.now();
+  const items = model.value.continuations.map((row) => roundItem(row, true, now));
+  for (const row of model.value.events) items.push(row.kind === 'feeding' ? roundItem(row, false, now) : observationItem(row));
+  for (const row of model.value.devices) if (row.samples?.length) items.push(deviceItem(row));
+  return items.sort((a, b) => a.at - b.at);
+});
+const daySummary = computed(() => {
+  const value = model.value;
+  if (!value) return '';
+  const observations = value.events.filter((row) => row.kind === 'observation').length;
+  const devices = value.devices.filter((row) => row.samples?.length).length;
+  return [value.feedingCount ? `${value.feedingCount} 次喂养` : '', observations ? `${observations} 条观察` : '', devices ? `${devices} 份设备摘要` : '']
+    .filter(Boolean).join(' · ');
+});
+
+let generation = 0;
+let disposed = false;
 async function load() {
   const token = ++generation;
   const owner = accountId.value;
-  const current = () => !disposed && token === generation && owner === accountId.value;
-  rows.value = [];
-  scrollY.value = 0;
-  hasMore.value = false;
-  loading.value = false;
-  error.value = '';
+  const day = selectedDay.value;
+  const currentPage = page.value;
+  const current = () => !disposed && token === generation && owner === accountId.value && day === selectedDay.value && currentPage === page.value;
+  facts.value = []; model.value = null; hasMore.value = false;
+  error.value = ''; notice.value = ''; loading.value = false;
   if (!owner) return;
   loading.value = true;
   try {
-    const { start, end } = recordRange();
-    const records = [];
-    const needed = page.value * pageSize + 1;
-    if (type.value !== 'device') {
-      for (let offset = 0; offset < needed; offset += 200) {
-        const batch = await listCareRecords({
-          ...(starterId.value ? { starterId: starterId.value } : {}),
-          ...(['feeding', 'observation'].includes(type.value) ? { kind: type.value } : {}),
-          ...(start ? { from: start.toISOString() } : {}), ...(end ? { to: end.toISOString() } : {}),
-          userId: owner, limit: Math.min(200, needed - offset), offset
-        });
-        records.push(...batch);
-        if (batch.length < Math.min(200, needed - offset) || !current()) break;
-      }
-    }
-    let notice = '';
-    if (type.value === 'all' || type.value === 'device') {
-      try { const result = await deviceRecords(owner, start, end); records.push(...result.rows); if (result.partial) notice = '设备采样尚未完整加载，当前设备摘要仅代表已读到的数据。'; }
-      catch { notice = '设备数据暂不可用，喂养与观察记录不受影响。'; }
-    }
+    const names = await listStarters({ userId: owner }).catch(() => []);
     if (!current()) return;
-    deviceNotice.value = notice;
-    records.sort((a,b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
-    hasMore.value = records.length > page.value * pageSize;
-    rows.value = records.slice(0, page.value * pageSize);
+    starters.value = names;
+    const starterIds = names.map((item) => item.id);
+    const [factPage, context, devices] = await Promise.all([
+      loader.facts(owner, day, currentPage, current),
+      loader.context(owner, day, starterIds, current),
+      loader.devices(owner, day, starterIds, current)
+    ]);
+    if (!current() || !factPage) return;
+    facts.value = factPage.rows;
+    hasMore.value = factPage.hasMore;
+    model.value = recordsDayModel({ day, facts: factPage.rows, context, devices, now: Date.now() });
+    notice.value = [...new Set([...(context?.notices || []), ...(devices?.notices || [])])].join(' ');
   } catch (cause) {
     if (current()) error.value = cause?.message || '记录读取失败，请稍后重试。';
   } finally {
@@ -205,90 +198,192 @@ async function load() {
     }
   }
 }
-function starterName(id) {
-  return starters.value.find((item) => item.id === id)?.name || '名称不可用';
+async function loadMarks() {
+  const owner = accountId.value;
+  if (!owner) return;
+  const result = await loader.marks(owner, new Date(), () => !disposed && owner === accountId.value).catch(() => null);
+  if (result) marks.value = result;
 }
-function title(row) {
-  if (row.kind === 'feeding') return `喂养 · ${row.ratio === 'deep_reset' ? '大比例刷新' : row.ratio || '比例未记录'}`;
-  if (row.kind === 'device') return `设备数据 · ${row.count || 0} 条采样（十分钟汇总）`;
-  return row.result?.title || '观察记录';
+
+function selectDay(value) {
+  if (!validLocalDay(value)) return;
+  calendarOpen.value = false;
+  listPositions.delete(positionKey());
+  router.replace({ path: '/records', query: { from: value, to: value, page: '1', scroll: '0' } });
 }
-function detailTarget(row) {
-  const returnTo = router.resolve({ path: '/records', query: { ...filterQuery(), scroll: String(Math.max(0, scrollY.value)) } }).fullPath;
-  if (row.kind === 'device') return { path: `/devices/${encodeURIComponent(row.device_id)}/trend`, query: { starter: row.starter_id, day: row.day, returnTo } };
-  return { path: `/records/${row.id}`, query: { returnTo } };
+function toToday() {
+  selectDay(days.value.at(-1).value);
+}
+function nextPage() {
+  router.replace({ path: '/records', query: { ...query.value, page: String(page.value + 1), scroll: String(Math.round(window.scrollY)) } });
+}
+function toggleCalendar() {
+  if (!calendarOpen.value) calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
+  calendarOpen.value = !calendarOpen.value;
+}
+function changeMonth(delta) {
+  const date = new Date(calendarMonth.value);
+  calendarMonth.value = delta === 0 ? Date.now() : new Date(date.getFullYear(), date.getMonth() + delta, 1).getTime();
+}
+
+async function restoreScroll(token) {
+  await nextTick();
+  if (disposed || token !== generation) return;
+  const saved = listPositions.get(positionKey());
+  const value = Number.isFinite(saved) ? saved : Number(queryText('scroll')) || 0;
+  window.scrollTo({ top: Math.max(0, value), behavior: 'instant' });
+  scrollY.value = Math.max(0, value);
 }
 function trackScroll() {
   if (loading.value) return;
   scrollY.value = Math.max(0, window.scrollY);
   listPositions.set(positionKey(), scrollY.value);
 }
+// 日期带可能横向溢出；始终把当前选中日期滚进可视区。
+function revealSelected() {
+  stripRef.value?.querySelector('.date-cell.active')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+
 watch(accountId, (owner, previous) => {
-  if (previous) listPositions.clear();
-  loadNames(owner);
+  if (previous) { listPositions.clear(); loader.clear(); }
+  if (owner) loadMarks();
 }, { immediate: true, flush: 'sync' });
-watch([accountId, starterId, type, from, to, page], load, { immediate: true });
-watch([calendarMonth, accountId, starterId], loadCalendar, { immediate: true });
-watch(() => route.query.scroll, () => { if (!loading.value) restoreScroll(generation); });
-onMounted(() => { auth.init(); window.addEventListener('scroll', trackScroll, { passive: true }); });
+watch([accountId, selectedDay, page], load, { immediate: true });
+watch(selectedDay, () => nextTick(revealSelected));
+// 旧链接（type/starter/from-to 范围）在进入时规范化，页面不会读到过期筛选。
+watch(query, (value) => {
+  const keys = ['from', 'to', 'page', 'scroll'];
+  const changed = Object.keys(route.query).length !== Object.keys(value).length
+    || keys.some((key) => (queryText(key) || '') !== (value[key] || ''));
+  if (changed) router.replace({ path: '/records', query: value });
+}, { immediate: true });
+onMounted(async () => {
+  auth.init();
+  window.addEventListener('scroll', trackScroll, { passive: true });
+  await nextTick();
+  revealSelected();
+});
+let reentered = false;
+// 从详情或记录页返回时丢弃当日缓存：补录与手动结束会改变轮次边界。
+onActivated(() => {
+  if (!reentered) { reentered = true; return; }
+  loader.clear();
+  load();
+  loadMarks();
+});
 onUnmounted(() => {
   disposed = true;
   generation++;
-  namesGeneration++;
   window.removeEventListener('scroll', trackScroll);
 });
 </script>
 
 <template>
   <main class="m-page">
-    <section class="m-card">
-      <div class="m-filters">
-        <label class="m-field">对象<select v-model="starterId"><option value="">全部酵种</option><option v-if="starterId && !starters.some(item => item.id === starterId)" :value="starterId">名称不可用（当前筛选）</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name || '名称不可用' }}</option></select></label>
-        <div class="m-types" role="group" aria-label="类型筛选"><button v-for="item in [['all','全部'],['observation','观察'],['feeding','喂养'],['device','设备数据']]" :key="item[0]" class="m-secondary" :class="{active:type===item[0]}" type="button" @click="type=item[0]">{{ item[1] }}</button></div>
+    <section class="m-card date-card">
+      <div class="date-head">
+        <div><strong>最近两周</strong><small>{{ stripRange }}</small></div>
+        <button type="button" class="date-more" @click="toggleCalendar">{{ calendarOpen ? '收起日期' : '更多日期' }}</button>
       </div>
-      <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" :legend="calendarLegend" @change-month="changeMonth" @select="selectDay" />
-      <button v-if="selectedDay" class="m-clear-date" type="button" @click="selectDay('')">清除日期</button>
-      <p v-if="loading" class="m-muted" role="status">正在读取记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
-      <p v-if="namesError" class="m-muted">{{ namesError }}</p><p v-if="deviceNotice" class="m-muted" role="status">{{ deviceNotice }}</p>
+      <div ref="stripRef" class="date-strip" role="group" aria-label="选择日期">
+        <button v-for="item in days" :key="item.value" type="button" class="date-cell" :class="{ active: item.value === selectedDay }" :aria-pressed="item.value === selectedDay" @click="selectDay(item.value)">
+          <span class="date-weekday">{{ item.weekday }}</span>
+          <span class="date-number">{{ item.day }}</span>
+          <span class="date-mark" :class="{ on: marks[item.value] }"></span>
+        </button>
+      </div>
+      <p v-if="!inStrip" class="date-outside">
+        已选择 {{ dayLabel }}
+        <button type="button" class="date-reset" @click="toToday">回到最近两周</button>
+      </p>
+      <div v-if="calendarOpen" class="date-calendar">
+        <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" @change-month="changeMonth" @select="selectDay" />
+      </div>
     </section>
+
     <section v-if="!auth.user.value" class="m-card records-empty"><img class="jojo-mascot" src="/assets/jojo1.png" alt="Jojo 吉祥物"><div><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></div></section>
     <template v-else>
-      <div v-if="!loading && !error && !rows.length" class="m-card records-empty"><img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物"><p>当前范围没有记录。</p></div>
-      <section v-for="group in groups" :key="group[0]" class="m-card">
-        <h2>{{ group[0] }}</h2>
-        <RouterLink v-for="row in group[1]" :key="row.id" class="m-list-row" :to="detailTarget(row)">
-          <span><strong>{{ title(row) }}</strong><small>{{ starterName(row.starter_id) }} · {{ new Date(row.occurred_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</small></span><b>详情</b>
-        </RouterLink>
+      <section class="m-card day-card">
+        <div class="day-head">
+          <div><strong>{{ dayLabel }}</strong><small>{{ daySummary || '这一天没有记录' }}</small></div>
+          <span v-if="isToday" class="day-today">今天</span>
+        </div>
+        <p v-if="loading" class="m-muted" role="status">正在读取记录…</p>
+        <p v-if="error" class="m-error" role="alert">{{ error }}</p>
+        <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
+        <template v-if="!loading && !error">
+          <RouterLink v-for="item in timeline" :key="item.id" class="m-list-row record-row" :to="item.to">
+            <span class="record-main">
+              <strong>{{ item.title }}</strong>
+              <small>
+                <span v-if="item.range" class="record-range" :title="item.range.title">
+                  <span v-if="item.range.offset" class="day-offset">{{ item.range.offset }}</span>
+                  <span>{{ item.range.from }}</span><span class="range-separator">–</span><span>{{ item.range.to }}</span>
+                </span>
+                <span class="record-meta">{{ item.meta }}</span>
+              </small>
+              <small v-if="item.extra" class="record-extra">{{ item.extra }}</small>
+            </span>
+            <span class="record-side">
+              <span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span>
+              <span v-else class="record-tag">{{ item.tag }}</span>
+              <b>详情</b>
+            </span>
+          </RouterLink>
+          <div v-if="!timeline.length" class="records-empty">
+            <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物">
+            <div><p>{{ isToday ? '今天还没有记录。' : '这一天没有记录。' }}</p><RouterLink :to="feedingTarget">记录一次喂养</RouterLink></div>
+          </div>
+          <button v-if="hasMore" type="button" class="more-row" :disabled="loading" @click="nextPage">加载更多记录</button>
+          <p v-else-if="timeline.length" class="records-hint">已显示 {{ facts.length }} 条记录</p>
+        </template>
       </section>
-      <nav class="m-types" aria-label="记录分页">
-        <span>已显示 {{ rows.length }} 条 · 每次 {{ pageSize }} 条</span>
-        <button class="m-secondary" type="button" :disabled="loading || !hasMore" @click="changePage(page + 1)">{{ hasMore ? '加载更多记录' : '当前记录已加载' }}</button>
-      </nav>
+      <p v-if="!inStrip" class="m-muted records-hint">更早的日期可通过“更多日期”选择，历史记录仍可查看。</p>
     </template>
   </main>
 </template>
 
 <style scoped>
 .m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
-.m-card h1{font-size:1.4rem;font-weight:600;margin:.1rem 0 .875rem}
-.m-card h2{font-size:.85rem;color:#625e56;margin:0 0 .1rem}
-.m-filters{display:grid;gap:.1rem;grid-template-columns:minmax(0,1fr);margin-bottom:.25rem}
-.m-page>.m-card:first-child{padding:10px 12px}
-.m-field{display:flex;align-items:center;gap:.5rem;margin:.15rem 0;white-space:nowrap}
-.m-field select{flex:1;min-width:0}
-.m-types .m-secondary{flex-shrink:0;white-space:nowrap}
-.m-field select,.m-field input{box-sizing:border-box;width:100%;min-height:44px;padding:.45rem .65rem;font:inherit;border:1px solid #938d83;background:#fff}
-.m-types{display:flex;gap:.35rem;flex-wrap:nowrap;align-items:center;margin:.2rem 0 .4rem;overflow-x:auto;padding-bottom:2px}
-.m-types span{font-size:.75rem;color:#625e56}
-.m-secondary{min-height:36px;padding:.3rem .65rem;border:1px solid #938d83;background:transparent;font:inherit;font-size:.82rem;cursor:pointer}
-.m-secondary.active{border-color:#a44213;color:#a44213;font-weight:600;background:#fdf3ec}
-.m-list-row span{display:grid;gap:2px;min-width:0}
-.m-list-row b{color:#a44213;font-size:.85rem;font-weight:600;flex-shrink:0}
-.m-page>section.m-card{padding:10px 12px;margin:8px 0}
-.m-list-row{min-height:50px}
-.m-list-row small{font-size:.74rem}
-.m-clear-date{border:0;padding:.2rem 0;background:transparent;color:#a44213;font:inherit;font-size:.78rem;cursor:pointer}
-.records-empty{display:flex;align-items:center;gap:.75rem}.records-empty p{margin:.1rem 0 .35rem}.jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}
-.m-page>nav.m-types{justify-content:space-between;font-size:.75rem}
-.m-page>nav.m-types .m-secondary{font-size:.75rem}
+.date-card{padding:.75rem}
+.date-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem}
+.date-head strong{display:block;font-size:.9rem}
+.date-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
+.date-more{min-height:32px;padding:.2rem .6rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:transparent;color:#a44213;font:inherit;font-size:.75rem;font-weight:600;cursor:pointer}
+.date-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(34px,1fr);gap:.15rem;margin-top:.6rem;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.date-strip::-webkit-scrollbar{display:none}
+.date-cell{display:grid;justify-items:center;gap:.1rem;min-height:58px;padding:.25rem .1rem;border:1px solid transparent;border-radius:10px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.date-cell.active{border-color:rgba(164,66,20,.5);background:#fdf3ec;color:#a44213}
+.date-weekday{font-size:.62rem;color:var(--m-muted,#625e56)}
+.date-number{font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums}
+.date-mark{width:5px;height:5px;border-radius:50%;background:transparent}
+.date-mark.on{background:#a44213}
+.date-outside{margin:.5rem 0 0;font-size:.75rem;color:var(--m-muted,#625e56)}
+.date-reset{margin-left:.35rem;border:0;padding:.1rem 0;background:transparent;color:#a44213;font:inherit;font-size:.75rem;cursor:pointer}
+.date-calendar{margin-top:.6rem;padding-top:.4rem;border-top:1px solid var(--m-border,#d8d2c8)}
+.date-calendar :deep(.cal-legend){display:none}
+.day-card{padding:.75rem}
+.day-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}
+.day-head strong{display:block;font-size:.9rem}
+.day-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
+.day-today{padding:.15rem .5rem;border-radius:999px;background:#e7f4ed;color:#2B7A55;font-size:.7rem;font-weight:600;white-space:nowrap}
+.record-row{align-items:flex-start}
+.record-main{display:grid;gap:2px;min-width:0}
+.record-main strong{font-size:.85rem;font-weight:600}
+.record-main small{display:flex;flex-wrap:wrap;align-items:center;gap:.2rem;min-width:0;font-size:.72rem;color:var(--m-muted,#625e56)}
+.record-range{display:inline-flex;align-items:center;gap:.15rem;font-weight:600;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
+.record-range .day-offset{display:inline-grid;place-items:center;min-width:.7rem;height:.7rem;padding:0 .04rem;border-radius:50%;background:#f2dcd7;color:#a4524a;font-size:.46rem;line-height:1;font-weight:600}
+.record-range .range-separator{color:var(--m-muted,#625e56)}
+.record-meta{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.record-extra{color:var(--m-muted,#625e56)}
+.record-side{display:grid;justify-items:end;gap:2px;flex:none}
+.record-state{padding:.12rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600;background:#e8f0fa;color:#2B6CB0;white-space:nowrap}
+.record-state[data-tone="closed"]{background:#e7f4ed;color:#2B7A55}
+.record-tag{padding:.12rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600;background:var(--m-surface,#fffdf8);color:var(--m-muted,#625e56);border:1px solid var(--m-border,#d8d2c8);white-space:nowrap}
+.record-row b{color:#a44213;font-size:.82rem;font-weight:600}
+.more-row{width:100%;min-height:40px;margin-top:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:transparent;color:#a44213;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
+.records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}
+.records-empty p{margin:.1rem 0 .35rem}
+.jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}
+.records-hint{margin:.5rem 0 0;font-size:.72rem}
 </style>
