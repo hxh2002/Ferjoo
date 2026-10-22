@@ -78,6 +78,8 @@ function metric(value) {
 
 // 旧链接里的 type/starter/page 等参数由规范化统一收敛，避免空白页。
 const query = computed(() => normalizeRecordsQuery(route.query));
+// 记录页的读取与查询回写只在本页进行：离开后 query 会变，否则会把用户顶回记录页。
+const onRecordsPage = () => route.name === 'mobile-records';
 const selectedDay = computed(() => query.value.from);
 const page = computed(() => Number(query.value.page) || 1);
 const selectedStarterId = computed(() => query.value.starter || '');
@@ -179,12 +181,13 @@ const dayCaption = computed(() => [selectedStarterName.value, daySummary.value |
 let generation = 0;
 let disposed = false;
 async function load() {
+  if (!onRecordsPage()) return;
   const token = ++generation;
   const owner = accountId.value;
   const day = selectedDay.value;
   const currentPage = page.value;
   const starterId = selectedStarterId.value;
-  const current = () => !disposed && token === generation && owner === accountId.value && day === selectedDay.value && currentPage === page.value && starterId === selectedStarterId.value;
+  const current = () => !disposed && token === generation && owner === accountId.value && day === selectedDay.value && currentPage === page.value && starterId === selectedStarterId.value && onRecordsPage();
   model.value = null; hasMore.value = false;
   error.value = ''; notice.value = ''; loading.value = false;
   if (!owner) return;
@@ -219,6 +222,7 @@ async function load() {
   }
 }
 async function loadMarks() {
+  if (!onRecordsPage()) return;
   const owner = accountId.value;
   const starterId = selectedStarterId.value;
   if (!owner || !starterId) { marks.value = {}; return; }
@@ -279,9 +283,9 @@ watch([accountId, selectedDay, page, selectedStarterId], load, { immediate: true
 watch(selectedStarterId, () => { void loadMarks(); });
 watch(selectedDay, () => nextTick(revealSelected));
 // 旧链接（type/starter/from-to 范围）在进入时规范化，页面不会读到过期筛选。
-// 只在记录页生效：离开本页时 query 会变，否则会把详情页直接顶回列表。
+// 只在记录页生效：离开本页时 query 会变，否则会把详情页或今日页直接顶回列表。
 watch(query, (value) => {
-  if (route.name !== 'mobile-records') return;
+  if (!onRecordsPage()) return;
   const keys = ['from', 'to', 'page', 'scroll', 'starter'];
   const changed = Object.keys(route.query).length !== Object.keys(value).length
     || keys.some((key) => (queryText(key) || '') !== (value[key] || ''));

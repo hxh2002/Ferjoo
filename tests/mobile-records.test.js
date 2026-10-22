@@ -13,8 +13,8 @@ assert.match(source, /更多日期/);
 assert.match(source, /starter-chip/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
-// 离开记录页后 query 必然变化；规范化必须只在记录页执行，否则会立刻把详情页顶回列表。
-assert.match(source, /route\.name !== 'mobile-records'/);
+// 离开记录页后 query 必然变化；读取与规范化都必须限定在本页，否则会把详情页或今日页顶回列表。
+assert.match(source, /onRecordsPage/);
 const days = recentRecordDays(new Date(2026, 9, 22, 23, 45));
 assert.equal(days.length, 14);
 assert.equal(days[0], '2026-10-09');
