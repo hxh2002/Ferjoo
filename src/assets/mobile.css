@@ -1,5 +1,6 @@
 :root.mobile-mode {
   --m-tab-height: 60px;
+  --m-page-max: 42rem;
   --m-accent: var(--brand-action);
   --m-muted: var(--text-secondary);
   --m-border: var(--border-default);
@@ -42,7 +43,7 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area :focus-visible { outline: 2px solid var(--brand-action); outline-offset: 2px; }
 .mobile-area :is(img, canvas, video) { max-width: 100%; }
 .mobile-area :is(fieldset, .m-page, .m-card, .panel, form, label) { min-width: 0; }
-.mobile-area .mobile-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.mobile-area .mobile-shell { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 .mobile-area .mobile-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: calc(6px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 4px max(16px, env(safe-area-inset-left)); border-bottom: 1px solid rgba(164, 66, 20, .12); background: var(--m-glass); -webkit-backdrop-filter: blur(18px) saturate(1.08); backdrop-filter: blur(18px) saturate(1.08); box-shadow: 0 4px 18px rgba(77, 48, 30, .06); }
 .mobile-area .mobile-brand { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; }
 .mobile-area .mobile-brand img { display: block; width: 88px; height: auto; }
@@ -55,7 +56,7 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area :is(.mobile-back, .mobile-tabbar) svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .mobile-area .mobile-main { flex: 1; width: 100%; min-width: 0; }
 .mobile-area .has-tabs > .mobile-main { padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 16px); }
-.mobile-area .mobile-main .m-page { width: 100%; padding: 16px 16px 24px; }
+.mobile-area .mobile-main .m-page { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; padding: 16px 16px 24px; }
 .mobile-area .mobile-main .m-page h1 { margin: 0 0 8px; font-size: var(--text-xl); line-height: 1.2; font-weight: 600; }
 .mobile-area .mobile-main .m-page h2 { margin: 0 0 10px; font-size: var(--text-lg); line-height: 1.3; font-weight: 600; }
 .mobile-area p { line-height: 1.6; }
@@ -91,7 +92,7 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area .mobile-tabbar strong { font-size: 13px; font-weight: 500; }
 .mobile-area .mobile-tabbar button.active { color: #fff; background: var(--brand-action); box-shadow: none; }
 .mobile-area .mobile-tabbar button.active strong { font-weight: 700; }
-.mobile-area :is(.auth-page, .profile-page) { width: 100%; max-width: 680px; margin: auto; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
+.mobile-area :is(.auth-page, .profile-page) { width: 100%; max-width: var(--m-page-max, 42rem); margin: auto; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
 .mobile-area .auth-card { width: 100%; max-width: 570px; margin: auto; }
 .mobile-area :is(.auth-card h1, .profile-heading h1) { margin: 0 0 12px; font-size: 28px; line-height: 1.2; font-weight: 600; }
 .mobile-area :is(.auth-description, .auth-switch, .avatar-hint, .invite-note, .invite-meter small) { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }

@@ -45,7 +45,7 @@ onMounted(() => auth.init());
 </main>
 </template>
 <style scoped>
-.m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
+.m-page{padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
 .me-heading{margin:.25rem 0 1rem}.me-heading h1{margin:.2rem 0;font-size:1.5rem;font-weight:600}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.section-heading h2{margin:0;font-size:1.05rem}
 .profile-row{display:flex;align-items:center;gap:14px}.profile-row img{border:1px solid var(--border-default,#d8d2c8)}

@@ -44,7 +44,7 @@ const socials = [
 </main>
 </template>
 <style scoped>
-.help-page{max-width:42rem;margin:auto;padding:20px;color:#30251f}
+.help-page{color:#30251f}
 section{margin-top:16px}
 .help-info{ text-align:left }
 p{line-height:1.7}

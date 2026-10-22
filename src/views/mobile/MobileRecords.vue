@@ -411,7 +411,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
+.m-page{padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
 .date-card{padding:.7rem .75rem;overflow:hidden}
 .date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
 .date-head strong{display:block;font-size:.9rem}

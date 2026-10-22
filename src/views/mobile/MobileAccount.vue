@@ -14,4 +14,4 @@ async function submit() {
 }
 </script>
 <template><main class="m-page account-page"><p class="m-muted">当前邮箱：{{ auth.user.value?.email }}</p><form class="m-card" @submit.prevent="submit"><h2>修改密码</h2><label class="m-field">旧密码<input v-model="form.oldPassword" type="password" autocomplete="current-password" required></label><label class="m-field">新密码<input v-model="form.newPassword" type="password" autocomplete="new-password" minlength="6" required></label><label class="m-field">确认新密码<input v-model="form.confirm" type="password" autocomplete="new-password" minlength="6" required></label><p v-if="error" id="password-error" class="m-error" role="alert">{{ error }}</p><p v-if="notice" class="form-success" role="status">{{ notice }}</p><button class="m-primary" :disabled="busy || !auth.user.value">{{ busy ? '修改中…' : '修改密码' }}</button></form></main></template>
-<style scoped>.account-page{max-width:42rem;margin:auto;padding:20px;overflow-wrap:anywhere}</style>
+<style scoped>.account-page{overflow-wrap:anywhere}</style>

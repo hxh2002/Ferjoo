@@ -16,6 +16,8 @@ postcss.parse(mobileCss).walkRules((rule) => {
 });
 postcss.parse(tokens).walkDecls((decl) => assert.ok(decl.prop.startsWith('--'), 'shared tokens must not apply layout'));
 assert.doesNotMatch(mobileCss, /bg2|url\(/);
+assert.match(mobileCss, /--m-page-max: 42rem/);
+assert.match(mobileCss, /\.mobile-main \.m-page \{[^}]*max-width: var\(--m-page-max/, 'every mobile page shares one max width');
 assert.doesNotMatch(desktopCss, /\.mobile-area|\.mobile-shell/);
 assert.doesNotMatch(main, /import ['"]\.\/assets\/main\.css['"]/);
 assert.match(shell, /\['MobileToday', 'MobileRecords', 'MobileMe'\]/);

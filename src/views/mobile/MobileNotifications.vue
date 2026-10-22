@@ -168,7 +168,7 @@ onMounted(() => auth.init().then(load));
 </template>
 
 <style scoped>
-.notify-page{max-width:42rem;margin:auto;padding-bottom:calc(2rem + env(safe-area-inset-bottom))}
+.notify-page{padding-bottom:calc(2rem + env(safe-area-inset-bottom))}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .status-row{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .status-meta{display:grid;gap:2px;min-width:0}

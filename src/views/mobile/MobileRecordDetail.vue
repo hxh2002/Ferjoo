@@ -69,5 +69,5 @@ onScopeDispose(() => { generation++; });
 </template>
 
 <style scoped>
-.mobile-record-detail{max-width:42rem;margin:auto;overflow-wrap:anywhere}.m-card{margin:1rem 0;padding:1rem;border:1px solid #d8d2c8;background:#fffdf8}.m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid #938d83;color:inherit;text-decoration:none}.m-error{color:#9a352a}
+.mobile-record-detail{overflow-wrap:anywhere}.m-card{margin:1rem 0;padding:1rem;border:1px solid #d8d2c8;background:#fffdf8}.m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid #938d83;color:inherit;text-decoration:none}.m-error{color:#9a352a}
 </style>

@@ -192,7 +192,6 @@ function applyPending(key) {
 </template>
 
 <style scoped>
-.mobile-checkin{max-width:42rem;margin:auto}
 .m-context{margin:0;overflow-wrap:anywhere}
 .m-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem}
 .m-actions .m-primary{flex:1}
