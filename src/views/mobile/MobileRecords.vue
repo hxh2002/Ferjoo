@@ -419,6 +419,9 @@ onUnmounted(() => {
 .date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:0;border-radius:999px;background:#f5eee5;color:#8f3b18;font:inherit;font-size:.74rem;font-weight:650;cursor:pointer}
 .date-chevron{display:inline-block;font-size:1rem;line-height:1;transition:transform .22s ease}
 .date-chevron.up{transform:rotate(180deg)}
+.starter-picker{display:flex;flex-wrap:wrap;gap:.5rem;padding:.45rem 0 .65rem;margin-bottom:.35rem;border-bottom:1px solid var(--border-subtle)}
+.date-card .starter-chip{flex:none;max-width:100%;min-height:32px;padding:.3rem .7rem;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;line-height:1.4;font-weight:500;cursor:pointer}
+.date-card .starter-chip.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .date-view{transform-origin:top center}
 .weekday-row,.date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem}
 .weekday-row{margin-bottom:.15rem;text-align:center;color:var(--m-muted,#756d63);font-size:.62rem}
@@ -426,13 +429,13 @@ onUnmounted(() => {
 .weekday-row.monthly{margin-top:.45rem}
 .weekday-row:not(.monthly){visibility:hidden;height:0;margin:0}
 .date-grid{row-gap:.1rem}
-.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:var(--text-primary,#30251f);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color .14s ease,color .14s ease,transform .14s ease}
-.date-cell:active{transform:scale(.9)}
-.date-cell.active{background:#a44213;color:#fff}
-.date-cell.today:not(.active){border-color:#a44213;font-weight:700}
+.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:var(--text-primary);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
+.date-cell:active{transform:scale(.96)}
+.date-cell.active{background:var(--brand-action);color:#fff}
+.date-cell.today:not(.active){border-color:var(--brand-action);font-weight:700}
 .date-cell.off{opacity:.36}
 .date-cell.future{opacity:.32;cursor:default}
-.date-cell .date-mark{position:absolute;bottom:3px;width:4px;height:4px;border:0;border-radius:50%;background:#a44213}
+.date-cell .date-mark{position:absolute;bottom:3px;width:4px;height:4px;border:0;border-radius:50%;background:var(--brand-action)}
 .date-cell.active .date-mark{background:#fff}
 .date-grid:not(.monthly){grid-template-columns:repeat(7,minmax(0,1fr));row-gap:.12rem}
 .date-grid:not(.monthly) .date-cell{min-height:34px;border-radius:9px}
@@ -462,4 +465,5 @@ onUnmounted(() => {
 .records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}
 .records-empty p{margin:.1rem 0 .35rem}
 .jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}
+@media(prefers-reduced-motion:reduce){.date-cell{transition:none}.date-cell:active{transform:none}}
 </style>

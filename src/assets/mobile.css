@@ -28,8 +28,8 @@
 body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: var(--surface-page); font-size: 16px; }
 body.mobile-mode::before { display: none; }
 body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-sizing: border-box; }
-.mobile-area { min-height: 100vh; color: var(--text-primary); overflow-wrap: anywhere; background: radial-gradient(circle at 12% 0%, rgba(255, 211, 170, .32), transparent 34rem), radial-gradient(circle at 92% 18%, rgba(255, 239, 214, .56), transparent 30rem), var(--surface-page); }
-.mobile-area :is(button, input, select, textarea) { font: inherit; color: inherit; border-radius: var(--m-radius-button); }
+.mobile-area { min-height: 100vh; color: var(--text-primary); overflow-wrap: anywhere; background: var(--surface-page); }
+.mobile-area :is(button, input, select, textarea) { font: inherit; color: inherit; }
 .mobile-area a { color: var(--brand-action); }
 .mobile-area :is(button, a) { -webkit-tap-highlight-color: transparent; }
 .mobile-area button:not(:disabled) { transition: transform var(--motion-fast) ease, background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease; }
@@ -63,7 +63,6 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) { background: var(--m-card); border: 1px solid var(--border-subtle); border-radius: var(--m-radius-card); box-shadow: var(--m-shadow); }
 .mobile-area :is(.m-card, .panel, .profile-plate) { padding: 16px; margin: 12px 0; }
 .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate) :is(.m-card, .panel, .profile-plate), .mobile-area .mobile-main :is(.window-row, .close-panel, .weight-fields) { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-input); box-shadow: none; }
-.mobile-area .mobile-main :is(button, .m-primary, .m-secondary, .btn-primary, .btn-secondary) { min-height: 44px; border-radius: var(--m-radius-button); }
 .mobile-area .mobile-main :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; border-radius: var(--m-radius-input); }
 .mobile-area .mobile-main .picker-menu { padding: 6px; }
 .mobile-area .mobile-main .picker-menu :is(button, a) { border: 1px solid transparent; border-radius: var(--m-radius-input); background: transparent; }

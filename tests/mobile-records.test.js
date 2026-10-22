@@ -11,6 +11,8 @@ assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename
 assert.match(source, /recentRecordDays\(\)/);
 assert.match(source, /更多日期/);
 assert.match(source, /starter-chip/);
+assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
+assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
 // 离开记录页后 query 必然变化；读取与规范化都必须限定在本页，否则会把详情页或今日页顶回列表。
