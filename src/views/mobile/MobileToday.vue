@@ -10,6 +10,7 @@ import { loadFeedingEvidence, summarizeFeedingMeasurements } from '../../service
 import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentation-window.service.js';
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import SeriesChart from '../../components/SeriesChart.vue';
+import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
 
 defineOptions({ name: 'MobileToday' });
 const auth = useAuth();
@@ -310,6 +311,8 @@ async function addStarter() {
   finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
 }
 watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; deviceOpen.value = false; starterOpen.value = false; contextOpen.value = false; mutationError.value = ''; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
+// 记录页读取同一偏好作为默认酵种，切回今日页时两处看到的是同一罐。
+watch(starterId, (id) => { if (id) rememberSelectedStarter(accountId.value, id); });
 useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(() => { disposed = true; generation++; });
 </script>
 

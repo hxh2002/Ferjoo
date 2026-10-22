@@ -53,7 +53,7 @@ const deferred = () => { let resolve; let reject; const promise = new Promise((y
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); await Vue.nextTick(); };
 function harness() {
   const user = Vue.ref(null);
-  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }], links: [link], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
+  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }], selection: [], links: [link], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
   const api = {
     async listStarters({ userId }) { state.calls.push(userId); if (state.starterGate) return state.starterGate.promise; if (state.fail === 'starter') throw new Error('starter down'); return state.starters.slice(); },
     async listCareRecords({ starterId, kind }) {
@@ -85,6 +85,7 @@ function harness() {
       }
     },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
+    '../../lib/mobile-selection.js': { rememberSelectedStarter: (owner, id) => state.selection.push([owner, id]) },
     '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
   };
   const component = new Function('modules', setupCode)(modules);
@@ -130,6 +131,7 @@ assert.match(await h.html(), /结束本轮/, 'user can end the round without wai
 assert.match(await h.html(), /进行中/);
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
+assert.deepEqual(h.state.selection.at(-1), ['a', 's1'], 'the resolved starter is remembered so the records page opens on the same jar');
 assert.equal(h.vm.evidence.length, rows.length);
 for (const fail of ['starter', 'device', 'link']) {
   const before = { devices: h.vm.devices, starters: h.vm.starters, selected: h.vm.starterId, evidence: h.vm.evidence };

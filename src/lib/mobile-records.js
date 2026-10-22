@@ -25,6 +25,9 @@ export function normalizeRecordsQuery(query, now = new Date()) {
   const day = [query.from, query.to].find(value => validLocalDay(value) && value <= today) || today;
   const page = Number(query.page);
   const normalized = { from: day, to: day, page: String(Number.isSafeInteger(page) && page > 0 && page <= 500 ? page : 1) };
+  // 记录页只按单只酵种查看，无效或缺失的 starter 由页面回落到默认酵种后回写。
+  const starter = typeof query.starter === 'string' ? query.starter.trim() : '';
+  if (/^[A-Za-z0-9_-]{1,64}$/.test(starter)) normalized.starter = starter;
   const scroll = Number(query.scroll);
   if (typeof query.scroll === 'string' && Number.isFinite(scroll) && scroll >= 0) normalized.scroll = String(scroll);
   return normalized;
@@ -36,40 +39,41 @@ export function recordsDetailTarget(row, returnTo) {
 }
 
 // 每个页面实例持有此缓存；重新进入或切换账号即丢弃，补录/手动关闭后不复用旧边界。
+// 缓存与读取都按酵种分键，切换酵种不会串到另一罐的轮次。
 export function createRecordsLoader(api) {
   const days = new Map();
-  let marksRequest = null;
-  function entry(day) {
-    if (!days.has(day)) days.set(day, { facts: [], exhausted: false, context: null, devices: null });
-    return days.get(day);
+  function entry(day, starterId = '') {
+    const key = `${day}:${starterId}`;
+    if (!days.has(key)) days.set(key, { facts: [], exhausted: false, context: null, devices: null });
+    return days.get(key);
   }
   return {
     clear() { days.clear(); },
-    async facts(userId, day, page, current = () => true) {
-      const state = entry(day); const needed = page * RECORD_PAGE_SIZE + 1;
+    async facts(userId, day, page, starterId = '', current = () => true) {
+      const state = entry(day, starterId); const needed = page * RECORD_PAGE_SIZE + 1;
       const range = recordDayRange(day);
       while (!state.exhausted && state.facts.length < needed && current()) {
         const limit = Math.min(200, needed - state.facts.length);
-        const batch = await api.listCareRecords({ userId, ...range, offset: state.facts.length, limit, ascending: true });
+        const batch = await api.listCareRecords({ userId, ...range, ...(starterId ? { starterId } : {}), offset: state.facts.length, limit, ascending: true });
         if (!current()) return null;
         state.facts.push(...batch); state.exhausted = batch.length < limit;
       }
       return { rows: state.facts.slice(0, page * RECORD_PAGE_SIZE), hasMore: state.facts.length > page * RECORD_PAGE_SIZE };
     },
-    async marks(userId, now = new Date(), current = () => true) {
+    async marks(userId, now = new Date(), starterId = '', current = () => true) {
       const today = localDayKey(now); const start = new Date(`${today}T00:00:00`); start.setDate(start.getDate() - 13);
       const range = { from: start.toISOString(), to: recordDayRange(today).to };
       const result = {};
       for (let offset = 0; current(); offset += 200) {
-        const batch = await api.listCareRecords({ userId, ...range, offset, limit: 200 });
+        const batch = await api.listCareRecords({ userId, ...range, ...(starterId ? { starterId } : {}), offset, limit: 200 });
         if (!current()) return null;
         for (const row of batch) result[localDayKey(row.occurred_at)] = true;
         if (batch.length < 200) break;
       }
       return result;
     },
-    context(userId, day, starterIds, current = () => true) {
-      const state = entry(day);
+    context(userId, day, starterId = '', current = () => true) {
+      const state = entry(day, starterId);
       if (state.context && !state.contextComplete && !state.contextCurrent()) state.context = null;
       if (!state.context) {
         state.contextCurrent = current;
@@ -79,15 +83,15 @@ export function createRecordsLoader(api) {
         const feedings = [];
         // 一次读取当天喂养索引；与事实分页独立，分页外相邻喂养也能正确截断轮次。
         for (let offset = 0; current(); offset += 200) {
-          const batch = await api.listCareRecords({ userId, ...range, kind: 'feeding', limit: 200, offset, ascending: true });
+          const batch = await api.listCareRecords({ userId, ...range, ...(starterId ? { starterId } : {}), kind: 'feeding', limit: 200, offset, ascending: true });
           feedings.push(...batch);
           if (batch.length < 200) break;
         }
-        const ids = [...new Set([...starterIds, ...feedings.map(row => row.starter_id)])];
-        await Promise.all(ids.map(async starterId => {
+        const ids = [...new Set([...(starterId ? [starterId] : []), ...feedings.map(row => row.starter_id)])];
+        await Promise.all(ids.map(async id => {
           const adjacent = await Promise.allSettled([
-            api.listCareRecords({ userId, starterId, kind: 'feeding', to: range.from, limit: 1, offset: 0 }),
-            api.listCareRecords({ userId, starterId, kind: 'feeding', from: range.to, limit: 1, offset: 0, ascending: true })
+            api.listCareRecords({ userId, starterId: id, kind: 'feeding', to: range.from, limit: 1, offset: 0 }),
+            api.listCareRecords({ userId, starterId: id, kind: 'feeding', from: range.to, limit: 1, offset: 0, ascending: true })
           ]);
           for (const result of adjacent) {
             if (result.status === 'fulfilled') feedings.push(...result.value);
@@ -105,8 +109,8 @@ export function createRecordsLoader(api) {
       }
       return state.context;
     },
-    devices(userId, day, starterIds, current = () => true) {
-      const state = entry(day);
+    devices(userId, day, starterIds = [], current = () => true) {
+      const state = entry(day, [...starterIds].sort().join(','));
       if (!state.devices) state.devices = (async () => {
         const range = recordDayRange(day); const notices = [];
         const results = await Promise.allSettled(starterIds.map(starterId => api.listStarterDeviceLinks({ userId, starterId })));
