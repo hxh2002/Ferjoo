@@ -23,7 +23,7 @@ onMounted(() => auth.init());
       <small v-if="auth.user.value">{{ auth.profile.value?.system_user_id }} · 注册于 {{ new Date(auth.user.value.created_at).toLocaleDateString('zh-CN') }}</small>
       <small v-else>尚未登录</small>
     </div>
-    <RouterLink v-if="auth.user.value" class="m-secondary compact-link" to="/profile">编辑资料</RouterLink>
+    <RouterLink v-if="auth.user.value" class="m-secondary compact-link" :to="{ path: '/profile', query: { redirect: '/me' } }">编辑资料</RouterLink>
   </div>
   <div v-if="!auth.user.value" class="auth-links"><RouterLink class="m-primary" :to="{path:'/login',query:{redirect:'/me'}}">登录</RouterLink><RouterLink class="m-secondary" :to="{path:'/register',query:{redirect:'/me'}}">邀请码注册</RouterLink></div>
 </section>
