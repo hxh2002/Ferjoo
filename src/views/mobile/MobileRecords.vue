@@ -7,7 +7,7 @@ import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } f
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
-import HistoryCalendar from '../../components/HistoryCalendar.vue';
+
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { loadWindowClosures } from '../../services/fermentation-window.service.js';
@@ -30,7 +30,8 @@ const error = ref('');
 const notice = ref('');
 const hasMore = ref(false);
 const scrollY = ref(0);
-const stripRef = ref(null);
+const datePanelRef = ref(null);
+let panelAnimation;
 const calendarOpen = ref(false);
 const calendarMonth = ref(Date.now());
 
@@ -86,16 +87,39 @@ const selectedStarterId = computed(() => query.value.starter || '');
 const selectedStarterName = computed(() => starters.value.find((item) => item.id === selectedStarterId.value)?.name || '');
 const isToday = computed(() => selectedDay.value === recentRecordDays().at(-1));
 const dayLabel = computed(() => formatDayLabel(selectedDay.value));
-const days = computed(() => recentRecordDays().map((value) => ({
-  value,
-  weekday: `周${'日一二三四五六'[new Date(`${value}T00:00:00`).getDay()]}`,
-  day: Number(value.slice(8, 10))
-})));
-const stripRange = computed(() => `${days.value[0].value.slice(5).replace('-', '/')} – ${days.value.at(-1).value.slice(5).replace('-', '/')}`);
-const inStrip = computed(() => days.value.some((item) => item.value === selectedDay.value));
+const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+// 历史日期收起后仍保留在两周视窗内，不跳回今天。
+const compactDays = computed(() => {
+  const recent = recentRecordDays();
+  return recent.includes(selectedDay.value) ? recent : recentRecordDays(new Date(`${selectedDay.value}T12:00:00`));
+});
+const calendarTitle = computed(() => {
+  if (!calendarOpen.value) {
+    const first = compactDays.value[0];
+    return `${first.slice(5).replace('-', '/')} – ${compactDays.value.at(-1).slice(5).replace('-', '/')}`;
+  }
+  const date = new Date(calendarMonth.value);
+  return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+});
+const dateCells = computed(() => {
+  const today = recentRecordDays().at(-1);
+  let values = compactDays.value;
+  if (calendarOpen.value) {
+    const date = new Date(calendarMonth.value);
+    const first = new Date(date.getFullYear(), date.getMonth(), 1);
+    const lead = (first.getDay() + 6) % 7;
+    const count = Math.ceil((lead + new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()) / 7) * 7;
+    values = Array.from({ length: count }, (_, index) => dateKey(new Date(date.getFullYear(), date.getMonth(), 1 - lead + index)));
+  }
+  return values.map((value) => ({ value, day: Number(value.slice(8)),
+    off: calendarOpen.value && Number(value.slice(5, 7)) !== new Date(calendarMonth.value).getMonth() + 1,
+    today: value === today, future: value > today }));
+});
+const weekdays = computed(() => {
+  const start = calendarOpen.value ? 1 : new Date(`${compactDays.value[0]}T12:00:00`).getDay();
+  return Array.from({ length: 7 }, (_, index) => '日一二三四五六'[(start + index) % 7]);
+});
 const positionKey = () => JSON.stringify([accountId.value, selectedStarterId.value, selectedDay.value]);
-// 展开日历只保留“有记录”一种标记，不恢复四态图例。
-const calendarStats = computed(() => Object.fromEntries(Object.keys(marks.value).map((key) => [key, 'feeding'])));
 
 function returnTo() {
   const value = { from: selectedDay.value, to: selectedDay.value, page: String(page.value), scroll: String(Math.round(scrollY.value)) };
@@ -231,7 +255,7 @@ async function loadMarks() {
 }
 
 function selectDay(value) {
-  if (!validLocalDay(value)) return;
+  if (!validLocalDay(value) || value > recentRecordDays().at(-1)) return;
   calendarOpen.value = false;
   listPositions.delete(positionKey());
   router.replace({ path: '/records', query: { ...query.value, from: value, to: value, page: '1', scroll: '0' } });
@@ -243,14 +267,23 @@ function selectStarter(id) {
   router.replace({ path: '/records', query: { from: selectedDay.value, to: selectedDay.value, page: '1', starter: id, scroll: '0' } });
 }
 function toToday() {
-  selectDay(days.value.at(-1).value);
+  selectDay(recentRecordDays().at(-1));
 }
 function nextPage() {
   router.replace({ path: '/records', query: { ...query.value, page: String(page.value + 1), scroll: String(Math.round(window.scrollY)) } });
 }
 function toggleCalendar() {
+  const panel = datePanelRef.value;
+  const from = panel?.getBoundingClientRect().height || 0;
   if (!calendarOpen.value) calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
   calendarOpen.value = !calendarOpen.value;
+  nextTick(() => {
+    if (!panel || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    panelAnimation?.cancel();
+    panelAnimation = panel.animate([{ height: `${from}px` }, { height: `${panel.scrollHeight}px` }], {
+      duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)'
+    });
+  });
 }
 function changeMonth(delta) {
   const date = new Date(calendarMonth.value);
@@ -270,10 +303,6 @@ function trackScroll() {
   scrollY.value = Math.max(0, window.scrollY);
   listPositions.set(positionKey(), scrollY.value);
 }
-// 日期带可能横向溢出；始终把当前选中日期滚进可视区。
-function revealSelected() {
-  stripRef.value?.querySelector('.date-cell.active')?.scrollIntoView({ block: 'nearest', inline: 'center' });
-}
 
 watch(accountId, (owner, previous) => {
   if (previous) { listPositions.clear(); loader.clear(); }
@@ -281,7 +310,6 @@ watch(accountId, (owner, previous) => {
 }, { immediate: true, flush: 'sync' });
 watch([accountId, selectedDay, page, selectedStarterId], load, { immediate: true });
 watch(selectedStarterId, () => { void loadMarks(); });
-watch(selectedDay, () => nextTick(revealSelected));
 // 旧链接（type/starter/from-to 范围）在进入时规范化，页面不会读到过期筛选。
 // 只在记录页生效：离开本页时 query 会变，否则会把详情页或今日页直接顶回列表。
 watch(query, (value) => {
@@ -295,7 +323,6 @@ onMounted(async () => {
   auth.init();
   window.addEventListener('scroll', trackScroll, { passive: true });
   await nextTick();
-  revealSelected();
 });
 let reentered = false;
 // 从详情或记录页返回时丢弃当日缓存：补录与手动结束会改变轮次边界。
@@ -314,27 +341,32 @@ onUnmounted(() => {
 
 <template>
   <main class="m-page">
-    <section class="m-card date-card">
+    <section ref="datePanelRef" class="m-card date-card" :class="{ expanded: calendarOpen }">
       <div class="date-head">
-        <div><strong>最近两周</strong><small>{{ stripRange }}</small></div>
-        <button type="button" class="date-more" @click="toggleCalendar">{{ calendarOpen ? '收起日期' : '更多日期' }}</button>
-      </div>
-      <div ref="stripRef" class="date-strip" role="group" aria-label="选择日期">
-        <button v-for="item in days" :key="item.value" type="button" class="date-cell" :class="{ active: item.value === selectedDay }" :aria-pressed="item.value === selectedDay" @click="selectDay(item.value)">
-          <span class="date-weekday">{{ item.weekday }}</span>
-          <span class="date-number">{{ item.day }}</span>
-          <span class="date-mark" :class="{ on: marks[item.value] }"></span>
+        <div><strong>{{ calendarTitle }}</strong><small>{{ calendarOpen ? '选择日期' : '近两周' }}</small></div>
+        <button type="button" class="date-more" :aria-expanded="calendarOpen" @click="toggleCalendar">
+          <span>{{ calendarOpen ? '收起' : '更多日期' }}</span><span class="date-chevron" :class="{ up: calendarOpen }" aria-hidden="true">⌄</span>
         </button>
       </div>
-      <p v-if="!inStrip" class="date-outside">
-        已选择 {{ dayLabel }}
-        <button type="button" class="date-reset" @click="toToday">回到最近两周</button>
-      </p>
-      <div v-if="calendarOpen" class="date-calendar">
-        <div v-if="starters.length" class="starter-picker" role="group" aria-label="选择酵种">
-          <button v-for="item in starters" :key="item.id" type="button" class="starter-chip" :class="{ active: item.id === selectedStarterId }" :aria-pressed="item.id === selectedStarterId" @click="selectStarter(item.id)">{{ item.name }}</button>
-        </div>
-        <HistoryCalendar :month="calendarMonth" :stats="calendarStats" :selected="selectedDay" @change-month="changeMonth" @select="selectDay" />
+      <div class="date-view">
+          <div v-if="starters.length && calendarOpen" class="starter-picker" role="group" aria-label="选择酵种">
+            <button v-for="item in starters" :key="item.id" type="button" class="starter-chip" :class="{ active: item.id === selectedStarterId }" :aria-pressed="item.id === selectedStarterId" @click="selectStarter(item.id)">{{ item.name }}</button>
+          </div>
+          <div class="weekday-row" :class="{ monthly: calendarOpen }" aria-hidden="true">
+            <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+          </div>
+          <div class="date-grid" :class="{ monthly: calendarOpen }" role="group" aria-label="选择日期">
+            <button v-for="item in dateCells" :key="item.value" type="button" class="date-cell"
+              :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
+              :aria-pressed="item.value === selectedDay" :aria-label="formatDayLabel(item.value)" @click="selectDay(item.value)">
+              <span>{{ item.day }}</span><i v-if="marks[item.value]" class="date-mark" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div v-if="calendarOpen" class="calendar-nav">
+            <button type="button" aria-label="上个月" @click="changeMonth(-1)">‹</button>
+            <button type="button" class="calendar-today" @click="changeMonth(0); toToday()">今天</button>
+            <button type="button" aria-label="下个月" @click="changeMonth(1)">›</button>
+          </div>
       </div>
     </section>
 
@@ -380,26 +412,35 @@ onUnmounted(() => {
 
 <style scoped>
 .m-page{max-width:42rem;margin:auto;padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
-.date-card{padding:.75rem}
-.date-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem}
+.date-card{padding:.7rem .75rem;overflow:hidden}
+.date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
 .date-head strong{display:block;font-size:.9rem}
-.date-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
-.date-more{min-height:32px;padding:.2rem .6rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:transparent;color:#a44213;font:inherit;font-size:.75rem;font-weight:600;cursor:pointer}
-.date-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(34px,1fr);gap:.15rem;margin-top:.6rem;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
-.date-strip::-webkit-scrollbar{display:none}
-.date-cell{display:grid;justify-items:center;gap:.1rem;min-height:58px;padding:.25rem .1rem;border:1px solid transparent;border-radius:10px;background:transparent;color:inherit;font:inherit;cursor:pointer}
-.date-cell.active{border-color:rgba(164,66,20,.5);background:#fdf3ec;color:#a44213}
-.date-weekday{font-size:.62rem;color:var(--m-muted,#625e56)}
-.date-number{font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums}
-.date-mark{width:5px;height:5px;border-radius:50%;background:transparent}
-.date-mark.on{background:#a44213}
-.date-outside{margin:.5rem 0 0;font-size:.75rem;color:var(--m-muted,#625e56)}
-.date-reset{margin-left:.35rem;border:0;padding:.1rem 0;background:transparent;color:#a44213;font:inherit;font-size:.75rem;cursor:pointer}
-.date-calendar{margin-top:.6rem;padding-top:.4rem;border-top:1px solid var(--m-border,#d8d2c8)}
-.date-calendar :deep(.cal-legend){display:none}
-.starter-picker{display:flex;flex-wrap:wrap;gap:.4rem;padding:.55rem 0 .1rem}
-.starter-chip{max-width:100%;min-height:32px;padding:.2rem .7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:999px;background:transparent;color:inherit;font:inherit;font-size:.76rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.starter-chip.active{border-color:rgba(164,66,20,.5);background:#fdf3ec;color:#a44213}
+.date-head small{display:block;margin-top:.1rem;font-size:.7rem;color:var(--m-muted,#625e56)}
+.date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:0;border-radius:999px;background:#f5eee5;color:#8f3b18;font:inherit;font-size:.74rem;font-weight:650;cursor:pointer}
+.date-chevron{display:inline-block;font-size:1rem;line-height:1;transition:transform .22s ease}
+.date-chevron.up{transform:rotate(180deg)}
+.date-view{transform-origin:top center}
+.weekday-row,.date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem}
+.weekday-row{margin-bottom:.15rem;text-align:center;color:var(--m-muted,#756d63);font-size:.62rem}
+.weekday-row span{min-height:18px}
+.weekday-row.monthly{margin-top:.45rem}
+.weekday-row:not(.monthly){visibility:hidden;height:0;margin:0}
+.date-grid{row-gap:.1rem}
+.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:var(--text-primary,#30251f);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color .14s ease,color .14s ease,transform .14s ease}
+.date-cell:active{transform:scale(.9)}
+.date-cell.active{background:#a44213;color:#fff}
+.date-cell.today:not(.active){border-color:#a44213;font-weight:700}
+.date-cell.off{opacity:.36}
+.date-cell.future{opacity:.32;cursor:default}
+.date-cell .date-mark{position:absolute;bottom:3px;width:4px;height:4px;border:0;border-radius:50%;background:#a44213}
+.date-cell.active .date-mark{background:#fff}
+.date-grid:not(.monthly){grid-template-columns:repeat(7,minmax(0,1fr));row-gap:.12rem}
+.date-grid:not(.monthly) .date-cell{min-height:34px;border-radius:9px}
+.date-grid:not(.monthly) .date-cell:first-child{grid-column:1}
+.date-grid:not(.monthly) .date-cell{font-size:.76rem}
+.calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-top:.25rem;border-top:1px solid var(--m-border,#e7e0d7)}
+.calendar-nav button{min-width:44px;min-height:38px;border:0;background:transparent;color:#8f3b18;font:inherit;font-size:1.2rem;cursor:pointer}
+.calendar-nav .calendar-today{font-size:.74rem;font-weight:600}
 .day-card{padding:.75rem}
 .day-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}
 .day-head strong{display:block;font-size:.9rem}
