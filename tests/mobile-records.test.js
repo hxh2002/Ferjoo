@@ -16,16 +16,19 @@ for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/vi
   assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
 }
 assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
-assert.match(source, /\.date-grid\.compact \.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
+assert.match(source, /\.date-grid-shared \.date-cell\{[^}]*min-height:0;height:34px/);
 assert.doesNotMatch(source, /\.date-cell\{[^}]*border-radius:\s*\d+%/);
 assert.match(source, /recentRecordDays\(\)/);
 assert.match(source, /更多日期/);
 assert.match(source, /starter-chip/);
 assert.match(source, /class="date-controls"[\s\S]*class="starter-picker"[\s\S]*class="date-more"/);
-assert.match(source, /dateWeeks\.value\.slice|const dateWeeks = computed/);
-assert.match(source, /displayedWeekLabel = computed\(\(\) => displayedWeek\.value\.length \? weekLabel\(displayedWeek\.value\)/);
-assert.match(source, /@touchstart\.passive="startWeekSwipe"[\s\S]*@touchend="endWeekSwipe"/);
-assert.match(source, /translateX\(\$\{delta > 0 \? '14px' : '-14px'\}\)/);
+assert.match(source, /class="date-grid date-grid-shared"[\s\S]*v-for="item in dateCells"/);
+assert.match(source, /:key="item\.value" :data-date="item\.value"/);
+assert.match(source, /const firstRects = new Map[\s\S]*first\.left - last\.left[\s\S]*first\.top - last\.top/);
+assert.match(source, /cell\.animate\(\[\{ opacity: 0 \}, \{ opacity: 1 \}\]/);
+assert.match(source, /grid-template-rows:repeat\(2,34px\)/);
+assert.doesNotMatch(source, /week-rows|weekLabel|compactWeek|blank-|repeat\(6,34px\)|auto-fit/);
+assert.match(source, /'一二三四五六日'\[\(date\.getDay\(\) \+ 6\) % 7\]/);
 assert.match(source, /prefers-reduced-motion: reduce/);
 assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
 assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
