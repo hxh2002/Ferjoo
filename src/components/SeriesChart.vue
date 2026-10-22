@@ -65,10 +65,23 @@ const stats = computed(() => {
   const dataMax = Math.max(...values);
   // 基线只参与绘图范围，不参与 min/max 文案；否则基线高于数据时会把真正的数据极值顶掉。
   const bounds = baselineValue.value == null ? values : [...values, baselineValue.value];
+  let min = Math.min(...bounds);
+  let max = Math.max(...bounds);
+  const scale = props.label === '高度' ? { range: 30, min: 0 }
+    : props.label === '湿度' ? { range: 20, min: 0, max: 100 }
+      : props.label === '温度' ? { range: 20, min: -273.15 } : null;
+  if (scale && max - min < scale.range) {
+    const center = (min + max) / 2;
+    min = center - scale.range / 2;
+    max = center + scale.range / 2;
+    if (scale.min != null && min < scale.min) { max += scale.min - min; min = scale.min; }
+    if (scale.max != null && max > scale.max) { min -= max - scale.max; max = scale.max; }
+    if (scale.min != null) min = Math.max(scale.min, min);
+  }
   const last = values[values.length - 1];
   return {
-    min: Math.min(...bounds),
-    max: Math.max(...bounds),
+    min,
+    max,
     dataMin,
     dataMax,
     last,

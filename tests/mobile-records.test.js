@@ -28,7 +28,8 @@ assert.match(source, /const firstRects = new Map[\s\S]*first\.left - last\.left[
 assert.match(source, /cell\.animate\(\[\{ opacity: 0 \}, \{ opacity: 1 \}\]/);
 assert.match(source, /grid-template-rows:repeat\(2,34px\)/);
 assert.doesNotMatch(source, /week-rows|weekLabel|compactWeek|blank-|repeat\(6,34px\)|auto-fit/);
-assert.match(source, /weekday-row weekday-row-shared[\s\S]*v-for="weekday in '一二三四五六日'"[\s\S]*class="date-grid date-grid-shared"/);
+assert.match(source, /weekday-row weekday-row-shared[\s\S]*v-for="item in weekdayColumns"[\s\S]*class="date-grid date-grid-shared"/);
+assert.match(source, /weekdayRects = new Map[\s\S]*weekdayRow\.children[\s\S]*duration: 360, easing/);
 assert.doesNotMatch(source, /<small>\{\{ item\.weekday \}\}<\/small>/);
 assert.match(source, /prefers-reduced-motion: reduce/);
 assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);

@@ -117,6 +117,13 @@ const dateCells = computed(() => {
       today: value === today, future: value > today };
   });
 });
+const weekdayColumns = computed(() => {
+  const latest = new Date(`${compactDays.value.at(-1)}T12:00:00`);
+  const latestWeekday = (latest.getDay() + 6) % 7;
+  return Array.from('一二三四五六日', (label, index) => ({
+    label, column: calendarOpen.value ? index + 1 : (index - latestWeekday + 7) % 7 + 1
+  }));
+});
 const weekStripRef = ref(null);
 const dateGridRef = ref(null);
 let panelAnimation;
@@ -279,7 +286,7 @@ async function toggleCalendar() {
   const weekdayRow = weekStripRef.value;
   if (!panel || !grid || !weekdayRow) return;
   const firstRects = new Map([...grid.querySelectorAll('.date-cell')].map((cell) => [cell.dataset.date, cell.getBoundingClientRect()]));
-  const weekdayRects = [...weekdayRow.children].map((cell) => cell.getBoundingClientRect());
+  const weekdayRects = new Map([...weekdayRow.children].map((cell) => [cell.dataset.weekday, cell.getBoundingClientRect()]));
   const fromHeight = panel.getBoundingClientRect().height;
   if (!calendarOpen.value) calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
   calendarOpen.value = !calendarOpen.value;
@@ -298,8 +305,8 @@ async function toggleCalendar() {
       const dy = first.top - last.top;
       if (dx || dy) cell.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'translate(0,0)' }], { duration: 360, easing });
     }
-    for (const [index, cell] of [...weekdayRow.children].entries()) {
-      const first = weekdayRects[index];
+    for (const cell of weekdayRow.children) {
+      const first = weekdayRects.get(cell.dataset.weekday);
       const last = cell.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
@@ -380,7 +387,7 @@ onUnmounted(() => {
       </div>
       <div class="date-view" :class="{ expanded: calendarOpen }">
         <div ref="weekStripRef" class="weekday-row weekday-row-shared" aria-hidden="true">
-          <span v-for="weekday in '一二三四五六日'" :key="weekday">{{ weekday }}</span>
+          <span v-for="item in weekdayColumns" :key="item.label" :data-weekday="item.label" :style="{ gridColumn: item.column }">{{ item.label }}</span>
         </div>
         <div ref="dateGridRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '近两周日期'">
           <button v-for="item in dateCells" :key="item.value" :data-date="item.value" type="button" class="date-cell"

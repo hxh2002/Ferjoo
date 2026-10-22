@@ -37,6 +37,7 @@ assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
 const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/m, '');
 const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
+const chartGeometry = (label, unit, values, baseline = null) => renderChart(() => ({ label, unit, points: values.map((v, index) => ({ t: `2026-01-01T00:${String(index * 10).padStart(2, '0')}:00Z`, v })), baseline }), computed, ref, watch, () => 'test');
 const points = [
   { t: '2026-01-01T00:00:00Z', v: 1 },
   { t: '2026-01-01T00:10:00Z', v: 2 },
@@ -83,6 +84,20 @@ assert.equal(dense.linePaths.value.length, 1, '连续采样保持单段');
 const withBaseline = renderChart(() => ({ points, baseline: 100 }), computed, ref, watch, () => 'test');
 assert.equal(withBaseline.stats.value.max, 100, '基线参与绘图范围');
 assert.equal(withBaseline.stats.value.dataMax, 7, '基线不得顶掉 max 文案');
+const lowHeight = chartGeometry('高度', ' mm', [2, 4]);
+assert.equal(lowHeight.stats.value.min, 0, '高度纵轴不能小于零');
+assert.equal(lowHeight.stats.value.max, 30, '高度最小纵轴跨度为 30 mm');
+const nearCeilingHumidity = chartGeometry('湿度', '%', [96, 98]);
+assert.equal(nearCeilingHumidity.stats.value.min, 80, '湿度靠近上限时向下扩展');
+assert.equal(nearCeilingHumidity.stats.value.max, 100, '湿度纵轴不能超过 100%');
+const lowHumidity = chartGeometry('湿度', '%', [1, 3]);
+assert.equal(lowHumidity.stats.value.min, 0, '湿度纵轴不能小于 0%');
+assert.equal(lowHumidity.stats.value.max, 20, '湿度最小纵轴跨度为 20%');
+const narrowTemperature = chartGeometry('温度', '°C', [23, 25]);
+assert.equal(narrowTemperature.stats.value.max - narrowTemperature.stats.value.min, 20, '温度最小纵轴跨度为 20°C');
+const wideHeight = chartGeometry('高度', ' mm', [10, 50]);
+assert.deepEqual([wideHeight.stats.value.min, wideHeight.stats.value.max], [10, 50], '已有足够跨度的数据不改变纵轴范围');
+assert.deepEqual([lowHeight.stats.value.dataMin, lowHeight.stats.value.dataMax], [2, 4], '纵轴扩展不改变真实数据极值');
 assert.equal(withBaseline.baselineY.value, 6, '基线贴顶时应落在顶部内边距');
 const duplicated = renderChart(() => ({ points: [
   { t: '2026-01-01T00:00:00Z', v: 3 },
