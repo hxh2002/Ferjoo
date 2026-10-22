@@ -22,7 +22,6 @@ const auth = useAuth();
 defineOptions({ name: 'MobileRecords' });
 
 const starters = ref([]);
-const facts = ref([]);
 const model = ref(null);
 const marks = ref({});
 const loading = ref(false);
@@ -99,25 +98,27 @@ function returnTo() {
 }
 const feedingTarget = computed(() => ({ path: '/feeding' }));
 
+// 一行只回答三件事：几点到几点、比例与发酵时长、涨了多少。其余说明退到详情。
 function roundItem(row, carried, now) {
   const summary = row.summary || {};
   const from = Date.parse(summary.windowFrom || row.occurred_at);
   const closed = summary.windowStatus === 'closed';
   const to = Date.parse(summary.windowClosedAt || (closed ? summary.windowTo : new Date(now).toISOString())) || now;
-  const bits = [];
-  if (summary.baselineHeightMm > 0) bits.push(`基线 ${metric(summary.baselineHeightMm)} mm · ${summary.baselineSource === 'manual' ? '手工' : '自动'}`);
-  if (summary.currentHeightMm != null && summary.expansionPercent != null) bits.push(`当前 ${metric(summary.currentHeightMm)} mm · 膨胀 ${summary.expansionPercent >= 0 ? '+' : ''}${summary.expansionPercent.toFixed(1)}%`);
-  if (row.boundaryPending) bits.push('轮次结束待核实');
-  else if (closed) bits.push(summary.windowEndReason === 'manual' ? '手动结束' : '下一次喂养结束');
-  if (summary.dataQuality === 'insufficient') bits.push('暂无设备数据');
-  else if (summary.heightStale) bits.push('设备数据偏旧');
+  const range = rangeText(from, to);
+  const baseline = Number(summary.baselineHeightMm);
+  const height = summary.currentHeightMm != null && summary.expansionPercent != null
+    ? [baseline > 0 ? `${metric(baseline)} → ${metric(summary.currentHeightMm)} mm` : `${metric(summary.currentHeightMm)} mm`,
+      `${summary.expansionPercent >= 0 ? '+' : ''}${summary.expansionPercent.toFixed(0)}%`].join(' · ')
+    : '';
+  const caveat = summary.dataQuality === 'insufficient' ? '暂无设备数据' : summary.heightStale ? '设备数据偏旧' : '';
   return {
     id: `round:${row.id}`, at: from,
-    title: `${carried ? '跨日 · 上一轮' : '喂养'} · ${ratioText(row.ratio)}`,
-    range: rangeText(from, to),
-    meta: `${starterName(row.starter_id)} · ${durationText(from, to)}`,
-    extra: bits.join(' · '),
-    state: closed ? '已结束' : '进行中',
+    title: `${range.from}–${range.to}`,
+    offset: range.offset,
+    titleTip: range.title,
+    sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
+    note: [height, caveat, row.boundaryPending ? '结束待核实' : ''].filter(Boolean).join(' · '),
+    state: closed ? (summary.windowEndReason === 'manual' ? '手动结束' : '已结束') : '进行中',
     tone: closed ? 'closed' : 'active',
     to: recordsDetailTarget(row, returnTo())
   };
@@ -126,21 +127,21 @@ function observationItem(row) {
   return {
     id: `observation:${row.id}`, at: Date.parse(row.occurred_at),
     title: row.result?.title || '观察记录',
-    range: null,
-    meta: `${starterName(row.starter_id)} · ${formatClock(row.occurred_at)}`,
-    extra: '', state: '', tag: '观察',
+    offset: '',
+    sub: `${formatClock(row.occurred_at)} · 观察 · ${starterName(row.starter_id)}`,
+    note: '', state: '', tone: '',
     to: recordsDetailTarget(row, returnTo())
   };
 }
 function deviceItem(row) {
-  const latest = row.samples?.length ? row.samples.at(-1).recorded_at : null;
+  const samples = row.samples || [];
+  const latest = samples.reduce((max, item) => Math.max(max, Date.parse(item.recorded_at) || 0), 0);
   return {
-    id: row.id, at: latest ? Date.parse(latest) : Date.parse(`${row.day}T12:00:00`),
-    title: `设备数据 · ${row.samples?.length || 0} 条采样`,
-    range: null,
-    meta: `${starterName(row.starter_id)} · 最新 ${formatClock(latest)}`,
-    extra: recordDeviceMetrics(row.samples || []),
-    state: '', tag: '设备',
+    id: row.id, at: latest || Date.parse(`${row.day}T12:00:00`),
+    title: '设备摘要',
+    offset: '',
+    sub: `${latest ? `最新 ${formatClock(latest)}` : '当天摘要'} · ${samples.length} 条采样`,
+    note: recordDeviceMetrics(samples), state: '', tone: '',
     to: recordsDetailTarget(row, returnTo())
   };
 }
@@ -170,7 +171,7 @@ async function load() {
   const day = selectedDay.value;
   const currentPage = page.value;
   const current = () => !disposed && token === generation && owner === accountId.value && day === selectedDay.value && currentPage === page.value;
-  facts.value = []; model.value = null; hasMore.value = false;
+  model.value = null; hasMore.value = false;
   error.value = ''; notice.value = ''; loading.value = false;
   if (!owner) return;
   loading.value = true;
@@ -185,7 +186,6 @@ async function load() {
       loader.devices(owner, day, starterIds, current)
     ]);
     if (!current() || !factPage) return;
-    facts.value = factPage.rows;
     hasMore.value = factPage.hasMore;
     model.value = recordsDayModel({ day, facts: factPage.rows, context, devices, now: Date.now() });
     notice.value = [...new Set([...(context?.notices || []), ...(devices?.notices || [])])].join(' ');
@@ -251,7 +251,9 @@ watch(accountId, (owner, previous) => {
 watch([accountId, selectedDay, page], load, { immediate: true });
 watch(selectedDay, () => nextTick(revealSelected));
 // 旧链接（type/starter/from-to 范围）在进入时规范化，页面不会读到过期筛选。
+// 只在记录页生效：离开本页时 query 会变，否则会把详情页直接顶回列表。
 watch(query, (value) => {
+  if (route.name !== 'mobile-records') return;
   const keys = ['from', 'to', 'page', 'scroll'];
   const changed = Object.keys(route.query).length !== Object.keys(value).length
     || keys.some((key) => (queryText(key) || '') !== (value[key] || ''));
@@ -314,20 +316,16 @@ onUnmounted(() => {
         <template v-if="!loading && !error">
           <RouterLink v-for="item in timeline" :key="item.id" class="m-list-row record-row" :to="item.to">
             <span class="record-main">
-              <strong>{{ item.title }}</strong>
-              <small>
-                <span v-if="item.range" class="record-range" :title="item.range.title">
-                  <span v-if="item.range.offset" class="day-offset">{{ item.range.offset }}</span>
-                  <span>{{ item.range.from }}</span><span class="range-separator">–</span><span>{{ item.range.to }}</span>
-                </span>
-                <span class="record-meta">{{ item.meta }}</span>
-              </small>
-              <small v-if="item.extra" class="record-extra">{{ item.extra }}</small>
+              <span class="record-head">
+                <strong class="record-title" :title="item.titleTip">{{ item.title }}</strong>
+                <span v-if="item.offset" class="day-offset">{{ item.offset }}</span>
+              </span>
+              <small class="record-sub">{{ item.sub }}</small>
+              <small v-if="item.note" class="record-note">{{ item.note }}</small>
             </span>
             <span class="record-side">
               <span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span>
-              <span v-else class="record-tag">{{ item.tag }}</span>
-              <b>详情</b>
+              <span class="record-go" aria-hidden="true">›</span>
             </span>
           </RouterLink>
           <div v-if="!timeline.length" class="records-empty">
@@ -335,10 +333,8 @@ onUnmounted(() => {
             <div><p>{{ isToday ? '今天还没有记录。' : '这一天没有记录。' }}</p><RouterLink :to="feedingTarget">记录一次喂养</RouterLink></div>
           </div>
           <button v-if="hasMore" type="button" class="more-row" :disabled="loading" @click="nextPage">加载更多记录</button>
-          <p v-else-if="timeline.length" class="records-hint">已显示 {{ facts.length }} 条记录</p>
         </template>
       </section>
-      <p v-if="!inStrip" class="m-muted records-hint">更早的日期可通过“更多日期”选择，历史记录仍可查看。</p>
     </template>
   </main>
 </template>
@@ -367,23 +363,20 @@ onUnmounted(() => {
 .day-head strong{display:block;font-size:.9rem}
 .day-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
 .day-today{padding:.15rem .5rem;border-radius:999px;background:#e7f4ed;color:#2B7A55;font-size:.7rem;font-weight:600;white-space:nowrap}
-.record-row{align-items:flex-start}
-.record-main{display:grid;gap:2px;min-width:0}
-.record-main strong{font-size:.85rem;font-weight:600}
-.record-main small{display:flex;flex-wrap:wrap;align-items:center;gap:.2rem;min-width:0;font-size:.72rem;color:var(--m-muted,#625e56)}
-.record-range{display:inline-flex;align-items:center;gap:.15rem;font-weight:600;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
-.record-range .day-offset{display:inline-grid;place-items:center;min-width:.7rem;height:.7rem;padding:0 .04rem;border-radius:50%;background:#f2dcd7;color:#a4524a;font-size:.46rem;line-height:1;font-weight:600}
-.record-range .range-separator{color:var(--m-muted,#625e56)}
-.record-meta{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.record-extra{color:var(--m-muted,#625e56)}
-.record-side{display:grid;justify-items:end;gap:2px;flex:none}
+.record-row{align-items:center;gap:.6rem;padding:.6rem 0}
+.record-main{display:grid;gap:.12rem;min-width:0}
+.record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
+.record-row .record-title{font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
+.record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.record-row .record-sub{font-size:.74rem;color:var(--text-secondary,#5f574e)}
+.record-row .record-note{font-size:.72rem;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums}
+.day-offset{display:inline-grid;place-items:center;min-width:.95rem;height:.85rem;padding:0 .16rem;border-radius:999px;background:#f2dcd7;color:#a4524a;font-size:.56rem;line-height:1;font-weight:600}
+.record-side{display:flex;align-items:center;gap:.3rem;flex:none}
 .record-state{padding:.12rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600;background:#e8f0fa;color:#2B6CB0;white-space:nowrap}
 .record-state[data-tone="closed"]{background:#e7f4ed;color:#2B7A55}
-.record-tag{padding:.12rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600;background:var(--m-surface,#fffdf8);color:var(--m-muted,#625e56);border:1px solid var(--m-border,#d8d2c8);white-space:nowrap}
-.record-row b{color:#a44213;font-size:.82rem;font-weight:600}
+.record-go{font-size:1.1rem;line-height:1;color:#b9b1a5}
 .more-row{width:100%;min-height:40px;margin-top:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:transparent;color:#a44213;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
 .records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}
 .records-empty p{margin:.1rem 0 .35rem}
 .jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}
-.records-hint{margin:.5rem 0 0;font-size:.72rem}
 </style>

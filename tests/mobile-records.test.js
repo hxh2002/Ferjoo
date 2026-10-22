@@ -11,6 +11,8 @@ assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename
 assert.match(source, /recentRecordDays\(\)/);
 assert.match(source, /更多日期/);
 assert.doesNotMatch(source, /m-filters|类型筛选|对象<select|legend=/);
+// 离开记录页后 query 必然变化；规范化必须只在记录页执行，否则会立刻把详情页顶回列表。
+assert.match(source, /route\.name !== 'mobile-records'/);
 const days = recentRecordDays(new Date(2026, 9, 22, 23, 45));
 assert.equal(days.length, 14);
 assert.equal(days[0], '2026-10-09');
