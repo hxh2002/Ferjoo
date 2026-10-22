@@ -416,7 +416,7 @@ onUnmounted(() => {
 .date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
 .date-head strong{display:block;font-size:.9rem}
 .date-head small{display:block;margin-top:.1rem;font-size:.7rem;color:var(--m-muted,#625e56)}
-.date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:0;border-radius:999px;background:#f5eee5;color:#8f3b18;font:inherit;font-size:.74rem;font-weight:650;cursor:pointer}
+.date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:0;border-radius:var(--radius-control);background:#f5eee5;color:#8f3b18;font:inherit;font-size:.74rem;font-weight:650;cursor:pointer}
 .date-chevron{display:inline-block;font-size:1rem;line-height:1;transition:transform .22s ease}
 .date-chevron.up{transform:rotate(180deg)}
 .starter-picker{display:flex;flex-wrap:wrap;gap:.5rem;padding:.45rem 0 .65rem;margin-bottom:.35rem;border-bottom:1px solid var(--border-subtle)}
@@ -429,7 +429,7 @@ onUnmounted(() => {
 .weekday-row.monthly{margin-top:.45rem}
 .weekday-row:not(.monthly){visibility:hidden;height:0;margin:0}
 .date-grid{row-gap:.1rem}
-.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:var(--text-primary);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
+.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
 .date-cell.active{background:var(--brand-action);color:#fff}
 .date-cell.today:not(.active){border-color:var(--brand-action);font-weight:700}
@@ -438,7 +438,7 @@ onUnmounted(() => {
 .date-cell .date-mark{position:absolute;bottom:3px;width:4px;height:4px;border:0;border-radius:50%;background:var(--brand-action)}
 .date-cell.active .date-mark{background:#fff}
 .date-grid:not(.monthly){grid-template-columns:repeat(7,minmax(0,1fr));row-gap:.12rem}
-.date-grid:not(.monthly) .date-cell{min-height:34px;border-radius:9px}
+.date-grid:not(.monthly) .date-cell{min-height:34px;border-radius:var(--radius-control)}
 .date-grid:not(.monthly) .date-cell:first-child{grid-column:1}
 .date-grid:not(.monthly) .date-cell{font-size:.76rem}
 .calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-top:.25rem;border-top:1px solid var(--m-border,#e7e0d7)}
@@ -448,7 +448,7 @@ onUnmounted(() => {
 .day-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}
 .day-head strong{display:block;font-size:.9rem}
 .day-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
-.day-today{padding:.15rem .5rem;border-radius:999px;background:#e7f4ed;color:#2B7A55;font-size:.7rem;font-weight:600;white-space:nowrap}
+.day-today{padding:.15rem .5rem;border-radius:var(--radius-badge);background:#e7f4ed;color:#2B7A55;font-size:.7rem;font-weight:600;white-space:nowrap}
 .record-row{align-items:center;gap:.6rem;padding:.6rem 0}
 .record-main{display:grid;gap:.12rem;min-width:0}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
@@ -456,9 +456,9 @@ onUnmounted(() => {
 .record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
 .record-row .record-sub{font-size:.74rem;color:var(--text-secondary,#5f574e)}
 .record-row .record-note{font-size:.72rem;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums}
-.day-offset{display:inline-grid;place-items:center;min-width:.95rem;height:.85rem;padding:0 .16rem;border-radius:999px;background:#f2dcd7;color:#a4524a;font-size:.56rem;line-height:1;font-weight:600}
+.day-offset{display:inline-grid;place-items:center;min-width:.95rem;height:.85rem;padding:0 .16rem;border-radius:var(--radius-badge);background:#f2dcd7;color:#a4524a;font-size:.56rem;line-height:1;font-weight:600}
 .record-side{display:flex;align-items:center;gap:.3rem;flex:none}
-.record-state{padding:.12rem .45rem;border-radius:999px;font-size:.68rem;font-weight:600;background:#e8f0fa;color:#2B6CB0;white-space:nowrap}
+.record-state{padding:.12rem .45rem;border-radius:var(--radius-badge);font-size:.68rem;font-weight:600;background:#e8f0fa;color:#2B6CB0;white-space:nowrap}
 .record-state[data-tone="closed"]{background:#e7f4ed;color:#2B7A55}
 .record-go{font-size:1.1rem;line-height:1;color:#b9b1a5}
 .more-row{width:100%;min-height:40px;margin-top:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:transparent;color:#a44213;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}

@@ -8,6 +8,16 @@ const { descriptor, errors } = parse(source);
 assert.deepEqual(errors, []);
 compileScript(descriptor, { id: 'records-test' });
 assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename: 'MobileRecords.vue', id: 'records-test' }).errors, []);
+const tokens = await readFile(new URL('../src/assets/tokens.css', import.meta.url), 'utf8');
+const mainCss = await readFile(new URL('../src/assets/main.css', import.meta.url), 'utf8');
+const mobileCss = await readFile(new URL('../src/assets/mobile.css', import.meta.url), 'utf8');
+assert.match(tokens, /--radius-badge:\s*4px/);
+for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/views/mobile/MobileToday.vue', import.meta.url), 'utf8'), await readFile(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8')]) {
+  assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
+}
+assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
+assert.match(source, /\.date-grid:not\(\.monthly\) \.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
+assert.doesNotMatch(source, /\.date-cell\{[^}]*border-radius:\s*\d+%/);
 assert.match(source, /recentRecordDays\(\)/);
 assert.match(source, /更多日期/);
 assert.match(source, /starter-chip/);

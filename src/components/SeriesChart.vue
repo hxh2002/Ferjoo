@@ -421,5 +421,5 @@ const markerLines = computed(() => {
 .series-range { flex-wrap: nowrap; min-width: 0; gap: 4px; }
 .series-range > :last-child { margin-left: auto; min-width: 0; }
 .series-time-range { display: inline-flex; align-items: center; gap: 2px; }
-.series-time-range .day-offset { display: inline-grid; place-items: center; min-width: 10px; height: 10px; padding: 0 1px; border-radius: 50%; background: #f2dcd7; color: #a4524a; font-size: 6.5px; line-height: 1; font-weight: 600; }
+.series-time-range .day-offset { display: inline-grid; place-items: center; min-width: 10px; height: 10px; padding: 0 1px; border-radius: var(--radius-badge); background: #f2dcd7; color: #a4524a; font-size: 6.5px; line-height: 1; font-weight: 600; }
 </style>
