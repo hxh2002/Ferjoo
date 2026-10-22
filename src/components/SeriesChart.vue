@@ -272,13 +272,13 @@ const markerLines = computed(() => {
 <template>
   <div class="series-chart">
     <div class="series-head">
-      <span class="series-label">{{ label }}</span>
+      <span class="series-label"><slot name="label">{{ label }}</slot></span>
       <div class="series-headline">
         <span v-if="stats" class="series-delta" :class="deltaClass">{{ deltaText }}</span>
         <strong class="series-value">{{ fmt(stats?.last) }}</strong>
+        <slot name="after-header" />
       </div>
     </div>
-    <slot name="after-header" />
     <div v-if="series.length" class="series-body">
       <div class="series-plot" @pointermove="onMove" @pointerleave="clearHover">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
