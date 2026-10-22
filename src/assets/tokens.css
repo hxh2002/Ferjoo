@@ -35,6 +35,15 @@
   --chart-temp: #c04b0a;
   --chart-humidity: #2b7a55;
   --chart-battery: #7a5c14;
+  --surface-selected: #fdf0e7;
+  --border-subtle: #e9e2da;
+  --radius-card: 18px;
+  --radius-control: 12px;
+  --shadow-card: 0 2px 10px rgba(48, 37, 31, .035);
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --motion-expand: 260ms;
+  --ease-standard: cubic-bezier(.2, .7, .2, 1);
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;

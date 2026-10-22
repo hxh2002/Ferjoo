@@ -26,6 +26,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 button { color: inherit; }
 a { color: inherit; }
 ::selection { background: var(--ink); color: var(--cream); }
+:where(body:not(.mobile-mode)) :focus-visible { outline: 3px solid var(--orange-deep); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  body:not(.mobile-mode) *, body:not(.mobile-mode) *::before, body:not(.mobile-mode) *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
 
 .page-shell { width: min(1440px, 100%); margin: 0 auto; padding: 30px 44px 42px; position: relative; }
 .site-header {
