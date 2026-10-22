@@ -118,6 +118,7 @@ const dateCells = computed(() => {
   });
 });
 const weekStripRef = ref(null);
+const dateGridRef = ref(null);
 let panelAnimation;
 const positionKey = () => JSON.stringify([accountId.value, selectedStarterId.value, selectedDay.value]);
 
@@ -274,9 +275,11 @@ function nextPage() {
 }
 async function toggleCalendar() {
   const panel = datePanelRef.value;
-  const grid = weekStripRef.value;
-  if (!panel || !grid) return;
+  const grid = dateGridRef.value;
+  const weekdayRow = weekStripRef.value;
+  if (!panel || !grid || !weekdayRow) return;
   const firstRects = new Map([...grid.querySelectorAll('.date-cell')].map((cell) => [cell.dataset.date, cell.getBoundingClientRect()]));
+  const weekdayRects = [...weekdayRow.children].map((cell) => cell.getBoundingClientRect());
   const fromHeight = panel.getBoundingClientRect().height;
   if (!calendarOpen.value) calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
   calendarOpen.value = !calendarOpen.value;
@@ -290,6 +293,13 @@ async function toggleCalendar() {
         cell.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing });
         continue;
       }
+      const last = cell.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      if (dx || dy) cell.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'translate(0,0)' }], { duration: 360, easing });
+    }
+    for (const [index, cell] of [...weekdayRow.children].entries()) {
+      const first = weekdayRects[index];
       const last = cell.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
@@ -369,12 +379,15 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="date-view" :class="{ expanded: calendarOpen }">
-        <div ref="weekStripRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '近两周日期'">
+        <div ref="weekStripRef" class="weekday-row weekday-row-shared" aria-hidden="true">
+          <span v-for="weekday in '一二三四五六日'" :key="weekday">{{ weekday }}</span>
+        </div>
+        <div ref="dateGridRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '近两周日期'">
           <button v-for="item in dateCells" :key="item.value" :data-date="item.value" type="button" class="date-cell"
             :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
             :style="calendarOpen ? { gridColumn: `${((new Date(`${item.value}T12:00:00`).getDay() + 6) % 7) + 1}` } : null"
             :disabled="item.future" :aria-pressed="item.value === selectedDay" :aria-label="`${item.value} 周${item.weekday}`" @click="selectDay(item.value)">
-            <small>{{ item.weekday }}</small><span>{{ item.day }}</span><i v-if="marks[item.value]" class="date-mark" aria-hidden="true"></i>
+            <span>{{ item.day }}</span><i v-if="marks[item.value]" class="date-mark" aria-hidden="true"></i>
           </button>
         </div>
         <div v-if="calendarOpen" class="calendar-nav">
@@ -439,13 +452,13 @@ onUnmounted(() => {
 .starter-picker::-webkit-scrollbar{display:none}
 .date-card .starter-chip{flex:none;max-width:100%;min-height:32px;padding:.3rem .7rem;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;line-height:1.4;font-weight:500;cursor:pointer}
 .date-card .starter-chip.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
-.date-view{transform-origin:top center;overflow:hidden}
+.date-view{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:18px auto;transform-origin:top center;overflow:hidden}
+.weekday-row-shared{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem;align-items:center;margin-bottom:.15rem;text-align:center;color:var(--m-muted,#756d63);font-size:.62rem}
 .date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem;row-gap:.1rem}
-.date-grid-shared{grid-auto-rows:34px;overflow:visible}
+.date-grid-shared{grid-column:1/-1;grid-row:2;grid-auto-rows:34px;overflow:visible}
 .date-view:not(.expanded) .date-grid-shared{grid-template-rows:repeat(2,34px);grid-template-columns:repeat(7,minmax(0,1fr))}
 .date-grid-shared.expanded{grid-template-columns:repeat(7,minmax(0,1fr))}
-.date-grid-shared .date-cell{min-height:0;height:34px;display:flex;flex-direction:column;justify-content:center;gap:0}
-.date-cell small{font-size:.52rem;line-height:1;color:var(--m-muted,#756d63)}
+.date-grid-shared .date-cell{min-height:0;height:34px}
 .date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
 .date-cell.active{background:var(--brand-action);color:#fff}
