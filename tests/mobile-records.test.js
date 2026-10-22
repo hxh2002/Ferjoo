@@ -16,11 +16,17 @@ for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/vi
   assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
 }
 assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
-assert.match(source, /\.date-grid:not\(\.monthly\) \.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
+assert.match(source, /\.date-grid\.compact \.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
 assert.doesNotMatch(source, /\.date-cell\{[^}]*border-radius:\s*\d+%/);
 assert.match(source, /recentRecordDays\(\)/);
 assert.match(source, /更多日期/);
 assert.match(source, /starter-chip/);
+assert.match(source, /class="date-controls"[\s\S]*class="starter-picker"[\s\S]*class="date-more"/);
+assert.match(source, /dateWeeks\.value\.slice|const dateWeeks = computed/);
+assert.match(source, /displayedWeekLabel = computed\(\(\) => displayedWeek\.value\.length \? weekLabel\(displayedWeek\.value\)/);
+assert.match(source, /@touchstart\.passive="startWeekSwipe"[\s\S]*@touchend="endWeekSwipe"/);
+assert.match(source, /translateX\(\$\{delta > 0 \? '14px' : '-14px'\}\)/);
+assert.match(source, /prefers-reduced-motion: reduce/);
 assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
 assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);

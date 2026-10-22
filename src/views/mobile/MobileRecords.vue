@@ -110,15 +110,32 @@ const dateCells = computed(() => {
     const lead = (first.getDay() + 6) % 7;
     const count = Math.ceil((lead + new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()) / 7) * 7;
     values = Array.from({ length: count }, (_, index) => dateKey(new Date(date.getFullYear(), date.getMonth(), 1 - lead + index)));
+  } else {
+    const first = new Date(`${values[0]}T12:00:00`);
+    const offset = (first.getDay() + 6) % 7;
+    const start = new Date(first.getFullYear(), first.getMonth(), first.getDate() - offset);
+    values = Array.from({ length: 14 }, (_, index) => dateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)));
   }
   return values.map((value) => ({ value, day: Number(value.slice(8)),
     off: calendarOpen.value && Number(value.slice(5, 7)) !== new Date(calendarMonth.value).getMonth() + 1,
     today: value === today, future: value > today }));
 });
-const weekdays = computed(() => {
-  const start = calendarOpen.value ? 1 : new Date(`${compactDays.value[0]}T12:00:00`).getDay();
-  return Array.from({ length: 7 }, (_, index) => '日一二三四五六'[(start + index) % 7]);
-});
+const dateWeeks = computed(() => Array.from({ length: Math.ceil(dateCells.value.length / 7) }, (_, index) => dateCells.value.slice(index * 7, index * 7 + 7)));
+const weekLabel = (week) => {
+  const date = new Date(`${week[0].value}T12:00:00`);
+  const thursday = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 3);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7));
+  return `第${Math.floor((thursday - firstThursday) / (7 * 86400000)) + 1}周`;
+};
+const weekdays = computed(() => Array.from({ length: 7 }, (_, index) => '一二三四五六日'[index]));
+const compactWeekIndex = ref(0);
+const touchStartX = ref(0);
+const touchDeltaX = ref(0);
+const weekStripRef = ref(null);
+let weekAnimation;
+const displayedWeek = computed(() => dateWeeks.value[compactWeekIndex.value] || dateWeeks.value[0] || []);
+const displayedWeekLabel = computed(() => displayedWeek.value.length ? weekLabel(displayedWeek.value) : '');
 const positionKey = () => JSON.stringify([accountId.value, selectedStarterId.value, selectedDay.value]);
 
 function returnTo() {
@@ -257,6 +274,8 @@ async function loadMarks() {
 function selectDay(value) {
   if (!validLocalDay(value) || value > recentRecordDays().at(-1)) return;
   calendarOpen.value = false;
+  const weekIndex = dateWeeks.value.findIndex((week) => week.some((item) => item.value === value));
+  if (weekIndex >= 0) compactWeekIndex.value = weekIndex;
   listPositions.delete(positionKey());
   router.replace({ path: '/records', query: { ...query.value, from: value, to: value, page: '1', scroll: '0' } });
 }
@@ -275,15 +294,45 @@ function nextPage() {
 function toggleCalendar() {
   const panel = datePanelRef.value;
   const from = panel?.getBoundingClientRect().height || 0;
-  if (!calendarOpen.value) calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
+  if (!calendarOpen.value) {
+    calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
+    const index = dateWeeks.value.findIndex((week) => week.some((item) => item.value === selectedDay.value));
+    compactWeekIndex.value = index >= 0 ? index : dateWeeks.value.length - 1;
+  }
   calendarOpen.value = !calendarOpen.value;
   nextTick(() => {
     if (!panel || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     panelAnimation?.cancel();
-    panelAnimation = panel.animate([{ height: `${from}px` }, { height: `${panel.scrollHeight}px` }], {
-      duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)'
+    const to = panel.scrollHeight;
+    panelAnimation = panel.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+      duration: 280, easing: 'var(--ease-standard)'
     });
   });
+}
+function changeCompactWeek(delta) {
+  const next = Math.max(0, Math.min(dateWeeks.value.length - 1, compactWeekIndex.value + delta));
+  if (next === compactWeekIndex.value) return;
+  compactWeekIndex.value = next;
+  nextTick(() => {
+    const strip = weekStripRef.value;
+    if (!strip || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    weekAnimation?.cancel();
+    weekAnimation = strip.animate([
+      { opacity: .35, transform: `translateX(${delta > 0 ? '14px' : '-14px'})` },
+      { opacity: 1, transform: 'translateX(0)' }
+    ], { duration: 180, easing: 'cubic-bezier(.2,.7,.2,1)' });
+  });
+}
+function startWeekSwipe(event) {
+  touchStartX.value = event.changedTouches[0].clientX;
+  touchDeltaX.value = 0;
+}
+function moveWeekSwipe(event) {
+  touchDeltaX.value = event.changedTouches[0].clientX - touchStartX.value;
+}
+function endWeekSwipe() {
+  if (Math.abs(touchDeltaX.value) > 36) changeCompactWeek(touchDeltaX.value < 0 ? 1 : -1);
+  touchDeltaX.value = 0;
 }
 function changeMonth(delta) {
   const date = new Date(calendarMonth.value);
@@ -344,29 +393,42 @@ onUnmounted(() => {
     <section ref="datePanelRef" class="m-card date-card" :class="{ expanded: calendarOpen }">
       <div class="date-head">
         <div><strong>{{ calendarTitle }}</strong><small>{{ calendarOpen ? '选择日期' : '近两周' }}</small></div>
-        <button type="button" class="date-more" :aria-expanded="calendarOpen" @click="toggleCalendar">
-          <span>{{ calendarOpen ? '收起' : '更多日期' }}</span><span class="date-chevron" :class="{ up: calendarOpen }" aria-hidden="true">⌄</span>
-        </button>
-      </div>
-      <div class="date-view">
-          <div v-if="starters.length && calendarOpen" class="starter-picker" role="group" aria-label="选择酵种">
+        <div class="date-controls">
+          <div v-if="starters.length" class="starter-picker" role="group" aria-label="选择酵种">
             <button v-for="item in starters" :key="item.id" type="button" class="starter-chip" :class="{ active: item.id === selectedStarterId }" :aria-pressed="item.id === selectedStarterId" @click="selectStarter(item.id)">{{ item.name }}</button>
           </div>
-          <div class="weekday-row" :class="{ monthly: calendarOpen }" aria-hidden="true">
-            <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+          <button type="button" class="date-more" :aria-expanded="calendarOpen" @click="toggleCalendar">
+            <span>{{ calendarOpen ? '收起' : '更多日期' }}</span><span class="date-chevron" :class="{ up: calendarOpen }" aria-hidden="true">⌄</span>
+          </button>
+        </div>
+      </div>
+      <div class="date-view" :class="{ expanded: calendarOpen }">
+        <div v-if="!calendarOpen" ref="weekStripRef" class="week-strip" @touchstart.passive="startWeekSwipe" @touchmove.passive="moveWeekSwipe" @touchend="endWeekSwipe">
+          <div class="week-heading"><span>{{ displayedWeekLabel }}</span><div><button type="button" aria-label="上一周" :disabled="compactWeekIndex === 0" @click="changeCompactWeek(-1)">‹</button><button type="button" aria-label="下一周" :disabled="compactWeekIndex === dateWeeks.length - 1" @click="changeCompactWeek(1)">›</button></div></div>
+          <div class="weekday-row" aria-hidden="true"><span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span></div>
+          <div class="date-grid compact" role="group" aria-label="选择日期">
+            <button v-for="item in displayedWeek" :key="item.value" type="button" class="date-cell"
+              :class="{ active: item.value === selectedDay, today: item.today, future: item.future, marked: marks[item.value] }"
+              :aria-pressed="item.value === selectedDay" :aria-label="formatDayLabel(item.value)" @click="selectDay(item.value)">
+              <span>{{ item.day }}</span><i v-if="marks[item.value]" class="date-mark" aria-hidden="true"></i>
+            </button>
           </div>
-          <div class="date-grid" :class="{ monthly: calendarOpen }" role="group" aria-label="选择日期">
+        </div>
+        <div v-else class="month-strip">
+          <div class="weekday-row monthly" aria-hidden="true"><span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span></div>
+          <div class="date-grid monthly" role="group" aria-label="选择日期">
             <button v-for="item in dateCells" :key="item.value" type="button" class="date-cell"
               :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
               :aria-pressed="item.value === selectedDay" :aria-label="formatDayLabel(item.value)" @click="selectDay(item.value)">
               <span>{{ item.day }}</span><i v-if="marks[item.value]" class="date-mark" aria-hidden="true"></i>
             </button>
           </div>
-          <div v-if="calendarOpen" class="calendar-nav">
+          <div class="calendar-nav">
             <button type="button" aria-label="上个月" @click="changeMonth(-1)">‹</button>
             <button type="button" class="calendar-today" @click="changeMonth(0); toToday()">今天</button>
             <button type="button" aria-label="下个月" @click="changeMonth(1)">›</button>
           </div>
+        </div>
       </div>
     </section>
 
@@ -416,18 +478,24 @@ onUnmounted(() => {
 .date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
 .date-head strong{display:block;font-size:.9rem}
 .date-head small{display:block;margin-top:.1rem;font-size:.7rem;color:var(--m-muted,#625e56)}
-.date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:0;border-radius:var(--radius-control);background:#f5eee5;color:#8f3b18;font:inherit;font-size:.74rem;font-weight:650;cursor:pointer}
-.date-chevron{display:inline-block;font-size:1rem;line-height:1;transition:transform .22s ease}
+.date-controls{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;min-width:0}
+.date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--m-surface);color:var(--brand-action);font:inherit;font-size:.74rem;font-weight:650;white-space:nowrap;cursor:pointer}
+.date-chevron{display:inline-block;font-size:1rem;line-height:1;transition:transform var(--motion-fast) var(--ease-standard)}
 .date-chevron.up{transform:rotate(180deg)}
-.starter-picker{display:flex;flex-wrap:wrap;gap:.5rem;padding:.45rem 0 .65rem;margin-bottom:.35rem;border-bottom:1px solid var(--border-subtle)}
+.starter-picker{display:flex;align-items:center;gap:.25rem;max-width:min(54vw,15rem);overflow-x:auto;scrollbar-width:none}
+.starter-picker::-webkit-scrollbar{display:none}
 .date-card .starter-chip{flex:none;max-width:100%;min-height:32px;padding:.3rem .7rem;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;line-height:1.4;font-weight:500;cursor:pointer}
 .date-card .starter-chip.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
-.date-view{transform-origin:top center}
+.date-view{transform-origin:top center;overflow:hidden}
+.week-strip{touch-action:pan-y}
+.week-heading{display:flex;align-items:center;justify-content:space-between;min-height:28px;margin-bottom:.1rem;color:var(--text-secondary);font-size:.68rem;font-weight:600}
+.week-heading>div{display:flex;gap:.15rem}
+.week-heading button{display:grid;place-items:center;width:28px;height:28px;min-height:28px;padding:0;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:transparent;color:var(--text-secondary);font-size:1rem;line-height:1}
+.week-heading button:disabled{opacity:.3}
 .weekday-row,.date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem}
 .weekday-row{margin-bottom:.15rem;text-align:center;color:var(--m-muted,#756d63);font-size:.62rem}
 .weekday-row span{min-height:18px}
 .weekday-row.monthly{margin-top:.45rem}
-.weekday-row:not(.monthly){visibility:hidden;height:0;margin:0}
 .date-grid{row-gap:.1rem}
 .date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
@@ -437,10 +505,8 @@ onUnmounted(() => {
 .date-cell.future{opacity:.32;cursor:default}
 .date-cell .date-mark{position:absolute;bottom:3px;width:4px;height:4px;border:0;border-radius:50%;background:var(--brand-action)}
 .date-cell.active .date-mark{background:#fff}
-.date-grid:not(.monthly){grid-template-columns:repeat(7,minmax(0,1fr));row-gap:.12rem}
-.date-grid:not(.monthly) .date-cell{min-height:34px;border-radius:var(--radius-control)}
-.date-grid:not(.monthly) .date-cell:first-child{grid-column:1}
-.date-grid:not(.monthly) .date-cell{font-size:.76rem}
+.date-grid.compact{grid-template-columns:repeat(7,minmax(0,1fr));row-gap:.12rem}
+.date-grid.compact .date-cell{min-height:34px;border-radius:var(--radius-control);font-size:.76rem}
 .calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-top:.25rem;border-top:1px solid var(--m-border,#e7e0d7)}
 .calendar-nav button{min-width:44px;min-height:38px;border:0;background:transparent;color:#8f3b18;font:inherit;font-size:1.2rem;cursor:pointer}
 .calendar-nav .calendar-today{font-size:.74rem;font-weight:600}
