@@ -86,10 +86,13 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area .m-error, .mobile-area .form-error { color: var(--danger-text); background: var(--danger-bg); }
 .mobile-area .form-success { color: var(--success-text); background: var(--success-bg); }
 .mobile-area .config-warning { color: var(--warning-text); background: var(--warning-bg); }
-.mobile-area .mobile-tabbar { position: fixed; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(320px, calc(100% - 24px)); padding: 5px; border: 1px solid rgba(164, 66, 20, .16); border-radius: 20px; background: var(--m-glass); -webkit-backdrop-filter: blur(20px) saturate(1.08); backdrop-filter: blur(20px) saturate(1.08); box-shadow: 0 12px 30px rgba(77, 48, 30, .15); }
-.mobile-area .mobile-tabbar button { min-height: 50px; min-width: 0; padding: 4px 6px; border: 0; border-radius: 14px; background: transparent; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
-.mobile-area .mobile-tabbar strong { font-size: 13px; font-weight: 500; }
-.mobile-area .mobile-tabbar button.active { color: #fff; background: var(--brand-action); box-shadow: none; }
+ .mobile-area .mobile-tabbar { position: fixed; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(320px, calc(100% - 24px)); padding: 5px; border: 1px solid rgba(164, 66, 20, .16); border-radius: 20px; background: var(--m-glass); -webkit-backdrop-filter: blur(20px) saturate(1.08); backdrop-filter: blur(20px) saturate(1.08); box-shadow: 0 12px 30px rgba(77, 48, 30, .15); isolation: isolate; }
+.mobile-area .mobile-tab-slider { position: absolute; z-index: -1; inset: 5px auto 5px 5px; width: calc((100% - 10px) / 3); border-radius: 14px; background: var(--brand-action); box-shadow: 0 3px 8px rgba(125, 51, 19, .2), inset 0 1px rgba(255,255,255,.2); transform: translateX(calc(var(--slider-position) * 100%)); pointer-events: none; }
+.mobile-area .mobile-tabbar button { position: relative; z-index: 1; min-height: 50px; min-width: 0; padding: 4px 6px; border: 0; border-radius: 14px; background: transparent; color: color-mix(in srgb, var(--text-secondary) var(--tab-ink), #fff); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
+.mobile-area .mobile-tabbar strong { font-size: 13px; font-weight: 500; color: inherit; }
+.mobile-area .mobile-tabbar button.active { color: #fff; background: transparent; box-shadow: none; }
+.mobile-area .mobile-tabbar button strong, .mobile-area .mobile-tabbar button svg { filter: drop-shadow(0 0 var(--tab-light) rgba(255,255,255,.55)) drop-shadow(0 var(--tab-shade) 1px rgba(85,37,19,.32)); }
+.mobile-area .mobile-tabbar button.active strong, .mobile-area .mobile-tabbar button.active svg { text-shadow: 0 1px 1px rgba(91,35,14,.35); }
 .mobile-area .mobile-tabbar button.active strong { font-weight: 700; }
 .mobile-area :is(.auth-page, .profile-page) { width: 100%; max-width: var(--m-page-max, 42rem); margin: auto; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
 .mobile-area .auth-card { width: 100%; max-width: 570px; margin: auto; }
@@ -168,6 +171,7 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 }
 @media (prefers-reduced-motion: reduce) {
   :root.mobile-mode { scroll-behavior: auto; }
+  .mobile-area .mobile-tab-slider { transition: none; }
   .mobile-area *, .mobile-area *::before, .mobile-area *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
 @media (max-width: 347px) {

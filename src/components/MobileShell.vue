@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { classicAssets } from '../constants/classicAssets.js';
@@ -13,6 +13,43 @@ const tabs = [
   { path: '/records', label: '记录', icon: 'M8 3h8v4H8z M8 5H5v16h14V5h-3 M8 11h8m-8 4h8' },
   { path: '/me', label: '我的', icon: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2' }
 ];
+const activeTab = computed(() => tabs.findIndex((tab) => tab.path === route.path));
+const sliderPosition = ref(Math.max(0, activeTab.value));
+let sliderFrame;
+let motionPreference;
+function moveSlider(index, previous) {
+  cancelAnimationFrame(sliderFrame);
+  if (index < 0) return;
+  if (previous < 0 || motionPreference?.matches) {
+    sliderPosition.value = index;
+    return;
+  }
+  const from = sliderPosition.value;
+  const start = performance.now();
+  const animate = (now) => {
+    const progress = Math.min(1, (now - start) / 460);
+    // 五次缓出保持非线性减速；连续点击从当前帧位置接续。
+    sliderPosition.value = from + (index - from) * (1 - (1 - progress) ** 5);
+    if (progress < 1) sliderFrame = requestAnimationFrame(animate);
+  };
+  sliderFrame = requestAnimationFrame(animate);
+}
+watch(activeTab, moveSlider);
+function settleSlider() {
+  if (motionPreference.matches) {
+    cancelAnimationFrame(sliderFrame);
+    sliderPosition.value = Math.max(0, activeTab.value);
+  }
+}
+function tabRelief(index) {
+  const depth = Math.max(0, 1 - Math.abs(sliderPosition.value - index));
+  return {
+    '--tab-depth': depth,
+    '--tab-ink': `${(1 - depth) * 100}%`,
+    '--tab-light': `${0.65 * (1 - depth)}px`,
+    '--tab-shade': `${0.8 * depth}px`
+  };
+}
 const cachedTabs = ['MobileToday', 'MobileRecords', 'MobileMe'];
 const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
@@ -55,8 +92,15 @@ const removeAfter = router.afterEach(async (to, from, failure) => {
     if (route.fullPath === to.fullPath) window.scrollTo({ top: scrollPositions.get(to.path) || 0, behavior: 'instant' });
   });
 });
-onMounted(() => auth.init());
+onMounted(() => {
+  auth.init();
+  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  motionPreference.addEventListener('change', settleSlider);
+  settleSlider();
+});
 onBeforeUnmount(() => {
+  cancelAnimationFrame(sliderFrame);
+  motionPreference?.removeEventListener('change', settleSlider);
   removeGuard();
   removeAfter();
   cancelAnimationFrame(frame);
@@ -88,8 +132,9 @@ function go(path) {
         </RouterView>
       </slot>
     </main>
-    <nav v-if="showTabs" class="mobile-tabbar" aria-label="主要导航">
-      <button v-for="tab in tabs" :key="tab.path" type="button" :class="{ active: route.path === tab.path }" :aria-current="route.path === tab.path ? 'page' : undefined" @click="go(tab.path)">
+    <nav v-if="showTabs" class="mobile-tabbar" aria-label="主要导航" :style="{ '--slider-position': sliderPosition }">
+      <span class="mobile-tab-slider" aria-hidden="true"></span>
+      <button v-for="(tab, index) in tabs" :key="tab.path" type="button" :class="{ active: route.path === tab.path }" :style="tabRelief(index)" :aria-current="route.path === tab.path ? 'page' : undefined" @click="go(tab.path)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="tab.icon" /></svg><strong>{{ tab.label }}</strong>
       </button>
     </nav>
