@@ -6,6 +6,8 @@ const props = defineProps({
   unit: { type: String, default: '' },
   color: { type: String, default: '#C04B0A' },
   baseline: { type: Number, default: null },
+  // 基线来源（手工/自动）直接跟在图内基线标签后，避免在别处再重复一次。
+  baselineNote: { type: String, default: '' },
   points: { type: Array, default: () => [] }, // [{ t: ISO string, v: number }]
   // 传入固定的时间范围后，横轴始终铺满这段区间，两端留空也不压缩。
   from: { type: String, default: '' },
@@ -345,7 +347,7 @@ const markerLines = computed(() => {
           class="series-tag series-baseline-tag"
           :class="{ below: baselineBelow }"
           :style="{ top: `${(baselineY / H) * 100}%` }"
-        >基线 {{ fmt(baselineValue) }}</span>
+        >基线 {{ fmt(baselineValue) }}<template v-if="baselineNote"> · {{ baselineNote }}</template></span>
         <span class="series-tag series-max">max {{ fmt(stats?.dataMax) }}</span>
       </div>
       <div class="series-range">
