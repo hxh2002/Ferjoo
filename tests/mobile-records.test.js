@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
-import { recentRecordDays, validLocalDay, recordDayRange, normalizeRecordsQuery, recordsDetailTarget, recordsDayModel, recordDeviceMetrics, createRecordsLoader } from '../src/lib/mobile-records.js';
+import { recentRecordDays, validLocalDay, recordDayRange, normalizeRecordsQuery, recordsDetailTarget, recordsDayModel, recordDeviceMetrics, roundState, createRecordsLoader } from '../src/lib/mobile-records.js';
 
 const source = await readFile(new URL('../src/views/mobile/MobileRecords.vue', import.meta.url), 'utf8');
+const trendSource = await readFile(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8');
 const { descriptor, errors } = parse(source);
 assert.deepEqual(errors, []);
 compileScript(descriptor, { id: 'records-test' });
@@ -12,7 +13,7 @@ const tokens = await readFile(new URL('../src/assets/tokens.css', import.meta.ur
 const mainCss = await readFile(new URL('../src/assets/main.css', import.meta.url), 'utf8');
 const mobileCss = await readFile(new URL('../src/assets/mobile.css', import.meta.url), 'utf8');
 assert.match(tokens, /--radius-badge:\s*4px/);
-for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/views/mobile/MobileToday.vue', import.meta.url), 'utf8'), await readFile(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8')]) {
+for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/views/mobile/MobileToday.vue', import.meta.url), 'utf8'), trendSource]) {
   assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
 }
 assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
@@ -36,6 +37,20 @@ assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
 assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
+// 单日数据与发酵窗口直接铺在记录页，设备摘要详情只保留原始采样明细。
+assert.match(source, /chartGroups/);
+assert.match(source, /单日数据/);
+assert.match(source, /发酵窗口/);
+assert.match(source, /class="chart-detail"/);
+assert.doesNotMatch(source, /deviceItem|device-metrics/);
+assert.match(trendSource, /设备状态/);
+assert.match(trendSource, /deviceStatus/);
+assert.doesNotMatch(trendSource, /SeriesChart|window-list/);
+assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'next_feeding' }), { label: '已结束', tone: 'closed' });
+assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'manual' }), { label: '手动结束', tone: 'closed' });
+assert.deepEqual(roundState({ windowStatus: 'in_progress', baselineStatus: 'pending' }), { label: '建立基线', tone: 'pending' });
+assert.deepEqual(roundState({ windowStatus: 'in_progress', dataQuality: 'stale' }), { label: '数据中断', tone: 'pending' });
+assert.deepEqual(roundState({ windowStatus: 'in_progress', baselineStatus: 'established', dataQuality: 'complete' }), { label: '进行中', tone: 'active' });
 // 离开记录页后 query 必然变化；读取与规范化都必须限定在本页，否则会把详情页或今日页顶回列表。
 assert.match(source, /onRecordsPage/);
 const days = recentRecordDays(new Date(2026, 9, 22, 23, 45));
@@ -61,6 +76,14 @@ assert.equal(model.events.filter(row => row.kind === 'feeding').length, 2, 'each
 assert.equal(model.events.find(row => row.id === 'f1').summary.windowEndReason, 'manual');
 assert.equal(model.events.find(row => row.id === 'f1').closure.detail, 'fallen');
 assert.equal(model.events.find(row => row.id === 'f1').summary.measurementCount, 0, 'no device evidence does not erase feeding facts');
+const linkedRound = recordsDayModel({
+  day: '2026-10-22', facts: [feeding],
+  context: { feedings: [feeding], closures: [], closuresComplete: true, notices: [] },
+  devices: { links: [{ starter_id: 's1', device_id: 'd1', active_from: '2026-10-20T00:00:00Z', active_to: null }], samples: [], summaries: [] },
+  now: Date.parse('2026-10-22T12:00:00Z')
+}).events[0];
+assert.equal(linkedRound.deviceId, 'd1');
+assert.equal(linkedRound.linked, true);
 const overnight = recordsDayModel({ day: '2026-10-22', facts: [], context: { feedings: [{ ...feeding, occurred_at: '2026-10-20T12:00:00Z' }], closures: [], closuresComplete: true, notices: [] }, devices: { links: [], samples: [], summaries: [] }, now: Date.parse('2026-10-22T01:00:00Z') });
 assert.equal(overnight.continuations.length, 1, 'prior-day active round is a continuation, never a second main entry');
 assert.equal(recordDeviceMetrics([]), '暂无有效指标，缺测/休眠/故障样本不作为数值结论');

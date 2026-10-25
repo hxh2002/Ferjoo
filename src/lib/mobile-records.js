@@ -37,6 +37,19 @@ export function recordsDetailTarget(row, returnTo) {
     ? { path: `/devices/${encodeURIComponent(row.device_id)}/trend`, query: { starter: row.starter_id, day: row.day, returnTo } }
     : { path: `/records/${encodeURIComponent(row.id)}`, query: { returnTo } };
 }
+export const CLOSE_REASON_LABELS = { fallen: '峰值后回落', no_peak: '未见明显峰值', abnormal: '中途异常', record_only: '手动结束记录' };
+// 轮次状态与设备观测质量分开：数据中断只降低可信度，不代表发酵结束。
+export function roundState(summary = {}) {
+  if (summary.windowStatus === 'closed') {
+    return summary.windowEndReason === 'manual'
+      ? { label: '手动结束', tone: 'closed' }
+      : { label: '已结束', tone: 'closed' };
+  }
+  if (summary.baselineStatus === 'pending') return { label: '建立基线', tone: 'pending' };
+  if (summary.dataQuality === 'stale') return { label: '数据中断', tone: 'pending' };
+  if (summary.dataQuality === 'insufficient' || summary.dataQuality === 'partial') return { label: '数据不足', tone: 'pending' };
+  return { label: '进行中', tone: 'active' };
+}
 
 // 每个页面实例持有此缓存；重新进入或切换账号即丢弃，补录/手动关闭后不复用旧边界。
 // 缓存与读取都按酵种分键，切换酵种不会串到另一罐的轮次。
@@ -155,7 +168,7 @@ export function recordsDayModel({ day, facts = [], context, devices, now = Date.
     const closure = closures.get(feeding.id);
     const link = devices?.links.find(link => link.starter_id === feeding.starter_id && Date.parse(link.active_from) <= Date.parse(feeding.occurred_at) && (!link.active_to || Date.parse(feeding.occurred_at) < Date.parse(link.active_to)));
     const summary = summarizeFeedingMeasurements({ feeding, link, measurements: devices?.samples.filter(row => row.starter_id === feeding.starter_id) || [], now, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at });
-    return { ...feeding, summary, closure, boundaryPending: !context || context.closuresComplete === false || context.notices.some(notice => notice.includes('相邻喂养')) };
+    return { ...feeding, summary, closure, deviceId: link?.device_id || '', linked: !!link, boundaryPending: !context || context.closuresComplete === false || context.notices.some(notice => notice.includes('相邻喂养')) };
   }
   const events = facts.map(row => row.kind === 'feeding' ? round(feedings.find(item => item.id === row.id)) : row);
   const continuations = feedings.filter(row => Date.parse(row.occurred_at) < Date.parse(from)).map(round).filter(row => !row.summary.windowClosedAt || Date.parse(row.summary.windowClosedAt) > Date.parse(from));

@@ -42,6 +42,17 @@ export function qualityLabel(row, key) {
   if (row.mode !== 'fer') return '模式未知';
   return metricValue(row, key) == null ? '指标缺测' : '有效采样';
 }
+// 明细表按行说明这条采样的设备状态，与指标是否缺测分开表达。
+export function deviceStatus(row) {
+  if (row?.sensor_error) return { label: '传感器故障', tone: 'bad' };
+  if (row?.mode === 'sleep') return { label: '休眠', tone: 'idle' };
+  if (row?.mode === 'fer') {
+    const hasValue = ['height_mm', 'temperature_c', 'humidity_percent', 'battery_percent']
+      .some((key) => metricValue(row, key) != null);
+    return hasValue ? { label: '正常采集', tone: 'ok' } : { label: '指标缺测', tone: 'warn' };
+  }
+  return { label: row?.mode ? '模式异常' : '状态未知', tone: 'warn' };
+}
 function compareRows(a, b) {
   const time = new Date(a.recorded_at) - new Date(b.recorded_at);
   if (time) return time;

@@ -7,13 +7,14 @@ import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } f
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
+import SeriesChart from '../../components/SeriesChart.vue';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { loadWindowClosures } from '../../services/fermentation-window.service.js';
 import {
-  createRecordsLoader, normalizeRecordsQuery, recentRecordDays, recordDeviceMetrics,
-  recordsDayModel, recordsDetailTarget, validLocalDay
+  createRecordsLoader, normalizeRecordsQuery, recentRecordDays, recordsDayModel,
+  recordsDetailTarget, roundState, validLocalDay
 } from '../../lib/mobile-records.js';
 import { readSelectedStarter, rememberSelectedStarter } from '../../lib/mobile-selection.js';
 
@@ -151,27 +152,41 @@ function roundItem(row, carried, now) {
   const closed = summary.windowStatus === 'closed';
   const to = Date.parse(summary.windowClosedAt || (closed ? summary.windowTo : new Date(now).toISOString())) || now;
   const range = rangeText(from, to);
+  const state = roundState(summary);
   const baseline = Number(summary.baselineHeightMm);
-  const height = summary.currentHeightMm != null && summary.expansionPercent != null
-    ? [baseline > 0 ? `${metric(baseline)} → ${metric(summary.currentHeightMm)} mm` : `${metric(summary.currentHeightMm)} mm`,
-      `${summary.expansionPercent >= 0 ? '+' : ''}${summary.expansionPercent.toFixed(0)}%`].join(' · ')
-    : '';
-  const caveat = summary.dataQuality === 'insufficient' ? '暂无设备数据' : summary.heightStale ? '设备数据偏旧' : '';
+  const current = Number(summary.currentHeightMm);
+  const expansion = summary.expansionPercent == null ? null : Number(summary.expansionPercent);
+  const facts = [];
+  if (baseline > 0) facts.push({ text: `基线 ${metric(baseline)} mm`, tone: 'base' });
+  if (current > 0) facts.push({ text: `${closed ? '结束' : '当前'} ${metric(current)} mm`, tone: 'value' });
+  if (expansion != null && Number.isFinite(expansion)) facts.push({ text: `${expansion >= 0 ? '+' : ''}${expansion.toFixed(0)}%`, tone: expansion >= 0 ? 'up' : 'down' });
   return {
-    id: `round:${row.id}`, at: from,
+    id: `round:${row.id}`, kind: 'round', at: from,
     title: `${range.from}–${range.to}`,
     offset: range.offset,
     titleTip: range.title,
     sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
-    note: [height, caveat, row.boundaryPending ? '结束待核实' : ''].filter(Boolean).join(' · '),
-    state: closed ? (summary.windowEndReason === 'manual' ? '手动结束' : '已结束') : '进行中',
-    tone: closed ? 'closed' : 'active',
+    facts,
+    hint: roundHint(summary, row.linked, row.boundaryPending),
+    state: state.label,
+    tone: state.tone,
+    deviceId: row.deviceId || '',
+    baseline: baseline > 0 ? baseline : null,
     to: recordsDetailTarget(row, returnTo())
   };
 }
+// 涨跌只在证据有效时显示；缺测原因用一句话说明，不把设备问题说成发酵结束。
+function roundHint(summary, linked, boundaryPending) {
+  const hint = !linked ? '未关联设备，无法计算膨胀率'
+    : summary.baselineStatus === 'pending' ? '正在建立基线，稍后计算膨胀率'
+      : summary.baselineStatus === 'insufficient' ? '基线有效采样不足，暂无法计算膨胀率'
+        : summary.heightStale ? '设备数据偏旧，暂不采用旧读数'
+          : summary.baselineWindowTruncated ? '起始观测不足 50 分钟，膨胀率仅供参考' : '';
+  return [hint, boundaryPending ? '结束边界待核实' : ''].filter(Boolean).join(' · ');
+}
 function observationItem(row) {
   return {
-    id: `observation:${row.id}`, at: Date.parse(row.occurred_at),
+    id: `observation:${row.id}`, kind: 'observation', at: Date.parse(row.occurred_at),
     title: row.result?.title || '观察记录',
     offset: '',
     sub: `${formatClock(row.occurred_at)} · 观察 · ${starterName(row.starter_id)}`,
@@ -179,33 +194,52 @@ function observationItem(row) {
     to: recordsDetailTarget(row, returnTo())
   };
 }
-function deviceItem(row) {
-  const samples = row.samples || [];
-  const latest = samples.reduce((max, item) => Math.max(max, Date.parse(item.recorded_at) || 0), 0);
-  return {
-    id: row.id, at: latest || Date.parse(`${row.day}T12:00:00`),
-    title: '设备摘要',
-    offset: '',
-    sub: `${latest ? `最新 ${formatClock(latest)}` : '当天摘要'} · ${samples.length} 条采样`,
-    note: recordDeviceMetrics(samples), state: '', tone: '',
-    to: recordsDetailTarget(row, returnTo())
-  };
-}
-// 一次喂养就是一轮；观察和设备摘要是同一天时间线上的事件，不再单独成为记录类型。
+// 保留各项时间顺序，再按发酵窗口、观察记录分组展示；设备采样统一进入单日数据。
 const timeline = computed(() => {
   if (!model.value) return [];
   const now = Date.now();
   const items = model.value.continuations.map((row) => roundItem(row, true, now));
   for (const row of model.value.events) items.push(row.kind === 'feeding' ? roundItem(row, false, now) : observationItem(row));
-  for (const row of model.value.devices) if (row.samples?.length) items.push(deviceItem(row));
   return items.sort((a, b) => a.at - b.at);
+});
+const roundItems = computed(() => timeline.value.filter((item) => item.kind === 'round'));
+const observationItems = computed(() => timeline.value.filter((item) => item.kind === 'observation'));
+// 单日数据直接铺在记录页：全天固定横轴，喂养时刻作为高度图上的竖线。
+const dayStartIso = computed(() => new Date(`${selectedDay.value}T00:00:00`).toISOString());
+const dayEndIso = computed(() => {
+  const value = new Date(`${selectedDay.value}T00:00:00`);
+  value.setDate(value.getDate() + 1);
+  return value.toISOString();
+});
+const chartGroups = computed(() => {
+  if (!model.value) return [];
+  return model.value.devices.filter((row) => row.samples?.length).map((row) => {
+    const related = roundItems.value.filter((item) => item.baseline && item.deviceId === row.device_id);
+    const focus = related.find((item) => item.tone === 'active' || item.tone === 'pending')
+      || (related.length === 1 ? related[0] : null);
+    const points = (key) => row.samples.map((sample) => ({ t: sample.recorded_at, v: sample[key] == null ? null : Number(sample[key]) }));
+    return {
+      id: row.id, count: row.samples.length, partial: !!row.partial,
+      height: points('height_mm'), temperature: points('temperature_c'),
+      humidity: points('humidity_percent'), battery: points('battery_percent'),
+      baseline: focus?.baseline || null,
+      to: recordsDetailTarget(row, returnTo())
+    };
+  });
+});
+const sampleCount = computed(() => chartGroups.value.reduce((sum, group) => sum + group.count, 0));
+const feedingMarkers = computed(() => {
+  const start = Date.parse(dayStartIso.value);
+  const end = Date.parse(dayEndIso.value);
+  return roundItems.value
+    .filter((item) => item.at >= start && item.at < end)
+    .map((item) => ({ t: new Date(item.at).toISOString(), label: '开始喂养', accent: item.tone === 'active' }));
 });
 const daySummary = computed(() => {
   const value = model.value;
   if (!value) return '';
   const observations = value.events.filter((row) => row.kind === 'observation').length;
-  const devices = value.devices.filter((row) => row.samples?.length).length;
-  return [value.feedingCount ? `${value.feedingCount} 次喂养` : '', observations ? `${observations} 条观察` : '', devices ? `${devices} 份设备摘要` : '']
+  return [value.feedingCount ? `${value.feedingCount} 次喂养` : '', observations ? `${observations} 条观察` : '', sampleCount.value ? `${sampleCount.value} 条采样` : '']
     .filter(Boolean).join(' · ');
 });
 const dayCaption = computed(() => [selectedStarterName.value, daySummary.value || '这一天没有记录'].filter(Boolean).join(' · '));
@@ -416,25 +450,55 @@ onUnmounted(() => {
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
         <template v-if="!loading && !error">
-          <RouterLink v-for="item in timeline" :key="item.id" class="m-list-row record-row" :to="item.to">
-            <span class="record-main">
-              <span class="record-head">
-                <strong class="record-title" :title="item.titleTip">{{ item.title }}</strong>
-                <span v-if="item.offset" class="day-offset">{{ item.offset }}</span>
+          <section v-if="chartGroups.length" class="record-group chart-group">
+            <h2 class="record-group-title">
+              <span class="group-mark chart-mark" aria-hidden="true"></span>单日数据
+              <small class="group-note">{{ sampleCount }} 条采样</small>
+            </h2>
+            <article v-for="(group, index) in chartGroups" :key="group.id" class="chart-card">
+              <p v-if="chartGroups.length > 1" class="chart-device">设备 {{ index + 1 }}</p>
+              <div class="chart-grid">
+                <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="group.height" :baseline="group.baseline" :from="dayStartIso" :to="dayEndIso" :markers="feedingMarkers" />
+                <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="group.temperature" :from="dayStartIso" :to="dayEndIso" />
+                <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="group.humidity" :from="dayStartIso" :to="dayEndIso" />
+                <SeriesChart label="电量" unit="%" color="#7A5C14" :points="group.battery" :from="dayStartIso" :to="dayEndIso" />
+              </div>
+              <div class="chart-foot">
+                <span v-if="group.partial" class="chart-warning">部分采样未完整加载</span>
+                <RouterLink class="chart-detail" :to="group.to">数据明细<span aria-hidden="true">›</span></RouterLink>
+              </div>
+            </article>
+            <p v-if="feedingMarkers.length" class="chart-note">高度图中的虚线为每次喂养开始的时刻。</p>
+          </section>
+          <section v-if="roundItems.length" class="record-group round-group">
+            <h2 class="record-group-title">
+              <span class="group-mark round-mark" aria-hidden="true"></span>发酵窗口
+              <small class="group-note">{{ roundItems.length }} 轮</small>
+            </h2>
+            <RouterLink v-for="item in roundItems" :key="item.id" class="m-list-row record-row round-row" :to="item.to">
+              <span class="record-main">
+                <span class="record-head"><strong class="record-title" :title="item.titleTip">{{ item.title }}</strong><span v-if="item.offset" class="day-offset">{{ item.offset }}</span></span>
+                <small class="record-sub">{{ item.sub }}</small>
+                <span v-if="item.facts.length" class="window-facts">
+                  <span v-for="fact in item.facts" :key="fact.text" class="window-fact" :data-tone="fact.tone">{{ fact.text }}</span>
+                </span>
+                <small v-if="item.hint" class="record-note">{{ item.hint }}</small>
               </span>
-              <small class="record-sub">{{ item.sub }}</small>
-              <small v-if="item.note" class="record-note">{{ item.note }}</small>
-            </span>
-            <span class="record-side">
-              <span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span>
-              <span class="record-go" aria-hidden="true">›</span>
-            </span>
-          </RouterLink>
+              <span class="record-side"><span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span><span class="record-go" aria-hidden="true">›</span></span>
+            </RouterLink>
+          </section>
+          <section v-if="observationItems.length" class="record-group observation-group">
+            <h2 class="record-group-title"><span class="group-mark observation-mark" aria-hidden="true"></span>观察记录<small class="group-note">{{ observationItems.length }} 条</small></h2>
+            <RouterLink v-for="item in observationItems" :key="item.id" class="m-list-row record-row observation-row" :to="item.to">
+              <span class="record-main"><span class="record-head"><strong class="record-title">{{ item.title }}</strong></span><small class="record-sub">{{ item.sub }}</small></span>
+              <span class="record-side"><span class="record-go" aria-hidden="true">›</span></span>
+            </RouterLink>
+          </section>
           <div v-if="!starters.length" class="records-empty">
             <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物" />
             <div><p>还没有酵种，创建后才能按酵种查看记录。</p><RouterLink :to="{ path: '/today' }">去创建酵种</RouterLink></div>
           </div>
-          <div v-else-if="!timeline.length" class="records-empty">
+          <div v-else-if="!timeline.length && !chartGroups.length" class="records-empty">
             <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物" />
             <div><p>{{ isToday ? '今天还没有记录。' : '这一天没有记录。' }}</p><RouterLink :to="feedingTarget">记录一次喂养</RouterLink></div>
           </div>
@@ -482,8 +546,49 @@ onUnmounted(() => {
 .day-head strong{display:block;font-size:.9rem}
 .day-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
 .day-today{padding:.15rem .5rem;border-radius:var(--radius-badge);background:#e7f4ed;color:#2B7A55;font-size:.7rem;font-weight:600;white-space:nowrap}
-.record-row{align-items:center;gap:.6rem;padding:.6rem 0}
-.record-main{display:grid;gap:.12rem;min-width:0}
+.record-group{display:grid;gap:.5rem;margin-top:1rem;min-width:0}
+.record-group-title{display:flex;align-items:center;gap:.4rem;margin:0;font-size:.78rem;font-weight:700;color:var(--text-secondary,#5f574e)}
+.group-mark{width:3px;height:12px;border-radius:2px;background:var(--brand-action);flex:none}
+.chart-mark{background:#2B6CB0}.observation-mark{background:#2B7A55}
+.group-note{margin-left:auto;font-size:.7rem;font-weight:500;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums}
+.chart-card{display:grid;gap:.5rem;padding:.7rem;border:1px solid color-mix(in srgb,#2B6CB0 16%,var(--m-border,#d8d2c8));border-radius:var(--m-radius-card,12px);background:color-mix(in srgb,#2B6CB0 3%,var(--m-surface,#fffdf8))}
+.chart-device{margin:0;font-size:.7rem;font-weight:600;color:var(--m-muted,#625e56)}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.chart-grid :deep(.series-chart){min-width:0;--series-stroke:1.5px}
+.chart-grid :deep(.series-plot){position:relative;height:88px}
+.chart-grid :deep(svg){display:block;width:100%;height:88px}
+.chart-grid :deep(.series-line){fill:none;stroke-width:1.5}
+.chart-grid :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3;stroke-dasharray:2 2}
+.chart-grid :deep(.series-dot),.chart-grid :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
+.chart-grid :deep(.series-dot){border-radius:0}
+.chart-grid :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}
+.chart-grid :deep(.series-guide){stroke:var(--m-muted,#625e56);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
+.chart-grid :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card,#fff);border:1px solid var(--m-border,#d8d2c8);padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}
+.chart-grid :deep(.series-tip span){display:block;color:var(--m-muted,#625e56)}
+.chart-grid :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:.72rem;color:var(--m-muted,#625e56);background:var(--m-surface,#fffdf8)}
+.chart-grid :deep(.series-value){font-size:1.02rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.chart-grid :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.35rem;margin-bottom:.25rem}
+.chart-grid :deep(.series-headline){display:flex;align-items:baseline;gap:.2rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
+.chart-grid :deep(.series-label){font-size:.78rem;font-weight:700}
+.chart-grid :deep(.series-delta){display:none}
+.chart-grid :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.2rem;min-width:0}
+.chart-grid :deep(.series-time-range){white-space:nowrap}
+.chart-foot{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;min-height:32px}
+.chart-warning{font-size:.7rem;color:#a4524a}
+.chart-detail{display:inline-flex;align-items:center;gap:.15rem;margin-left:auto;min-height:32px;color:var(--brand-action);font-size:.74rem;font-weight:650;text-decoration:none}
+.chart-note{margin:0;font-size:.7rem;line-height:1.5;color:var(--m-muted,#8a8277)}
+.day-card .record-row{align-items:center;gap:.6rem;min-width:0;padding:.75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:var(--m-radius-card,12px);background:var(--m-surface,#fffdf8);text-decoration:none}
+.window-facts{display:flex;flex-wrap:wrap;gap:.3rem .4rem;margin-top:.15rem}
+.window-fact{padding:.1rem .4rem;border-radius:var(--radius-badge);background:#f1ece4;font-size:.7rem;font-weight:650;line-height:1.5;font-variant-numeric:tabular-nums;color:var(--text-primary,#30251f)}
+.window-fact[data-tone="base"]{background:#eef2f7;color:#4c5b6b}
+.window-fact[data-tone="up"]{background:#e7f4ed;color:#2B7A55}
+.window-fact[data-tone="down"]{background:#fdf1ee;color:#a4524a}
+.record-main{display:grid;gap:.25rem;min-width:0;flex:1}
+.day-card .record-note{white-space:normal;overflow-wrap:anywhere}
+.day-card .record-sub{white-space:normal;overflow-wrap:anywhere}
+.day-card .round-row{align-items:flex-start}
+.round-row .record-side{padding-top:.15rem}
+@media(max-width:360px){.day-card .round-row{flex-wrap:wrap}.round-row .record-side{margin-left:auto}}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
 .record-row .record-title{font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
 .record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
@@ -493,6 +598,7 @@ onUnmounted(() => {
 .record-side{display:flex;align-items:center;gap:.3rem;flex:none}
 .record-state{padding:.12rem .45rem;border-radius:var(--radius-badge);font-size:.68rem;font-weight:600;background:#e8f0fa;color:#2B6CB0;white-space:nowrap}
 .record-state[data-tone="closed"]{background:#e7f4ed;color:#2B7A55}
+.record-state[data-tone="pending"]{background:#fdf3e2;color:#8a5a17}
 .record-go{font-size:1.1rem;line-height:1;color:#b9b1a5}
 .more-row{width:100%;min-height:40px;margin-top:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:transparent;color:#a44213;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
 .records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}
