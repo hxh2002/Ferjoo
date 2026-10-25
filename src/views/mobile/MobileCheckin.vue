@@ -30,6 +30,13 @@ const extra = ref(false);
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
 const step = computed(() => [1, 2, 3].includes(draft.value.step) ? draft.value.step : 1);
+// 安全答案可疑或不确定时，「本轮背景」会被跳过；步骤数必须跟着实际路径走。
+const skipsBackground = computed(() => [draft.value.color, draft.value.smell].some((value) => value === 'suspicious' || value === 'unknown'));
+const stepMeta = computed(() => {
+  const label = steps[step.value - 1];
+  if (!skipsBackground.value) return { label, index: step.value, total: 3 };
+  return { label, index: step.value === 1 ? 1 : 2, total: 2 };
+});
 // 诊断页只按“最新高度 / 起始高度”的区间给默认值，用户仍可改成其他涨幅或“不确定”。
 const autoHeight = computed(() => {
   if (!diagnosisMode.value) return null;
@@ -101,7 +108,7 @@ function restoreAutoHeight() {
   draft.value.height = autoHeight.value.value;
   draft.value.sources.height = `自动区间计算 · ${autoHeight.value.ratio.toFixed(2)} 倍 · 已恢复自动值`;
 }
-function back() { draft.value.step = step.value === 3 && [draft.value.color, draft.value.smell].includes('suspicious') ? 1 : step.value - 1; }
+function back() { draft.value.step = step.value === 3 && skipsBackground.value ? 1 : step.value - 1; }
 onBeforeRouteLeave(() => { persist(); });
 async function showErrors(value) {
   errors.value = value;
@@ -117,7 +124,8 @@ function next() {
   const keys = step.value === 1 ? ['color', 'smell', 'height'] : ['stage', 'ratio', 'tempC', 'elapsedHours', 'ph'];
   const visible = Object.fromEntries(Object.entries(all).filter(([key]) => keys.includes(key)));
   if (Object.keys(visible).length) return showErrors(visible);
-  draft.value.step = step.value === 1 && [draft.value.color, draft.value.smell].includes('unknown') ? 3 : Math.min(3, step.value + 1);
+  // 可疑与不确定都必须直接核对，不能把安全优先的路径退回背景填写。
+  draft.value.step = step.value === 1 && skipsBackground.value ? 3 : Math.min(3, step.value + 1);
   errors.value = {};
 }
 function generate() {
@@ -144,7 +152,7 @@ function applyPending(key) {
 
 <template>
   <main class="m-page mobile-checkin">
-    <p class="m-context m-muted">{{ diagnosisMode ? '传感器诊断确认' : steps[step - 1] }} · 第 {{ step }} / 3 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
+    <p class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
     <section v-if="diagnosisMode" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
@@ -178,6 +186,7 @@ function applyPending(key) {
       </section>
       <section v-show="step === 3" class="m-card">
         <h2>核对本次输入</h2>
+        <p v-if="skipsBackground" class="skip-note">安全答案需要优先处理，已跳过「本轮背景」；本次不会生成常规养护结论。</p>
         <p class="m-muted">请核对安全答案与已填项。</p>
         <dl><template v-for="key in summaryKeys" :key="key"><dt>{{ fieldLabels[key] }}</dt><dd>{{ describeField(key, draft[key]) }}<small class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
         <p v-if="draft.notes" class="note">备注（请特别核查其中的异常描述）：{{ draft.notes }}</p>
@@ -186,7 +195,7 @@ function applyPending(key) {
         <button type="button" class="m-secondary" @click="draft.step = 1">修改观察</button> <button type="button" class="m-secondary" @click="draft.step = 2">修改背景</button>
       </section>
       <p v-if="Object.keys(errors).length" class="m-error" role="alert">请检查标出的字段，已填写内容已保留。</p>
-      <div class="m-actions"><button v-if="step > 1" type="button" class="m-secondary" @click="back">上一步</button><button type="submit" class="m-primary">{{ step === 3 ? '生成建议（尚未云端保存）' : '下一步' }}</button></div>
+      <div class="m-actions"><button v-if="step > 1" type="button" class="m-secondary" @click="back">上一步</button><button type="submit" class="m-primary">{{ step === 3 ? '生成建议（尚未云端保存）' : (step === 1 && skipsBackground ? '直接核对' : '下一步') }}</button></div>
     </form>
   </main>
 </template>
@@ -202,4 +211,6 @@ summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
 li{margin:.75rem 0}
 [aria-invalid=true]{outline:2px solid var(--danger-text)}
 .link-button{padding:0;border:0;background:none;font:inherit;color:var(--brand-action,#a54214);text-decoration:underline;cursor:pointer}
+.mode-tag{display:inline-block;margin-right:.35rem;padding:.05rem .4rem;border-radius:var(--radius-badge);background:var(--accent-soft,#fdf1e7);color:var(--brand-action,#a54214);font-size:.68rem;font-weight:700}
+.skip-note{margin:.35rem 0 0;font-size:.72rem;line-height:1.5;color:var(--warn,#8a5a12)}
 </style>

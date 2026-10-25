@@ -4,6 +4,7 @@ import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
+import { CLOSE_REASON_LABELS } from '../src/lib/mobile-records.js';
 
 const file = new URL('../src/views/mobile/MobileToday.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
@@ -53,7 +54,7 @@ const deferred = () => { let resolve; let reject; const promise = new Promise((y
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); await Vue.nextTick(); };
 function harness() {
   const user = Vue.ref(null);
-  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }], selection: [], links: [link], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
+  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }], selection: [], links: [link, { starter_id: 's2', device_id: 'd2', active_from: iso(80), active_to: null }], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
   const api = {
     async listStarters({ userId }) { state.calls.push(userId); if (state.starterGate) return state.starterGate.promise; if (state.fail === 'starter') throw new Error('starter down'); return state.starters.slice(); },
     async listCareRecords({ starterId, kind }) {
@@ -86,6 +87,7 @@ function harness() {
     },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
     '../../lib/mobile-selection.js': { rememberSelectedStarter: (owner, id) => state.selection.push([owner, id]) },
+    '../../lib/mobile-records.js': { CLOSE_REASON_LABELS },
     '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
   };
   const component = new Function('modules', setupCode)(modules);
@@ -106,7 +108,7 @@ const h = harness();
 assert.match(await h.html(), /连接设备，开始记录/);
 await login(h);
 assert.match(await h.html(), /膨胀率/);
-assert.match(await h.html(), /上次喂养/);
+assert.match(await h.html(), /已持续/);
 assert.doesNotMatch(await h.html(), /高度预约/, 'height alert entry is no longer on the home page');
 assert.doesNotMatch(await h.html(), /\/me\/notifications/, 'today no longer carries notification settings links');
 const feedingSource = await readFile(new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url), 'utf8');
@@ -129,6 +131,13 @@ assert.match(await h.html(), /compact-range/, 'round card uses a compact time ra
 assert.match(await h.html(), /range-separator/, 'round card renders the time range separator');
 assert.match(await h.html(), /结束本轮/, 'user can end the round without waiting for the next feeding');
 assert.match(await h.html(), /进行中/);
+assert.match(await h.html(), /下一次喂养会自动结束本轮/, 'the round card explains what closes the window');
+assert.match(await h.html(), /诊断需 3 步/, 'the action note separates ending from diagnosing');
+h.vm.contextOpen = true;
+const pickerHtml = await h.html();
+assert.match(pickerHtml, /仅查看设备数据/, 'not choosing a starter is described by its actual effect');
+assert.match(pickerHtml, /已关联其他设备/, 'starters linked to another device stay visible with an explanation');
+h.vm.contextOpen = false;
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
 assert.deepEqual(h.state.selection.at(-1), ['a', 's1'], 'the resolved starter is remembered so the records page opens on the same jar');
@@ -170,9 +179,10 @@ assert.equal(h.vm.summary.windowStatus, 'closed', 'manual end closes the round i
 const closedHtml = await h.html();
 assert.match(closedHtml, /已结束/);
 assert.match(closedHtml, /峰值后回落/, 'closed round states the manual end reason');
+assert.match(closedHtml, /结束原因：峰值后回落/, 'closed round keeps the reason in a dedicated line');
 assert.match(closedHtml, /compact-range/, 'closed round still shows its compact time range');
 assert.match(closedHtml, /title="[^"]+–[^"]+"/, 'closed round keeps the full range in the title');
-assert.match(closedHtml, /查看详情/);
+assert.match(closedHtml, /诊断本轮/);
 assert.doesNotMatch(closedHtml, /结束本轮/, 'closed round no longer offers manual end');
 assert.ok(h.vm.heightMarkers.some((marker) => marker.label === '本轮终点'), 'a closed round marks its end on the chart');
 h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
@@ -252,7 +262,7 @@ marked.stop();
 assert.ok(source.indexOf('class="starter-section"') < source.indexOf('class="chart-card"'));
 assert.match(source, /:open="starterOpen" @toggle="starterOpen = \$event.target.open"/);
 assert.match(source, /summary::after/); assert.match(source, /:deep\(svg\).*height:76px/);
-assert.match(source, /膨胀率/); assert.match(source, /上次喂养/); assert.match(source, /\/reports\/session/);
+assert.match(source, /膨胀率/); assert.match(source, /已持续/); assert.match(source, /\/reports\/session/);
 assert.match(source, /label="温度"[^>]*:from="chartFrom" :to="chartTo"/, 'temperature follows the height window');
 assert.match(source, /label="湿度"[^>]*:from="chartFrom" :to="chartTo"/, 'humidity follows the height window');
 console.log('mobile today: real script-setup state tests passed (account isolation, serialized refresh, create/link outcomes, default device, explicit empty selection, API failures and stale evidence)');

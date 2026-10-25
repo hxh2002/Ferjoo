@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>今日页 · 三个操作按钮 · 全链路逻辑框图</title>
+<style>
+  :root{
+    --ink:#30251f; --muted:#6c6159; --faint:#9c8f84;
+    --line:#d9cdbf; --line-soft:#e8ded3;
+    --bg:#fbf8f3; --card:#fffdf8; --accent:#a44213; --accent-soft:#fdf1e7;
+    --ok:#2b7a55; --ok-bg:#f1f9f4; --ok-line:#a9cbb8;
+    --warn:#8a5a12; --warn-bg:#fdf6e8; --warn-line:#e3c999;
+    --bad:#a12c23; --bad-bg:#fdf3f2; --bad-line:#deb0aa;
+    --blue:#2b6cb0; --blue-bg:#f1f6fc; --blue-line:#a9c4e2;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; padding:2.4rem 1.2rem 5rem;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--ink); background:
+      radial-gradient(1200px 500px at 12% -8%, #f6ead9 0%, transparent 62%),
+      radial-gradient(900px 420px at 92% 0%, #eef3ec 0%, transparent 58%),
+      var(--bg);
+    line-height:1.6; font-size:14px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  header.page{display:grid;gap:.7rem;padding-bottom:1.1rem;border-bottom:1px solid var(--line)}
+  .eyebrow{font-size:.72rem;letter-spacing:.16em;color:var(--accent);font-weight:800}
+  h1{margin:0;font-size:1.65rem;letter-spacing:-.015em;line-height:1.25}
+  .sub{margin:0;color:var(--muted);font-size:.9rem;max-width:70ch}
+  .legend{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.35rem}
+  .pill{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;padding:.16rem .55rem;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);white-space:nowrap}
+  .pill i{width:7px;height:7px;border-radius:50%;background:var(--faint);display:block}
+  .pill.ok i{background:var(--ok)} .pill.warn i{background:var(--warn)} .pill.bad i{background:var(--bad)} .pill.blue i{background:var(--blue)}
+  nav.toc{display:flex;flex-wrap:wrap;gap:.4rem;margin:1.1rem 0 1.6rem}
+  nav.toc a{font-size:.76rem;text-decoration:none;color:var(--ink);border:1px solid var(--line);background:var(--card);border-radius:999px;padding:.28rem .7rem}
+  nav.toc a:hover{border-color:var(--accent);color:var(--accent)}
+  section{margin:0 0 2.4rem;scroll-margin-top:1rem}
+  h2{font-size:1.02rem;margin:0 0 .25rem;display:flex;align-items:center;gap:.5rem}
+  h2 .no{display:inline-grid;place-items:center;min-width:1.5rem;height:1.5rem;padding:0 .3rem;border-radius:7px;background:var(--accent);color:#fff;font-size:.74rem;font-weight:800}
+  h3{font-size:.86rem;margin:1.1rem 0 .45rem}
+  .lead{margin:0 0 1rem;color:var(--muted);font-size:.82rem;max-width:88ch}
+  .panel{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:1rem 1rem 1.15rem;box-shadow:0 10px 26px -22px rgba(77,48,30,.55)}
+  .panel + .panel{margin-top:.9rem}
+  .panel-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.4rem;margin-bottom:.75rem}
+  .panel-head strong{font-size:.9rem}
+  .panel-head span{font-size:.72rem;color:var(--faint)}
+
+  /* ---- flow primitives ---- */
+  .chain{display:grid;justify-items:stretch;gap:0}
+  .node{border:1px solid var(--line);border-radius:10px;background:#fff;padding:.55rem .7rem;font-size:.79rem;line-height:1.55;min-width:0}
+  .node b{font-size:.82rem}
+  .node .meta{display:block;margin-top:.15rem;font-size:.71rem;color:var(--muted)}
+  .node .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.68rem;color:var(--faint)}
+  .node.start{background:var(--accent-soft);border-color:#e2c4ae}
+  .node.cond{border-style:dashed;background:#fdfaf4}
+  .node.act{border-color:#e0b79a;background:#fff8f2}
+  .node.dec{border-style:dashed;border-color:var(--blue-line);background:var(--blue-bg)}
+  .node.ok{border-color:var(--ok-line);background:var(--ok-bg)}
+  .node.warn{border-color:var(--warn-line);background:var(--warn-bg)}
+  .node.bad{border-color:var(--bad-line);background:var(--bad-bg)}
+  .node.ghost{background:#fbf9f5;border-color:var(--line-soft);color:var(--muted)}
+  .node ul{margin:.3rem 0 0;padding-left:1.05rem}
+  .node li{margin:.1rem 0}
+  .down{display:grid;place-items:center;height:20px;color:#c8b5a4;font-size:.55rem;line-height:1}
+  .down[data-label]::after{content:attr(data-label);position:absolute;margin-left:2.2rem;font-size:.62rem;color:var(--faint);background:var(--card);padding:0 .25rem}
+  .tree{position:relative;padding-top:20px}
+  .tree::before{content:"";position:absolute;left:50%;top:0;width:1px;height:20px;background:var(--line)}
+  .branches{position:relative;display:grid;gap:.55rem;padding-top:20px}
+  .branches::before{content:"";position:absolute;top:0;height:1px;background:var(--line);left:calc(50% / var(--n));right:calc(50% / var(--n))}
+  .branches[data-n="2"]{--n:2;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .branches[data-n="3"]{--n:3;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .branches[data-n="4"]{--n:4;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .lane{position:relative;padding-top:20px;display:grid;align-content:start;gap:0;min-width:0}
+  .lane::before{content:"";position:absolute;left:50%;top:0;width:1px;height:20px;background:var(--line)}
+  .lane-tag{justify-self:center;margin-bottom:.25rem;font-size:.68rem;font-weight:700;color:var(--muted);border:1px solid var(--line);background:#fff;border-radius:999px;padding:.05rem .45rem;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .lane-tag.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+  .lane-tag.warn{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+  .lane-tag.bad{color:var(--bad);border-color:var(--bad-line);background:var(--bad-bg)}
+  .lane-tag.blue{color:var(--blue);border-color:var(--blue-line);background:var(--blue-bg)}
+  .split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
+  .split-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+  .inline-note{font-size:.7rem;color:var(--faint);margin:.35rem 0 0}
+
+  /* ---- tables ---- */
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+  table{border-collapse:collapse;width:100%;min-width:660px;font-size:.77rem}
+  th,td{text-align:left;vertical-align:top;padding:.5rem .6rem;border-bottom:1px solid var(--line-soft)}
+  thead th{background:#f7f1e8;font-size:.72rem;letter-spacing:.02em;color:var(--muted);position:sticky;top:0}
+  tbody tr:last-child td{border-bottom:0}
+  td .tag{display:inline-block;font-size:.66rem;padding:.04rem .38rem;border-radius:999px;border:1px solid var(--line);margin:0 .15rem .15rem 0;white-space:nowrap}
+  .tag.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+  .tag.warn{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+  .tag.bad{color:var(--bad);border-color:var(--bad-line);background:var(--bad-bg)}
+  .tag.blue{color:var(--blue);border-color:var(--blue-line);background:var(--blue-bg)}
+  .tag.mute{color:var(--muted);background:#faf7f1}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;background:#f4eee5;border-radius:4px;padding:.05rem .25rem;overflow-wrap:anywhere}
+  .small{font-size:.72rem;color:var(--muted)}
+  .callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:.55rem .7rem;border-radius:0 8px 8px 0;font-size:.76rem;margin:.7rem 0 0}
+  .callout.blue{border-color:var(--blue);background:var(--blue-bg)}
+  .callout.warn{border-color:var(--warn);background:var(--warn-bg)}
+  .overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem}
+  .ov{border:1px solid var(--line);border-radius:12px;padding:.7rem;background:#fff;display:grid;gap:.2rem}
+  .ov strong{font-size:.84rem}
+  .ov small{font-size:.7rem;color:var(--muted)}
+  .ov .path{font-size:.7rem;color:var(--accent);font-weight:700;margin-top:.2rem}
+  footer{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--line);font-size:.7rem;color:var(--faint);line-height:1.7}
+  @media (max-width:860px){
+    body{padding:1.4rem .7rem 4rem}
+    .overview{grid-template-columns:1fr}
+    .branches[data-n="3"],.branches[data-n="4"],.split-3{grid-template-columns:1fr}
+    .split{grid-template-columns:1fr}
+    .branches::before{display:none}
+    .branches[data-n="3"] .lane::before,.branches[data-n="4"] .lane::before{display:none}
+    .branches[data-n="3"] .lane,.branches[data-n="4"] .lane{padding-top:0}
+  }
+  @media print{
+    body{background:#fff;padding:0;font-size:11px}
+    .panel{break-inside:avoid;box-shadow:none}
+    nav.toc{display:none}
+    .node{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="page">
+  <div class="eyebrow">FERJOO · 移动端 · 今日页</div>
+  <h1>今日页底部三个操作按钮：全链路逻辑框图</h1>
+  <p class="sub">覆盖「记录下一次喂养 / 结束本轮 / 诊断本轮」在不同账号、设备、酵种、喂养窗口、草稿与网络状态下的可见性、选项、校验、跳转和状态回写；含二级页面（喂养、诊断、建议）与三级选项（比例、涨幅、结束原因、推送阈值等）。</p>
+  <div class="legend">
+    <span class="pill"><i></i>页面/节点</span>
+    <span class="pill blue"><i></i>判定</span>
+    <span class="pill ok"><i></i>成功态</span>
+    <span class="pill warn"><i></i>受限/降级</span>
+    <span class="pill bad"><i></i>失败/错误</span>
+    <span class="pill"><i></i>虚线框＝条件分支</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#overview">0 总览</a>
+  <a href="#gate">1 按钮出现条件</a>
+  <a href="#a">2 A 记录下一次喂养</a>
+  <a href="#b">3 B 结束本轮</a>
+  <a href="#c">4 C 诊断本轮</a>
+  <a href="#writeback">5 状态回写与联动</a>
+  <a href="#refs">6 路由与状态字段</a>
+  <a href="#edge">7 边界与错误态</a>
+</nav>
+
+<!-- ================= 0 ================= -->
+<section id="overview">
+  <h2><span class="no">0</span>总览：一条主链，三个出口</h2>
+  <p class="lead">今日页本身不写入业务事实，三个按钮把用户送到三条写入链；写入后由「页面可见/60 秒轮询/手动刷新/返回页面」重新计算本轮窗口与图表。</p>
+
+  <div class="panel">
+    <div class="chain">
+      <div class="node start"><b>今日页 /today</b><span class="meta">状态条（罐状态+刷新）→ 展开选择器（酵种罐/酵种）→ 本轮发酵卡 → 单日图表 → 操作卡 → 风险横幅</span></div>
+      <div class="down">▼</div>
+      <div class="node cond"><b>操作卡是否渲染？</b><span class="meta">条件：已登录 且 已选酵种（starterId）且 该酵种存在喂养记录（feeding）。不满足则不渲染操作区。</span></div>
+    </div>
+
+    <div class="tree">
+      <div class="branches" data-n="3">
+        <div class="lane">
+          <span class="lane-tag blue">A · 主操作</span>
+          <div class="node act"><b>记录下一次喂养</b><span class="meta">RouterLink → <code>/feeding?starter=&lt;id&gt;</code></span></div>
+          <div class="down">▼</div>
+          <div class="node">喂养表单（可编辑 / 待确认重试 / 已确认）</div>
+          <div class="down">▼</div>
+          <div class="node ok">写入新喂养 → 旧轮以「下一次喂养」结束 → 新轮开始</div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag warn">B · 仅进行中</span>
+          <div class="node act"><b>结束本轮</b><span class="meta">按钮 → 就地展开原因面板（不跳页）</span></div>
+          <div class="down">▼</div>
+          <div class="node">4 个结束原因 + 继续观察</div>
+          <div class="down">▼</div>
+          <div class="node ok">写入窗口结束时刻 → 本轮冻结为「已结束」</div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag">C · 只读分析</span>
+          <div class="node act"><b>诊断本轮</b><span class="meta">RouterLink → <code>/checkin?starter=&amp;feeding=&amp;mode=diagnosis</code></span></div>
+          <div class="down">▼</div>
+          <div class="node">3 步诊断 → 生成建议</div>
+          <div class="down">▼</div>
+          <div class="node ok">/reports/session →（可选）保存为云端观察记录</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">三条链互不替代：A 产生新的喂养事实；B 只给当前轮次画上业务终点；C 从不结束窗口，也不会自动写入云端。</div>
+  </div>
+</section>
+
+<!-- ================= 1 ================= -->
+<section id="gate">
+  <h2><span class="no">1</span>三个按钮的出现条件与可用性矩阵</h2>
+  <p class="lead">按钮可见性由「本轮发酵窗口是否仍活跃」决定；窗口是否活跃只取决于下一次喂养或手动结束，与设备是否在线、数据是否新鲜无关。</p>
+
+  <div class="panel">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="min-width:150px">页面条件</th><th style="min-width:150px">本轮卡片</th><th style="min-width:230px">操作区按钮</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>未登录</td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td>只显示「连接设备，开始记录」+ 登录按钮 → <code>/login?redirect=/today</code>。</td>
+          </tr>
+          <tr>
+            <td>已登录 · 无设备或无酵种</td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td>顶部提示：还没有酵种罐先去新增/连接；还没有酵种先在酵种菜单新建。选择器内「新增/连接酵种罐」→ <code>/me/devices?bind=1</code>。</td>
+          </tr>
+          <tr>
+            <td>有设备 · 未选酵种</td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td>提示「选择酵种后可记录喂养，并查看这一轮发酵」；图表标题为「未关联酵种的设备数据」，仍会显示曲线。</td>
+          </tr>
+          <tr>
+            <td>已选酵种 · 无喂养记录</td>
+            <td>空轮次卡 + <span class="tag warn">记录喂养</span></td>
+            <td><span class="tag mute">不渲染</span></td>
+            <td>空卡说明「记录一次喂养后，本轮会从喂养时间开始…」；按钮直达 <code>/feeding?starter=</code>。</td>
+          </tr>
+          <tr>
+            <td>有喂养 · 窗口进行中</td>
+            <td>本轮卡：进行中 / 基线建立中 / 数据中断 / 数据不足</td>
+            <td><span class="tag ok">记录下一次喂养</span><span class="tag">结束本轮</span><span class="tag">诊断本轮</span></td>
+            <td>主按钮占整行；结束本轮与诊断本轮各占半行；底部一行说明二者边界。未关联设备时窗口仍然「进行中」，仍可结束本轮。</td>
+          </tr>
+          <tr>
+            <td>有喂养 · 窗口已结束</td>
+            <td>本轮卡：已结束 · 下一次喂养 / 手动结束原因</td>
+            <td><span class="tag ok">记录下一次喂养</span><span class="tag mute">结束本轮（隐藏）</span><span class="tag blue">诊断本轮（整行）</span></td>
+            <td>结束可来自「存在更晚的喂养记录」或「手动关闭」；两种都已无「结束本轮」。</td>
+          </tr>
+          <tr>
+            <td>结束原因面板已展开</td>
+            <td>不变</td>
+            <td><span class="tag ok">记录下一次喂养</span><span class="tag warn">原「结束本轮」被替换为 4 选项面板</span><span class="tag">诊断本轮（同时占整行）</span></td>
+            <td>面板含「继续观察」可零写入收起；选择原因期间 <code>closing</code> 禁用全部原因按钮。</td>
+          </tr>
+          <tr>
+            <td>刷新中 / 保存中</td>
+            <td>数值保持，刷新图标旋转</td>
+            <td>刷新按钮禁用；喂养与详情链接仍可点</td>
+            <td>刷新并发由 <code>inFlight / pending</code> 合并，不会重复发请求。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout blue">
+      <b>「窗口活跃」判定：</b><code>windowActive = 喂养时间有效 且 尚未被关闭</code>。关闭时刻 = min（下一次喂养时间，手动结束时间，当前时刻）。设备断线、休眠、传感器故障只影响 <code>dataQuality</code>，不会让本轮结束。
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="a">
+  <h2><span class="no">A</span>记录下一次喂养：完整分支</h2>
+  <p class="lead">目标路由 <code>/feeding?starter=&lt;starterId&gt;</code>（需登录，路由守卫会兜底跳登录）。这是一条「先冻结请求、再幂等提交」的写入链。</p>
+
+  <div class="panel">
+    <div class="panel-head"><strong>A1　进入页面时的上下文判定</strong><span>/feeding · MobileFeeding.vue</span></div>
+    <div class="chain">
+      <div class="node start"><b>从今日页进入（携带 starter）</b><span class="meta">顶部上下文：当前酵种：名称 · 记录已发生的喂养</span></div>
+      <div class="down">▼</div>
+      <div class="tree">
+        <div class="branches" data-n="3">
+          <div class="lane">
+            <span class="lane-tag warn">无 starter 参数</span>
+            <div class="node warn">「尚未选择酵种，去今天选择」<span class="meta">链接 <code>/today</code>；提交时校验会拦截</span></div>
+          </div>
+          <div class="lane">
+            <span class="lane-tag bad">本机存储不可用</span>
+            <div class="node bad">红色提示：本机存储不可用，关闭页面可能丢失草稿<span class="meta">后续保存也会被拦截</span></div>
+          </div>
+          <div class="lane">
+            <span class="lane-tag blue">存在草稿</span>
+            <div class="node dec">按草稿状态进入下方三态之一</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>A2　表单状态机（三级选项与效果）</h3>
+    <div class="tree">
+      <div class="branches" data-n="3">
+        <div class="lane">
+          <span class="lane-tag">① 可编辑（未锁定）</span>
+          <div class="node">
+            <b>全部字段可改</b>
+            <ul>
+              <li><b>喂养时间</b>：datetime-local，默认当前时刻（每次进入重置；确认后不再改）；不得晚于现在。</li>
+              <li><b>喂养比例</b>（必选）：1:1:1 / 1:2:2 / 1:3:3 / 1:5:5 / 1:2:1 / 大比例刷新（deep_reset）。</li>
+              <li><b>投喂重量</b>（可选，选比例后出现）：老种 / 水 / 面粉 / 合计，填任一项其余按比例换算；大比例刷新不换算。</li>
+              <li><b>起始高度</b>（可选折叠）：手动毫米值 &gt; 0，写入后 <code>baseline_source=manual</code>，膨胀率按此值算。</li>
+            </ul>
+            <span class="meta">CTA：保存喂养记录（保存中→保存中…并禁用）</span>
+          </div>
+          <div class="down">▼</div>
+          <div class="node dec">点击保存 → 校验</div>
+          <div class="down">▼</div>
+          <div class="node bad">校验失败：停留本页、逐项提示
+            <ul>
+              <li>酵种无效 →「请先在今日添加或选择有效酵种」</li>
+              <li>时间未来 / 格式错</li>
+              <li>未选比例</li>
+              <li>重量 ≤ 0 或当前比例不可换算</li>
+              <li>起始高度非大于 0 的数字</li>
+            </ul>
+          </div>
+          <div class="down">▼</div>
+          <div class="node ok">校验通过 → 冻结本次提交（生成 requestId + 事实快照）→ 落盘草稿 → 调云端保存</div>
+        </div>
+
+        <div class="lane">
+          <span class="lane-tag warn">② 待确认（已冻结，未获云端确认）</span>
+          <div class="node warn">
+            <b>内容锁定，不可改也不可换酵种</b>
+            <ul>
+              <li>顶部警告：保留的是「某酵种」的待确认草稿，不会切换或覆盖。</li>
+              <li>所有输入禁用；比例不可重新选择。</li>
+              <li>CTA 变为「重试确认本次保存」：沿用同一 requestId 与同一内容，<b>不会重复新增</b>。</li>
+            </ul>
+            <span class="meta">常见触发：网络失败、未收到云端确认、保存中途离开。</span>
+          </div>
+          <div class="down">▼</div>
+          <div class="node dec">重试结果</div>
+          <div class="down">▼</div>
+          <div class="node ok">成功 → 进入 ③ 已确认</div>
+          <div class="down">▼</div>
+          <div class="node bad">仍失败 → 错误文案追加「本次内容已锁定，重试沿用同一请求及内容，不会重复新增」</div>
+          <div class="down">▼</div>
+          <div class="node ghost">未登录时点击保存 →「保存喂养需要登录；草稿已在本机保留」</div>
+        </div>
+
+        <div class="lane">
+          <span class="lane-tag ok">③ 已确认（云端已保存）</span>
+          <div class="node ok">
+            <b>只读 + 三个后续动作</b>
+            <ul>
+              <li>状态提示：本条已确认保存；刷新页面不会重复新增。</li>
+              <li><b>诊断本轮</b> → <code>/checkin?starter=&amp;feeding=&amp;mode=diagnosis</code>（仅当已拿到 feedingId 才出现；此处为次要按钮，主按钮是「回今日」）。</li>
+              <li><b>回今日</b> → <code>/today</code>，触发本轮与图表重算。</li>
+              <li><b>开始下一条喂养记录</b> → 清空比例/重量/起始高度，生成新 requestId，时间重置为当前时刻。</li>
+            </ul>
+            <span class="meta">带 <code>?new=1</code> 且已确认时，进入页面会自动开始下一条。</span>
+          </div>
+          <div class="down">▼</div>
+          <div class="node ghost">二级入口：高度预约卡 → <code>/me/notifications</code></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>A3　二级页「高度预约」的三级选项</h3>
+    <div class="split">
+      <div class="node">
+        <b>本机推送开关</b>
+        <ul>
+          <li>未开启 →「开启云端推送」：请求系统通知权限。</li>
+          <li>已允许 → 订阅 Web Push，提示「达到所选倍数时会推送到本机」。</li>
+          <li>已拒绝 → 提示到站点设置重新允许。</li>
+          <li>iOS 非主屏幕 → 提示先「添加到主屏幕」（iOS 16.4+）。</li>
+          <li>浏览器/环境不支持或非 HTTPS → 明确提示，不提供开关。</li>
+          <li>已开启 →「关闭本机推送」，服务器停止向本机推送。</li>
+        </ul>
+      </div>
+      <div class="node">
+        <b>每个酵种的提醒阈值（可多选）</b>
+        <ul>
+          <li><b>2×</b> / <b>2.5×</b> / <b>3×</b>（相对本轮基线高度）。</li>
+          <li>可同时选多个；全部取消即关闭该酵种提醒。</li>
+          <li>同一轮每个阈值只提醒一次；下一次喂养后可再次提醒。</li>
+          <li>未关联设备的酵种不产生提醒。</li>
+          <li>提醒依赖本轮有效基线与当前高度，缺一不触发。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>成功后的语义变化：</b>新喂养成为「当前轮」，原当前轮自动以结束原因「下一次喂养」关闭；新轮进入 50 分钟基线建立期，图内出现「上轮起点 / 上轮终点 / 本轮起点」三条竖线，高度图横轴从喂养前 5 分钟开始。
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3 ================= -->
+<section id="b">
+  <h2><span class="no">B</span>结束本轮：面板、原因与写入结果</h2>
+  <p class="lead">这是唯一允许人为给本轮画终点的入口。它只写「窗口结束时刻 + 原因」，不删除任何采样，也不影响历史喂养事实。</p>
+
+  <div class="panel">
+    <div class="chain">
+      <div class="node cond"><b>按钮可见前提</b><span class="meta">有喂养 且 <code>summary.windowActive === true</code>（尚未到下一次喂养、尚未手动结束）。已结束的轮次不再显示该按钮。</span></div>
+      <div class="down">▼</div>
+      <div class="node act"><b>点击「结束本轮」</b><span class="meta">不跳页，就地展开 <code>close-panel</code>，问「为什么结束本轮？」，并先说明「固定终点、不能撤销、仍可诊断」。</span></div>
+      <div class="down">▼</div>
+    </div>
+
+    <div class="tree">
+      <div class="branches" data-n="5">
+        <div class="lane">
+          <span class="lane-tag ok">fallen</span>
+          <div class="node">已达到峰值后回落</div>
+          <div class="down">▼</div>
+          <div class="node ghost">写入 detail=fallen</div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag ok">no_peak</span>
+          <div class="node">没有明显达到峰值</div>
+          <div class="down">▼</div>
+          <div class="node ghost">写入 detail=no_peak</div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag ok">abnormal</span>
+          <div class="node">中途异常，无法判断</div>
+          <div class="down">▼</div>
+          <div class="node ghost">写入 detail=abnormal</div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag ok">record_only</span>
+          <div class="node">只是想结束记录</div>
+          <div class="down">▼</div>
+          <div class="node ghost">写入 detail=record_only</div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag warn">取消</span>
+          <div class="node ghost">「继续观察」</div>
+          <div class="down">▼</div>
+          <div class="node ghost">收起面板，零写入</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="down">▼</div>
+    <div class="node dec"><b>提交 closeFeedingWindow</b><span class="meta">参数：feedingId、endedAt = 点击瞬间（不可自定义）、detail。服务端 RPC <code>close_fermentation_window</code>。</span></div>
+
+    <div class="tree">
+      <div class="branches" data-n="2">
+        <div class="lane">
+          <span class="lane-tag ok">成功</span>
+          <div class="node ok">
+            <b>写入结束后立即回写页面</b>
+            <ul>
+              <li>本轮状态：标签只显示「已结束」，下一行写明「结束原因：&lt;原因&gt;」。</li>
+              <li>已持续时长冻结到点击时刻；不再随时间增长。</li>
+              <li>「结束本轮」消失，「诊断本轮」变为整行。</li>
+              <li>高度图出现「本轮终点」竖线（距起点 &gt; 5 分钟时）。</li>
+              <li>记录页同一轮显示已结束；轮次详情的结束原因 = 手动结束 + 具体原因。</li>
+              <li>面板自动收起，结束错误清空。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag bad">失败</span>
+          <div class="node bad">
+            <b>不改变本轮状态，面板保留可重试</b>
+            <ul>
+              <li>操作卡顶部显示错误（如网络失败、未登录、找不到喂养记录）。</li>
+              <li>服务未启用 / 未完成迁移 →「发酵窗口服务尚未启用」。</li>
+              <li>结束时间非法 / 原因非法 → 对应校验提示。</li>
+              <li>提交期间所有原因按钮禁用（防重复）。</li>
+              <li>可换一个原因重试，或「继续观察」放弃。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <b>不能结束的情况：</b>① 该轮已经被更晚的喂养记录关闭（结束原因＝下一次喂养）；② 无喂养记录；③ 正在提交。以上均在前端直接 return，不产生请求。
+    </div>
+    <div class="callout blue">
+      <b>手动结束的边界：</b>结束时刻取点击瞬间，不接受补填历史时刻；结束后仍可「诊断本轮」做诊断，也仍可「记录下一次喂养」开启新轮。诊断与结束互不影响。
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="c">
+  <h2><span class="no">C</span>诊断本轮：诊断三步 → 建议 → 云端保存</h2>
+  <p class="lead">目标路由 <code>/checkin?starter=&lt;id&gt;&amp;feeding=&lt;id&gt;&amp;mode=diagnosis</code>。诊断草稿每次进入都会重置，只做证据预填，不会沿用上一次的答案。</p>
+
+  <div class="panel">
+    <div class="panel-head"><strong>C1　进入即加载证据（决定预填什么）</strong><span>loadFeedingEvidence → summarizeFeedingMeasurements</span></div>
+    <div class="tree">
+      <div class="branches" data-n="4">
+        <div class="lane">
+          <span class="lane-tag blue">温度</span>
+          <div class="node">本轮有效采样均值<span class="meta">仅当覆盖可靠（起终点与中间无 &gt;40 分钟缺口）才预填</span></div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag blue">经过小时</span>
+          <div class="node">喂养 → 窗口终点<span class="meta">历史轮次截至下一次喂养；当前轮次截至观测截点</span></div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag blue">涨幅表现</span>
+          <div class="node">按基线→当前高度自动落区间<span class="meta">可改；改后可「恢复自动值」</span></div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag warn">证据不可用</span>
+          <div class="node warn">提示原因，全部可手填<span class="meta">无关联 / 关联已结束 / 缺基线 / 最新证据超 40 分钟</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>C2　第 1 步：观察（安全优先，决定是否跳步）</h3>
+    <div class="split-3">
+      <div class="node">
+        <b>颜色 / 霉斑</b>
+        <ul>
+          <li><b>未见异常</b> → 正常继续。</li>
+          <li><b>彩色斑块 / 绒毛霉菌</b> → 立即跳到第 3 步核对（风险优先）。</li>
+          <li><b>不确定</b> → 允许下一步，但会跳过背景直接核对。</li>
+        </ul>
+      </div>
+      <div class="node">
+        <b>气味</b>
+        <ul>
+          <li><b>未见异常</b> → 正常继续。</li>
+          <li><b>明显腐败 / 恶臭</b> → 立即跳到第 3 步核对。</li>
+          <li><b>不确定</b> → 同上，跳过背景。</li>
+        </ul>
+      </div>
+      <div class="node">
+        <b>主要涨幅表现</b>
+        <ul>
+          <li>几乎没涨 / 轻微上涨 / 接近翻倍 / 约 2 倍 / 峰值超过 2 倍 / 超过 3 倍 / 已回落 / 表面有酒精液层 / 不确定。</li>
+          <li>诊断模式带自动值与倍数区间说明；可修改。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="node ghost" style="margin-top:.55rem">
+      <b>可选：一句话填写</b> — 输入自然语言 →「识别为待确认字段」→ 逐项「确认此字段」；颜色与气味识别结果<b>不会被采用</b>，仍须主动选择。未识别到字段时保留原文并提示改用逐项填写。
+    </div>
+
+    <div class="callout blue">
+      <b>跳步规则：</b>颜色或气味为「可疑」或「不确定」→ 直接到核对（第 3 步），不再要求填写背景；步骤指示相应显示「第 2 / 2 步」，核对页说明已跳过背景，第 1 步按钮显示「直接核对」。两者均正常 → 第 2 步。核对页返回时，若存在跳步答案则回到第 1 步，否则回到第 2 步。
+    </div>
+
+    <h3>C3　第 2 步：本轮背景（可空项不阻塞）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="min-width:120px">字段</th><th style="min-width:260px">选项 / 校验</th><th>效果</th></tr></thead>
+        <tbody>
+          <tr><td>养护阶段</td><td>成熟酵种 / 新起种·第 1 天 / 新起种·活跃期 / 新起种·稳定期 / 复苏中 / 冷藏维护 / 不确定</td><td>成熟且温度可靠才可能给出估时；「不确定」→ 报告标记信息不足。</td></tr>
+          <tr><td>老种 : 水 : 面粉</td><td>1:1:1 / 1:2:2 / 1:3:3 / 1:5:5 / 大比例刷新 / 1:2:1 / 不确定</td><td>影响活性判断与估时；「不确定」→ 信息不足。</td></tr>
+          <tr><td>实测温度（°C）</td><td>数字，可空</td><td>可空不报错；未填时报告改写为「缺少实测温度，暂不作速度判断」。</td></tr>
+          <tr><td>喂养后经过小时</td><td>数字，可空，负数报错</td><td>诊断模式已按窗口终点预填；手改即标记为手工来源。</td></tr>
+          <tr><td>pH / 备注（折叠）</td><td>pH 0–14；备注自由文本</td><td>非法 pH 阻止下一步；备注会出现在核对与建议页快照里。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>C4　第 3 步：核对 → 生成建议的四条分支</h3>
+    <div class="chain">
+      <div class="node">核对页：已填项 + 每项来源、未填项说明、原始一句话；可回「修改观察 / 修改背景」。CTA：生成建议（尚未云端保存）。</div>
+      <div class="down">▼</div>
+      <div class="node dec">generateMobileReport → 结果分支</div>
+    </div>
+    <div class="tree">
+      <div class="branches" data-n="4">
+        <div class="lane">
+          <span class="lane-tag bad">可疑</span>
+          <div class="node bad">食品安全优先：停止使用、丢弃、清洁容器与工具<span class="meta">隐藏「下一步/为什么/辅助信息」</span></div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag warn">不确定</span>
+          <div class="node warn">需要进一步检查：安全问题尚未确认，不能给正常结论<span class="meta">暂勿使用或品尝</span></div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag warn">关键项不确定</span>
+          <div class="node warn">信息不足：阶段/比例/涨幅缺项，不用默认值替代<span class="meta">建议保留本次观察后补填重生成</span></div>
+        </div>
+        <div class="lane">
+          <span class="lane-tag ok">完整</span>
+          <div class="node ok">算法诊断结论 + 下一步/为什么 + 安全提醒 + 依据<span class="meta">按输入裁剪估时；无温度时改写标题</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="down">▼</div>
+    <div class="node">存入本机会话报告 → 跳转 <code>/reports/session</code><span class="meta">此时仍未云端保存；Today 页的风险横幅只认「已保存的观察记录」或本会话报告中的 discard / needs-check。</span></div>
+
+    <h3>C5　二级页「本次建议」的可用操作</h3>
+    <div class="split">
+      <div class="node">
+        <b>查看与编辑</b>
+        <ul>
+          <li>无报告 →「当前没有可读取的结果」→ 继续或重新记录观察（/checkin）。</li>
+          <li><b>修改本次输入</b> → <code>/checkin?edit=session&amp;starter=</code>，载入本次快照回到第 1 步；<b>生成新报告，不改写旧快照</b>。</li>
+          <li><b>复制建议</b> → 复制成功提示；剪贴板不可用时展开可长按选择的文本框。</li>
+          <li>风险结论下隐藏修改入口，只保留丢弃指引与复制。</li>
+        </ul>
+      </div>
+      <div class="node">
+        <b>保存到云端</b>
+        <ul>
+          <li>需登录且已选酵种；否则提示并给出登录/去今日链接。</li>
+          <li>保存中禁用；成功后状态变「已云端保存」，按钮永久禁用。</li>
+          <li>失败沿用同一 requestId 重试，不产生重复记录。</li>
+          <li>保存成功后，云端记录可经 <code>/records/&lt;id&gt;</code> 只读查看。</li>
+          <li>云端观察记录可「基于这次输入重新生成」（创建新记录）。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <b>三级跳转：</b>云端 <code>/records/:id</code> 若是喂养记录，会提供「基于这次喂养记录观察」→ <code>/checkin?starter&amp;feeding</code>（<b>观察模式</b>，不是诊断模式，不自动预填诊断证据）。今日页风险横幅 → 已保存则去该记录，否则去 <code>/reports/session</code>。
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="writeback">
+  <h2><span class="no">5</span>状态回写：一次操作会改变什么</h2>
+  <p class="lead">今日页在「首次挂载、页面重新可见、每 60 秒、手动刷新、切换设备/酵种」时重算；返回页面也会触发可见性刷新。</p>
+
+  <div class="panel">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="min-width:140px">触发动作</th><th style="min-width:200px">本轮窗口</th><th style="min-width:200px">今日页可见变化</th><th>下游影响</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>A 保存新喂养</b></td>
+            <td>旧轮立即以「下一次喂养」关闭；新轮从新喂养时间开始，进入基线建立期</td>
+            <td>本轮卡换新起点、已持续归零重算；结束原因行消失；「结束本轮」重新出现</td>
+            <td>图表横轴从喂养前 5 分钟开始；四条竖线重排；高度预约阈值按新轮重新计时；记录页新增一轮</td>
+          </tr>
+          <tr>
+            <td><b>B 结束本轮</b></td>
+            <td>结束时刻写入；窗口冻结，不再随时间增长</td>
+            <td>状态标签变「已结束」，下一行显示结束原因；结束按钮消失；诊断本轮占整行</td>
+            <td>记录页/详情页显示同一原因；图表出现本轮终点线；不再产生新的膨胀率</td>
+          </tr>
+          <tr>
+            <td><b>C 保存诊断</b></td>
+            <td><span class="tag mute">不变</span></td>
+            <td>若结论为丢弃/需检查，Today 出现「上次风险结果」横幅</td>
+            <td>生成观察记录；记录页可查看；不影响发酵窗口与图表</td>
+          </tr>
+          <tr>
+            <td><b>切换设备</b></td>
+            <td>清空当前选择与证据后重算</td>
+            <td>优先保留「未选择酵种」的显式空态；否则自动匹配该设备关联酵种</td>
+            <td>图表数据来源切换；设备选择会被记住（按账号）</td>
+          </tr>
+          <tr>
+            <td><b>切换酵种</b></td>
+            <td>按新酵种最新喂养重算</td>
+            <td>本轮卡、图表基线、操作区条件全部重算</td>
+            <td>选择会被记住，记录页默认打开同一酵种</td>
+          </tr>
+          <tr>
+            <td><b>60 秒轮询/刷新</b></td>
+            <td>若期间出现新喂养，本轮自动变为已结束</td>
+            <td>状态、已持续时长、图表与罐状态同步更新</td>
+            <td>罐状态：正常 / 数据偏旧 / 休眠中 / 传感器异常 / 模式异常</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="refs">
+  <h2><span class="no">6</span>路由、参数与关键状态字段</h2>
+  <div class="panel">
+    <h3>三条链涉及的路由</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="min-width:210px">路由</th><th style="min-width:170px">入口</th><th>作用 / 关键参数</th></tr></thead>
+        <tbody>
+          <tr><td><code>/today</code></td><td>底部导航 / 登录后</td><td>今日页；<code>/?view=desktop</code> 等不影响移动端内页。</td></tr>
+          <tr><td><code>/feeding?starter=</code></td><td>A 按钮 / 空轮次卡</td><td>喂养写入；<code>new=1</code> 且已确认时自动开始下一条。</td></tr>
+          <tr><td><code>/checkin?starter=&amp;feeding=&amp;mode=diagnosis</code></td><td>C 按钮 / 喂养页「诊断本轮」</td><td>诊断模式；缺 feeding 参数则提示预填不可用，仍可手填。</td></tr>
+          <tr><td><code>/checkin?edit=session&amp;starter=</code></td><td>建议页「修改本次输入」</td><td>载入会话报告输入，回到第 1 步。</td></tr>
+          <tr><td><code>/checkin?starter=&amp;feeding=</code></td><td>云端喂养记录「基于这次喂养记录观察」</td><td>观察模式（无 mode=diagnosis），不自动预填诊断证据。</td></tr>
+          <tr><td><code>/reports/session</code></td><td>诊断生成后</td><td>本次建议（未云端保存）；风险横幅兜底目标。</td></tr>
+          <tr><td><code>/records/:id</code></td><td>风险横幅 / 记录页</td><td>云端记录只读；喂养记录与观察记录呈现不同结构。</td></tr>
+          <tr><td><code>/me/notifications</code></td><td>喂养页「高度预约」</td><td>Web Push 开关 + 2×/2.5×/3× 阈值。</td></tr>
+          <tr><td><code>/me/devices?bind=1</code></td><td>今日页酵种罐菜单</td><td>绑定成功后回到 <code>/today</code>。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>阈值与状态映射</h3>
+    <div class="split">
+      <div class="node">
+        <b>时间阈值</b>
+        <ul>
+          <li><b>40 分钟</b>：采样新鲜度；超时 → 罐状态「数据偏旧」、诊断不预填高度/温度、膨胀率可能为空。</li>
+          <li><b>50 分钟</b>：喂养后基线建立窗口；期间状态「基线建立中」，膨胀率暂缺。</li>
+          <li><b>5 分钟</b>：相邻标记防重叠的偏移量（上轮终点与本轮起点）。</li>
+        </ul>
+      </div>
+      <div class="node">
+        <b>本轮状态文案（今日页）</b>
+        <ul>
+          <li>已结束（下一行：结束原因 / 已由下一次喂养结束）</li>
+          <li>基线建立中</li>
+          <li>进行中 · 数据中断</li>
+          <li>进行中 · 数据不足</li>
+          <li>进行中</li>
+        </ul>
+        <span class="meta">本轮卡固定两行：本轮时间区间 / 已持续；再下一行说明「下一次喂养会自动结束本轮」或结束原因。</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="edge">
+  <h2><span class="no">7</span>边界与错误态汇总</h2>
+  <p class="lead">这些分支决定了「按钮看起来能点，但结果是否符合预期」，也是排障时最常遇到的路径。</p>
+
+  <div class="panel">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="min-width:140px">场景</th><th style="min-width:190px">表现</th><th>处理与效果</th></tr></thead>
+        <tbody>
+          <tr><td>酵种未关联设备</td><td>罐状态「未关联设备」；图表不显示；提示暂不显示曲线</td><td>仍可记录喂养、结束本轮；膨胀率与设备证据为空，状态可能长期「数据不足」。</td></tr>
+          <tr><td>设备休眠 / 传感器故障</td><td>罐状态「休眠中 / 传感器异常」；图表排除异常样本</td><td>本轮不会结束；图表注释说明有多少样本未计入膨胀率、有几段超过 40 分钟无采样。</td></tr>
+          <tr><td>无任何采样</td><td>罐状态「暂无数据」；图表空态</td><td>提示「曲线为空不代表本轮已结束」；仍可结束本轮或记录下一次喂养。</td></tr>
+          <tr><td>喂养时间早于设备关联起点</td><td>证据不可用，基线只能手工</td><td>膨胀率缺失；诊断可手填；这是历史数据归属问题，不是本轮结束。</td></tr>
+          <tr><td>喂养时间晚于设备关联终点</td><td>证据不可用</td><td>同上；需重新关联设备或手填起始高度。</td></tr>
+          <tr><td>已存在更晚喂养</td><td>本轮直接显示已结束；结束本轮隐藏</td><td>无需也无法手动结束；诊断本轮可查看历史轮次。</td></tr>
+          <tr><td>结束请求失败</td><td>操作卡顶部错误；面板仍在</td><td>可重试或放弃；本轮继续按时间增长，不会被误标结束。</td></tr>
+          <tr><td>喂养保存网络中断</td><td>草稿冻结 + 错误提示</td><td>重试沿用同一请求编号；不会重复新增，也不会丢失已填内容。</td></tr>
+          <tr><td>本机存储不可用</td><td>喂养页红色提示</td><td>提交会被拦截，避免无法保证刷新后安全重试。</td></tr>
+          <tr><td>诊断缺少 feeding 参数</td><td>「预填信息暂不可用，可继续手工填写」</td><td>仍可完成三步并生成建议，只是没有自动证据。</td></tr>
+          <tr><td>诊断证据过期（&gt;40 分钟）</td><td>提示最新高度或温度证据已过期</td><td>不预填对应字段；用户可重新测量或手工确认。</td></tr>
+          <tr><td>建议未登录 / 未选酵种</td><td>保存按钮禁用或提示</td><td>结果仍可在本机阅读、复制；登录并选酵种后可云端保存。</td></tr>
+          <tr><td>同一观察重复保存</td><td>已保存后按钮禁用</td><td>沿用原请求编号，避免重复记录。</td></tr>
+          <tr><td>刷新期间切换设备</td><td>旧请求结果被丢弃（代次校验）</td><td>只展示最后一次选择对应的数据，不串数据。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <b>最容易被误读的一点：</b>「设备没数据」「数据偏旧」「传感器故障」都不等于本轮结束；只有「下一次喂养」或「手动结束」才会关闭窗口。因此结束按钮的可见性请以「本轮状态」为准，而不是以曲线是否为空为准。
+    </div>
+  </div>
+</section>
+
+<footer>
+  依据当前移动端实现整理：MobileToday.vue、MobileFeeding.vue、MobileCheckin.vue、MobileReport.vue、feeding-analysis.service.js、fermentation-window.service.js、mobile-diagnosis.service.js、height-alert.service.js、router/index.js。<br>
+  说明：本图只描述界面可达状态与写入效果，不包含服务端 RLS 与推送投递细节。
+</footer>
+
+</div>
+</body>
+</html>

@@ -11,6 +11,7 @@ import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentati
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import SeriesChart from '../../components/SeriesChart.vue';
 import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
+import { CLOSE_REASON_LABELS } from '../../lib/mobile-records.js';
 
 defineOptions({ name: 'MobileToday' });
 const auth = useAuth();
@@ -49,7 +50,6 @@ const lastAdvice = computed(() => {
 const riskAdvice = computed(() => ['discard', 'needs-check'].includes(lastAdvice.value?.result?.status));
 const from = computed(() => new Date(now.value - 24 * 3600000).toISOString());
 const to = computed(() => new Date(now.value).toISOString());
-const eligibleStarters = computed(() => starters.value.filter((item) => !item.link?.device_id || item.link.device_id === deviceId.value));
 const summary = computed(() => feeding.value ? summarizeFeedingMeasurements({
   measurements: evidence.value || measurements.value,
   feeding: feeding.value,
@@ -90,18 +90,17 @@ const heightMarkers = computed(() => {
 // 基线来源跟在图内基线标签后，页面上不再单独重复一行基线。
 const baselineNote = computed(() => summary.value?.baselineSource === 'manual' ? '手工' : '自动');
 const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '-');
-const closeReasonLabels = { fallen: '峰值后回落', no_peak: '未见明显峰值', abnormal: '中途异常', record_only: '手动结束记录' };
-// 已结束的轮次必须说清是「被下一次喂养截断」还是「手动结束」，手动结束还要带上原因。
+// 手动结束的原因与记录页共用一份文案，避免同一事实出现两种说法。
 const endReasonText = computed(() => {
   const value = summary.value;
   if (value?.windowStatus !== 'closed') return '';
   if (value.windowEndReason === 'next_feeding') return '下一次喂养';
-  return closeReasonLabels[closure.value?.detail] || '手动结束';
+  return CLOSE_REASON_LABELS[closure.value?.detail] || '手动结束';
 });
 const roundStateText = computed(() => {
   const value = summary.value;
   if (!value) return '';
-  if (value.windowStatus === 'closed') return `已结束 · ${endReasonText.value}`;
+  if (value.windowStatus === 'closed') return '已结束';
   if (value.baselineStatus === 'pending') return '基线建立中';
   if (value.dataQuality === 'stale') return '进行中 · 数据中断';
   if (value.dataQuality === 'insufficient' || value.dataQuality === 'partial') return '进行中 · 数据不足';
@@ -149,13 +148,31 @@ const windowRange = computed(() => {
   const end = value.windowClosedAt || new Date(now.value).toISOString();
   return compactTimeRange(value.windowFrom, end);
 });
+// 本轮只回答三件事：何时开始、持续多久、为什么结束；不再重复展示「上次喂养」。
+const roundElapsed = computed(() => {
+  const start = Date.parse(summary.value?.windowFrom);
+  if (!Number.isFinite(start)) return '';
+  const end = Date.parse(summary.value?.windowClosedAt) || now.value;
+  if (!Number.isFinite(end) || end < start) return '';
+  const minutes = Math.max(0, Math.floor((end - start) / 60000));
+  if (minutes < 60) return `${minutes} 分钟`;
+  const hours = minutes / 60;
+  return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} 小时`;
+});
+const roundHint = computed(() => {
+  const value = summary.value;
+  if (!value?.windowFrom) return '';
+  if (value.windowStatus !== 'closed') return '下一次喂养会自动结束本轮。';
+  return value.windowEndReason === 'manual'
+    ? `结束原因：${endReasonText.value}`
+    : '已由下一次喂养结束，新轮从那次喂养开始。';
+});
+// 说明「结束」和「诊断」各自的边界，避免把它们当成同一件事。
+const actionNote = computed(() => summary.value?.windowActive
+  ? '结束本轮会固定终点且不能撤销；诊断需 3 步，只生成建议。'
+  : '本轮已结束，可诊断回看，或记录下一次喂养开启新轮。');
 // 设备缺测只说明观测质量，不能暗示发酵已经结束。
-const closeReasons = [
-  { value: 'fallen', label: '已达到峰值后回落' },
-  { value: 'no_peak', label: '没有明显达到峰值' },
-  { value: 'abnormal', label: '中途异常，无法判断' },
-  { value: 'record_only', label: '只是想结束记录' }
-];
+const closeReasons = Object.entries(CLOSE_REASON_LABELS).map(([value, label]) => ({ value, label }));
 
 // 曲线只关心「这一条到底有没有值」；休眠/传感器故障行里的温湿度仍应正常绘制。
 function valid(row, key) { return row ? number(row[key]) : null; }
@@ -197,6 +214,11 @@ function selectStarter(id) {
   const item = starters.value.find((row) => row.id === id);
   if (id && (!item || item.link?.device_id && item.link.device_id !== deviceId.value)) return;
   generation++; explicitStarter.value = true; starterId.value = id || ''; starterOpen.value = false; clearSelected(); void refresh();
+}
+// 未选酵种时提供一个直达入口，避免用户只在页脚看到一句提示。
+function openStarterPicker() {
+  contextOpen.value = true;
+  starterOpen.value = true;
 }
 async function refresh() {
   if (disposed || !accountId.value) return;
@@ -332,7 +354,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
       </div>
       <div v-if="accountId && contextOpen" class="picker-row">
         <details class="picker" :open="deviceOpen" @toggle="deviceOpen = $event.target.open"><summary><span class="picker-label">酵种罐</span><span class="picker-value">{{ activeDevice?.name || activeDevice?.device_id || '未选择' }}</span></summary><div class="picker-menu"><button v-for="item in devices" :key="item.device_id" type="button" :class="{ active: item.device_id === deviceId }" @click="selectDevice(item.device_id)">{{ item.name || item.device_id }}</button><RouterLink to="/me/devices?bind=1">新增/连接酵种罐</RouterLink></div></details>
-        <details class="picker" :open="starterOpen" @toggle="starterOpen = $event.target.open"><summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary><div class="picker-menu starter-menu"><button type="button" :class="{ active: !starterId }" @click="selectStarter('')">不选择酵种</button><button v-for="item in eligibleStarters" :key="item.id" type="button" :class="{ active: item.id === starterId }" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? '已关联当前设备' : '未关联设备 · 仅查看记录' }}</small></button><button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button><form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建并关联当前设备' }}</button></form><button v-if="starterId && !link && deviceId" class="menu-action" type="button" :disabled="saving || loading" @click="associateSelected">关联当前设备</button></div></details>
+        <details class="picker" :open="starterOpen" @toggle="starterOpen = $event.target.open"><summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary><div class="picker-menu starter-menu"><button type="button" :class="{ active: !starterId }" @click="selectStarter('')">仅查看设备数据</button><button v-for="item in starters" :key="item.id" type="button" :class="{ active: item.id === starterId }" :disabled="!!item.link?.device_id && item.link.device_id !== deviceId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? (item.link.device_id === deviceId ? '已关联当前设备' : '已关联其他设备 · 切换设备后可选') : '未关联设备 · 仅查看记录' }}</small></button><button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button><form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建并关联当前设备' }}</button></form><button v-if="starterId && !link && deviceId" class="menu-action" type="button" :disabled="saving || loading" @click="associateSelected">关联当前设备</button></div></details>
       </div>
     </header>
     <p v-if="accountId && (!devices.length || !starters.length)" class="m-muted small picker-hint">{{ !devices.length ? '还没有酵种罐，先在「酵种罐」中新增或连接设备。' : '还没有酵种，在「酵种」中新建。' }}</p>
@@ -344,7 +366,8 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
       <div v-if="starterId" class="round-section">
         <section v-if="feeding" class="round-card">
           <div class="round-head"><strong>本轮发酵</strong><span class="round-state" :data-tone="roundTone">{{ roundStateText }}</span></div>
-          <p class="round-window"><span class="round-cell"><span class="round-label">持续时间：</span><span v-if="windowRange" class="compact-range" :title="`${windowRange.fullFrom} – ${windowRange.fullTo}`"><span v-if="windowRange.crossDay" class="day-offset">{{ windowRange.offset }}</span><span>{{ windowRange.from }}</span><span class="range-separator">–</span><span>{{ windowRange.to }}</span></span><span v-else class="round-since">未开始</span></span><span class="round-cell"><span class="round-label">上次喂养：</span><span class="round-since">{{ relative(feeding.occurred_at) }}</span></span></p>
+          <p class="round-window"><span class="round-cell"><span class="round-label">本轮：</span><span v-if="windowRange" class="compact-range" :title="`${windowRange.fullFrom} – ${windowRange.fullTo}`"><span v-if="windowRange.crossDay" class="day-offset">{{ windowRange.offset }}</span><span>{{ windowRange.from }}</span><span class="range-separator">–</span><span>{{ windowRange.to }}</span></span><span v-else class="round-since">未开始</span></span><span class="round-cell"><span class="round-label">已持续：</span><span class="round-since">{{ roundElapsed || '—' }}</span></span></p>
+          <p v-if="roundHint" class="round-note">{{ roundHint }}</p>
         </section>
         <section v-else class="round-card round-empty">
           <img class="jojo-mascot jojo-empty" src="/assets/jojo2.png" alt="Jojo 吉祥物" loading="lazy">
@@ -354,7 +377,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
         </section>
       </div>
         <section v-if="deviceId" class="chart-card">
-          <div class="chart-title"><strong>{{ starter ? starter.name : '未关联酵种的设备数据' }}</strong><span>{{ chartRangeLabel }}</span></div>
+          <div class="chart-title"><strong>{{ starter ? starter.name : '设备数据（未选择酵种）' }}</strong><span>{{ chartRangeLabel }}</span></div>
           <p v-if="chartNote" class="chart-note">{{ chartNote }}</p>
           <SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" :baseline-note="baselineNote" :markers="heightMarkers" :from="chartFrom" :to="chartTo" marker-labels compact-time>
             <template #label><span class="height-label">高度</span><span class="expansion-label">/膨胀率</span></template>
@@ -369,18 +392,23 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
           <RouterLink class="m-primary action-wide" :to="target('/feeding')">记录下一次喂养</RouterLink>
           <template v-if="summary?.windowActive">
             <button v-if="!closeOpen" type="button" class="m-secondary" @click="closeOpen = true">结束本轮</button>
-            <RouterLink class="m-secondary" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">查看详情</RouterLink>
             <div v-if="closeOpen" class="close-panel action-wide" role="group" aria-label="结束本轮原因">
-              <p>这次发酵处于什么状态？</p>
+              <p>为什么结束本轮？</p>
+              <p class="close-note">结束后会固定本轮终点，不能撤销；仍可诊断回看。</p>
               <button v-for="option in closeReasons" :key="option.value" type="button" :disabled="closing" @click="endRound(option.value)">{{ option.label }}</button>
               <button type="button" class="text-button" :disabled="closing" @click="closeOpen = false">继续观察</button>
             </div>
+            <RouterLink class="m-secondary" :class="{ 'action-wide': closeOpen }" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">诊断本轮</RouterLink>
           </template>
-          <RouterLink v-else class="m-secondary action-wide" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">查看详情</RouterLink>
+          <RouterLink v-else class="m-secondary action-wide" :to="target('/checkin', { feeding: feeding.id, mode: 'diagnosis' })">诊断本轮</RouterLink>
         </div>
+        <p class="action-note">{{ actionNote }}</p>
       </section>
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
-      <p v-if="!starterId" class="m-muted small picker-hint">选择酵种后可记录喂养，并查看这一轮发酵。</p>
+      <p v-if="!starterId" class="picker-hint picker-hint-row">
+        <span class="m-muted small">选择酵种后可记录喂养，并查看这一轮发酵。</span>
+        <button type="button" class="link-action" @click="openStarterPicker">选择酵种</button>
+      </p>
     </template>
   </main>
 </template>
@@ -390,5 +418,11 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
 .eyebrow{font-size:.72rem;letter-spacing:.12em;color:var(--m-accent,#a44213);font-weight:700;margin:0 0 .25rem}.picker summary::after{content:'▾';margin-left:auto;padding-left:.75rem}.picker[open] summary::after{content:'▴'}.picker-hint{margin:0 0 .5rem}.jar-status{display:flex;align-items:center;gap:.4rem;min-width:0;min-height:38px;padding:0 .75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:var(--radius-control);background:var(--m-surface,#fffdf8);font-family:inherit;font-size:.72rem;line-height:1.2;color:var(--m-muted,#625e56)}.status-toggle{flex:1;text-align:left;cursor:pointer}.status-caret{flex:none;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;transition:transform var(--motion-fast) var(--ease-standard)}.status-toggle[aria-expanded="true"] .status-caret{transform:rotate(180deg)}.jar-dot{width:7px;height:7px;border-radius:50%;background:#9b958a;flex:none}.jar-status strong{font-size:.75rem;font-weight:700;color:var(--text-primary,#30251f)}.jar-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.jar-status[data-tone="ok"] .jar-dot{background:#2B7A55}.jar-status[data-tone="warn"] .jar-dot{background:#B4761F}.jar-status[data-tone="fault"] .jar-dot{background:#A12C23}.jar-status[data-tone="fault"] strong{color:#A12C23}.chart-note{margin:-.4rem 0 .6rem;font-size:.7rem;line-height:1.5;color:var(--m-muted,#625e56)}.action-card{display:grid;gap:.55rem;margin:.75rem 0;padding:.7rem;border:1px solid var(--border-subtle);border-radius:var(--m-radius-card);background:var(--m-card);box-shadow:var(--m-shadow)}.action-head strong{font-size:.9rem}.action-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.45rem}.action-grid>.m-primary,.action-grid>.m-secondary{min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center}.action-wide{grid-column:1/-1}.menu-action{cursor:pointer;color:var(--m-accent,#a44213)}.round-section{display:grid;gap:.5rem;margin:.75rem 0}.round-section>*,.round-empty{min-width:0;padding:.7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px;background:var(--m-card,#fff);font-size:.8rem;line-height:1.4}.round-card{display:grid;gap:.45rem}.round-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem}.round-head strong{font-size:.9rem}.round-state{padding:.15rem .5rem;border-radius:var(--radius-badge);font-size:.7rem;font-weight:600;color:#2B7A55;background:#e7f4ed;white-space:nowrap}.round-state[data-tone="warn"]{color:#8a5a12;background:#fbefd9}.round-state[data-tone="neutral"]{color:#625e56;background:#efeae2}.round-window{margin:0;font-size:.75rem;color:var(--m-muted,#625e56);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:.35rem}.round-cell{display:flex;align-items:center;gap:.18rem;min-width:0;white-space:nowrap}.round-label{flex:none;font-weight:700;color:var(--text-primary,#30251f)}.round-since{flex:none;font-weight:600;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums}.compact-range{display:inline-flex;align-items:center;gap:.18rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--text-primary,#30251f);font-weight:700}.range-separator{color:var(--m-muted,#625e56)}.day-offset{display:inline-grid;place-items:center;min-width:.68rem;height:.68rem;padding:0 .04rem;border-radius:var(--radius-badge);background:#f2dcd7;color:#a4524a;font-size:.46rem;line-height:1;font-weight:600}.close-panel{display:grid;gap:.35rem;padding:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:10px}.close-panel p{margin:0;font-size:.75rem;color:var(--m-muted,#625e56)}.close-panel button{min-height:40px;padding:.4rem .6rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:var(--m-surface,#fffdf8);font:inherit;text-align:left;cursor:pointer}.close-panel .text-button{text-align:center;color:var(--m-accent,#a44213);border:0;background:none}.round-empty{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;margin:.75rem 0}.round-empty-action{flex-basis:100%;text-align:center}.round-empty-copy{display:grid;gap:.35rem;min-width:0}.round-empty strong{font-size:.9rem}.round-empty p{margin:0;font-size:.78rem;line-height:1.5;color:var(--m-muted,#625e56)}.jojo-mascot{display:block;object-fit:contain;flex:none}.jojo-login{width:min(52vw,190px);height:auto;margin:.2rem auto .85rem}.jojo-empty{width:72px;height:72px}.chart-card :deep(.chart-feature .series-plot),.small-charts :deep(.series-plot){position:relative;height:76px}.chart-card :deep(.chart-feature .series-plot){height:180px}.chart-card :deep(svg){display:block;width:100%;height:76px}.chart-card :deep(.chart-feature svg){height:180px}.chart-card :deep(.series-line){fill:none;stroke-width:1.5}.chart-card :deep(.chart-feature .series-line){stroke-width:2}.chart-card :deep(.series-chart){--series-stroke:1.5px}.chart-card :deep(.chart-feature){--series-stroke:2px}.chart-card :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3}.chart-card :deep(.series-dot),.chart-card :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}.chart-card :deep(.series-dot){border-radius:0}.chart-card :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}.chart-card :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.25rem;min-width:0}.chart-card :deep(.series-time-range){white-space:nowrap}.chart-card :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.25rem;margin-bottom:.25rem;min-width:0}.chart-card :deep(.series-label){min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700}.chart-card :deep(.series-headline){min-width:0;flex-wrap:nowrap;gap:.25rem}.chart-card :deep(.series-value),.chart-card :deep(.series-delta){flex-shrink:0}.chart-card :deep(.series-value){font-size:.9rem}.chart-card :deep(.series-delta){font-size:.7rem}.small-charts :deep(.series-delta){display:none}.small-charts{padding-top:.65rem;border-top:1px solid var(--m-border,#d8d2c8)}.picker-menu button,.picker-menu a{border-left:0;border-right:0}.picker-menu button.active{background:color-mix(in srgb,var(--m-accent,#a44213) 8%,transparent)}
 .chart-card :deep(.chart-feature .series-value){font-size:1.75rem;letter-spacing:-.04em;font-variant-numeric:tabular-nums}.chart-card :deep(.series-headline){display:flex;align-items:baseline;gap:.25rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}.height-label{font-size:1.1rem}.expansion-label{font-size:.7rem;font-weight:700;color:var(--m-muted,#625e56)}.height-expansion{flex-shrink:0;white-space:nowrap;font-size:.85rem;font-weight:700;line-height:1.3;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums}.chart-card :deep(.chart-feature .series-label){white-space:nowrap;flex-shrink:0}.chart-card :deep(.chart-feature .series-delta){display:none}.chart-card :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card);border:1px solid var(--m-border);padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}.chart-card :deep(.series-tip span){display:block;color:var(--m-muted)}.chart-card :deep(.series-guide){stroke:var(--m-muted);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}.chart-card :deep(.series-grid){stroke-dasharray:2 2}.chart-card :deep(.series-empty){min-height:76px;display:grid;place-items:center;font-size:.8rem;color:var(--m-muted);background:var(--m-surface)}.chart-card :deep(.chart-feature .series-empty){min-height:180px}.chart-title{margin-bottom:.65rem}.round-section{align-items:stretch}
 @media(max-width:380px){.action-grid{gap:.35rem}.action-grid>.m-primary,.action-grid>.m-secondary{font-size:.82rem}}
+.round-note,.action-note{margin:0;font-size:.7rem;line-height:1.5;color:var(--m-muted,#625e56)}
+.action-note{font-size:.68rem}
+.close-panel .close-note{font-size:.68rem}
+.picker-hint-row{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
+.link-action{min-height:32px;padding:0 .7rem;border:1px solid var(--m-border,#d8d2c8);border-radius:var(--radius-control);background:var(--m-surface,#fffdf8);color:var(--m-accent,#a44213);font:inherit;font-size:.76rem;font-weight:600;cursor:pointer}
+.starter-menu button:disabled{cursor:not-allowed;opacity:.55}
 
 </style>
