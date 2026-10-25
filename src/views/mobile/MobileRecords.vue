@@ -172,6 +172,7 @@ function roundItem(row, carried, now) {
     tone: state.tone,
     deviceId: row.deviceId || '',
     baseline: baseline > 0 ? baseline : null,
+    windowTo: new Date(to).toISOString(),
     to: recordsDetailTarget(row, returnTo())
   };
 }
@@ -202,7 +203,9 @@ const timeline = computed(() => {
   for (const row of model.value.events) items.push(row.kind === 'feeding' ? roundItem(row, false, now) : observationItem(row));
   return items.sort((a, b) => a.at - b.at);
 });
-const roundItems = computed(() => timeline.value.filter((item) => item.kind === 'round'));
+const roundItems = computed(() => timeline.value
+  .filter((item) => item.kind === 'round')
+  .map((item, index) => ({ ...item, index: index + 1 })));
 const observationItems = computed(() => timeline.value.filter((item) => item.kind === 'observation'));
 // 单日数据直接铺在记录页：全天固定横轴，喂养时刻作为高度图上的竖线。
 const dayStartIso = computed(() => new Date(`${selectedDay.value}T00:00:00`).toISOString());
@@ -228,13 +231,13 @@ const chartGroups = computed(() => {
   });
 });
 const sampleCount = computed(() => chartGroups.value.reduce((sum, group) => sum + group.count, 0));
-const feedingMarkers = computed(() => {
-  const start = Date.parse(dayStartIso.value);
-  const end = Date.parse(dayEndIso.value);
-  return roundItems.value
-    .filter((item) => item.at >= start && item.at < end)
-    .map((item) => ({ t: new Date(item.at).toISOString(), label: '开始喂养', accent: item.tone === 'active' }));
-});
+// 图表阴影与下方窗口一一对应，序号也一致；进行中的窗口延伸到现在。
+const windowBands = computed(() => roundItems.value.map((item) => ({
+  from: new Date(item.at).toISOString(),
+  to: item.windowTo,
+  label: String(item.index),
+  active: item.tone === 'active' || item.tone === 'pending'
+})));
 const daySummary = computed(() => {
   const value = model.value;
   if (!value) return '';
@@ -458,17 +461,17 @@ onUnmounted(() => {
             <article v-for="(group, index) in chartGroups" :key="group.id" class="chart-card">
               <p v-if="chartGroups.length > 1" class="chart-device">设备 {{ index + 1 }}</p>
               <div class="chart-grid">
-                <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="group.height" :baseline="group.baseline" :from="dayStartIso" :to="dayEndIso" :markers="feedingMarkers" />
-                <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="group.temperature" :from="dayStartIso" :to="dayEndIso" />
-                <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="group.humidity" :from="dayStartIso" :to="dayEndIso" />
-                <SeriesChart label="电量" unit="%" color="#7A5C14" :points="group.battery" :from="dayStartIso" :to="dayEndIso" />
+                <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="group.height" :baseline="group.baseline" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" band-labels />
+                <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="group.temperature" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" />
+                <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="group.humidity" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" />
+                <SeriesChart label="电量" unit="%" color="#7A5C14" :points="group.battery" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" />
               </div>
               <div class="chart-foot">
                 <span v-if="group.partial" class="chart-warning">部分采样未完整加载</span>
                 <RouterLink class="chart-detail" :to="group.to">数据明细<span aria-hidden="true">›</span></RouterLink>
               </div>
             </article>
-            <p v-if="feedingMarkers.length" class="chart-note">高度图中的虚线为每次喂养开始的时刻。</p>
+            <p v-if="windowBands.length" class="chart-note">阴影为发酵窗口，序号与下方一致；实线开始、虚线结束，蓝色为进行中。</p>
           </section>
           <section v-if="roundItems.length" class="record-group round-group">
             <h2 class="record-group-title">
@@ -477,7 +480,7 @@ onUnmounted(() => {
             </h2>
             <RouterLink v-for="item in roundItems" :key="item.id" class="m-list-row record-row round-row" :to="item.to">
               <span class="record-main">
-                <span class="record-head"><strong class="record-title" :title="item.titleTip">{{ item.title }}</strong><span v-if="item.offset" class="day-offset">{{ item.offset }}</span></span>
+                <span class="record-head"><span class="round-index" :aria-label="`第 ${item.index} 轮`">{{ item.index }}</span><strong class="record-title" :title="item.titleTip">{{ item.title }}</strong><span v-if="item.offset" class="day-offset">{{ item.offset }}</span></span>
                 <small class="record-sub">{{ item.sub }}</small>
                 <span v-if="item.facts.length" class="window-facts">
                   <span v-for="fact in item.facts" :key="fact.text" class="window-fact" :data-tone="fact.tone">{{ fact.text }}</span>
@@ -590,6 +593,7 @@ onUnmounted(() => {
 .round-row .record-side{padding-top:.15rem}
 @media(max-width:360px){.day-card .round-row{flex-wrap:wrap}.round-row .record-side{margin-left:auto}}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
+.round-index{display:inline-grid;place-items:center;flex:none;min-width:1.05rem;height:1.05rem;padding:0 .2rem;border-radius:50%;background:#a44213;color:#fff;font-size:.6rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .record-row .record-title{font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
 .record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
 .record-row .record-sub{font-size:.74rem;color:var(--text-secondary,#5f574e)}

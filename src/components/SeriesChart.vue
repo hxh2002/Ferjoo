@@ -17,7 +17,11 @@ const props = defineProps({
   // 需要标注的关键节点，例如开始喂养的时间；用竖直虚线标在曲线上。
   markers: { type: Array, default: () => [] }, // [{ t: ISO string, label: string, row?: 'top' | 'bottom', accent?: boolean }]
   // 只有明确要求时才在图内显示节点文字，避免影响其他调用方的紧凑布局。
-  markerLabels: { type: Boolean, default: false }
+  markerLabels: { type: Boolean, default: false },
+  // 发酵窗口等连续区间：整段铺浅色底并在起止处连线，比单点标记更能说明覆盖范围。
+  bands: { type: Array, default: () => [] }, // [{ from, to, label, active }]
+  // 序号只画在最能代表时间线的图上，其余图表仅保留区间底色。
+  bandLabels: { type: Boolean, default: false }
 });
 
 const W = 100;
@@ -267,6 +271,50 @@ const markerLines = computed(() => {
       };
     });
 });
+// 区间按固定横轴裁切：跨天窗口只显示落在当天的一段，仍在进行的窗口保留到观测末端。
+const bandRects = computed(() => {
+  if (!props.bands?.length || !stats.value) return [];
+  const start = domain.value?.start ?? new Date(stats.value.firstAt).getTime();
+  const end = domain.value?.end ?? new Date(stats.value.lastAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+  return props.bands.map((band, index) => {
+    const from = Date.parse(band?.from);
+    if (!Number.isFinite(from)) return null;
+    const rawTo = Date.parse(band?.to);
+    const to = Number.isFinite(rawTo) ? rawTo : end;
+    if (to <= start || from >= end) return null;
+    const left = Math.max(from, start);
+    const right = Math.min(to, end);
+    const x1 = round(PAD_X + ((left - start) / (end - start)) * (W - PAD_X * 2));
+    const x2 = round(PAD_X + ((right - start) / (end - start)) * (W - PAD_X * 2));
+    if (x2 - x1 < 0.2) return null;
+    const percent = (x1 / W) * 100;
+    return {
+      key: `${band?.label || index}-${from}`,
+      x1, x2, width: x2 - x1,
+      showStart: from >= start,
+      showEnd: Number.isFinite(rawTo) && rawTo <= end,
+      label: band?.label || '',
+      active: !!band?.active,
+      alt: index % 2 === 1,
+      align: percent < 6 ? 'start' : percent > 94 ? 'end' : 'center'
+    };
+  }).filter(Boolean);
+});
+const bandBadges = computed(() => {
+  let lastX = -Infinity;
+  let row = 0;
+  return bandRects.value
+    .filter((band) => band.label)
+    .slice()
+    .sort((a, b) => a.x1 - b.x1)
+    .map((band) => {
+      // 连续多次喂养时序号会靠得很近，交替上下错开避免叠在一起。
+      row = band.x1 - lastX < 7 ? (row + 1) % 2 : 0;
+      lastX = band.x1;
+      return { ...band, row };
+    });
+});
 </script>
 
 <template>
@@ -288,6 +336,33 @@ const markerLines = computed(() => {
               <stop offset="100%" :stop-color="color" stop-opacity="0" />
             </linearGradient>
           </defs>
+          <g v-for="band in bandRects" :key="`band-${band.key}`">
+            <rect
+              class="series-band"
+              :class="{ active: band.active, alt: band.alt }"
+              :x="band.x1"
+              y="0"
+              :width="band.width"
+              :height="H"
+            />
+            <line
+              v-if="band.showStart"
+              class="series-band-edge start"
+              :x1="band.x1"
+              :x2="band.x1"
+              y1="0"
+              :y2="H"
+            />
+            <line
+              v-if="band.showEnd"
+              class="series-band-edge"
+              :class="band.active ? 'now' : 'end'"
+              :x1="band.x2"
+              :x2="band.x2"
+              y1="0"
+              :y2="H"
+            />
+          </g>
           <line
             v-for="y in gridYs"
             :key="y"
@@ -328,6 +403,15 @@ const markerLines = computed(() => {
             :y2="H"
           />
         </svg>
+        <template v-if="bandLabels">
+          <span
+            v-for="band in bandBadges"
+            :key="`band-badge-${band.key}`"
+            class="series-band-badge"
+            :class="[band.align, { raised: band.row === 1 }]"
+            :style="{ left: `${(band.x1 / W) * 100}%` }"
+          >{{ band.label }}</span>
+        </template>
         <span
           v-for="(marker, index) in markerLines"
           :key="`marker-${index}`"
@@ -374,6 +458,38 @@ const markerLines = computed(() => {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+/* 发酵窗口整段底色：相邻轮次用两种极浅的深浅交替，仍能看出边界。 */
+.series-band { fill: rgba(48, 37, 31, .045); }
+.series-band.alt { fill: rgba(48, 37, 31, .075); }
+.series-band.active { fill: rgba(43, 108, 176, .10); }
+.series-band-edge { stroke: rgba(164, 66, 19, .45); stroke-width: .7; vector-effect: non-scaling-stroke; }
+.series-band-edge.start { stroke: rgba(164, 66, 19, .85); }
+.series-band-edge.end { stroke-dasharray: 2 2; }
+.series-band-edge.now { stroke: rgba(43, 108, 176, .55); stroke-dasharray: 1 2; }
+/* 序号贴在区间起点下方，和记录页的轮次编号一一对应。 */
+.series-band-badge {
+  position: absolute;
+  bottom: 1px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: 11px;
+  height: 11px;
+  padding: 0 2px;
+  border-radius: 50%;
+  background: #a44213;
+  color: #fff;
+  font-size: 6.5px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .85);
+}
+.series-band-badge.start { transform: translateX(0); }
+.series-band-badge.end { transform: translateX(-100%); }
+.series-band-badge.raised { bottom: 13px; }
 /* 喂养等关键节点：从顶部的圆点向下拉一条淡虚线，不抢曲线本身。 */
 .series-marker {
   position: absolute;
