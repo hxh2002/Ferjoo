@@ -1,3 +1,5 @@
+import { READ_TTL, cacheStamp, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
+
 export const BUCKET_MS = 10 * 60 * 1000;
 export const GAP_MS = 40 * 60 * 1000;
 export const METRICS = {
@@ -175,7 +177,26 @@ export async function mobileDeviceService() {
   if (!service) {
     const { supabase } = await import('../lib/supabase.js');
     if (!supabase) throw new Error('SERVICE_UNAVAILABLE');
-    service = createMobileDeviceService(supabase);
+    const base = createMobileDeviceService(supabase);
+    // 设备信息与当天曲线在一段时间内不会变化，页面之间共享同一份读取结果。
+    service = {
+      ...base,
+      listDevices: (userId) => cachedRead(readCacheKey(['device', 'list', userId]), () => base.listDevices(userId), { ttl: READ_TTL.device }),
+      getDevice: (deviceId, userId) => cachedRead(readCacheKey(['device', 'one', deviceId, userId]), () => base.getDevice(deviceId, userId), { ttl: READ_TTL.device }),
+      latest: (deviceId) => cachedRead(readCacheKey(['device', 'latest', deviceId]), () => base.latest(deviceId), { ttl: READ_TTL.records }),
+      // 带 onPage 的渐进渲染必须实时返回，不能复用旧结果。
+      range: (deviceId, options = {}) => options.onPage
+        ? base.range(deviceId, options)
+        : cachedRead(
+          readCacheKey(['device', 'range', deviceId, cacheStamp(options.from), cacheStamp(options.to), options.maxPages ?? '', options.pageSize ?? '']),
+          () => base.range(deviceId, options),
+          { ttl: READ_TTL.device }
+        ),
+      claim: async (code) => { const row = await base.claim(code); invalidateReadCache('device'); invalidateReadCache('links'); return row; },
+      rename: async (deviceId, name) => { const row = await base.rename(deviceId, name); invalidateReadCache('device'); return row; },
+      bind: async (deviceId, userId) => { const row = await base.bind(deviceId, userId); invalidateReadCache('device'); return row; },
+      unbind: async (deviceId, userId) => { const row = await base.unbind(deviceId, userId); invalidateReadCache('device'); return row; }
+    };
   }
   return service;
 }

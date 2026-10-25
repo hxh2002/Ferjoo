@@ -72,6 +72,10 @@ assert.deepEqual(roundState({ windowStatus: 'in_progress', dataQuality: 'stale' 
 assert.deepEqual(roundState({ windowStatus: 'in_progress', baselineStatus: 'established', dataQuality: 'complete' }), { label: '进行中', tone: 'active' });
 // 离开记录页后 query 必然变化；读取与规范化都必须限定在本页，否则会把详情页或今日页顶回列表。
 assert.match(source, /onRecordsPage/);
+// 再次进入只有写入过数据才丢弃当日缓存，否则直接复用，避免每次进页都重新加载。
+assert.match(source, /const changed = readRevision\(\) !== loadedRevision/);
+assert.match(source, /if \(changed\) loader\.clear\(\)/);
+assert.match(source, /const keep = !!model\.value && loadedPosition === position/);
 const days = recentRecordDays(new Date(2026, 9, 22, 23, 45));
 assert.equal(days.length, 14);
 assert.equal(days[0], '2026-10-09');

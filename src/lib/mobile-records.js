@@ -1,6 +1,12 @@
 import { localDateTimeValue } from './localDateTime.js';
 import { summarizeFeedingMeasurements } from '../services/feeding-analysis.service.js';
 import { METRICS, metricValue, qualityLabel } from '../services/mobile-device.service.js';
+import { readCacheKey, readRevision } from './read-cache.js';
+
+// 轮次证据读取较重：同一次修订内跨页面复用，写入后修订号变化自然换键。
+export function feedingEvidenceCacheKey(userId, starterId, feedingId) {
+  return readCacheKey(['care', 'record', 'evidence', readRevision(), userId, starterId, feedingId]);
+}
 
 export const RECORD_PAGE_SIZE = 40;
 export const localDayKey = (value = new Date()) => localDateTimeValue(new Date(value)).slice(0, 10);

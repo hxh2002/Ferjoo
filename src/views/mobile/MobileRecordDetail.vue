@@ -5,7 +5,8 @@ import { useAuth } from '../../composables/useAuth.js';
 import { getCareRecord, listStarters } from '../../services/care.service.js';
 import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { describeField } from '../../services/mobile-diagnosis.service.js';
-import { CLOSE_REASON_LABELS, roundState } from '../../lib/mobile-records.js';
+import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
+import { READ_TTL, cachedRead } from '../../lib/read-cache.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -116,7 +117,12 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
     // 轮次详情与记录页共用同一份证据，避免列表和详情对状态给出不同结论。
     const [starters, proof] = await Promise.all([
       listStarters({ userId }).catch(() => []),
-      loadFeedingEvidence(userId, value.starter_id, value.id).catch((cause) => ({ error: cause }))
+      // 证据包含整轮采样，短时间内重复进入直接复用；任何写入都会推进修订号使旧结果失效。
+      cachedRead(
+        feedingEvidenceCacheKey(userId, value.starter_id, value.id),
+        () => loadFeedingEvidence(userId, value.starter_id, value.id),
+        { ttl: READ_TTL.records }
+      ).catch((cause) => ({ error: cause }))
     ]);
     if (token !== generation) return;
     name.value = starters.find((item) => item.id === value.starter_id)?.name || '名称不可用';

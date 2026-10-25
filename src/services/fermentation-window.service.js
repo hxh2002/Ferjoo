@@ -1,4 +1,5 @@
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
+import { READ_TTL, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
 
 const FIELDS = 'id, starter_id, feeding_id, ended_at, reason, detail';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -34,7 +35,8 @@ async function run(operation) {
 }
 
 export function loadWindowClosure(userId, feedingId) {
-  return run(async () => {
+  const key = readCacheKey(['window', 'closure', userId ?? '', feedingId ?? '']);
+  return cachedRead(key, () => run(async () => {
     const { data, error } = await requireClient().from('fermentation_window_closures')
       .select(FIELDS)
       .eq('user_id', requiredUuid(userId, '账号 ID'))
@@ -42,12 +44,13 @@ export function loadWindowClosure(userId, feedingId) {
       .maybeSingle();
     if (error) throw error;
     return data || null;
-  });
+  }), { ttl: READ_TTL.window });
 }
 
 export function loadWindowClosures(userId, feedingIds) {
-  return run(async () => {
-    const ids = [...new Set(Array.isArray(feedingIds) ? feedingIds : [])];
+  const ids = [...new Set(Array.isArray(feedingIds) ? feedingIds : [])].sort();
+  const key = readCacheKey(['window', 'closures', userId ?? '', ids.join(',')]);
+  return cachedRead(key, () => run(async () => {
     if (!ids.length) return [];
     const { data, error } = await requireClient().from('fermentation_window_closures')
       .select(FIELDS)
@@ -56,7 +59,7 @@ export function loadWindowClosures(userId, feedingIds) {
       .limit(200);
     if (error) throw error;
     return data || [];
-  });
+  }), { ttl: READ_TTL.window });
 }
 
 export function closeFeedingWindow({ feedingId, endedAt, detail = null } = {}) {
@@ -71,6 +74,7 @@ export function closeFeedingWindow({ feedingId, endedAt, detail = null } = {}) {
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) throw new Error('结束本轮失败，请稍后重试。');
+    invalidateReadCache('window');
     return row;
   });
 }

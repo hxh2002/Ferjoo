@@ -1,4 +1,5 @@
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
+import { READ_TTL, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
 
 const RECORD_FIELDS = 'id, kind, starter_id, occurred_at, input, result, ratio';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -70,13 +71,14 @@ function record(row) {
 }
 
 export function listStarters({ userId } = {}) {
-  return run(async () => {
+  const key = readCacheKey(['care', 'starters', userId ?? 'all']);
+  return cachedRead(key, () => run(async () => {
     let query = requireClient().from('starters').select('id, name').order('created_at', { ascending: false });
     if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
     const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(({ id, name }) => ({ id, name }));
-  });
+  }), { ttl: READ_TTL.starter });
 }
 
 export function createStarter(name) {
@@ -84,12 +86,14 @@ export function createStarter(name) {
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) fail('酵种名称需为 1 至 80 个字符。');
     const { data, error } = await requireClient().from('starters').insert({ name: name.trim() }).select('id, name').single();
     if (error) throw error;
+    invalidateReadCache('care:starters');
     return { id: data.id, name: data.name };
   });
 }
 
 export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, userId, ascending = false } = {}) {
-  return run(async () => {
+  const key = readCacheKey(['care', 'records', userId ?? 'all', starterId ?? '', from ?? '', to ?? '', kind ?? '', limit ?? '', offset, ascending === true]);
+  return cachedRead(key, () => run(async () => {
     const client = requireClient();
     let query = client.from('care_records').select(RECORD_FIELDS).order('occurred_at', { ascending: ascending === true }).order('id', { ascending: ascending === true });
     if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
@@ -109,7 +113,7 @@ export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, 
     const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(record);
-  });
+  }), { ttl: READ_TTL.records });
 }
 
 function saveRecord({ requestId, starterId, occurredAt: when, ratio, input = {}, result = {} }, kind) {
@@ -148,6 +152,9 @@ function saveRecord({ requestId, starterId, occurredAt: when, ratio, input = {},
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) fail('记录保存失败，请稍后重试。');
+    // 新记录会改变轮次边界与最近一次喂养，相关读取必须重新取。
+    invalidateReadCache('care:records');
+    invalidateReadCache('care:record');
     return record(row);
   });
 }
@@ -161,13 +168,14 @@ export function saveObservation(args = {}) {
 }
 
 export function getCareRecord(id, { userId } = {}) {
-  return run(async () => {
+  const key = readCacheKey(['care', 'record', userId ?? 'all', id ?? '']);
+  return cachedRead(key, () => run(async () => {
     let query = requireClient().from('care_records').select(RECORD_FIELDS).eq('id', requiredUuid(id, '记录 ID'));
     if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
     const { data, error } = await query.single();
     if (error) throw error;
     return record(data);
-  });
+  }), { ttl: READ_TTL.records });
 }
 
 export function listDeviceRoles() {

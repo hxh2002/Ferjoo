@@ -87,7 +87,8 @@ function harness() {
     },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
     '../../lib/mobile-selection.js': { rememberSelectedStarter: (owner, id) => state.selection.push([owner, id]) },
-    '../../lib/mobile-records.js': { CLOSE_REASON_LABELS },
+    '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, feedingEvidenceCacheKey: () => 'evidence' },
+    '../../lib/read-cache.js': { invalidateReadCache: () => {}, cachedRead: (key, loader) => loader(), READ_TTL: { records: 0 } },
     '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
   };
   const component = new Function('modules', setupCode)(modules);

@@ -17,6 +17,7 @@ import {
   recordsDetailTarget, roundState, validLocalDay
 } from '../../lib/mobile-records.js';
 import { readSelectedStarter, rememberSelectedStarter } from '../../lib/mobile-selection.js';
+import { readRevision } from '../../lib/read-cache.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -277,6 +278,9 @@ const dayCaption = computed(() => [selectedStarterName.value, daySummary.value |
 
 let generation = 0;
 let disposed = false;
+// 同一位置再次进入时保留已渲染内容，避免重新加载造成闪空。
+let loadedPosition = '';
+let loadedRevision = -1;
 async function load() {
   if (!onRecordsPage()) return;
   const token = ++generation;
@@ -285,7 +289,9 @@ async function load() {
   const currentPage = page.value;
   const starterId = selectedStarterId.value;
   const current = () => !disposed && token === generation && owner === accountId.value && day === selectedDay.value && currentPage === page.value && starterId === selectedStarterId.value && onRecordsPage();
-  model.value = null; hasMore.value = false;
+  const position = positionKey();
+  const keep = !!model.value && loadedPosition === position;
+  if (!keep) { model.value = null; hasMore.value = false; }
   error.value = ''; notice.value = ''; loading.value = false;
   if (!owner) return;
   loading.value = true;
@@ -308,6 +314,8 @@ async function load() {
     if (!current() || !factPage) return;
     hasMore.value = factPage.hasMore;
     model.value = recordsDayModel({ day, facts: factPage.rows, context, devices, now: Date.now() });
+    loadedPosition = position;
+    loadedRevision = readRevision();
     notice.value = [...new Set([...(context?.notices || []), ...(devices?.notices || [])])].join(' ');
   } catch (cause) {
     if (current()) error.value = cause?.message || '记录读取失败，请稍后重试。';
@@ -318,13 +326,14 @@ async function load() {
     }
   }
 }
+let marksLoadedAt = 0;
 async function loadMarks() {
   if (!onRecordsPage()) return;
   const owner = accountId.value;
   const starterId = selectedStarterId.value;
   if (!owner || !starterId) { marks.value = {}; return; }
   const result = await loader.marks(owner, new Date(), starterId, () => !disposed && owner === accountId.value && starterId === selectedStarterId.value).catch(() => null);
-  if (result) marks.value = result;
+  if (result) { marks.value = result; marksLoadedAt = Date.now(); }
 }
 
 function selectDay(value) {
@@ -422,12 +431,14 @@ onMounted(async () => {
   await nextTick();
 });
 let reentered = false;
-// 从详情或记录页返回时丢弃当日缓存：补录与手动结束会改变轮次边界。
+// 从详情或记录页返回时，只有写入过新数据才丢弃当日缓存；否则直接复用已读到的内容。
 onActivated(() => {
   if (!reentered) { reentered = true; return; }
-  loader.clear();
+  const changed = readRevision() !== loadedRevision;
+  if (changed) loader.clear();
   load();
-  loadMarks();
+  // 日期圆点只是近两周索引，写入或超过五分钟才需要重读。
+  if (changed || Date.now() - marksLoadedAt > 5 * 60_000) loadMarks();
 });
 onUnmounted(() => {
   disposed = true;
@@ -477,10 +488,10 @@ onUnmounted(() => {
           <div><strong>{{ dayLabel }}</strong><small>{{ dayCaption }}</small></div>
           <span v-if="isToday" class="day-today">今天</span>
         </div>
-        <p v-if="loading" class="m-muted" role="status">正在读取记录…</p>
+        <p v-if="loading && !model" class="m-muted" role="status">正在读取记录…</p>
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
-        <template v-if="!loading && !error">
+        <template v-if="!error && model">
           <section v-if="roundCards.length" class="record-group round-group">
             <h2 class="record-group-title">
               <span class="group-mark round-mark" aria-hidden="true"></span>发酵轮次

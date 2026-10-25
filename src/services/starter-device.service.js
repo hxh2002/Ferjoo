@@ -1,4 +1,5 @@
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
+import { READ_TTL, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -44,6 +45,12 @@ function accountLocalHistory(userId) {
 }
 
 export async function listStarterDeviceLinks({ userId, starterId } = {}) {
+  // 关联变更频率很低，切换页面时直接复用同一份结果。
+  const cacheKey = readCacheKey(['links', userId ?? '', starterId ?? 'all']);
+  return cachedRead(cacheKey, () => readStarterDeviceLinks(userId, starterId), { ttl: READ_TTL.links });
+}
+
+async function readStarterDeviceLinks(userId, starterId) {
   if (starterId == null) {
     if (!UUID_RE.test(userId || '')) throw new Error('账号 ID 格式不正确。');
     if (!hasSupabaseConfig || !supabase) return accountLocalHistory(userId);
@@ -79,6 +86,7 @@ export async function linkStarterDevice({ userId, starterId, deviceId }) {
   const { data, error } = await client.rpc('link_starter_device', { p_starter_id: starterId, p_device_id: deviceId });
   if (!error) {
     const row = Array.isArray(data) ? data[0] : data;
+    invalidateReadCache('links');
     return row ? { ...row, source: 'cloud', storage_source: 'cloud', local_only: false } : null;
   }
   if (!missingSchema(error)) throw error;
@@ -97,10 +105,11 @@ export async function linkStarterDevice({ userId, starterId, deviceId }) {
     }
     globalThis.localStorage.setItem(storageKey, JSON.stringify(history));
   }
-  if (deviceId === null) return null;
+  if (deviceId === null) { invalidateReadCache('links'); return null; }
   const row = { user_id: userId, starter_id: starterId, device_id: deviceId, active_from: now, active_to: null, created_at: now,
     source: 'local', storage_source: 'local', local_only: true };
   rows.unshift(row);
   globalThis.localStorage.setItem(key(userId, starterId), JSON.stringify(rows));
+  invalidateReadCache('links');
   return row;
 }

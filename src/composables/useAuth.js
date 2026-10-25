@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
 import { getCurrentSession, getProfile, signOut as serviceSignOut } from '../services/auth.service.js';
 import { removeHeightPush } from '../services/web-push.service.js';
+import { clearReadCache } from '../lib/read-cache.js';
 
 const user = ref(null);
 const profile = ref(null);
@@ -41,6 +42,8 @@ async function init() {
         const nextUser = nextSession?.user || null;
         if (user.value?.id !== nextUser?.id) {
           profile.value = null;
+          // 账号切换后旧账号的读取结果不能继续复用。
+          clearReadCache();
           // Session expiry/another tab can bypass logout(); revoke the browser endpoint too.
           if (typeof navigator !== 'undefined') void navigator.serviceWorker?.getRegistration?.('/').then(async (registration) => {
             const subscription = await registration?.pushManager?.getSubscription();
@@ -64,6 +67,7 @@ async function logout() {
   await serviceSignOut();
   user.value = null;
   profile.value = null;
+  clearReadCache();
 }
 
 export function useAuth() {

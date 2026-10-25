@@ -125,7 +125,14 @@ globalThis.__starterTestClient = {
   },
   rpc: async () => ({ error: { code: 'PGRST202' } })
 };
-const starterModule = await import(`data:text/javascript;base64,${Buffer.from(service.replace(/^import[^\n]+\n/, 'const hasSupabaseConfig = true; const supabase = globalThis.__starterTestClient;\n')).toString('base64')}`);
+// data URL 中无法解析相对导入，这里替换掉全部 import 并注入测试替身。
+const starterSource = `const hasSupabaseConfig = true; const supabase = globalThis.__starterTestClient;
+const READ_TTL = { links: 0 };
+const cachedRead = (key, loader) => loader();
+const invalidateReadCache = () => {};
+const readCacheKey = (parts) => parts.join(':');
+${service.replace(/^import[^\n]+\n/gm, '')}`;
+const starterModule = await import(`data:text/javascript;base64,${Buffer.from(starterSource).toString('base64')}`);
 assert.equal(await starterModule.getStarterDeviceLink({ userId, starterId }), null);
 const firstLink = await starterModule.linkStarterDevice({ userId, starterId, deviceId: 'device-a' });
 assert.equal(firstLink.source, 'local');

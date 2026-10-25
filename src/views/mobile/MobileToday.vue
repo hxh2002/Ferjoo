@@ -11,7 +11,8 @@ import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentati
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import SeriesChart from '../../components/SeriesChart.vue';
 import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
-import { CLOSE_REASON_LABELS } from '../../lib/mobile-records.js';
+import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey } from '../../lib/mobile-records.js';
+import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.js';
 
 defineOptions({ name: 'MobileToday' });
 const auth = useAuth();
@@ -220,6 +221,11 @@ function openStarterPicker() {
   contextOpen.value = true;
   starterOpen.value = true;
 }
+// 手动刷新必须绕过缓存重新向云端确认；自动轮询仍可复用刚读到的数据。
+function refreshNow() {
+  invalidateReadCache();
+  void refresh();
+}
 async function refresh() {
   if (disposed || !accountId.value) return;
   if (inFlight || saving.value) { pending = true; return inFlight; }
@@ -266,8 +272,13 @@ async function refresh() {
       evidence.value = []; nextFeedingAt.value = null; closure.value = null;
       if (feeding.value) {
         // 即使没有设备关联也要读取下一次喂养边界，本轮开始和结束才能说清楚。
+        // 证据读取较重，短时间内与轮次详情页共用同一份缓存。
         const [loadedResult, closureResult] = await Promise.all([
-          loadFeedingEvidence(owner, starterId.value, feeding.value.id).then(value => ({ value }), cause => ({ cause })),
+          cachedRead(
+            feedingEvidenceCacheKey(owner, starterId.value, feeding.value.id),
+            () => loadFeedingEvidence(owner, starterId.value, feeding.value.id),
+            { ttl: READ_TTL.records }
+          ).then(value => ({ value }), cause => ({ cause })),
           loadWindowClosure(owner, feeding.value.id).then(value => ({ value }), cause => ({ cause }))
         ]);
         if (!current(token, owner)) return;
@@ -348,7 +359,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
           <span class="jar-detail">{{ jarStatus.detail }}</span>
           <span class="status-caret" aria-hidden="true"></span>
         </button>
-        <button type="button" class="refresh-icon" :class="{ spinning: loading }" :disabled="loading || saving" :aria-label="loading ? '正在刷新' : '刷新'" @click="refresh">
+        <button type="button" class="refresh-icon" :class="{ spinning: loading }" :disabled="loading || saving" :aria-label="loading ? '正在刷新' : '刷新'" @click="refreshNow">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 0 1-14.6 5.9L4 16" /><path d="M3.5 12A8.5 8.5 0 0 1 18.1 6.1L20 8" /><path d="M20 3.6V8h-4.4" /><path d="M4 20.4V16h4.4" /></svg>
         </button>
       </div>

@@ -5,6 +5,7 @@ import { useAuth } from '../../composables/useAuth.js';
 import { deviceStatus, mobileDeviceService, mobileError } from '../../services/mobile-device.service.js';
 import { localDateTimeValue } from '../../lib/localDateTime.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import { READ_TTL, cachedRead, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
 import SeriesChart from '../../components/SeriesChart.vue';
 
 const route = useRoute();
@@ -23,10 +24,12 @@ const dayEnd = computed(() => {
   value.setDate(value.getDate() + 1);
   return value;
 });
+const INCOMPLETE = '这一天的采样尚未完整加载，请稍后重试。';
+// 同一天、同一设备的数据整体复用，设备变更会清空该命名空间。
+const snapshotKey = computed(() => readCacheKey(['device', 'trend', auth.user.value?.id ?? '', deviceId.value, starterId.value, day.value]));
 
 const device = ref(null); const rows = ref([]);
 const loading = ref(false); const error = ref(''); const completeness = ref('');
-const now = ref(Date.now());
 let version = 0; let hidden = false;
 
 const isToday = computed(() => day.value === todayValue.value);
@@ -72,45 +75,60 @@ function changeDay(event) {
 
 async function load() {
   const token = ++version; const owner = auth.user.value?.id; const id = deviceId.value;
-  rows.value = [];
-  error.value = ''; completeness.value = ''; loading.value = true; now.value = Date.now();
-  if (!owner || !id) { loading.value = false; return; }
+  error.value = '';
+  if (!owner || !id) { rows.value = []; device.value = null; completeness.value = ''; loading.value = false; return; }
+  const key = snapshotKey.value;
+  // 再次进入同一天时先用缓存立即渲染，避免整页先清空再出现。
+  const cached = peekReadCache(key);
+  if (cached) {
+    device.value = cached.info;
+    rows.value = cached.rows;
+    completeness.value = cached.complete ? '' : INCOMPLETE;
+    loading.value = false;
+  } else {
+    rows.value = []; completeness.value = ''; loading.value = true;
+  }
   try {
-    const service = await mobileDeviceService();
-    const startMs = dayStart.value.getTime();
-    const endMs = Math.min(dayEnd.value.getTime(), now.value);
-    const info = await service.getDevice(id, owner);
+    const snapshot = await cachedRead(key, () => fetchSnapshot(owner, id), { ttl: READ_TTL.device });
     if (token !== version) return;
-    device.value = info;
-
-    let periods = [];
-    if (starterId.value) {
-      const links = await listStarterDeviceLinks({ userId: owner, starterId: starterId.value });
-      if (token !== version) return;
-      periods = links.filter((row) => row.device_id === id)
-        .map((row) => [Date.parse(row.active_from), row.active_to ? Date.parse(row.active_to) : Infinity])
-        .filter(([from, to]) => to > startMs && from < endMs);
-    }
-
-    let measured = [];
-    if (endMs - startMs >= 600000) {
-      const result = await service.range(id, { from: new Date(startMs).toISOString(), to: new Date(endMs).toISOString() });
-      if (token !== version) return;
-      measured = result.rows;
-      completeness.value = result.complete ? '' : '这一天的采样尚未完整加载，请稍后重试。';
-    }
-    if (starterId.value) {
-      measured = measured.filter((row) => {
-        const at = Date.parse(row.recorded_at);
-        return periods.some(([from, to]) => at >= from && at < to);
-      });
-    }
-    rows.value = measured;
+    device.value = snapshot.info;
+    rows.value = snapshot.rows;
+    completeness.value = snapshot.complete ? '' : INCOMPLETE;
   } catch (cause) {
     if (token === version) error.value = cause?.message || mobileError(cause);
   } finally {
     if (token === version) loading.value = false;
   }
+}
+
+async function fetchSnapshot(owner, id) {
+  const service = await mobileDeviceService();
+  const startMs = dayStart.value.getTime();
+  const endMs = Math.min(dayEnd.value.getTime(), Date.now());
+  const info = await service.getDevice(id, owner);
+
+  let periods = [];
+  if (starterId.value) {
+    const links = await listStarterDeviceLinks({ userId: owner, starterId: starterId.value });
+    periods = links.filter((row) => row.device_id === id)
+      .map((row) => [Date.parse(row.active_from), row.active_to ? Date.parse(row.active_to) : Infinity])
+      .filter(([from, to]) => to > startMs && from < endMs);
+  }
+
+  let measured = [];
+  let complete = true;
+  if (endMs - startMs >= 600000) {
+    const result = await service.range(id, { from: new Date(startMs).toISOString(), to: new Date(endMs).toISOString() });
+    measured = result.rows;
+    complete = result.complete;
+  }
+  if (starterId.value) {
+    measured = measured.filter((row) => {
+      const at = Date.parse(row.recorded_at);
+      return periods.some(([from, to]) => at >= from && at < to);
+    });
+  }
+  return { info, rows: measured, complete };
 }
 
 function onVisibility() { hidden = document.hidden; if (!hidden) load(); }
