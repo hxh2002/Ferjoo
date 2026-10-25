@@ -42,11 +42,16 @@ assert.match(source, /deviceBlocks/);
 assert.match(source, /单日数据/);
 assert.match(source, /在线 \{\{ item\.online \}\}/);
 assert.match(source, /\{\{ item\.count \}\} 条采样/);
+assert.match(source, /name: rows\.length > 1 \? `\$\{selectedStarterName\.value \|\| '酵种'\}/, 'device summary is titled by the selected starter');
 assert.match(source, /class="m-list-row record-row device-row"/);
 assert.match(source, /发酵轮次/);
 assert.match(source, /class="round-chart"/);
 assert.match(source, /:points="item\.chart\.height"/);
 assert.match(source, /chart: roundChart\(item\)/);
+// 标题结束时间必须用独立字段，否则会被同一对象里的路由目标 to 覆盖成地址对象。
+assert.match(source, /toLabel: closed \? range\.to : '现在'/);
+assert.match(source, /\{\{ item\.toLabel \}\}/);
+assert.doesNotMatch(source, /to: closed \? range\.to : '现在'/);
 assert.match(source, /const ROUND_PAD_MS = 10 \* 60 \* 1000/);
 // 跨天偏移以所选日期为基准，而不是轮次内部首尾相比。
 assert.match(source, /function dayOffsetText[\s\S]*selectedDay\.value/);
@@ -114,10 +119,10 @@ await scopedLoader.facts('u1', '2026-10-22', 1, 's1');
 await scopedLoader.facts('u1', '2026-10-22', 1, 's2');
 assert.deepEqual(scopedStarterIds, ['s1', 's2'], 'a page reads one starter at a time and never reuses another jar cache');
 const clock = new Date();
-const deviceDay = recentRecordDays(clock).at(-1);
+// 取前一完整日：当天刚过零点时不足十分钟，读取摘要会被合理跳过而误伤用例。
+const deviceDay = recentRecordDays(clock).at(-2);
 const dayStart = new Date(`${deviceDay}T00:00:00`);
-// 采样时间取当天且早于当前时刻，避免用例在当天尚未到达固定时刻时被“未来样本”过滤。
-const sampleAt = new Date(Math.max(dayStart.getTime() + 1000, clock.getTime() - 1000)).toISOString();
+const sampleAt = new Date(dayStart.getTime() + 3600000).toISOString();
 const activeFrom = new Date(dayStart.getTime() - 86400000).toISOString();
 const failingLoader = createRecordsLoader({
   listStarterDeviceLinks: async ({starterId}) => [{starter_id:starterId,device_id:starterId,active_from:activeFrom,active_to:null}],

@@ -172,7 +172,7 @@ function roundItem(row, carried, now) {
   if (expansion != null && Number.isFinite(expansion)) facts.push({ text: `${expansion >= 0 ? '+' : ''}${expansion.toFixed(0)}%`, tone: expansion >= 0 ? 'up' : 'down' });
   return {
     id: `round:${row.id}`, kind: 'round', at: from, atEnd: to,
-    from: range.from, to: closed ? range.to : '现在',
+    from: range.from, toLabel: closed ? range.to : '现在',
     fromOffset: range.fromOffset, toOffset: closed ? range.toOffset : '',
     titleTip: range.title,
     sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
@@ -225,7 +225,8 @@ const deviceBlocks = computed(() => {
     const times = row.samples.map((sample) => Date.parse(sample.recorded_at)).filter(Number.isFinite).sort((a, b) => a - b);
     return {
       id: row.id,
-      name: rows.length > 1 ? `设备 ${index + 1}` : '设备',
+      // 页面已限定单只酵种，标题直接写酵种名；多设备时再补序号区分。
+      name: rows.length > 1 ? `${selectedStarterName.value || '酵种'} · 设备 ${index + 1}` : selectedStarterName.value || '设备',
       count: row.samples.length,
       online: onlineText(times[0], times.at(-1)),
       partial: !!row.partial,
@@ -502,7 +503,7 @@ onUnmounted(() => {
               <RouterLink class="round-summary" :to="item.to">
                 <span class="round-head">
                   <span class="round-index" :aria-label="`第 ${item.index} 轮`">{{ item.index }}</span>
-                  <strong class="record-title" :title="item.titleTip">{{ item.from }}<span v-if="item.fromOffset" class="day-offset">{{ item.fromOffset }}</span><span class="round-arrow" aria-hidden="true">→</span>{{ item.to }}<span v-if="item.toOffset" class="day-offset">{{ item.toOffset }}</span></strong>
+                  <strong class="record-title" :title="item.titleTip">{{ item.from }}<span v-if="item.fromOffset" class="day-offset">{{ item.fromOffset }}</span><span class="round-arrow" aria-hidden="true">→</span>{{ item.toLabel }}<span v-if="item.toOffset" class="day-offset">{{ item.toOffset }}</span></strong>
                   <span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span>
                   <span class="record-go" aria-hidden="true">›</span>
                 </span>
