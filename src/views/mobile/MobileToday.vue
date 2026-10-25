@@ -370,7 +370,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
     </header>
     <p v-if="accountId && (!devices.length || !starters.length)" class="m-muted small picker-hint">{{ !devices.length ? '还没有酵种罐，先在「酵种罐」中新增或连接设备。' : '还没有酵种，在「酵种」中新建。' }}</p>
     <p v-if="accountId && starterId && !link" class="m-muted small picker-hint">该酵种未关联设备，暂不显示曲线。</p>
-    <p v-if="error || mutationError" class="m-error" role="alert">{{ error || mutationError }}</p><p v-if="loading" class="m-muted" role="status">正在读取…</p>
+    <p v-if="error || mutationError" class="m-error" role="alert">{{ error || mutationError }}</p>
     <section v-if="!accountId" class="m-card intro-card"><img class="jojo-mascot jojo-login" src="/assets/jojo1.png" alt="Jojo 吉祥物"><p class="eyebrow">今日</p><h1>连接设备，开始记录</h1><RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/today' } }">登录后开始</RouterLink></section>
     <template v-else>
       <p v-if="deviceError" class="m-error" role="alert">{{ deviceError }}</p>
