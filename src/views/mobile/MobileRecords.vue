@@ -481,19 +481,6 @@ onUnmounted(() => {
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
         <template v-if="!loading && !error">
-          <section v-if="deviceBlocks.length" class="record-group chart-group">
-            <h2 class="record-group-title">
-              <span class="group-mark chart-mark" aria-hidden="true"></span>单日数据
-            </h2>
-            <RouterLink v-for="item in deviceBlocks" :key="item.id" class="m-list-row record-row device-row" :to="item.to">
-              <span class="record-main">
-                <span class="record-head"><strong class="record-title">{{ item.name }}</strong></span>
-                <small class="record-sub">在线 {{ item.online }} · {{ item.count }} 条采样</small>
-                <small v-if="item.partial" class="record-note">部分采样未完整加载，明细只代表已读取数据。</small>
-              </span>
-              <span class="record-side"><span class="record-go" aria-hidden="true">›</span></span>
-            </RouterLink>
-          </section>
           <section v-if="roundCards.length" class="record-group round-group">
             <h2 class="record-group-title">
               <span class="group-mark round-mark" aria-hidden="true"></span>发酵轮次
@@ -524,6 +511,19 @@ onUnmounted(() => {
               <p v-else class="round-chart-empty">本轮没有可绘制的设备读数。</p>
             </article>
             <p v-if="roundCards.some((item) => item.chart)" class="round-axis-note">曲线起止各外扩 10 分钟，阴影为本轮实际区间。</p>
+          </section>
+          <section v-if="deviceBlocks.length" class="record-group chart-group">
+            <h2 class="record-group-title">
+              <span class="group-mark chart-mark" aria-hidden="true"></span>单日数据
+            </h2>
+            <RouterLink v-for="item in deviceBlocks" :key="item.id" class="m-list-row record-row device-row" :to="item.to">
+              <span class="record-main">
+                <span class="record-head"><strong class="record-title">{{ item.name }}</strong></span>
+                <small class="record-sub">在线 {{ item.online }} · {{ item.count }} 条采样</small>
+                <small v-if="item.partial" class="record-note">部分采样未完整加载，明细只代表已读取数据。</small>
+              </span>
+              <span class="record-side"><span class="record-go" aria-hidden="true">›</span></span>
+            </RouterLink>
           </section>
           <section v-if="observationItems.length" class="record-group observation-group">
             <h2 class="record-group-title"><span class="group-mark observation-mark" aria-hidden="true"></span>观察记录<small class="group-note">{{ observationItems.length }} 条</small></h2>

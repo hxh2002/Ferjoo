@@ -45,6 +45,8 @@ assert.match(source, /\{\{ item\.count \}\} 条采样/);
 assert.match(source, /name: rows\.length > 1 \? `\$\{selectedStarterName\.value \|\| '酵种'\}/, 'device summary is titled by the selected starter');
 assert.match(source, /class="m-list-row record-row device-row"/);
 assert.match(source, /发酵轮次/);
+// 轮次是当天的主线，单日设备摘要排在轮次之后。
+assert.ok(source.indexOf('record-group round-group') < source.indexOf('record-group chart-group'), 'rounds appear above the day summary');
 assert.match(source, /class="round-chart"/);
 assert.match(source, /:points="item\.chart\.height"/);
 assert.match(source, /chart: roundChart\(item\)/);
