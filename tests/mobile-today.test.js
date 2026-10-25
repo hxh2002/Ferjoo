@@ -114,6 +114,10 @@ assert.doesNotMatch(await h.html(), /\/me\/notifications/, 'today no longer carr
 const feedingSource = await readFile(new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url), 'utf8');
 assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable on the feeding page');
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
+// 进入喂养页就是要记下一条：已确认的草稿自动变成空表单，不再提供重复入口。
+assert.match(feedingSource, /startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/, 'entering the page starts the next feeding form when the draft is confirmed');
+assert.doesNotMatch(feedingSource, /class="m-primary" to="\/today"/, 'the feeding page relies on the header back button instead of a duplicate Today button');
+assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the Today page instead of duplicating it here');
 assert.match(await h.html(), /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(await h.html(), /传感器异常/, 'sensor error is surfaced as an explicit jar state');
 assert.equal(h.vm.baselineNote, '自动', 'baseline source is appended to the in-chart baseline tag');

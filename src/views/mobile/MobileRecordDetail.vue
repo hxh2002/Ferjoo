@@ -113,7 +113,7 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
     }
     if (value?.kind !== 'feeding') throw new Error('记录类型不支持，请返回记录列表查看。');
     record.value = value;
-    // 轮次详情与发酵窗口共用同一份证据，避免列表和详情对状态给出不同结论。
+    // 轮次详情与记录页共用同一份证据，避免列表和详情对状态给出不同结论。
     const [starters, proof] = await Promise.all([
       listStarters({ userId }).catch(() => []),
       loadFeedingEvidence(userId, value.starter_id, value.id).catch((cause) => ({ error: cause }))
@@ -130,7 +130,7 @@ onScopeDispose(() => { generation++; });
 
 <template>
   <main class="m-page mobile-record-detail">
-    <header><h1>发酵窗口</h1><p class="m-muted">{{ name }}<template v-if="when"> · {{ when }}</template></p></header>
+    <header><h1>发酵轮次</h1><p class="m-muted">{{ name }}<template v-if="when"> · {{ when }}</template></p></header>
     <p v-if="loading" role="status">正在加载…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <section v-if="record" class="m-card window-card">
       <div class="window-head">

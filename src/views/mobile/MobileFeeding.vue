@@ -14,7 +14,7 @@ import { computeWeights, ratioParts, weightFields } from '../../lib/feeding-weig
 const route = useRoute();
 const { user } = useAuth();
 const accountId = computed(() => user.value?.id || 'guest');
-const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId, { kind: 'feeding', defaults: () => ({ starterId: '', occurredAt: localDateTimeValue(), ratio: '', weightField: '', weightValue: '', baselineHeightMm: '', baselineSource: '', deviceId: '', savedFeedingId: '', step: 1, requestId: '', submission: {}, confirmed: false }) });
+const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId, { kind: 'feeding', defaults: () => ({ starterId: '', occurredAt: localDateTimeValue(), ratio: '', weightField: '', weightValue: '', baselineHeightMm: '', baselineSource: '', deviceId: '', step: 1, requestId: '', submission: {}, confirmed: false }) });
 const { starterName } = useStarterName(accountId, computed(() => draft.value.starterId));
 const weightLabels = { starter: '老种', water: '水', flour: '面粉', total: '合计' };
 const canConvert = computed(() => Boolean(ratioParts(draft.value.ratio)));
@@ -32,7 +32,6 @@ const error = ref('');
 const status = ref('');
 const saving = ref(false);
 const locked = computed(() => Object.keys(draft.value.submission).length > 0);
-const savedFeedingId = ref('');
 let generation = 0;
 watch(accountId, () => {
   generation += 1;
@@ -41,17 +40,18 @@ watch(accountId, () => {
   status.value = '';
 }, { flush: 'sync' });
 onScopeDispose(() => { generation += 1; });
-watch([accountId, () => route.query.starter, () => route.query.new], () => {
+watch([accountId, () => route.query.starter], () => {
   // 时间默认取当前时刻：草稿不再沿用上次进入时保存的旧时间，避免用户误提交错时间。
   if (!locked.value) draft.value.occurredAt = localDateTimeValue();
   const starterId = typeof route.query.starter === 'string' ? route.query.starter : '';
-  if (route.query.new === '1' && draft.value.confirmed) {
-    startNext(starterId || draft.value.starterId);
+  // 进入本页就是为了记下一条喂养：已确认保存的草稿直接换成空白新表单，
+  // 不要让用户停在一个只有「开始下一条」的只读页上。
+  if (draft.value.confirmed) {
+    startNext(starterId || draft.value.starterId, { quiet: true });
   } else if (!locked.value && starterId && starterId !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId });
     else draft.value.starterId = starterId;
   }
-  savedFeedingId.value = draft.value.savedFeedingId || '';
   if (!locked.value && draft.value.baselineSource === 'device') {
     draft.value.baselineHeightMm = '';
     draft.value.baselineSource = '';
@@ -67,13 +67,12 @@ function validate() {
   if (draft.value.baselineHeightMm !== '' && (!Number.isFinite(Number(draft.value.baselineHeightMm)) || Number(draft.value.baselineHeightMm) <= 0)) return '起始高度需为大于 0 的毫米数，未测量可留空。';
   return '';
 }
-function startNext(starterId = draft.value.starterId) {
+function startNext(starterId = draft.value.starterId, { quiet = false } = {}) {
   if (saving.value || !draft.value.confirmed) return;
   try {
     const requestId = randomUuid();
     replace({ starterId, occurredAt: localDateTimeValue(), ratio: '', requestId });
-    savedFeedingId.value = '';
-    status.value = '已开始下一条喂养记录，请填写本次事实。';
+    status.value = quiet ? '' : '已开始下一条喂养记录，请填写本次事实。';
     error.value = '';
   } catch (cause) { error.value = cause.message; }
 }
@@ -100,11 +99,9 @@ async function save() {
     const result = await saveFeeding(payload);
     if (!current()) return;
     if (!result?.id && result?.saved !== true) throw new Error('未收到云端保存确认。');
-    savedFeedingId.value = result.id || '';
-    draft.value.savedFeedingId = savedFeedingId.value;
     draft.value.confirmed = true;
     persist();
-    status.value = '已云端保存喂养记录。要记录另一次喂养，请明确开始下一条。';
+    status.value = '已云端保存喂养记录。';
   } catch (cause) {
     if (current()) error.value = `${cause.message || '保存未完成。'}${locked.value ? ' 本次内容已锁定，重试将沿用同一请求及内容，不会重复新增。' : ''}`;
   } finally { if (current()) saving.value = false; }
@@ -117,7 +114,7 @@ async function save() {
     <p v-if="!storageAvailable" class="m-error">本机存储不可用，关闭页面可能丢失草稿。</p>
     <form class="m-card" @submit.prevent="save">
       <p v-if="locked && !draft.confirmed" class="m-error" role="alert">当前保留的是「{{ starterName }}」（{{ draft.starterId }}）的待确认喂养草稿，内容已锁定；不会切换酵种或覆盖草稿，请先重试确认原提交后再记录下一条。</p>
-      <p v-else-if="draft.confirmed" role="status">本条已确认保存；刷新页面不会重复新增。</p>
+      <p v-else-if="draft.confirmed" role="status">本条已保存；返回今日页可查看本轮或发起诊断。</p>
       <label class="m-field">这次什么时候喂的<input v-model="draft.occurredAt" type="datetime-local" :disabled="locked || saving" required></label>
       <label class="m-field">喂养比例（老种 : 水 : 面粉）<select v-model="draft.ratio" :disabled="locked || saving" required><option disabled value="">请选择</option><option value="1:1:1">1 : 1 : 1</option><option value="1:2:2">1 : 2 : 2</option><option value="1:3:3">1 : 3 : 3</option><option value="1:5:5">1 : 5 : 5</option><option value="deep_reset">大比例刷新</option><option value="1:2:1">1 : 2 : 1</option></select></label>
       <fieldset v-if="draft.ratio" class="weight-fields" :disabled="locked || saving">
@@ -130,7 +127,7 @@ async function save() {
         <label class="m-field">手动修正起始高度（mm）<input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="locked || saving" @input="draft.baselineSource = 'manual'"><span class="m-muted">可留空；填写后按此值计算膨胀率。</span></label>
       </details>
       <p v-if="error" class="m-error" role="alert">{{ error }}</p><p v-if="status" role="status">{{ status }}</p>
-      <div class="m-actions"><button v-if="!draft.confirmed" type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><template v-else><RouterLink class="m-primary" to="/today">回今日</RouterLink><RouterLink v-if="savedFeedingId" class="m-secondary" :to="{ path: '/checkin', query: { starter: draft.starterId, feeding: savedFeedingId, mode: 'diagnosis' } }">诊断本轮</RouterLink><button type="button" class="m-secondary" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条喂养记录</button></template></div>
+      <div class="m-actions"><button v-if="!draft.confirmed" type="submit" class="m-primary" :disabled="saving">{{ saving ? '保存中…' : (locked ? '重试确认本次保存' : '保存喂养记录') }}</button><button v-else type="button" class="m-primary" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条喂养记录</button></div>
     </form>
     <RouterLink class="m-card feeding-alert" to="/me/notifications">
       <span class="feeding-alert-main"><strong>高度预约</strong><small>达到目标膨胀倍数时推送提醒，在通知设置中统一管理。</small></span>

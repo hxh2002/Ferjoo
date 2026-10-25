@@ -56,16 +56,26 @@ function durationText(fromMs, toMs) {
   const hours = Math.floor(minutes / 60);
   return hours ? `${hours} 小时 ${minutes % 60} 分钟` : `${minutes} 分钟`;
 }
-// 跨天轮次用圆形小标提示偏移，避免把两天时间挤成一行长文本。
+// 跨天偏移以所选日期为基准：同一轮的两端各自标 +/- 天，避免只看轮次内部差值。
+function dayOffsetText(ms) {
+  const date = new Date(ms);
+  const base = new Date(`${selectedDay.value}T00:00:00`);
+  const offset = Math.round((new Date(date.getFullYear(), date.getMonth(), date.getDate()) - base) / 86400000);
+  return offset ? `${offset > 0 ? '+' : '−'}${Math.abs(offset)}` : '';
+}
 function rangeText(fromMs, toMs) {
   const fromDate = new Date(fromMs);
   const toDate = new Date(toMs);
-  const offset = Math.round((new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate()) - new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())) / 86400000);
   return {
     from: formatClock(fromMs), to: formatClock(toMs),
-    offset: offset ? `${offset > 0 ? '+' : '−'}${Math.abs(offset)}` : '',
+    fromOffset: dayOffsetText(fromMs), toOffset: dayOffsetText(toMs),
     title: `${fromDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${toDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
   };
+}
+// 在线时长与采样数只作为文字摘要留在一级页面，曲线统一放进各轮次与数据明细。
+function onlineText(fromMs, toMs) {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return '不足 1 分钟';
+  return durationText(fromMs, toMs);
 }
 function ratioText(value) {
   return value === 'deep_reset' ? '大比例刷新' : value || '比例未记录';
@@ -161,9 +171,9 @@ function roundItem(row, carried, now) {
   if (current > 0) facts.push({ text: `${closed ? '结束' : '当前'} ${metric(current)} mm`, tone: 'value' });
   if (expansion != null && Number.isFinite(expansion)) facts.push({ text: `${expansion >= 0 ? '+' : ''}${expansion.toFixed(0)}%`, tone: expansion >= 0 ? 'up' : 'down' });
   return {
-    id: `round:${row.id}`, kind: 'round', at: from,
-    title: `${range.from}–${range.to}`,
-    offset: range.offset,
+    id: `round:${row.id}`, kind: 'round', at: from, atEnd: to,
+    from: range.from, to: closed ? range.to : '现在',
+    fromOffset: range.fromOffset, toOffset: closed ? range.toOffset : '',
     titleTip: range.title,
     sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
     facts,
@@ -172,6 +182,7 @@ function roundItem(row, carried, now) {
     tone: state.tone,
     deviceId: row.deviceId || '',
     baseline: baseline > 0 ? baseline : null,
+    windowFrom: new Date(from).toISOString(),
     windowTo: new Date(to).toISOString(),
     to: recordsDetailTarget(row, returnTo())
   };
@@ -195,7 +206,7 @@ function observationItem(row) {
     to: recordsDetailTarget(row, returnTo())
   };
 }
-// 保留各项时间顺序，再按发酵窗口、观察记录分组展示；设备采样统一进入单日数据。
+// 保留各项时间顺序，再按发酵轮次、观察记录分组展示；设备采样统一进入单日数据。
 const timeline = computed(() => {
   if (!model.value) return [];
   const now = Date.now();
@@ -207,37 +218,53 @@ const roundItems = computed(() => timeline.value
   .filter((item) => item.kind === 'round')
   .map((item, index) => ({ ...item, index: index + 1 })));
 const observationItems = computed(() => timeline.value.filter((item) => item.kind === 'observation'));
-// 单日数据直接铺在记录页：全天固定横轴，喂养时刻作为高度图上的竖线。
-const dayStartIso = computed(() => new Date(`${selectedDay.value}T00:00:00`).toISOString());
-const dayEndIso = computed(() => {
-  const value = new Date(`${selectedDay.value}T00:00:00`);
-  value.setDate(value.getDate() + 1);
-  return value.toISOString();
-});
-const chartGroups = computed(() => {
-  if (!model.value) return [];
-  return model.value.devices.filter((row) => row.samples?.length).map((row) => {
-    const related = roundItems.value.filter((item) => item.baseline && item.deviceId === row.device_id);
-    const focus = related.find((item) => item.tone === 'active' || item.tone === 'pending')
-      || (related.length === 1 ? related[0] : null);
-    const points = (key) => row.samples.map((sample) => ({ t: sample.recorded_at, v: sample[key] == null ? null : Number(sample[key]) }));
+// 单日数据在一级页面只保留在线时长与采样数；曲线按设备与轮次分别展示。
+const deviceBlocks = computed(() => {
+  const rows = (model.value?.devices || []).filter((row) => row.samples?.length);
+  return rows.map((row, index) => {
+    const times = row.samples.map((sample) => Date.parse(sample.recorded_at)).filter(Number.isFinite).sort((a, b) => a - b);
     return {
-      id: row.id, count: row.samples.length, partial: !!row.partial,
-      height: points('height_mm'), temperature: points('temperature_c'),
-      humidity: points('humidity_percent'), battery: points('battery_percent'),
-      baseline: focus?.baseline || null,
+      id: row.id,
+      name: rows.length > 1 ? `设备 ${index + 1}` : '设备',
+      count: row.samples.length,
+      online: onlineText(times[0], times.at(-1)),
+      partial: !!row.partial,
       to: recordsDetailTarget(row, returnTo())
     };
   });
 });
-const sampleCount = computed(() => chartGroups.value.reduce((sum, group) => sum + group.count, 0));
-// 图表阴影与下方窗口一一对应，序号也一致；进行中的窗口延伸到现在。
-const windowBands = computed(() => roundItems.value.map((item) => ({
-  from: new Date(item.at).toISOString(),
-  to: item.windowTo,
-  label: String(item.index),
-  active: item.tone === 'active' || item.tone === 'pending'
-})));
+const sampleCount = computed(() => deviceBlocks.value.reduce((sum, row) => sum + row.count, 0));
+// 轮次曲线复用的就是单日数据那批采样，按设备归并后各自裁切窗口。
+const deviceSamples = computed(() => {
+  const map = new Map();
+  for (const row of model.value?.devices || []) {
+    if (!row.device_id) continue;
+    map.set(row.device_id, [...(map.get(row.device_id) || []), ...(row.samples || [])]);
+  }
+  return map;
+});
+// 起止各外扩十分钟，让曲线两端不至于贴边；阴影仍只覆盖真实轮次区间。
+const ROUND_PAD_MS = 10 * 60 * 1000;
+function roundChart(item) {
+  const samples = item.deviceId ? deviceSamples.value.get(item.deviceId) || [] : [];
+  const from = item.at - ROUND_PAD_MS;
+  const to = item.atEnd + ROUND_PAD_MS;
+  const rows = samples.filter((row) => {
+    const at = Date.parse(row.recorded_at);
+    return Number.isFinite(at) && at >= from && at <= to;
+  });
+  if (!rows.length) return null;
+  const points = (key) => rows.map((row) => ({ t: row.recorded_at, v: row[key] == null ? null : Number(row[key]) }));
+  return {
+    from: new Date(from).toISOString(),
+    to: new Date(to).toISOString(),
+    height: points('height_mm'), temperature: points('temperature_c'),
+    humidity: points('humidity_percent'), battery: points('battery_percent'),
+    baseline: item.baseline,
+    bands: [{ from: item.windowFrom, to: item.windowTo, active: item.tone === 'active' || item.tone === 'pending' }]
+  };
+}
+const roundCards = computed(() => roundItems.value.map((item) => ({ ...item, chart: roundChart(item) })));
 const daySummary = computed(() => {
   const value = model.value;
   if (!value) return '';
@@ -453,42 +480,49 @@ onUnmounted(() => {
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
         <template v-if="!loading && !error">
-          <section v-if="chartGroups.length" class="record-group chart-group">
+          <section v-if="deviceBlocks.length" class="record-group chart-group">
             <h2 class="record-group-title">
               <span class="group-mark chart-mark" aria-hidden="true"></span>单日数据
-              <small class="group-note">{{ sampleCount }} 条采样</small>
             </h2>
-            <article v-for="(group, index) in chartGroups" :key="group.id" class="chart-card">
-              <p v-if="chartGroups.length > 1" class="chart-device">设备 {{ index + 1 }}</p>
-              <div class="chart-grid">
-                <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="group.height" :baseline="group.baseline" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" band-labels />
-                <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="group.temperature" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" />
-                <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="group.humidity" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" />
-                <SeriesChart label="电量" unit="%" color="#7A5C14" :points="group.battery" :from="dayStartIso" :to="dayEndIso" :bands="windowBands" />
-              </div>
-              <div class="chart-foot">
-                <span v-if="group.partial" class="chart-warning">部分采样未完整加载</span>
-                <RouterLink class="chart-detail" :to="group.to">数据明细<span aria-hidden="true">›</span></RouterLink>
-              </div>
-            </article>
-            <p v-if="windowBands.length" class="chart-note">阴影为发酵窗口，序号与下方一致；实线开始、虚线结束，蓝色为进行中。</p>
-          </section>
-          <section v-if="roundItems.length" class="record-group round-group">
-            <h2 class="record-group-title">
-              <span class="group-mark round-mark" aria-hidden="true"></span>发酵窗口
-              <small class="group-note">{{ roundItems.length }} 轮</small>
-            </h2>
-            <RouterLink v-for="item in roundItems" :key="item.id" class="m-list-row record-row round-row" :to="item.to">
+            <RouterLink v-for="item in deviceBlocks" :key="item.id" class="m-list-row record-row device-row" :to="item.to">
               <span class="record-main">
-                <span class="record-head"><span class="round-index" :aria-label="`第 ${item.index} 轮`">{{ item.index }}</span><strong class="record-title" :title="item.titleTip">{{ item.title }}</strong><span v-if="item.offset" class="day-offset">{{ item.offset }}</span></span>
+                <span class="record-head"><strong class="record-title">{{ item.name }}</strong></span>
+                <small class="record-sub">在线 {{ item.online }} · {{ item.count }} 条采样</small>
+                <small v-if="item.partial" class="record-note">部分采样未完整加载，明细只代表已读取数据。</small>
+              </span>
+              <span class="record-side"><span class="record-go" aria-hidden="true">›</span></span>
+            </RouterLink>
+          </section>
+          <section v-if="roundCards.length" class="record-group round-group">
+            <h2 class="record-group-title">
+              <span class="group-mark round-mark" aria-hidden="true"></span>发酵轮次
+              <small class="group-note">{{ roundCards.length }} 轮</small>
+            </h2>
+            <article v-for="item in roundCards" :key="item.id" class="round-card">
+              <RouterLink class="round-summary" :to="item.to">
+                <span class="round-head">
+                  <span class="round-index" :aria-label="`第 ${item.index} 轮`">{{ item.index }}</span>
+                  <strong class="record-title" :title="item.titleTip">{{ item.from }}<span v-if="item.fromOffset" class="day-offset">{{ item.fromOffset }}</span><span class="round-arrow" aria-hidden="true">→</span>{{ item.to }}<span v-if="item.toOffset" class="day-offset">{{ item.toOffset }}</span></strong>
+                  <span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span>
+                  <span class="record-go" aria-hidden="true">›</span>
+                </span>
                 <small class="record-sub">{{ item.sub }}</small>
                 <span v-if="item.facts.length" class="window-facts">
                   <span v-for="fact in item.facts" :key="fact.text" class="window-fact" :data-tone="fact.tone">{{ fact.text }}</span>
                 </span>
                 <small v-if="item.hint" class="record-note">{{ item.hint }}</small>
-              </span>
-              <span class="record-side"><span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span><span class="record-go" aria-hidden="true">›</span></span>
-            </RouterLink>
+              </RouterLink>
+              <div v-if="item.chart" class="round-chart">
+                <div class="chart-grid">
+                  <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="item.chart.height" :baseline="item.chart.baseline" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="item.chart.temperature" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="item.chart.humidity" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="电量" unit="%" color="#7A5C14" :points="item.chart.battery" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                </div>
+              </div>
+              <p v-else class="round-chart-empty">本轮没有可绘制的设备读数。</p>
+            </article>
+            <p v-if="roundCards.some((item) => item.chart)" class="round-axis-note">曲线起止各外扩 10 分钟，阴影为本轮实际区间。</p>
           </section>
           <section v-if="observationItems.length" class="record-group observation-group">
             <h2 class="record-group-title"><span class="group-mark observation-mark" aria-hidden="true"></span>观察记录<small class="group-note">{{ observationItems.length }} 条</small></h2>
@@ -501,7 +535,7 @@ onUnmounted(() => {
             <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物" />
             <div><p>还没有酵种，创建后才能按酵种查看记录。</p><RouterLink :to="{ path: '/today' }">去创建酵种</RouterLink></div>
           </div>
-          <div v-else-if="!timeline.length && !chartGroups.length" class="records-empty">
+          <div v-else-if="!timeline.length && !deviceBlocks.length" class="records-empty">
             <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物" />
             <div><p>{{ isToday ? '今天还没有记录。' : '这一天没有记录。' }}</p><RouterLink :to="feedingTarget">记录一次喂养</RouterLink></div>
           </div>
@@ -554,8 +588,20 @@ onUnmounted(() => {
 .group-mark{width:3px;height:12px;border-radius:2px;background:var(--brand-action);flex:none}
 .chart-mark{background:#2B6CB0}.observation-mark{background:#2B7A55}
 .group-note{margin-left:auto;font-size:.7rem;font-weight:500;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums}
-.chart-card{display:grid;gap:.5rem;padding:.7rem;border:1px solid color-mix(in srgb,#2B6CB0 16%,var(--m-border,#d8d2c8));border-radius:var(--m-radius-card,12px);background:color-mix(in srgb,#2B6CB0 3%,var(--m-surface,#fffdf8))}
-.chart-device{margin:0;font-size:.7rem;font-weight:600;color:var(--m-muted,#625e56)}
+/* 每轮一张卡片：上方是可点的轮次摘要，下方复用单日数据同一套曲线。 */
+.round-card{display:grid;gap:.55rem;padding:.7rem;border:1px solid color-mix(in srgb,#2B6CB0 16%,var(--m-border,#d8d2c8));border-radius:var(--m-radius-card,12px);background:color-mix(in srgb,#2B6CB0 3%,var(--m-surface,#fffdf8))}
+.round-summary{display:grid;gap:.25rem;min-width:0;color:inherit;text-decoration:none}
+.round-head{display:flex;align-items:center;gap:.3rem;min-width:0}
+.round-head .record-title{display:inline-flex;align-items:center;gap:.15rem;font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
+.round-head .record-state{margin-left:auto}
+.round-arrow{font-size:.8rem;color:var(--m-muted,#8a8277)}
+@media(max-width:360px){.round-head{flex-wrap:wrap}.round-head .record-state{margin-left:0}}
+.round-summary .record-sub,.round-summary .record-note{display:block;min-width:0;line-height:1.35}
+.round-summary .record-sub{font-size:.74rem;color:var(--text-secondary,#5f574e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.round-summary .record-note{font-size:.72rem;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
+.round-chart{display:grid;gap:.4rem;padding-top:.55rem;border-top:1px solid color-mix(in srgb,#2B6CB0 12%,var(--m-border,#d8d2c8))}
+.round-axis-note{margin:0;font-size:.68rem;line-height:1.5;color:var(--m-muted,#8a8277)}
+.round-chart-empty{margin:0;font-size:.72rem;color:var(--m-muted,#8a8277)}
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
 .chart-grid :deep(.series-chart){min-width:0;--series-stroke:1.5px}
 .chart-grid :deep(.series-plot){position:relative;height:88px}
@@ -576,10 +622,6 @@ onUnmounted(() => {
 .chart-grid :deep(.series-delta){display:none}
 .chart-grid :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.2rem;min-width:0}
 .chart-grid :deep(.series-time-range){white-space:nowrap}
-.chart-foot{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;min-height:32px}
-.chart-warning{font-size:.7rem;color:#a4524a}
-.chart-detail{display:inline-flex;align-items:center;gap:.15rem;margin-left:auto;min-height:32px;color:var(--brand-action);font-size:.74rem;font-weight:650;text-decoration:none}
-.chart-note{margin:0;font-size:.7rem;line-height:1.5;color:var(--m-muted,#8a8277)}
 .day-card .record-row{align-items:center;gap:.6rem;min-width:0;padding:.75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:var(--m-radius-card,12px);background:var(--m-surface,#fffdf8);text-decoration:none}
 .window-facts{display:flex;flex-wrap:wrap;gap:.3rem .4rem;margin-top:.15rem}
 .window-fact{padding:.1rem .4rem;border-radius:var(--radius-badge);background:#f1ece4;font-size:.7rem;font-weight:650;line-height:1.5;font-variant-numeric:tabular-nums;color:var(--text-primary,#30251f)}
@@ -589,9 +631,6 @@ onUnmounted(() => {
 .record-main{display:grid;gap:.25rem;min-width:0;flex:1}
 .day-card .record-note{white-space:normal;overflow-wrap:anywhere}
 .day-card .record-sub{white-space:normal;overflow-wrap:anywhere}
-.day-card .round-row{align-items:flex-start}
-.round-row .record-side{padding-top:.15rem}
-@media(max-width:360px){.day-card .round-row{flex-wrap:wrap}.round-row .record-side{margin-left:auto}}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
 .round-index{display:inline-grid;place-items:center;flex:none;min-width:1.05rem;height:1.05rem;padding:0 .2rem;border-radius:50%;background:#a44213;color:#fff;font-size:.6rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .record-row .record-title{font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}

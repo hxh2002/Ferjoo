@@ -5,6 +5,7 @@ import { useAuth } from '../../composables/useAuth.js';
 import { deviceStatus, mobileDeviceService, mobileError } from '../../services/mobile-device.service.js';
 import { localDateTimeValue } from '../../lib/localDateTime.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import SeriesChart from '../../components/SeriesChart.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -32,6 +33,13 @@ const isToday = computed(() => day.value === todayValue.value);
 const rangeText = computed(() => isToday.value ? '今天 00:00 – 现在' : `${formatDayLabel(day.value)} 00:00 – 24:00`);
 // 明细表与桌面版一致，最新采样排在最前。
 const tableRows = computed(() => [...rows.value].reverse().map((row) => ({ ...row, status: deviceStatus(row) })));
+const chartPoints = computed(() => {
+  const points = (key) => rows.value.map((row) => ({ t: row.recorded_at, v: row[key] == null ? null : Number(row[key]) }));
+  return {
+    height: points('height_mm'), temperature: points('temperature_c'),
+    humidity: points('humidity_percent'), battery: points('battery_percent')
+  };
+});
 const validCount = computed(() => rows.value.filter((row) => !row.sensor_error && row.mode === 'fer').length);
 const summaryText = computed(() => {
   const latest = rows.value.at(-1);
@@ -91,7 +99,7 @@ async function load() {
       measured = result.rows;
       completeness.value = result.complete ? '' : '这一天的采样尚未完整加载，请稍后重试。';
     }
-    if (periods.length) {
+    if (starterId.value) {
       measured = measured.filter((row) => {
         const at = Date.parse(row.recorded_at);
         return periods.some(([from, to]) => at >= from && at < to);
@@ -128,6 +136,16 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
     <p v-if="completeness" class="m-error">{{ completeness }}</p>
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <p v-if="loading" class="m-muted" role="status">正在读取设备数据…</p>
+
+    <section class="chart-card" aria-label="全天设备数据">
+      <div class="chart-title"><strong>全天数据</strong><span>{{ rows.length }} 条采样</span></div>
+      <div class="chart-grid">
+        <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="chartPoints.height" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" />
+        <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="chartPoints.temperature" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" />
+        <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="chartPoints.humidity" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" />
+        <SeriesChart label="电量" unit="%" color="#7A5C14" :points="chartPoints.battery" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" />
+      </div>
+    </section>
 
     <section class="table-card">
       <div class="chart-title"><strong>数据明细</strong><span>{{ tableRows.length }} 条 · 最新在前</span></div>
@@ -166,6 +184,27 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 .day-head p{margin:.2rem 0 0;font-size:.8rem}
 .m-field{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--m-muted,#625e56)}
 .m-field input{flex:1;min-height:44px;padding:.45rem .65rem;font:inherit;color:inherit;background:var(--m-surface,#fffdf8);border:1px solid var(--m-border,#d8d2c8);border-radius:8px}
+.chart-card{margin:.75rem 0;padding:.7rem;border:1px solid color-mix(in srgb,#2B6CB0 16%,var(--m-border,#d8d2c8));border-radius:12px;background:color-mix(in srgb,#2B6CB0 3%,var(--m-surface,#fffdf8))}
+.chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.chart-grid :deep(.series-chart){min-width:0;--series-stroke:1.5px}
+.chart-grid :deep(.series-plot){position:relative;height:88px}
+.chart-grid :deep(svg){display:block;width:100%;height:88px}
+.chart-grid :deep(.series-line){fill:none;stroke-width:1.5}
+.chart-grid :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3;stroke-dasharray:2 2}
+.chart-grid :deep(.series-dot),.chart-grid :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
+.chart-grid :deep(.series-dot){border-radius:0}
+.chart-grid :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}
+.chart-grid :deep(.series-guide){stroke:var(--m-muted,#625e56);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
+.chart-grid :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card,#fff);border:1px solid var(--m-border,#d8d2c8);border-radius:4px;padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}
+.chart-grid :deep(.series-tip span){display:block;color:var(--m-muted,#625e56)}
+.chart-grid :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:.72rem;color:var(--m-muted,#625e56);background:var(--m-surface,#fffdf8)}
+.chart-grid :deep(.series-value){font-size:1.02rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.chart-grid :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.35rem;margin-bottom:.25rem}
+.chart-grid :deep(.series-headline){display:flex;align-items:baseline;gap:.2rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
+.chart-grid :deep(.series-label){font-size:.78rem;font-weight:700}
+.chart-grid :deep(.series-delta){display:none}
+.chart-grid :deep(.series-range){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.2rem;min-width:0}
+.chart-grid :deep(.series-time-range){white-space:nowrap}
 .table-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}
 .chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.65rem}
 .chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}

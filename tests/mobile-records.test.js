@@ -37,18 +37,27 @@ assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
 assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
-// 单日数据与发酵窗口直接铺在记录页，设备摘要详情只保留原始采样明细。
-assert.match(source, /chartGroups/);
+// 一级页面只保留设备在线时间与采样数，曲线下放到各轮次，采样明细仍走设备二级页。
+assert.match(source, /deviceBlocks/);
 assert.match(source, /单日数据/);
-assert.match(source, /发酵窗口/);
-assert.match(source, /class="chart-detail"/);
-assert.match(source, /windowBands/);
-assert.match(source, /band-labels/);
+assert.match(source, /在线 \{\{ item\.online \}\}/);
+assert.match(source, /\{\{ item\.count \}\} 条采样/);
+assert.match(source, /class="m-list-row record-row device-row"/);
+assert.match(source, /发酵轮次/);
+assert.match(source, /class="round-chart"/);
+assert.match(source, /:points="item\.chart\.height"/);
+assert.match(source, /chart: roundChart\(item\)/);
+assert.match(source, /const ROUND_PAD_MS = 10 \* 60 \* 1000/);
+// 跨天偏移以所选日期为基准，而不是轮次内部首尾相比。
+assert.match(source, /function dayOffsetText[\s\S]*selectedDay\.value/);
+assert.doesNotMatch(source, /chartGroups|windowBands|dayStartIso|dayEndIso/);
 assert.match(source, /class="round-index"/);
 assert.doesNotMatch(source, /deviceItem|device-metrics/);
 assert.match(trendSource, /设备状态/);
 assert.match(trendSource, /deviceStatus/);
-assert.doesNotMatch(trendSource, /SeriesChart|window-list/);
+// 全天曲线属于设备二级页，一级记录页只留文字摘要。
+assert.match(trendSource, /全天数据/);
+assert.doesNotMatch(trendSource, /window-list/);
 assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'next_feeding' }), { label: '已结束', tone: 'closed' });
 assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'manual' }), { label: '手动结束', tone: 'closed' });
 assert.deepEqual(roundState({ windowStatus: 'in_progress', baselineStatus: 'pending' }), { label: '建立基线', tone: 'pending' });

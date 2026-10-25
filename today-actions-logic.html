@@ -349,14 +349,13 @@
         <div class="lane">
           <span class="lane-tag ok">③ 已确认（云端已保存）</span>
           <div class="node ok">
-            <b>只读 + 三个后续动作</b>
+            <b>只读，只保留一个前进动作</b>
             <ul>
-              <li>状态提示：本条已确认保存；刷新页面不会重复新增。</li>
-              <li><b>诊断本轮</b> → <code>/checkin?starter=&amp;feeding=&amp;mode=diagnosis</code>（仅当已拿到 feedingId 才出现；此处为次要按钮，主按钮是「回今日」）。</li>
-              <li><b>回今日</b> → <code>/today</code>，触发本轮与图表重算。</li>
+              <li>状态提示：本条已保存；返回今日页可查看本轮或发起诊断。</li>
               <li><b>开始下一条喂养记录</b> → 清空比例/重量/起始高度，生成新 requestId，时间重置为当前时刻。</li>
+              <li>不再提供「回今日」（用左上角返回）和「诊断本轮」（今日页已有同一入口）。</li>
             </ul>
-            <span class="meta">带 <code>?new=1</code> 且已确认时，进入页面会自动开始下一条。</span>
+            <span class="meta">再次进入本页时，已确认草稿会直接换成空白新表单，不会停在只有「开始下一条」的只读页。</span>
           </div>
           <div class="down">▼</div>
           <div class="node ghost">二级入口：高度预约卡 → <code>/me/notifications</code></div>
@@ -682,8 +681,8 @@
         <thead><tr><th style="min-width:210px">路由</th><th style="min-width:170px">入口</th><th>作用 / 关键参数</th></tr></thead>
         <tbody>
           <tr><td><code>/today</code></td><td>底部导航 / 登录后</td><td>今日页；<code>/?view=desktop</code> 等不影响移动端内页。</td></tr>
-          <tr><td><code>/feeding?starter=</code></td><td>A 按钮 / 空轮次卡</td><td>喂养写入；<code>new=1</code> 且已确认时自动开始下一条。</td></tr>
-          <tr><td><code>/checkin?starter=&amp;feeding=&amp;mode=diagnosis</code></td><td>C 按钮 / 喂养页「诊断本轮」</td><td>诊断模式；缺 feeding 参数则提示预填不可用，仍可手填。</td></tr>
+          <tr><td><code>/feeding?starter=</code></td><td>A 按钮 / 空轮次卡</td><td>喂养写入；若已有「已确认」草稿，进入时会自动换成空白新表单。</td></tr>
+          <tr><td><code>/checkin?starter=&amp;feeding=&amp;mode=diagnosis</code></td><td>今日页 C 按钮</td><td>诊断模式；缺 feeding 参数则提示预填不可用，仍可手填。</td></tr>
           <tr><td><code>/checkin?edit=session&amp;starter=</code></td><td>建议页「修改本次输入」</td><td>载入会话报告输入，回到第 1 步。</td></tr>
           <tr><td><code>/checkin?starter=&amp;feeding=</code></td><td>云端喂养记录「基于这次喂养记录观察」</td><td>观察模式（无 mode=diagnosis），不自动预填诊断证据。</td></tr>
           <tr><td><code>/reports/session</code></td><td>诊断生成后</td><td>本次建议（未云端保存）；风险横幅兜底目标。</td></tr>
