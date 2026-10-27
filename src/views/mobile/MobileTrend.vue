@@ -166,33 +166,38 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
     </section>
 
     <section class="table-card">
-      <div class="chart-title"><strong>数据明细</strong><span>{{ tableRows.length }} 条 · 最新在前</span></div>
-      <p v-if="!tableRows.length && !loading" class="m-muted">这一天还没有采样数据。</p>
-      <div v-else class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">时间</th>
-              <th scope="col">设备状态</th>
-              <th scope="col">高度<small>mm</small></th>
-              <th scope="col">温度<small>°C</small></th>
-              <th scope="col">湿度<small>%</small></th>
-              <th scope="col">电量<small>%</small></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in tableRows" :key="row.id" :class="{ 'is-bad': row.status.tone === 'bad' }">
-              <td>{{ formatClock(row.recorded_at) }}</td>
-              <td class="status-cell"><span class="row-status" :data-tone="row.status.tone">{{ row.status.label }}</span></td>
-              <td>{{ cell(row.height_mm, 1) }}</td>
-              <td>{{ cell(row.temperature_c, 1) }}</td>
-              <td>{{ cell(row.humidity_percent, 0) }}</td>
-              <td>{{ cell(row.battery_percent, 0) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="table-note">休眠、传感器故障或模式异常的采样仍保留在明细中，但不参与膨胀率计算。</p>
+      <details class="table-details">
+        <summary class="chart-title">
+          <strong>数据明细</strong>
+          <span>{{ tableRows.length }} 条 · 最新在前<span class="table-caret" aria-hidden="true"></span></span>
+        </summary>
+        <p v-if="!tableRows.length && !loading" class="m-muted">这一天还没有采样数据。</p>
+        <div v-else class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">时间</th>
+                <th scope="col">设备状态</th>
+                <th scope="col">高度<small>mm</small></th>
+                <th scope="col">温度<small>°C</small></th>
+                <th scope="col">湿度<small>%</small></th>
+                <th scope="col">电量<small>%</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in tableRows" :key="row.id" :class="{ 'is-bad': row.status.tone === 'bad' }">
+                <td>{{ formatClock(row.recorded_at) }}</td>
+                <td class="status-cell"><span class="row-status" :data-tone="row.status.tone">{{ row.status.label }}</span></td>
+                <td>{{ cell(row.height_mm, 1) }}</td>
+                <td>{{ cell(row.temperature_c, 1) }}</td>
+                <td>{{ cell(row.humidity_percent, 0) }}</td>
+                <td>{{ cell(row.battery_percent, 0) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="table-note">休眠、传感器故障或模式异常的采样仍保留在明细中，但不参与膨胀率计算。</p>
+      </details>
     </section>
   </main>
 </template>
@@ -226,6 +231,12 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 .table-card{margin:.75rem 0;padding:.85rem;border:1px solid var(--m-border,#d8d2c8);border-radius:12px}
 .chart-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.65rem}
 .chart-title span{font-size:.75rem;color:var(--m-muted,#625e56)}
+/* 明细默认折叠：只留一行标题，用户点开才铺开采样表。 */
+.table-details>summary{list-style:none;cursor:pointer;min-height:32px;margin-bottom:0}
+.table-details>summary::-webkit-details-marker{display:none}
+.table-details[open]>summary{margin-bottom:.6rem}
+.table-caret{display:inline-block;margin-left:.4rem;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;vertical-align:middle;transition:transform var(--motion-fast) var(--ease-standard)}
+.table-details[open] .table-caret{transform:rotate(180deg)}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .table-card table{width:100%;border-collapse:collapse;font-size:.75rem;font-variant-numeric:tabular-nums}
 .table-card th,.table-card td{padding:.4rem .3rem;text-align:right;white-space:nowrap;border-bottom:1px solid #ece5d9}

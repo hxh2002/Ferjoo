@@ -90,7 +90,23 @@ const heightMarkers = computed(() => {
 });
 // 基线来源跟在图内基线标签后，页面上不再单独重复一行基线。
 const baselineNote = computed(() => summary.value?.baselineSource === 'manual' ? '手工' : '自动');
-const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '-');
+const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '—');
+// 主数值与上下极值都按膨胀率展示，高度退到次要位置；基线缺失时退回原始高度。
+const heightRange = computed(() => {
+  const values = heightPoints.value.map((point) => point.v).filter((value) => Number.isFinite(value));
+  if (!values.length) return null;
+  return { min: Math.min(...values), max: Math.max(...values), last: values.at(-1) };
+});
+function expansionOfHeight(value) {
+  const baseline = heightBaseline.value;
+  if (!Number.isFinite(value) || !(baseline > 0)) return '';
+  return `${((value / baseline - 1) * 100).toFixed(1)}%`;
+}
+const expansionRange = computed(() => ({
+  min: expansionOfHeight(heightRange.value?.min),
+  max: expansionOfHeight(heightRange.value?.max)
+}));
+const heightText = computed(() => Number.isFinite(heightRange.value?.last) ? `${Math.round(heightRange.value.last * 10) / 10} mm` : '—');
 // 手动结束的原因与记录页共用一份文案，避免同一事实出现两种说法。
 const endReasonText = computed(() => {
   const value = summary.value;
@@ -390,9 +406,9 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
         <section v-if="deviceId" class="chart-card">
           <div class="chart-title"><strong>{{ starter ? starter.name : '设备数据（未选择酵种）' }}</strong><span>{{ chartRangeLabel }}</span></div>
           <p v-if="chartNote" class="chart-note">{{ chartNote }}</p>
-          <SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" :baseline-note="baselineNote" :markers="heightMarkers" :from="chartFrom" :to="chartTo" marker-labels compact-time>
-            <template #label><span class="height-label">高度</span><span class="expansion-label">/膨胀率</span></template>
-            <template #after-header><span class="height-expansion">/{{ expansionText }}</span></template>
+          <SeriesChart class="chart-feature" label="高度" unit=" mm" color="#2B6CB0" :points="heightPoints" :baseline="heightBaseline" :baseline-note="baselineNote" :markers="heightMarkers" :from="chartFrom" :to="chartTo" marker-labels compact-time :value-text="expansionText" :min-text="expansionRange.min" :max-text="expansionRange.max">
+            <template #label><span class="height-label">膨胀率</span><span class="expansion-label">/高度</span></template>
+            <template #after-header><span class="height-expansion">/{{ heightText }}</span></template>
           </SeriesChart>
           <div class="small-charts"><SeriesChart label="温度" unit="°C" color="#C04B0A" :points="tempPoints" :from="chartFrom" :to="chartTo" compact-time/><SeriesChart label="湿度" unit="%" color="#2B7A55" :points="humidityPoints" :from="chartFrom" :to="chartTo" compact-time/></div>
         </section>

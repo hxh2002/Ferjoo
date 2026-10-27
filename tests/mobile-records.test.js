@@ -64,6 +64,9 @@ assert.match(trendSource, /设备状态/);
 assert.match(trendSource, /deviceStatus/);
 // 全天曲线属于设备二级页，一级记录页只留文字摘要。
 assert.match(trendSource, /全天数据/);
+// 采样明细默认折叠，用户点开才展开。
+assert.match(trendSource, /<details class="table-details">[\s\S]*<summary class="chart-title">/);
+assert.doesNotMatch(trendSource, /<details[^>]*\sopen[\s>]/);
 assert.doesNotMatch(trendSource, /window-list/);
 assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'next_feeding' }), { label: '已结束', tone: 'closed' });
 assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'manual' }), { label: '手动结束', tone: 'closed' });

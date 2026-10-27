@@ -21,7 +21,11 @@ const props = defineProps({
   // 发酵窗口等连续区间：整段铺浅色底并在起止处连线，比单点标记更能说明覆盖范围。
   bands: { type: Array, default: () => [] }, // [{ from, to, label, active }]
   // 序号只画在最能代表时间线的图上，其余图表仅保留区间底色。
-  bandLabels: { type: Boolean, default: false }
+  bandLabels: { type: Boolean, default: false },
+  // 主数值与极值标签允许换成换算后的文案（如高度换算膨胀率），绘图用的仍是原始数值。
+  valueText: { type: String, default: '' },
+  minText: { type: String, default: '' },
+  maxText: { type: String, default: '' }
 });
 
 const W = 100;
@@ -323,7 +327,7 @@ const bandBadges = computed(() => {
       <span class="series-label"><slot name="label">{{ label }}</slot></span>
       <div class="series-headline">
         <span v-if="stats" class="series-delta" :class="deltaClass">{{ deltaText }}</span>
-        <strong class="series-value">{{ fmt(stats?.last) }}</strong>
+        <strong class="series-value">{{ valueText || fmt(stats?.last) }}</strong>
         <slot name="after-header" />
       </div>
     </div>
@@ -445,10 +449,10 @@ const bandBadges = computed(() => {
           :class="{ below: baselineBelow }"
           :style="{ top: `${(baselineY / H) * 100}%` }"
         >基线 {{ fmt(baselineValue) }}<template v-if="baselineNote"> · {{ baselineNote }}</template></span>
-        <span class="series-tag series-max">max {{ fmt(stats?.dataMax) }}</span>
+        <span class="series-tag series-max">max {{ maxText || fmt(stats?.dataMax) }}</span>
       </div>
       <div class="series-range">
-        <span class="series-tag">min {{ fmt(stats?.dataMin) }}</span>
+        <span class="series-tag">min {{ minText || fmt(stats?.dataMin) }}</span>
         <span class="series-tag series-time-range" :title="rangeTitle"><span v-if="rangeDayOffset" class="day-offset">{{ rangeDayOffset > 0 ? `−${rangeDayOffset}` : `+${Math.abs(rangeDayOffset)}` }}</span>{{ rangeText }}</span>
       </div>
     </div>

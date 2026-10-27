@@ -123,6 +123,10 @@ assert.match(await h.html(), /jar-status/, 'jar state is rendered as a compact s
 assert.match(await h.html(), /传感器异常/, 'sensor error is surfaced as an explicit jar state');
 assert.equal(h.vm.baselineNote, '自动', 'baseline source is appended to the in-chart baseline tag');
 assert.match(source, /:baseline-note="baselineNote"/, 'the chart tag owns the baseline value and source');
+// 主页主角是膨胀率：主数值与 min/max 都按膨胀率展示，高度退为次要信息。
+assert.match(source, /:value-text="expansionText"/);
+assert.match(source, /:min-text="expansionRange\.min" :max-text="expansionRange\.max"/);
+assert.match(source, /<span class="height-label">膨胀率<\/span><span class="expansion-label">\/高度<\/span>/);
 assert.doesNotMatch(source, /height-meta/, 'the duplicated baseline line above the chart is gone');
 assert.doesNotMatch(await h.html(), /当前高度/, 'the round card no longer repeats the height already shown on the chart');
 assert.match(await h.html(), /class="action-card"/, 'main actions are grouped into a dedicated action card');
