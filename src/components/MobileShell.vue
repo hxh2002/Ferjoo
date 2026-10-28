@@ -27,7 +27,7 @@ function moveSlider(index, previous) {
   const from = sliderPosition.value;
   const start = performance.now();
   const animate = (now) => {
-    const progress = Math.min(1, (now - start) / 460);
+    const progress = Math.min(1, (now - start) / 180);
     // 五次缓出保持非线性减速；连续点击从当前帧位置接续。
     sliderPosition.value = from + (index - from) * (1 - (1 - progress) ** 5);
     if (progress < 1) sliderFrame = requestAnimationFrame(animate);
