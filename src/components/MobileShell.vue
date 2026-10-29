@@ -27,7 +27,7 @@ function moveSlider(index, previous) {
   const from = sliderPosition.value;
   const start = performance.now();
   const animate = (now) => {
-    const progress = Math.min(1, (now - start) / 180);
+    const progress = Math.min(1, (now - start) / 320);
     // 五次缓出保持非线性减速；连续点击从当前帧位置接续。
     sliderPosition.value = from + (index - from) * (1 - (1 - progress) ** 5);
     if (progress < 1) sliderFrame = requestAnimationFrame(animate);
@@ -126,9 +126,11 @@ function go(path) {
     <main class="mobile-main">
       <slot>
         <RouterView v-slot="{ Component }">
-          <KeepAlive :include="cachedTabs">
-            <component :is="Component" />
-          </KeepAlive>
+          <Transition name="mobile-page" mode="out-in">
+            <KeepAlive :include="cachedTabs">
+              <component :is="Component" />
+            </KeepAlive>
+          </Transition>
         </RouterView>
       </slot>
     </main>
@@ -140,3 +142,54 @@ function go(path) {
     </nav>
   </div>
 </template>
+
+<style scoped>
+.mobile-page-enter-active { transition: opacity .24s var(--m-ease), transform .28s var(--m-ease); }
+.mobile-page-leave-active { transition: opacity .1s ease, transform .1s ease; }
+.mobile-page-enter-from { opacity: 0; transform: translateY(14px) scale(.99); }
+.mobile-page-leave-to { opacity: 0; transform: translateY(-5px); }
+.mobile-tab-slider::before { content: ''; position: absolute; inset: -35% auto -35% -35%; width: 55%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .58), transparent); filter: blur(7px); transform: skewX(-14deg); animation: mobile-liquid-glint 4.6s ease-in-out infinite; }
+.mobile-tab-slider::after { content: ''; position: absolute; inset: 1px 12% auto; height: 42%; border-radius: var(--radius-pill); background: radial-gradient(ellipse, rgba(255, 255, 255, .3), transparent 72%); pointer-events: none; }
+.mobile-tabbar button.active svg { animation: mobile-tab-pop .38s var(--m-spring); }
+.mobile-tabbar button:active svg { transform: scale(.86); }
+.mobile-main :deep(.m-page :is(.m-card, .panel, .profile-plate, .round-card, .chart-card, .table-card, .action-card)),
+.mobile-main :deep(:is(.auth-page, .profile-page) .panel) { animation: mobile-card-arrive .42s var(--m-spring) backwards; }
+.mobile-main :deep(.m-page > :nth-child(2)) { animation-delay: 40ms; }
+.mobile-main :deep(.m-page > :nth-child(3)) { animation-delay: 75ms; }
+.mobile-main :deep(.m-page > :nth-child(4)) { animation-delay: 105ms; }
+.mobile-main :deep(.m-page > :nth-child(n+5)) { animation-delay: 125ms; }
+.mobile-main :deep(.m-page details[open] > :not(summary)),
+.mobile-main :deep(.m-page [role='status']:not(.m-card)) { animation: mobile-detail-reveal .26s var(--m-ease); }
+.mobile-main :deep(.today-page .picker-menu) { transform-origin: top; animation: mobile-popover-in .22s var(--m-spring); }
+@keyframes mobile-liquid-glint {
+  0%, 18% { opacity: 0; transform: translateX(0) skewX(-14deg); }
+  42% { opacity: .8; }
+  68%, 100% { opacity: 0; transform: translateX(270%) skewX(-14deg); }
+}
+@keyframes mobile-tab-pop {
+  0% { transform: translateY(2px) scale(.78); }
+  62% { transform: translateY(-2px) scale(1.12); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes mobile-card-arrive {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes mobile-detail-reveal {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mobile-popover-in {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-page-enter-active, .mobile-page-leave-active { transition: none; }
+  .mobile-tab-slider::before, .mobile-tabbar button.active svg,
+  .mobile-main :deep(.m-page :is(.m-card, .panel, .profile-plate, .round-card, .chart-card, .table-card, .action-card)),
+  .mobile-main :deep(:is(.auth-page, .profile-page) .panel),
+  .mobile-main :deep(.m-page details[open] > :not(summary)),
+  .mobile-main :deep(.m-page [role='status']:not(.m-card)),
+  .mobile-main :deep(.today-page .picker-menu) { animation: none; }
+}
+</style>
