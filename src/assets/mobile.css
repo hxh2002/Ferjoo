@@ -24,9 +24,9 @@
   --m-accent: var(--brand-action);
   --m-muted: var(--text-secondary);
   --m-border: var(--border-default);
-  --m-card: rgba(255, 253, 248, .86);
-  --m-surface: rgba(255, 255, 255, .68);
-  --m-glass: rgba(255, 250, 244, .72);
+  --m-card: rgba(255, 253, 248, .32);
+  --m-surface: rgba(255, 255, 255, .24);
+  --m-glass: linear-gradient(135deg, rgba(255, 255, 255, .44), rgba(255, 253, 240, .22));
   --m-shadow: 0 10px 30px rgba(131, 75, 26, .07), inset 0 1px rgba(255, 255, 255, .9);
   --ink: var(--text-primary);
   --ink-soft: var(--text-secondary);
@@ -45,7 +45,7 @@
   background: var(--surface-page);
   scroll-behavior: auto;
 }
-body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(ellipse 85% 36% at 0% 0%, rgba(255, 176, 90, .18), transparent 72%), radial-gradient(ellipse 75% 34% at 100% 44%, rgba(255, 232, 214, .72), transparent 76%), var(--surface-page); background-attachment: fixed; font-size: 16px; -webkit-font-smoothing: antialiased; }
+body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: linear-gradient(135deg, #FFBB88 0%, #FFD4A5 38%, #FFE5B5 68%, #FFF1C9 100%); background-attachment: fixed; font-size: 16px; -webkit-font-smoothing: antialiased; }
 body.mobile-mode::before { display: none; }
 body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-sizing: border-box; }
 .mobile-area { min-height: 100vh; color: var(--text-primary); overflow-wrap: anywhere; background: transparent; }
@@ -80,7 +80,7 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area .mobile-main .m-page h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.35; font-weight: 600; letter-spacing: -.025em; }
 .mobile-area .mobile-main .m-page h2 { margin: 0 0 12px; font-size: 20px; line-height: 1.4; font-weight: 600; letter-spacing: -.015em; }
 .mobile-area p { line-height: 1.75; }
-.mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) { background: var(--m-card); border: 1px solid var(--border-subtle); border-radius: var(--m-radius-card); box-shadow: var(--m-shadow); }
+.mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .picker) { background: var(--m-glass); border: 1px solid rgba(255, 255, 255, .64); border-radius: var(--m-radius-card); box-shadow: var(--m-shadow); -webkit-backdrop-filter: blur(28px) saturate(1.3); backdrop-filter: blur(28px) saturate(1.3); }
 .mobile-area :is(.m-card, .panel, .profile-plate) { padding: 20px; margin: 16px 0; }
 .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate) :is(.m-card, .panel, .profile-plate), .mobile-area .mobile-main :is(.window-row, .close-panel, .weight-fields) { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-input); box-shadow: none; }
 .mobile-area .mobile-main :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; border-radius: var(--m-radius-input); }
@@ -184,7 +184,7 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 .mobile-area .month-cal .cal-cell.today:not(.selected) { color: var(--brand-action); font-weight: 800; box-shadow: inset 0 0 0 1px var(--border-default); }
 .mobile-area .month-cal .cal-cell.selected::after { background: #fff; }
 .mobile-area .month-cal .cal-cell.sleep::after { background: #9a352a; }
-.mobile-area .mobile-main :is(.m-page, .auth-page, .profile-page) :is(.m-card, .panel, .profile-plate, .round-card, .chart-card, .table-card, .action-card) { padding: var(--m-card-pad); margin: 0 0 var(--m-section-gap); border: 1px solid rgba(255, 255, 255, .82); border-radius: var(--radius-card); background: linear-gradient(135deg, rgba(255, 255, 255, .84), rgba(255, 248, 238, .64)); box-shadow: var(--m-shadow); -webkit-backdrop-filter: blur(18px) saturate(1.25); backdrop-filter: blur(18px) saturate(1.25); transition: transform var(--motion-base) var(--m-ease), box-shadow var(--motion-base) var(--m-ease), border-color var(--motion-fast) ease; }
+.mobile-area .mobile-main :is(.m-page, .auth-page, .profile-page) :is(.m-card, .panel, .profile-plate, .round-card, .chart-card, .table-card, .action-card) { padding: var(--m-card-pad); margin: 0 0 var(--m-section-gap); border: 1px solid rgba(255, 255, 255, .82); border-radius: var(--radius-card); background: var(--m-glass); box-shadow: var(--m-shadow); -webkit-backdrop-filter: blur(28px) saturate(1.3); backdrop-filter: blur(28px) saturate(1.3); transition: transform var(--motion-base) var(--m-ease), box-shadow var(--motion-base) var(--m-ease), border-color var(--motion-fast) ease; }
 .mobile-area .mobile-main .m-page :is(.m-card, .panel, .profile-plate, .round-card, .chart-card, .table-card, .action-card):last-child { margin-bottom: 0; }
 .mobile-area .mobile-main :is(.m-primary, .btn-primary, .diagnose-button, .small-primary) { position: relative; overflow: hidden; border-color: rgba(255, 255, 255, .24); background: linear-gradient(120deg, #D25B1B, #B84A16 52%, #A54214); box-shadow: 0 6px 18px rgba(184, 74, 22, .2), inset 0 1px rgba(255, 255, 255, .3); }
 .mobile-area .mobile-main :is(.m-secondary, .btn-secondary, .ghost-button) { border-color: rgba(155, 141, 130, .68); background: rgba(255, 255, 255, .58); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: inset 0 1px rgba(255, 255, 255, .74); }
@@ -219,7 +219,7 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 .mobile-area .mobile-main .today-page :is(.picker-label, .m-muted.small) { font-size: 12px; }
 .mobile-area .mobile-main .today-page .picker-value { font-size: 14px; }
 .mobile-area .mobile-main .today-page .refresh-icon { width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-color: var(--border-subtle); }
-.mobile-area .mobile-main .today-page .intro-card { padding: 28px 24px; background: radial-gradient(circle at 86% 12%, rgba(255, 176, 90, .42), transparent 46%), linear-gradient(145deg, rgba(255, 255, 255, .84), rgba(255, 240, 226, .56)); text-align: center; }
+.mobile-area .mobile-main .today-page .intro-card { padding: 28px 24px; background: radial-gradient(circle at 86% 12%, rgba(255, 176, 90, .18), transparent 46%), var(--m-glass); text-align: center; }
 .mobile-area .mobile-main .today-page .intro-card .m-primary { width: 100%; margin-top: 12px; }
 .mobile-area .mobile-main .today-page .risk-banner { padding: 14px; border-radius: var(--radius-control); }
 .mobile-area .mobile-main .m-page .date-card { padding: 16px; }
@@ -232,7 +232,7 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 .mobile-area .mobile-main .m-page .me-heading h1 { font-size: 28px; }
 .mobile-area .mobile-main .m-page .profile-row :is(img, .avatar-fallback) { border-radius: 50%; }
 .mobile-area .mobile-main .m-page .nav-card { padding: 6px 16px; }
-.mobile-area .mobile-main .m-page .profile-card { background: radial-gradient(circle at 90% 0%, rgba(255, 176, 90, .34), transparent 52%), linear-gradient(145deg, rgba(255, 255, 255, .84), rgba(255, 240, 226, .54)); }
+.mobile-area .mobile-main .m-page .profile-card { background: radial-gradient(circle at 90% 0%, rgba(255, 176, 90, .16), transparent 52%), var(--m-glass); }
 .mobile-area .mobile-main .mobile-report .m-actions { padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); border-top-color: var(--border-subtle); background: rgba(255, 255, 255, .94); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
 .mobile-area .mobile-main .mobile-report .m-actions > * { flex: 1; }
 .mobile-area :is(.auth-page, .profile-page) { padding: 20px; }
