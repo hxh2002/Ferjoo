@@ -27,9 +27,10 @@ function moveSlider(index, previous) {
   const from = sliderPosition.value;
   const start = performance.now();
   const animate = (now) => {
-    const progress = Math.min(1, (now - start) / 180);
-    // 五次缓出保持非线性减速；连续点击从当前帧位置接续。
-    sliderPosition.value = from + (index - from) * (1 - (1 - progress) ** 5);
+    const progress = Math.min(1, (now - start) / 360);
+    // 轻微回弹，连续点击从当前帧位置接续，终帧精确落在目标。
+    const eased = 1 + 2.2 * (progress - 1) ** 3 + 1.2 * (progress - 1) ** 2;
+    sliderPosition.value = from + (index - from) * eased;
     if (progress < 1) sliderFrame = requestAnimationFrame(animate);
   };
   sliderFrame = requestAnimationFrame(animate);
@@ -126,9 +127,11 @@ function go(path) {
     <main class="mobile-main">
       <slot>
         <RouterView v-slot="{ Component }">
-          <KeepAlive :include="cachedTabs">
-            <component :is="Component" />
-          </KeepAlive>
+          <Transition name="mobile-page">
+            <KeepAlive :include="cachedTabs">
+              <component :is="Component" />
+            </KeepAlive>
+          </Transition>
         </RouterView>
       </slot>
     </main>
@@ -140,3 +143,24 @@ function go(path) {
     </nav>
   </div>
 </template>
+
+<style scoped>
+.mobile-page-enter-active { animation: mobile-arrive 280ms cubic-bezier(.2, .8, .3, 1); }
+.mobile-shell :deep(details[open] > :not(summary)),
+.mobile-shell :deep(.picker-row),
+.mobile-shell :deep(.close-panel) { animation: mobile-unfold 220ms ease-out; }
+@keyframes mobile-arrive {
+  from { opacity: .35; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mobile-unfold {
+  from { opacity: .4; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-page-enter-active,
+  .mobile-shell :deep(details[open] > :not(summary)),
+  .mobile-shell :deep(.picker-row),
+  .mobile-shell :deep(.close-panel) { animation: none !important; }
+}
+</style>
