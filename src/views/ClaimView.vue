@@ -59,7 +59,45 @@ function goDevice() {
 </script>
 
 <template>
-  <div class="auth-page">
+  <main v-if="mobile" class="m-page claim-page">
+    <section class="m-card">
+      <h2>绑定设备</h2>
+      <p class="m-muted">绑定后可查看设备全部历史采样。</p>
+
+      <div v-if="state === 'working'" class="claim-status">
+        <p class="m-muted">正在绑定，请稍候…</p>
+      </div>
+
+      <div v-else-if="state === 'success' || state === 'already'" class="claim-status">
+        <p class="form-success" role="status">{{ state === 'already' ? '这台设备已经在你的列表中。' : '绑定成功，设备已加入你的列表。' }}</p>
+        <button class="m-primary claim-action" type="button" @click="goDevice">
+          {{ deviceId ? '查看设备详情' : '前往我的设备' }}
+        </button>
+      </div>
+
+      <template v-else>
+        <p v-if="state === 'error'" class="m-error" role="alert">{{ message }}</p>
+        <form class="claim-form" @submit.prevent="submitManual">
+          <label class="m-field">
+            绑定码
+            <input
+              v-model.trim="manualCode"
+              type="text"
+              maxlength="12"
+              placeholder="例如 ABCD-EFGH"
+              autocomplete="off"
+              required
+            />
+          </label>
+          <label class="claim-confirm"><input v-model="confirmed" type="checkbox">我已了解：绑定后可查看设备全部历史采样。</label>
+          <button class="m-primary claim-action" :disabled="!manualCode.trim() || !confirmed">绑定设备</button>
+        </form>
+        <p class="m-muted claim-hint">绑定码在设备标签或随附卡片上，也可扫码自动填写。</p>
+      </template>
+    </section>
+  </main>
+
+  <div v-else class="auth-page">
     <AuthCard eyebrow="DEVICE BINDING" title="绑定设备" description="绑定后可查看设备全部历史采样。">
       <div v-if="state === 'working'" class="claim-status">
         <p class="auth-description">正在绑定，请稍候…</p>
@@ -98,3 +136,13 @@ function goDevice() {
     </AuthCard>
   </div>
 </template>
+<style scoped>
+.claim-page .m-card{display:grid;gap:var(--m-module-gap)}
+.claim-page .m-card > h2{margin:0}
+.claim-status{display:grid;gap:var(--m-module-gap)}
+.claim-form{display:grid;gap:var(--m-module-gap)}
+.claim-form .m-field{margin:0}
+.claim-confirm{display:flex;align-items:flex-start;font-size:14px;line-height:1.6;color:var(--text-secondary)}
+.claim-page .claim-action{width:100%}
+.claim-hint{margin:0;font-size:13px;line-height:1.7}
+</style>

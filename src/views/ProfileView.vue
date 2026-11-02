@@ -1,6 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
+import { usesMobileAccountLayout } from '../lib/accountNavigation.js';
 import {
   changePassword,
   deleteAvatarFile,
@@ -13,6 +15,10 @@ const VIEW = 320;
 const EXPORT = 512;
 
 const auth = useAuth();
+const route = useRoute();
+const router = useRouter();
+// 手机端沿用同一套资料逻辑，只切换版式，避免出现电脑端双栏页面。
+const mobile = computed(() => usesMobileAccountLayout(route, router));
 const profile = computed(() => auth.profile.value);
 const userId = computed(() => auth.user.value?.id || '');
 
@@ -306,7 +312,115 @@ async function clearAvatar() {
 </script>
 
 <template>
-  <section class="profile-page">
+  <main v-if="mobile" class="m-page mobile-profile">
+    <section v-if="!auth.configured || !profile" class="m-card">
+      <p class="m-muted">{{ auth.configured ? '正在读取个人资料…' : '当前未配置 Supabase，个人资料不可用。请先配置 VITE_SUPABASE_URL 与 VITE_SUPABASE_ANON_KEY。' }}</p>
+    </section>
+
+    <template v-else>
+      <section class="m-card identity-card">
+        <div class="identity-row">
+          <div class="avatar-frame">
+            <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="头像" />
+            <span v-else class="avatar-placeholder">{{ accountInitial }}</span>
+          </div>
+          <div class="identity-meta">
+            <strong>{{ accountName || '未设置名称' }}</strong>
+            <small>{{ profile.system_user_id || '—' }} · {{ isAdmin ? '管理员' : '普通用户' }}</small>
+            <small>{{ registeredAt }} 注册</small>
+          </div>
+        </div>
+        <div class="identity-actions">
+          <button class="m-secondary" type="button" @click="avatarInput?.click()">
+            {{ profile.avatar_url ? '更换头像' : '上传头像' }}
+          </button>
+          <button v-if="profile.avatar_url" class="m-text-action" type="button" :disabled="infoBusy" @click="clearAvatar">
+            移除头像
+          </button>
+        </div>
+        <input
+          ref="avatarInput"
+          class="avatar-file-input"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          @change="onPickFile"
+        />
+        <p class="identity-hint m-muted">头像将裁切为正方形显示。</p>
+        <p v-if="infoError" class="m-error" role="alert">{{ infoError }}</p>
+        <p v-if="infoSuccess" class="form-success" role="status">{{ infoSuccess }}</p>
+      </section>
+
+      <form class="m-card" @submit.prevent="saveInfo">
+        <h2>基本资料</h2>
+        <div class="mobile-fields">
+          <label class="m-field">
+            用户名
+            <input v-model.trim="form.displayName" type="text" maxlength="80" placeholder="你的显示名称" />
+          </label>
+          <label class="m-field">
+            性别
+            <select v-model="form.gender">
+              <option v-for="option in GENDER_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <label class="m-field">
+            出生年月日
+            <input v-model="form.birthDate" type="date" :max="new Date().toISOString().slice(0, 10)" />
+          </label>
+          <label class="m-field">
+            身份
+            <select v-model="form.identity">
+              <option v-for="option in IDENTITY_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+        </div>
+        <button class="m-primary" :disabled="infoBusy">{{ infoBusy ? '保存中…' : '保存资料' }}</button>
+      </form>
+
+      <section class="m-card">
+        <h2>我的邀请码</h2>
+        <div class="invite-hero">
+          <span class="invite-code">{{ profile.invite_code || '—' }}</span>
+          <button class="m-secondary" type="button" @click="copyInvite">{{ copied ? '已复制' : '复制邀请码' }}</button>
+        </div>
+        <div class="invite-meter">
+          <div class="invite-meter-row">
+            <span>已邀请 {{ inviteUsed }} 人</span>
+            <span>上限 {{ inviteTotal }} 人</span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-fill" :style="{ width: `${invitePercent}%` }"></div>
+          </div>
+          <small v-if="inviteRemaining > 0">还可邀请 {{ inviteRemaining }} 人。</small>
+          <small v-else class="invite-exhausted">邀请名额已用完。</small>
+        </div>
+        <p class="invite-note">新用户可邀请人数默认为 1，如需调整，请联系管理员修改。</p>
+      </section>
+
+      <form class="m-card" @submit.prevent="submitPassword">
+        <h2>修改密码</h2>
+        <div class="mobile-fields">
+          <label class="m-field">
+            旧密码
+            <input v-model="pwForm.oldPassword" type="password" autocomplete="current-password" required />
+          </label>
+          <label class="m-field">
+            新密码
+            <input v-model="pwForm.newPassword" type="password" autocomplete="new-password" required />
+          </label>
+          <label class="m-field">
+            确认新密码
+            <input v-model="pwForm.confirm" type="password" autocomplete="new-password" required />
+          </label>
+        </div>
+        <p v-if="pwError" class="m-error" role="alert">{{ pwError }}</p>
+        <p v-if="pwSuccess" class="form-success" role="status">{{ pwSuccess }}</p>
+        <button class="m-primary" :disabled="pwBusy">{{ pwBusy ? '修改中…' : '修改密码' }}</button>
+      </form>
+    </template>
+  </main>
+
+  <section v-else class="profile-page">
     <div class="profile-heading">
       <div>
         <p class="eyebrow">PERSONAL PROFILE</p>
@@ -492,4 +606,20 @@ async function clearAvatar() {
 </template>
 <style scoped>
 .crop-modal{box-sizing:border-box;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow-y:auto}.crop-stage{width:min(320px,100%);max-width:100%;margin:auto}.crop-canvas{display:block;width:100%;height:auto;touch-action:none}.crop-actions{display:flex;flex-wrap:wrap;gap:8px}.crop-actions button{min-height:44px}.profile-form input,.profile-form select{min-width:0;max-width:100%;box-sizing:border-box;font-size:16px}
+.mobile-profile .m-card{display:grid;gap:var(--m-module-gap)}
+.mobile-profile .m-card > h2{margin:0}
+.identity-row{display:flex;align-items:center;gap:16px}
+.identity-meta{display:grid;gap:4px;min-width:0}
+.identity-meta strong{font-size:18px;line-height:1.4;overflow-wrap:anywhere}
+.identity-meta small{font-size:13px;line-height:1.5;color:var(--text-secondary)}
+.identity-actions{display:flex;flex-wrap:wrap;gap:8px}
+.identity-actions .m-secondary{flex:1 1 140px}
+.identity-hint{margin:0;font-size:12px;line-height:1.6}
+.mobile-fields{display:grid;gap:var(--m-module-gap)}
+.mobile-fields .m-field{margin:0}
+.mobile-profile .m-primary{width:100%}
+.mobile-profile .invite-hero{margin:0}
+.mobile-profile .meter-track{overflow:hidden}
+.mobile-profile .meter-track,.mobile-profile .meter-fill{border-radius:var(--radius-pill)}
+.mobile-profile .invite-exhausted{color:#9d2b21}
 </style>

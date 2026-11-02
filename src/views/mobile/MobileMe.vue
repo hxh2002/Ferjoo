@@ -28,7 +28,7 @@ onMounted(() => auth.init());
   <div v-if="!auth.user.value" class="auth-links"><RouterLink class="m-primary" :to="{path:'/login',query:{redirect:'/me'}}">登录</RouterLink><RouterLink class="m-secondary" :to="{path:'/register',query:{redirect:'/me'}}">邀请码注册</RouterLink></div>
 </section>
 <section v-if="auth.user.value" class="m-card">
-  <div class="section-heading"><h2>设备</h2><div class="device-actions"><RouterLink class="text-link" to="/me/devices">管理 ›</RouterLink><RouterLink class="text-link" to="/claim">绑定新设备</RouterLink></div></div>
+  <div class="section-heading"><h2>设备</h2><div class="device-actions"><RouterLink class="text-link" to="/me/devices">管理 ›</RouterLink><RouterLink class="text-link" :to="{ path: '/claim', query: { redirect: '/me' } }">绑定新设备</RouterLink></div></div>
   <RouterLink v-for="device in devices" :key="device.device_id" class="m-list-row" :to="`/me/devices/${encodeURIComponent(device.device_id)}`">
     <span class="row-main"><strong>{{ device.name || device.device_id }}</strong><small>{{ device.my_role === 'owner' ? '所有者' : '成员' }} · 最近接收 {{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
   </RouterLink>
