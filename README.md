@@ -21,14 +21,15 @@ Vue 3 + Vite + Supabase
 │   └── router/
 ├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
 ├── supabase/
-│   └── migrations/          # SQL 后端逻辑与设备注册迁移
+│   ├── migrations/          # SQL 后端逻辑与设备注册迁移
+│   └── functions/           # Edge Function：高度提醒推送投递
 ├── tests/
 └── public/assets/           # 经典 PNG 资产
 ```
 
 ## 架构总览
 
-项目没有自建应用服务器：“后端”由 Supabase 托管服务（Auth / REST API / Storage）加 PostgreSQL 内的触发器、存储过程与 RLS 共同承担；前端构建成静态文件后完全运行在浏览器中。
+项目没有自建应用服务器：“后端”由 Supabase 托管服务（Auth / REST API / Storage）、PostgreSQL 内的触发器 / 存储过程 / RLS，以及负责高度提醒投递的 Edge Function 共同承担；前端构建成静态文件后完全运行在浏览器中。
 
 ```text
  ┌──────────────────────────────────────────────────────────────────────────┐
@@ -91,6 +92,7 @@ Vue 3 + Vite + Supabase
 | 前端托管          | 静态构建 + CDN 分发                              | Vercel 云                                               | `vercel.json`（SPA 重写）        |
 | 后端服务          | Auth（GoTrue）、REST/RPC（PostgREST）、Storage   | Supabase 云`https://yccvmeepajpdagizplgp.supabase.co` | —                                 |
 | 数据库 + 业务逻辑 | PostgreSQL：数据表、触发器、存储过程、RLS        | Supabase 托管实例                                       | `supabase/migrations/*.sql`      |
+| 定时推送          | pg_cron 扫描 → Edge Function 投递 Web Push      | Supabase 托管实例 / Edge Functions                       | `supabase/functions/process-height-alerts/` |
 | CI/CD             | 测试/构建、迁移应用、前端发布                    | GitHub Actions / Supabase GitHub 集成 / Vercel Git 集成 | `.github/workflows/ci.yml`       |
 | 设备数据上传      | IoT 设备直连 REST RPC（一次性设备 api_key）      | 设备固件                                                | `src/services/device.service.js` |
 
@@ -127,11 +129,16 @@ npm run dev
 | --- | --- | --- |
 | `/today` | 今日任务入口、酵种选择及养护操作入口 | 游客可进入，账号数据需登录 |
 | `/checkin` | 分步骤填写观察、生成本地建议 | 游客可生成，云端保存需登录 |
-| `/feeding` | 记录喂养事实、保存确认与连续新增 | 云端保存需登录 |
+| `/feeding` | 记录喂养事实、保存确认与连续新增 | 需要登录 |
 | `/records` | 观察/喂养记录列表，酵种、类型、日期筛选与分页 | 云端记录需登录 |
+| `/records/:id` | 观察快照或喂养事实详情 | 需要登录 |
 | `/reports/session` | 当前本地观察建议 | 游客可查看当前会话 |
 | `/reports/:id` | 已保存观察快照或喂养事实详情 | 云端记录需登录 |
 | `/me` | 个人与账号操作入口 | 游客可进入 |
+| `/me/account` | 账号信息与登录状态 | 需要登录 |
+| `/me/invite` | 邀请码查看与分享 | 需要登录 |
+| `/me/help` | 使用帮助 | 游客可进入 |
+| `/me/notifications` | 高度提醒阈值与系统通知授权 | 需要登录 |
 | `/me/devices`、`/me/devices/:deviceId` | 设备列表与设备设置 | 需要登录 |
 | `/devices/:deviceId/trend` | 设备趋势、指标与时间范围选择 | 需要登录 |
 
@@ -254,7 +261,7 @@ where system_user_id = 'U26090001';
 
 ### 浏览器端能力
 
-已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码。
+已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码、高度提醒阈值与系统通知授权。
 
 当前部署约定保持 Supabase **Confirm email** 开启，注册后需完成邮箱确认。若另行决定取消邮箱所有权验证，须显式调整 Supabase 配置；前端仍受基本邮箱格式校验约束。
 
@@ -324,6 +331,12 @@ where system_user_id = 'U26090001';
 - 两张表均启用 RLS，仅允许用户读取和新增自己的数据；养护记录不是设备传感器数据，不与 `device_measurements` 混用。
 - 保存走 `save_care_record` RPC，校验酵种归属。`(user_id, request_id)` 唯一约束保证相同请求重复提交只返回同一记录；同一编号携带不同内容时返回 `REQUEST_ID_CONFLICT`。
 - 本次主流程修复复用现有 `015_mobile_care.sql`，没有新增数据库迁移。
+
+### fermentation_window_closures（迁移 `023`）
+
+- 一轮发酵的业务结束只由「下一次喂养」或用户手动结束决定；设备缺测、断线、关联失效只降低观测质量，不写入结束记录。
+- 每个 `(user_id, feeding_id)` 只保存一条结束事实，重复请求返回原记录；`ended_at` 不会晚于下一次喂养时间与当前时间。
+- 写入走 `close_fermentation_window` RPC（校验酵种归属与时间边界），表对 `authenticated` 只开放 `SELECT`。
 
 ### 数据分辨率
 
@@ -424,19 +437,17 @@ import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 - `scenario-catalog.json`：完整预生成组合。
 - `build-review-queue.js` / `review-queue.json`：审核队列。
 
-依赖方向约定见上文「架构说明」。`tests/architecture.test.js` 是历史架构检查用例，未接入当前默认测试链，需更新其断言后再作为持续集成门禁。
+依赖方向约定见上文「架构说明」。`tests/architecture.test.js` 已接入 `npm test`，检查依赖方向、2,016 条 catalog 结构与 Supabase 迁移契约。
 
 ## 测试
 
 ```bash
-npm test           # 诊断行为测试 + 2,016 场景结构自检
+npm test           # 16 个测试脚本 + 2,016 场景自检（与 CI 同一条命令）
 npm run audit      # 仅运行 2,016 场景枚举自检
-node tests/mobile-care.test.js
-node tests/mobile-device.service.test.js
-npm run build
+npm run build      # Vite 生产构建
 ```
 
-手机养护与设备服务测试需单独运行，目前未包含在 `npm test` 脚本中；架构边界测试也不在当前默认测试链中。
+`npm test` 覆盖：诊断行为、架构边界与迁移契约、本地缓存与草稿、手机端观察流程、记录列表与详情、喂养幂等、基线与膨胀率、高度区间、喂养比例换算、高度提醒与 Web Push 策略，末尾串行执行 2,016 场景自检。`.github/workflows/ci.yml` 的 `test-and-build` 使用同一命令。
 
 最新主流程修复已验证构建、诊断测试、手机养护契约和设备服务测试；另验证了 `Asia/Singapore` / `America/New_York` 本地时间往返、夏令时跳过时段拒绝及游客观察到本地报告流程。这些结果不代表已经完成真实账号或生产环境端到端验收。
 
@@ -451,7 +462,7 @@ npm run build
 - Vue 代码不能绕过 service 深度调用算法；
 - Supabase migration 包含用户 ID、RLS、设备与历史数据表。
 
-说明：`tests/` 下其余 `*.test.js` 为上一轮算法架构（规则引擎 / 审核队列）留存的归档用例，不属于当前 `npm test` 范围，单独运行可能失败。
+说明：`diagnosis-algorithms`、`doubling-predictor`、`enumerate-scenarios`、`review-queue`、`rule-engine`、`v0.4-regressions` 六个用例属于上一轮规则引擎架构的归档，不在 `npm test` 链中；它们仍引用已重构的算法 API（如 `normalizeStage`），单独运行会失败，不作为回归门禁。
 
 ## 部署
 
@@ -485,7 +496,7 @@ GitHub `hxh2002/Ferjoo` 的 `main` 是生产环境唯一发布入口。默认流
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前仓库包含 `001`～`017` 范围内的 16 个迁移（`005` 是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
+当前仓库包含 `001`～`023` 范围内的 22 个迁移（`005` 是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
@@ -543,7 +554,7 @@ Vue Views / Components
 - `src/references/`：参考文献库、证据注册表、引用 schema 与运行时引用元数据的归属。
 - Vue 不应深度导入算法内部文件；主诊断通过电脑/手机各自的 service 调用。当前两处 Vue 直接使用公共入口的例外见「算法边界」。
 - 算法引用文献只通过 `src/references/index.js`。
-- `tests/architecture.test.js` 是历史静态检查，未接入默认测试或 CI；其 catalog 结构、允许的 service 及 scripts 目录断言与当前实现不兼容，不能视为有效门禁。
+- `tests/architecture.test.js` 随 `npm test` 执行，覆盖依赖方向、catalog 结构与迁移契约；它仍是静态检查，不能替代真实 RLS 或端到端验收。
 - 默认枚举自检检查 2,016 条结果数量及 `status/title` 非空，不代表完整业务正确性、引用完整性或真实 RLS 已验收。
 
 ### 数据层
