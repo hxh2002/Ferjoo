@@ -51,7 +51,7 @@ export function roundState(summary = {}) {
       ? { label: '手动结束', tone: 'closed' }
       : { label: '已结束', tone: 'closed' };
   }
-  if (summary.baselineStatus === 'pending') return { label: '建立基线', tone: 'pending' };
+  if (summary.baselineStatus === 'pending') return { label: '基线计算中', tone: 'pending' };
   if (summary.dataQuality === 'stale') return { label: '数据中断', tone: 'pending' };
   if (summary.dataQuality === 'insufficient' || summary.dataQuality === 'partial') return { label: '数据不足', tone: 'pending' };
   return { label: '进行中', tone: 'active' };

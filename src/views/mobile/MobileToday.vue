@@ -118,7 +118,7 @@ const roundStateText = computed(() => {
   const value = summary.value;
   if (!value) return '';
   if (value.windowStatus === 'closed') return '已结束';
-  if (value.baselineStatus === 'pending') return '基线建立中';
+  if (value.baselineStatus === 'pending') return '基线计算中';
   if (value.dataQuality === 'stale') return '进行中 · 数据中断';
   if (value.dataQuality === 'insufficient' || value.dataQuality === 'partial') return '进行中 · 数据不足';
   return '进行中';

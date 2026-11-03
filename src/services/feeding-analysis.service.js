@@ -77,16 +77,12 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     && (!Number.isFinite(manualEnd) || currentTime < manualEnd);
   const baselineIncomplete = !(manualBaseline > 0) && automaticBaseline != null
     && (!scanComplete || baselineFallback);
-  // 当前高度只取基线覆盖到的采样点之后的读数，避免拿基线自身做比较。
-  const baselineCoveredAt = manualBaseline > 0 ? fedAt
-    : scanComplete ? time(startPoints.at(-1)?.recorded_at)
-      : time(retainedStart.at(-1)?.row.recorded_at);
-  const latest = heights.filter((row) => time(row.recorded_at) > baselineCoveredAt).at(-1);
+  // 当前高度取最近一次有效读数：首个基线点即为 0%，之后缺测也沿用上一个点算出的膨胀率。
   const freshest = heights.at(-1);
   const freshestAt = time(freshest?.recorded_at);
   const historicalRound = windowClosed;
   const heightStale = !!freshest && (historicalRound ? end - freshestAt > FRESH_MS : currentTime - freshestAt > FRESH_MS);
-  const currentHeightMm = latest && !heightStale ? number(latest.height_mm) : null;
+  const currentHeightMm = number(freshest?.height_mm);
   const expansionPercent = baselineHeightMm > 0 && currentHeightMm != null ? (currentHeightMm / baselineHeightMm - 1) * 100 : null;
   // 只映射实测涨幅；峰值、回落或液层需要用户确认。
   const height = heightBand(baselineHeightMm, currentHeightMm)?.value || '';
@@ -118,7 +114,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     elapsedHours: Number.isFinite(fedAt) && end >= fedAt ? (end - fedAt) / 3600000 : null,
     measurementCount: rows.length, heightCount: heights.length, temperatureCount: temperatures.length,
     baselineSampleCount: startPoints.length, baselineUsedCount: baselineFallback ? 0 : retainedStart.length, baselineExcludedCount: excludedStart.length,
-    latestMeasurementAt: latest?.recorded_at || null,
+    latestMeasurementAt: freshest?.recorded_at || null,
     latestTemperatureAt: latestTemperature?.recorded_at || null,
     historicalRound, windowStatus, windowActive: Number.isFinite(fedAt) && !windowClosed, windowClosed,
     windowFrom: Number.isFinite(fedAt) ? new Date(fedAt).toISOString() : null,

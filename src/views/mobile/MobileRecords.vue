@@ -191,10 +191,10 @@ function roundItem(row, carried, now) {
 // 涨跌只在证据有效时显示；缺测原因用一句话说明，不把设备问题说成发酵结束。
 function roundHint(summary, linked, boundaryPending) {
   const hint = !linked ? '未关联设备，无法计算膨胀率'
-    : summary.baselineStatus === 'pending' ? '正在建立基线，稍后计算膨胀率'
-      : summary.baselineStatus === 'insufficient' ? '基线有效采样不足，暂无法计算膨胀率'
-        : summary.heightStale ? '设备数据偏旧，暂不采用旧读数'
-          : summary.baselineIncomplete ? '起始有效采样未满 3 个，膨胀率仅供参考' : '';
+    : summary.baselineStatus === 'pending' ? '基线计算中'
+      : summary.baselineStatus === 'insufficient' ? '基线采样不足'
+        : summary.heightStale ? '数据偏旧，沿用上次读数'
+          : summary.baselineIncomplete ? '基线采样未满，仅供参考' : '';
   return [hint, boundaryPending ? '结束边界待核实' : ''].filter(Boolean).join(' · ');
 }
 function observationItem(row) {

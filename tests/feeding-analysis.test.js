@@ -30,12 +30,13 @@ assert.equal(summarize([row(5, 100), row(10, 100), row(15, 100), row(20, 100), r
 result = summarize([row(5, 100), row(15, 101), row(19, 99)], { now: Date.parse(at(20)) });
 assert.equal(result.baselinePending, false, '首个有效高度出现即可用，不再等固定时长');
 assert.equal(result.baselineHeightMm, 100);
-assert.equal(result.height, '', 'do not compare early-window samples to their own baseline');
+assert.equal(result.currentHeightMm, 99, '当前高度直接取最近一次有效读数');
+assert.equal(result.height, 'none', '首个点即 0%，之后随基线更新显示实测涨幅');
 assert.equal(summarize(normal, { now: Date.parse(at(50)) }).baselinePending, false);
 
 result = summarize(normal, { nextFeedingAt: at(40) });
 assert.equal(result.measurementCount, 4);
-assert.equal(result.latestMeasurementAt, null);
+assert.equal(result.latestMeasurementAt, at(35));
 assert.equal(result.elapsedHours, 40 / 60);
 assert.equal(result.baselineIncomplete, false);
 assert.equal(result.baselineHeightMm, 100);
@@ -94,9 +95,9 @@ result = summarize(normal, { now: Date.parse(at(120)) });
 assert.equal(result.staleEvidence, true);
 assert.equal(result.heightStale, true);
 assert.equal(result.temperatureStale, true);
-assert.equal(result.currentHeightMm, null);
-assert.equal(result.expansionPercent, null);
-assert.equal(result.height, '');
+assert.equal(result.currentHeightMm, 150, '缺测时沿用上一个点的膨胀率');
+assert.equal(result.expansionPercent > 49, true);
+assert.equal(result.height, 'slight');
 assert.equal(result.tempC, null);
 assert.equal(result.meanTempC, 26);
 assert.equal(result.latestMeasurementAt, at(70));
