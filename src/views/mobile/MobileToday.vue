@@ -64,12 +64,12 @@ const heightPoints = computed(() => chartRows.value.map((row) => ({ t: row.recor
 const tempPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'temperature_c') })));
 const humidityPoints = computed(() => chartRows.value.map((row) => ({ t: row.recorded_at, v: valid(row, 'humidity_percent') })));
 const heightBaseline = computed(() => summary.value?.baselineHeightMm > 0 ? summary.value.baselineHeightMm : null);
-// 有明确喂养起点时，横轴从喂养前 5 分钟开始，喂养竖线才不会被画到图外或贴边。
+// 本轮喂养时间确定时，横轴从起始前 10 分钟开始；没有确定起点才回退到最近 24 小时。
 const chartFrom = computed(() => {
+  const earliest = Date.parse(feeding.value?.occurred_at);
   const base = link.value?.active_from && Date.parse(link.value.active_from) > Date.parse(from.value) ? link.value.active_from : from.value;
-  const earliest = Date.parse(previousFeeding.value?.occurred_at || feeding.value?.occurred_at);
   if (!Number.isFinite(earliest)) return base;
-  return new Date(Math.max(Date.parse(from.value), Math.min(Date.parse(base), earliest - 5 * 60000))).toISOString();
+  return new Date(Math.min(Date.parse(base), earliest - 10 * 60000)).toISOString();
 });
 const chartTo = computed(() => to.value);
 // 四条竖线：上轮起点/终点、本轮起点/终点。上轮终点按定义等于本轮喂养时间，
