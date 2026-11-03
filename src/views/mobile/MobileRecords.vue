@@ -194,7 +194,7 @@ function roundHint(summary, linked, boundaryPending) {
     : summary.baselineStatus === 'pending' ? '正在建立基线，稍后计算膨胀率'
       : summary.baselineStatus === 'insufficient' ? '基线有效采样不足，暂无法计算膨胀率'
         : summary.heightStale ? '设备数据偏旧，暂不采用旧读数'
-          : summary.baselineWindowTruncated ? '起始观测不足 50 分钟，膨胀率仅供参考' : '';
+          : summary.baselineIncomplete ? '起始有效采样未满 3 个，膨胀率仅供参考' : '';
   return [hint, boundaryPending ? '结束边界待核实' : ''].filter(Boolean).join(' · ');
 }
 function observationItem(row) {

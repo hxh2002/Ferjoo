@@ -1,6 +1,8 @@
 import { heightBand } from '../lib/height-band.js';
 
-const BASELINE_MS = 50 * 60 * 1000;
+// 起始基线取本轮最早的 5 个采样点：首个有效高度即可用，收满 5 个点后用 MAD 剔除离群值再冻结。
+const BASELINE_POINTS = 5;
+const BASELINE_MIN = 3;
 const FRESH_MS = 40 * 60 * 1000;
 const MAX_FEEDING_ROWS = 40000;
 const time = (value) => value == null || value === '' ? NaN : new Date(value).getTime();
@@ -31,32 +33,55 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const windowEndReason = !windowClosed ? null
     : Number.isFinite(manualEnd) && (!Number.isFinite(scheduledEnd) || manualEnd <= scheduledEnd) ? 'manual' : 'next_feeding';
   const end = Math.min(currentTime, Number.isFinite(closedAt) ? closedAt : Infinity, Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity);
-  const rows = matches ? measurements.filter((row) => {
+  const inWindow = (row) => {
     const at = time(row.recorded_at);
     return at >= fedAt && at >= linkedAt && at <= currentTime && at < (Number.isFinite(closedAt) ? closedAt : Infinity)
       && at < (Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity)
-      && (!row.device_id || row.device_id === link.device_id) && row.mode === 'fer' && !row.sensor_error;
-  }).sort((a, b) => time(a.recorded_at) - time(b.recorded_at)) : [];
+      && (!row.device_id || row.device_id === link.device_id);
+  };
+  const scoped = matches ? measurements.filter(inWindow).sort((a, b) => time(a.recorded_at) - time(b.recorded_at)) : [];
+  const rows = scoped.filter((row) => row.mode === 'fer' && !row.sensor_error);
   const heights = rows.filter((row) => number(row.height_mm) > 0);
-  const baselineRows = heights.filter((row) => time(row.recorded_at) <= fedAt + BASELINE_MS);
-  const values = baselineRows.map((row) => number(row.height_mm));
-  let excluded = [];
-  if (values.length >= 3) {
-    const center = median(values);
-    const mad = median(values.map((value) => Math.abs(value - center)));
+  // 基线从本轮最早的采样点开始累计：首个有效高度立即可用，收满五个点后做一次 MAD 复核再冻结。
+  const startPoints = scoped.slice(0, BASELINE_POINTS);
+  const validStart = startPoints
+    .map((row) => ({ row, value: number(row.height_mm) }))
+    .filter(({ row, value }) => row.mode === 'fer' && !row.sensor_error && value > 0);
+  // 本轮结束或设备关联失效后不再有新点，此时才允许判定点数不足。
+  const scanComplete = startPoints.length >= BASELINE_POINTS || windowClosed
+    || (Number.isFinite(unlinkedAt) && unlinkedAt <= currentTime);
+  const startValues = validStart.map(({ value }) => value);
+  // 离群值只在收满五个点后判定：中位数中心 + MAD 阈值，最多剔除到只剩三个有效点。
+  let excludedStart = [];
+  if (scanComplete && startValues.length > BASELINE_MIN) {
+    const center = median(startValues);
+    const mad = median(startValues.map((value) => Math.abs(value - center)));
     const threshold = Math.max(5, center * 0.25, 3 * 1.4826 * mad);
-    excluded = values.map((value, index) => ({ index, distance: Math.abs(value - center) }))
-      .filter(({ distance }) => distance > threshold).sort((a, b) => b.distance - a.distance).slice(0, 2).map(({ index }) => index);
+    const removable = Math.min(2, startValues.length - BASELINE_MIN);
+    excludedStart = startValues.map((value, index) => ({ index, distance: Math.abs(value - center) }))
+      .filter(({ distance }) => distance > threshold).sort((a, b) => b.distance - a.distance)
+      .slice(0, removable).map(({ index }) => index);
   }
-  const retained = values.filter((_, index) => !excluded.includes(index));
-  const automaticBaseline = retained.length >= 3 ? mean(retained) : null;
+  const retainedStart = validStart.filter((_, index) => !excludedStart.includes(index));
+  // 有效点不足三个时，退回前五个点里的最低点：宁可低估起点，也不要漏报膨胀。
+  const baselineFallback = scanComplete && retainedStart.length < BASELINE_MIN && startValues.length > 0;
+  const automaticBaseline = baselineFallback ? Math.min(...startValues)
+    : retainedStart.length ? mean(retainedStart.map(({ value }) => value)) : null;
   const manualBaseline = feeding?.input?.baseline_source === 'manual' ? number(feeding.input.baseline_height_mm) : null;
   const baselineHeightMm = manualBaseline > 0 ? manualBaseline : automaticBaseline;
-  const baselineSource = manualBaseline > 0 ? 'manual' : automaticBaseline != null ? 'sensor-window' : null;
-  const baselinePending = Number.isFinite(fedAt) && Number.isFinite(currentTime) && currentTime >= fedAt && currentTime < fedAt + BASELINE_MS
-    && (!Number.isFinite(scheduledEnd) || currentTime < scheduledEnd) && (!Number.isFinite(unlinkedAt) || currentTime < unlinkedAt)
+  const baselineSource = manualBaseline > 0 ? 'manual'
+    : automaticBaseline == null ? null
+      : baselineFallback ? 'sensor-min' : 'sensor-mean';
+  const baselinePending = Number.isFinite(fedAt) && Number.isFinite(currentTime) && currentTime >= fedAt
+    && !(manualBaseline > 0) && automaticBaseline == null && !scanComplete
     && (!Number.isFinite(manualEnd) || currentTime < manualEnd);
-  const latest = heights.filter((row) => time(row.recorded_at) > fedAt + BASELINE_MS).at(-1);
+  const baselineIncomplete = !(manualBaseline > 0) && automaticBaseline != null
+    && (!scanComplete || baselineFallback);
+  // 当前高度只取基线覆盖到的采样点之后的读数，避免拿基线自身做比较。
+  const baselineCoveredAt = manualBaseline > 0 ? fedAt
+    : scanComplete ? time(startPoints.at(-1)?.recorded_at)
+      : time(retainedStart.at(-1)?.row.recorded_at);
+  const latest = heights.filter((row) => time(row.recorded_at) > baselineCoveredAt).at(-1);
   const freshest = heights.at(-1);
   const freshestAt = time(freshest?.recorded_at);
   const historicalRound = windowClosed;
@@ -76,7 +101,6 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     && time(temperatureRows[0].recorded_at) - fedAt <= FRESH_MS
     && end - time(latestTemperature.recorded_at) <= FRESH_MS
     && temperatureRows.every((row, index) => !index || time(row.recorded_at) - time(temperatureRows[index - 1].recorded_at) <= FRESH_MS);
-  const baselineWindowTruncated = Number.isFinite(fedAt) && end < fedAt + BASELINE_MS;
   // 窗口状态与设备观测状态分开：设备缺测只降低数据质量，不结束本轮。
   const windowStatus = !Number.isFinite(fedAt) ? 'not_started' : windowClosed ? 'closed' : 'in_progress';
   const baselineStatus = !Number.isFinite(fedAt) ? null
@@ -87,13 +111,13 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     : !matches || !heights.length ? 'insufficient'
       : baselineHeightMm == null ? (baselinePending ? 'partial' : 'insufficient')
         : heightStale ? 'stale'
-          : baselineWindowTruncated ? 'partial' : 'complete';
+          : baselineIncomplete ? 'partial' : 'complete';
   return {
     baselineHeightMm, baselinePending, baselineSource, expansionPercent, height, currentHeightMm,
     tempC: temperatureStale || !temperatureCoverageReliable ? null : meanTempC, meanTempC, temperatureCoverageReliable, heightStale, temperatureStale, staleEvidence: heightStale || temperatureStale,
     elapsedHours: Number.isFinite(fedAt) && end >= fedAt ? (end - fedAt) / 3600000 : null,
     measurementCount: rows.length, heightCount: heights.length, temperatureCount: temperatures.length,
-    baselineSampleCount: values.length, baselineUsedCount: retained.length, baselineExcludedCount: excluded.length,
+    baselineSampleCount: startPoints.length, baselineUsedCount: baselineFallback ? 0 : retainedStart.length, baselineExcludedCount: excludedStart.length,
     latestMeasurementAt: latest?.recorded_at || null,
     latestTemperatureAt: latestTemperature?.recorded_at || null,
     historicalRound, windowStatus, windowActive: Number.isFinite(fedAt) && !windowClosed, windowClosed,
@@ -101,7 +125,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     windowTo: Number.isFinite(end) && Number.isFinite(fedAt) && end >= fedAt ? new Date(end).toISOString() : null,
     windowClosedAt: windowClosed ? new Date(closedAt).toISOString() : null,
     windowEndReason, nextFeedingAt: Number.isFinite(scheduledEnd) ? new Date(scheduledEnd).toISOString() : null,
-    baselineStatus, dataQuality, baselineWindowTruncated,
+    baselineStatus, dataQuality, baselineIncomplete,
   };
 }
 

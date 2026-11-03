@@ -30,7 +30,7 @@ const returnTo = computed(() => {
 const when = computed(() => record.value ? new Date(record.value.occurred_at).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const baseline = computed(() => summary.value?.baselineHeightMm ?? record.value?.input?.baseline_height_mm ?? record.value?.feed_event?.baseline_height_mm ?? null);
 const baselineSource = computed(() => summary.value?.baselineSource ?? record.value?.input?.baseline_source ?? record.value?.feed_event?.baseline_source);
-const baselineSourceText = computed(() => ({ manual: '手工记录', 'sensor-window': '设备自动', device: '设备读取' }[baselineSource.value] || '来源未记录'));
+const baselineSourceText = computed(() => ({ manual: '手工记录', 'sensor-mean': '设备自动', 'sensor-min': '设备自动（取最低点）', device: '设备读取' }[baselineSource.value] || '来源未记录'));
 const currentHeight = computed(() => Number.isFinite(summary.value?.currentHeightMm) ? summary.value.currentHeightMm : null);
 const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '—');
 const endReasonText = computed(() => {
@@ -91,10 +91,10 @@ const hint = computed(() => {
   if (!evidence.value) return '';
   if (evidence.value.unavailableReason) return evidence.value.unavailableReason;
   if (!value) return '';
-  if (value.baselineStatus === 'pending') return '正在建立起始基线，约 50 分钟后可计算膨胀率。';
+  if (value.baselineStatus === 'pending') return '正在等待首个有效高度读数，收到后即可计算膨胀率。';
   if (value.baselineStatus === 'insufficient') return '起始基线的有效采样不足，暂无法计算膨胀率。';
   if (value.heightStale) return '设备数据已中断，当前高度与膨胀率暂不采用旧读数。';
-  if (value.baselineWindowTruncated) return '本轮起始观测不足 50 分钟，膨胀率仅供参考。';
+  if (value.baselineIncomplete) return '本轮起始有效采样未满 3 个，膨胀率仅供参考。';
   if (!value.measurementCount) return '本轮没有可用的设备采样，仅保留喂养事实。';
   return '';
 });

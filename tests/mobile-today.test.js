@@ -37,7 +37,8 @@ const rows = [
   { id: 'd', recorded_at: iso(5), mode: 'fer', sensor_error: true, height_mm: 50, temperature_c: 31, humidity_percent: 72 }
 ];
 const result = summarizeFeedingMeasurements({ measurements: rows, feeding, link, now });
-assert.equal(result.baselineHeightMm, null, 'less than three baseline samples does not invent a baseline');
+assert.equal(result.baselineHeightMm, 25, 'baseline starts from the first valid height and averages the points seen so far');
+assert.equal(result.baselineIncomplete, true, 'fewer than three valid points is marked incomplete');
 assert.equal(result.measurementCount, 2, 'sleep and sensor-error samples are excluded');
 assert.equal(result.measurements, undefined, 'analysis result does not expose unrelated device rows');
 const isolated = summarizeFeedingMeasurements({ measurements: rows.map((row) => ({ ...row, device_id: 'other' })), feeding, link, now });
