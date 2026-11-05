@@ -1,6 +1,6 @@
 const KEY = 'ferjoo:return-intent';
 const MAX_AGE = 30 * 60 * 1000;
-const ALLOWED = /^\/(?:today|records(?:\/[^/]+)?|me(?:\/devices(?:\/[^/]+)?)?|checkin|feeding|claim|profile|reports\/(?:session|[^/]+)|devices\/[^/]+\/trend)$/;
+const ALLOWED = /^\/(?:device|diary(?:\/records\/[^/]+)?|today|records(?:\/[^/]+)?|me(?:\/devices(?:\/[^/]+)?)?|checkin|feeding|claim|profile|reports\/(?:session|[^/]+)|devices\/[^/]+\/trend)$/;
 
 function safePath(path) {
   if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return null;
@@ -26,7 +26,7 @@ export function useReturnIntent(router) {
   }
   async function restore() {
     const intent = consume();
-    await router.replace(intent?.path || '/today');
+    await router.replace(intent?.path || '/device');
     return intent;
   }
   return { save, consume, restore };

@@ -22,7 +22,7 @@ import { readRevision } from '../../lib/read-cache.js';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
-defineOptions({ name: 'MobileRecords' });
+defineOptions({ name: 'MobileDiary' });
 
 const starters = ref([]);
 const model = ref(null);
@@ -91,7 +91,7 @@ function metric(value) {
 // 旧链接里的 type/starter/page 等参数由规范化统一收敛，避免空白页。
 const query = computed(() => normalizeRecordsQuery(route.query));
 // 记录页的读取与查询回写只在本页进行：离开后 query 会变，否则会把用户顶回记录页。
-const onRecordsPage = () => route.name === 'mobile-records';
+const onRecordsPage = () => route.name === 'mobile-diary';
 const selectedDay = computed(() => query.value.from);
 const page = computed(() => Number(query.value.page) || 1);
 const selectedStarterId = computed(() => query.value.starter || '');
@@ -144,7 +144,7 @@ const positionKey = () => JSON.stringify([accountId.value, selectedStarterId.val
 function returnTo() {
   const value = { from: selectedDay.value, to: selectedDay.value, page: String(page.value), scroll: String(Math.round(scrollY.value)) };
   if (selectedStarterId.value) value.starter = selectedStarterId.value;
-  return router.resolve({ path: '/records', query: value }).fullPath;
+  return router.resolve({ path: '/diary', query: value }).fullPath;
 }
 const feedingTarget = computed(() => ({ path: '/feeding' }));
 
@@ -302,7 +302,7 @@ async function load() {
     const resolved = preferredStarter(names);
     if (resolved !== starterId) {
       // 默认酵种与今日页同步后写回地址，刷新、返回详情都停在同一只酵种上。
-      router.replace({ path: '/records', query: { ...query.value, starter: resolved, page: '1' } });
+      router.replace({ path: '/diary', query: { ...query.value, starter: resolved, page: '1' } });
       return;
     }
     if (!resolved) return;
@@ -340,19 +340,19 @@ function selectDay(value) {
   if (!validLocalDay(value) || value > recentRecordDays().at(-1)) return;
   if (calendarOpen.value) toggleCalendar();
   listPositions.delete(positionKey());
-  router.replace({ path: '/records', query: { ...query.value, from: value, to: value, page: '1', scroll: '0' } });
+  router.replace({ path: '/diary', query: { ...query.value, from: value, to: value, page: '1', scroll: '0' } });
 }
 function selectStarter(id) {
   if (!id || id === selectedStarterId.value) return;
   rememberSelectedStarter(accountId.value, id);
   listPositions.delete(positionKey());
-  router.replace({ path: '/records', query: { from: selectedDay.value, to: selectedDay.value, page: '1', starter: id, scroll: '0' } });
+  router.replace({ path: '/diary', query: { from: selectedDay.value, to: selectedDay.value, page: '1', starter: id, scroll: '0' } });
 }
 function toToday() {
   selectDay(recentRecordDays().at(-1));
 }
 function nextPage() {
-  router.replace({ path: '/records', query: { ...query.value, page: String(page.value + 1), scroll: String(Math.round(window.scrollY)) } });
+  router.replace({ path: '/diary', query: { ...query.value, page: String(page.value + 1), scroll: String(Math.round(window.scrollY)) } });
 }
 async function toggleCalendar() {
   const panel = datePanelRef.value;
@@ -423,7 +423,7 @@ watch(query, (value) => {
   const keys = ['from', 'to', 'page', 'scroll', 'starter'];
   const changed = Object.keys(route.query).length !== Object.keys(value).length
     || keys.some((key) => (queryText(key) || '') !== (value[key] || ''));
-  if (changed) router.replace({ path: '/records', query: value });
+  if (changed) router.replace({ path: '/diary', query: value });
 }, { immediate: true });
 onMounted(async () => {
   auth.init();
@@ -545,7 +545,7 @@ onUnmounted(() => {
           </section>
           <div v-if="!starters.length" class="records-empty">
             <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物" />
-            <div><p>还没有酵种，创建后才能按酵种查看记录。</p><RouterLink :to="{ path: '/today' }">去创建酵种</RouterLink></div>
+            <div><p>还没有酵种，创建后才能按酵种查看记录。</p><RouterLink :to="{ path: '/device' }">去创建酵种</RouterLink></div>
           </div>
           <div v-else-if="!timeline.length && !deviceBlocks.length" class="records-empty">
             <img class="jojo-mascot" src="/assets/jojo2.png" alt="Jojo 吉祥物" />

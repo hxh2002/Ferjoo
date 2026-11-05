@@ -123,7 +123,7 @@ onUnmounted(() => { disposed = true; generation++; });
       <details class="m-card"><summary>本次输入快照与来源</summary><p class="m-muted">{{ report.source || '已保存的观察快照' }}</p><dl><template v-for="(label, key) in fieldLabels" :key="key"><dt>{{ label }}</dt><dd>{{ describeField(key, report.input[key]) }}<small class="m-muted"> · 来源：{{ describeSource(report.input, key) }}</small></dd></template></dl><p v-if="report.input.quickText">一句话原文：{{ report.input.quickText }}</p></details>
       <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId || '尚未云端保存' }}<br>酵种编号：{{ report.starterId || '未选择' }}<br>算法版本：{{ report.algorithmVersion || report.input?.algorithmVersion || '历史快照（版本未记录）' }}</p></details>
       <button v-if="cloud" type="button" class="m-secondary" @click="regenerate">基于这次输入重新生成（创建新记录）</button>
-      <p v-if="!cloud && !report.starterId" class="m-muted">未选择酵种，不能云端保存。<RouterLink to="/today">去今天选择</RouterLink>后再重新生成。</p>
+      <p v-if="!cloud && !report.starterId" class="m-muted">未选择酵种，不能云端保存。<RouterLink to="/device">去今天选择</RouterLink>后再重新生成。</p>
       <p v-if="!cloud && !user" class="m-muted">登录后才能云端保存。<RouterLink to="/login?redirect=/reports/session">前往登录</RouterLink></p>
       <button type="button" class="m-secondary" @click="copy">复制建议</button><p role="status">{{ copyStatus }}</p>
       <label v-if="readable" class="m-field">可选择的建议文本<textarea :value="text" readonly rows="12" /></label>

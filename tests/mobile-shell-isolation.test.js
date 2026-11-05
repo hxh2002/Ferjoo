@@ -20,7 +20,7 @@ assert.match(mobileCss, /--m-page-max: 42rem/);
 assert.match(mobileCss, /\.mobile-main \.m-page \{[^}]*max-width: var\(--m-page-max/, 'every mobile page shares one max width');
 assert.doesNotMatch(desktopCss, /\.mobile-area|\.mobile-shell/);
 assert.doesNotMatch(main, /import ['"]\.\/assets\/main\.css['"]/);
-assert.match(shell, /\['MobileToday', 'MobileRecords', 'MobileMe'\]/);
+assert.match(shell, /\['MobileDeviceHome', 'MobileDiary', 'MobileMe'\]/);
 assert.doesNotMatch(shell, /:key="route\.(fullPath|path)"/);
 assert.match(shell, /if \(route\.path !== path\)/);
 for (const filename of ['src/components/MobileShell.vue', 'src/App.vue']) {
@@ -50,7 +50,7 @@ const router = {
 const context = vm.createContext({
   document, router, App: {},
   createApp: () => ({ use() {}, mount() { mounted = true; } }),
-  isMobilePath: (path) => /^\/(today|records|me)(\/|$)/.test(path),
+  isMobilePath: (path) => /^\/(device|diary|today|records|me)(\/|$)/.test(path),
   usesMobileAccountLayout: (route) => route.mobileAccount,
   loadDesktopCss: async () => { imports++; return { default: desktopCss }; }
 });
@@ -58,7 +58,7 @@ const executable = main.replace(/^import .*;\n/gm, '').replace("import('./assets
 await vm.runInContext(executable, context);
 await Promise.resolve();
 assert.ok(mounted);
-for (const route of [{ path: '/today' }, { path: '/login', mobileAccount: true }]) {
+for (const route of [{ path: '/device' }, { path: '/login', mobileAccount: true }]) {
   await hooks.before(route);
   hooks.after(route, {});
   assert.equal(imports, 0, 'mobile and mobile account entry must not request desktop CSS');
@@ -69,7 +69,7 @@ await hooks.before({ path: '/' });
 hooks.after({ path: '/' }, {});
 assert.equal(imports, 1);
 assert.equal(elements[0].media, 'all');
-hooks.after({ path: '/today' }, {});
+hooks.after({ path: '/device' }, {});
 assert.equal(elements[0].media, 'not all');
 assert.equal(document.documentElement.classList.values.get('mobile-mode'), true);
 hooks.after({ path: '/' }, {}, new Error('cancelled'));

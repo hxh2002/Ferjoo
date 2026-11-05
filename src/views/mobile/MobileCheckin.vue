@@ -152,7 +152,7 @@ function applyPending(key) {
 
 <template>
   <main class="m-page mobile-checkin">
-    <p class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span></p>
+    <p class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/device">去今天选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
     <section v-if="diagnosisMode" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>

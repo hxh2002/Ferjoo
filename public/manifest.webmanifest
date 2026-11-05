@@ -1,9 +1,9 @@
 {
-  "id": "/today",
+  "id": "/device",
   "name": "Dr. Ferjoo 酵种医生",
   "short_name": "Ferjoo",
   "lang": "zh-CN",
-  "start_url": "/today",
+  "start_url": "/device",
   "scope": "/",
   "display": "standalone",
   "background_color": "#fffaf4",

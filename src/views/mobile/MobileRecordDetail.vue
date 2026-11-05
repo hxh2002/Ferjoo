@@ -21,11 +21,12 @@ const summary = computed(() => evidence.value?.summary || null);
 const state = computed(() => summary.value ? roundState(summary.value) : null);
 const returnTo = computed(() => {
   const value = route.query.returnTo;
-  if (typeof value !== 'string' || /[\\\u0000-\u0020\u007f]/.test(value)) return '/records';
+  const fallback = '/diary';
+  if (typeof value !== 'string' || /[\\\u0000-\u0020\u007f]/.test(value)) return fallback;
   try {
     const url = new URL(value, window.location.origin);
-    return url.origin === window.location.origin && url.pathname === '/records' ? `${url.pathname}${url.search}${url.hash}` : '/records';
-  } catch { return '/records'; }
+    return url.origin === window.location.origin && url.pathname === '/diary' ? `${url.pathname}${url.search}${url.hash}` : fallback;
+  } catch { return fallback; }
 });
 const when = computed(() => record.value ? new Date(record.value.occurred_at).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const baseline = computed(() => summary.value?.baselineHeightMm ?? record.value?.input?.baseline_height_mm ?? record.value?.feed_event?.baseline_height_mm ?? null);

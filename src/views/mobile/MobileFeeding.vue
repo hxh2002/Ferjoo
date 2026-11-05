@@ -110,7 +110,7 @@ async function save() {
 
 <template>
   <main class="m-page mobile-feeding">
-    <p class="m-context m-muted"><span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/today">去今天选择</RouterLink></span> · 记录已发生的喂养</p>
+    <p class="m-context m-muted"><span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/device">去今天选择</RouterLink></span> · 记录已发生的喂养</p>
     <p v-if="!storageAvailable" class="m-error">本机存储不可用，关闭页面可能丢失草稿。</p>
     <form class="m-card" @submit.prevent="save">
       <p v-if="locked && !draft.confirmed" class="m-error" role="alert">当前保留的是「{{ starterName }}」（{{ draft.starterId }}）的待确认喂养草稿，内容已锁定；不会切换酵种或覆盖草稿，请先重试确认原提交后再记录下一条。</p>

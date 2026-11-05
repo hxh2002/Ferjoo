@@ -14,7 +14,7 @@ import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.js';
 
-defineOptions({ name: 'MobileToday' });
+defineOptions({ name: 'MobileDeviceHome' });
 const auth = useAuth();
 const accountId = computed(() => auth.user.value?.id || '');
 const devices = ref([]); const starters = ref([]); const measurements = ref([]);
@@ -387,7 +387,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
     <p v-if="accountId && (!devices.length || !starters.length)" class="m-muted small picker-hint">{{ !devices.length ? '还没有酵种罐，先在「酵种罐」中新增或连接设备。' : '还没有酵种，在「酵种」中新建。' }}</p>
     <p v-if="accountId && starterId && !link" class="m-muted small picker-hint">该酵种未关联设备，暂不显示曲线。</p>
     <p v-if="error || mutationError" class="m-error" role="alert">{{ error || mutationError }}</p>
-    <section v-if="!accountId" class="m-card intro-card"><img class="jojo-mascot jojo-login" src="/assets/jojo1.png" alt="Jojo 吉祥物"><p class="eyebrow">今日</p><h1>连接设备，开始记录</h1><RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/today' } }">登录后开始</RouterLink></section>
+    <section v-if="!accountId" class="m-card intro-card"><img class="jojo-mascot jojo-login" src="/assets/jojo1.png" alt="Jojo 吉祥物"><p class="eyebrow">设备</p><h1>连接设备，开始记录</h1><RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/device' } }">登录后开始</RouterLink></section>
     <template v-else>
       <p v-if="deviceError" class="m-error" role="alert">{{ deviceError }}</p>
       <div v-if="starterId" class="round-section">
@@ -431,7 +431,7 @@ useVisiblePolling(refresh, 60000); onMounted(() => auth.init()); onScopeDispose(
         </div>
         <p class="action-note">{{ actionNote }}</p>
       </section>
-      <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
+      <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/diary/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
       <p v-if="!starterId" class="picker-hint picker-hint-row">
         <span class="m-muted small">选择酵种后可记录喂养，并查看这一轮发酵。</span>
         <button type="button" class="link-action" @click="openStarterPicker">选择酵种</button>

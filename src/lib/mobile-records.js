@@ -41,7 +41,7 @@ export function normalizeRecordsQuery(query, now = new Date()) {
 export function recordsDetailTarget(row, returnTo) {
   return row.kind === 'device'
     ? { path: `/devices/${encodeURIComponent(row.device_id)}/trend`, query: { starter: row.starter_id, day: row.day, returnTo } }
-    : { path: `/records/${encodeURIComponent(row.id)}`, query: { returnTo } };
+    : { path: `/diary/records/${encodeURIComponent(row.id)}`, query: { returnTo } };
 }
 export const CLOSE_REASON_LABELS = { fallen: '峰值后回落', no_peak: '未见明显峰值', abnormal: '中途异常', record_only: '手动结束记录' };
 // 轮次状态与设备观测质量分开：数据中断只降低可信度，不代表发酵结束。

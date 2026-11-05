@@ -7,7 +7,7 @@ self.addEventListener('push', (event) => {
       tag: data.tag || 'ferjoo-height-alert',
       icon: '/assets/logo-brand.png',
       badge: '/assets/logo-brand.png',
-      data: { url: typeof data.url === 'string' ? data.url : '/today' }
+      data: { url: typeof data.url === 'string' ? data.url : '/device' }
     });
   })());
 });
@@ -16,10 +16,11 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
     const requested = event.notification.data?.url;
-    let target = new URL('/today', self.location.origin);
+    let target = new URL('/device', self.location.origin);
     try {
       const candidate = new URL(requested, self.location.origin);
-      if (candidate.origin === self.location.origin && candidate.pathname === '/today') target = candidate;
+      // 旧推送里的 /today 也允许落到同一设备页，避免点通知打开空白。
+      if (candidate.origin === self.location.origin && ['/device', '/today'].includes(candidate.pathname)) target = candidate;
     } catch { /* Invalid or external destinations always fall back to today. */ }
     target = target.href;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

@@ -5,13 +5,20 @@ import { useAuth } from '../composables/useAuth.js';
 import { classicAssets } from '../constants/classicAssets.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
 
+import navDevice from '../assets/icons/nav-device.svg';
+import navDeviceActive from '../assets/icons/nav-device-active.svg';
+import navDiary from '../assets/icons/nav-diary.svg';
+import navDiaryActive from '../assets/icons/nav-diary-active.svg';
+import navMe from '../assets/icons/nav-me.svg';
+import navMeActive from '../assets/icons/nav-me-active.svg';
+
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
 const tabs = [
-  { path: '/today', label: '今日', icon: 'M12 21v-9m0 4C5 16 3 12 3 6c6 0 9 3 9 8m0-2c0-6 3-9 9-9 0 6-3 9-9 9' },
-  { path: '/records', label: '记录', icon: 'M8 3h8v4H8z M8 5H5v16h14V5h-3 M8 11h8m-8 4h8' },
-  { path: '/me', label: '我的', icon: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2' }
+  { path: '/device', label: '设备', icon: navDevice, activeIcon: navDeviceActive, wide: true },
+  { path: '/diary', label: '日记', icon: navDiary, activeIcon: navDiaryActive },
+  { path: '/me', label: '我的', icon: navMe, activeIcon: navMeActive }
 ];
 const activeTab = computed(() => tabs.findIndex((tab) => tab.path === route.path));
 const sliderPosition = ref(Math.max(0, activeTab.value));
@@ -42,29 +49,20 @@ function settleSlider() {
     sliderPosition.value = Math.max(0, activeTab.value);
   }
 }
-function tabRelief(index) {
-  const depth = Math.max(0, 1 - Math.abs(sliderPosition.value - index));
-  return {
-    '--tab-depth': depth,
-    '--tab-ink': `${(1 - depth) * 100}%`,
-    '--tab-light': `${0.65 * (1 - depth)}px`,
-    '--tab-shade': `${0.8 * depth}px`
-  };
-}
-const cachedTabs = ['MobileToday', 'MobileRecords', 'MobileMe'];
+const cachedTabs = ['MobileDeviceHome', 'MobileDiary', 'MobileMe'];
 const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
 const title = computed(() => {
   if (typeof route.meta.title === 'string') return route.meta.title;
   if (route.path.startsWith('/devices/')) return '设备数据';
-  if (route.path.startsWith('/records/')) return '记录详情';
+  if (route.path.startsWith('/diary/records/')) return '喂养记录';
   if (route.path.startsWith('/reports/')) return '诊断报告';
   if (route.path.startsWith('/me/devices/')) return '设备设置';
   return ({ '/checkin': '诊断记录', '/feeding': '记录喂养', '/reports': '诊断报告', '/me/devices': '我的设备', '/me/invite': '邀请好友', '/me/notifications': '通知设置', '/me/account': '账号安全', '/me/help': '帮助与关于', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
 });
 const backTarget = computed(() => {
   const returnTo = safeRedirect(route.query.returnTo, router);
-  if (returnTo && router.resolve(returnTo).path === '/records') return returnTo;
+  if (returnTo && router.resolve(returnTo).path === '/diary') return returnTo;
   if (route.path === '/claim') return '/me/devices';
   if (isAccount.value) {
     const redirect = safeRedirect(route.query.redirect, router);
@@ -72,8 +70,8 @@ const backTarget = computed(() => {
   }
   if (route.path.startsWith('/me/')) return '/me';
   if (route.path.startsWith('/devices/')) return '/me/devices';
-  if (route.path.startsWith('/records/') || (route.path.startsWith('/reports/') && route.path !== '/reports/session')) return '/records';
-  return '/today';
+  if (route.path.startsWith('/diary/records/') || (route.path.startsWith('/reports/') && route.path !== '/reports/session')) return '/diary';
+  return '/device';
 });
 function goBack() {
   // 优先回到真实进入前页面；直接打开/刷新时才使用安全的逻辑上级页面。
@@ -114,7 +112,7 @@ function go(path) {
 <template>
   <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
     <header v-if="showTabs" class="mobile-topbar">
-      <RouterLink class="mobile-brand" to="/today" aria-label="Ferjoo 今日"><img :src="classicAssets.logoBrand" alt="Ferjoo" /></RouterLink>
+      <RouterLink class="mobile-brand" to="/device" aria-label="Ferjoo 设备"><img :src="classicAssets.logoBrand" alt="Ferjoo" /></RouterLink>
       <RouterLink v-if="!auth.user.value" class="mobile-login" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</RouterLink>
       <RouterLink v-else class="mobile-account" to="/me">{{ auth.profile.value?.display_name || auth.user.value.email }}</RouterLink>
     </header>
@@ -137,8 +135,9 @@ function go(path) {
     </main>
     <nav v-if="showTabs" class="mobile-tabbar" aria-label="主要导航" :style="{ '--slider-position': sliderPosition }">
       <span class="mobile-tab-slider" aria-hidden="true"></span>
-      <button v-for="(tab, index) in tabs" :key="tab.path" type="button" :class="{ active: route.path === tab.path }" :style="tabRelief(index)" :aria-current="route.path === tab.path ? 'page' : undefined" @click="go(tab.path)">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="tab.icon" /></svg><strong>{{ tab.label }}</strong>
+      <button v-for="tab in tabs" :key="tab.path" type="button" :class="{ active: route.path === tab.path }" :aria-label="tab.label" :aria-current="route.path === tab.path ? 'page' : undefined" @click="go(tab.path)">
+        <img class="tab-icon tab-icon-idle" :class="{ 'tab-icon-device': tab.wide }" :src="tab.icon" alt="" width="28" height="28" />
+        <img class="tab-icon tab-icon-active" :class="{ 'tab-icon-device': tab.wide }" :src="tab.activeIcon" alt="" width="28" height="28" />
       </button>
     </nav>
   </div>

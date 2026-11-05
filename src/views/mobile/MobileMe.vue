@@ -7,7 +7,7 @@ import { confirmDialog } from '../../platform/dialog.js';
 const auth = useAuth(); const router = useRouter(); const devices = ref([]); const error = ref('');
 const name = computed(() => auth.profile.value?.display_name || auth.profile.value?.system_user_id || auth.user.value?.email || '我的');
 watch(() => auth.user.value?.id, async (id) => { devices.value = []; if (!id) return; try { const service = await mobileDeviceService(); const rows = await service.listDevices(id); if (id === auth.user.value?.id) devices.value = rows; } catch { error.value = '设备暂时无法读取，请到我的设备重试。'; } }, { immediate: true });
-async function logout() { if (!await confirmDialog('确认退出登录？尚未同步的观察和喂养草稿会保留在本机当前账号下，不会自动上传。')) return; try { await auth.logout(); await router.push('/today'); } catch { error.value = '退出失败，请稍后重试。'; } }
+async function logout() { if (!await confirmDialog('确认退出登录？尚未同步的观察和喂养草稿会保留在本机当前账号下，不会自动上传。')) return; try { await auth.logout(); await router.push('/device'); } catch { error.value = '退出失败，请稍后重试。'; } }
 onMounted(() => auth.init());
 </script>
 <template>

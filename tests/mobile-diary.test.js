@@ -3,17 +3,17 @@ import { readFile } from 'node:fs/promises';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { recentRecordDays, validLocalDay, recordDayRange, normalizeRecordsQuery, recordsDetailTarget, recordsDayModel, recordDeviceMetrics, roundState, createRecordsLoader } from '../src/lib/mobile-records.js';
 
-const source = await readFile(new URL('../src/views/mobile/MobileRecords.vue', import.meta.url), 'utf8');
+const source = await readFile(new URL('../src/views/mobile/MobileDiary.vue', import.meta.url), 'utf8');
 const trendSource = await readFile(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8');
 const { descriptor, errors } = parse(source);
 assert.deepEqual(errors, []);
 compileScript(descriptor, { id: 'records-test' });
-assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename: 'MobileRecords.vue', id: 'records-test' }).errors, []);
+assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename: 'MobileDiary.vue', id: 'records-test' }).errors, []);
 const tokens = await readFile(new URL('../src/assets/tokens.css', import.meta.url), 'utf8');
 const mainCss = await readFile(new URL('../src/assets/main.css', import.meta.url), 'utf8');
 const mobileCss = await readFile(new URL('../src/assets/mobile.css', import.meta.url), 'utf8');
 assert.match(tokens, /--radius-badge:\s*4px/);
-for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/views/mobile/MobileToday.vue', import.meta.url), 'utf8'), trendSource]) {
+for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url), 'utf8'), trendSource]) {
   assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
 }
 assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
@@ -90,9 +90,9 @@ assert.equal(new Date(range.from).getHours(), 0);
 assert.equal(new Date(range.to).getDate(), 23);
 assert.deepEqual(normalizeRecordsQuery({ starter: 'old', type: 'device', from: 'bad', to: 'bad', page: '1' }, new Date(2026, 9, 22)), { from: '2026-10-22', to: '2026-10-22', page: '1', starter: 'old' });
 assert.deepEqual(normalizeRecordsQuery({ starter:'s1', type:'feeding', from:'2026-10-18', to:'2026-10-20', page:'2' }, new Date(2026,9,22)), { from:'2026-10-18', to:'2026-10-18', page:'2', starter:'s1' });
-const returnTarget = recordsDetailTarget({ kind: 'device', device_id: 'dev/1', starter_id: 's1', day: days[0] }, '/records?from=2026-10-09');
+const returnTarget = recordsDetailTarget({ kind: 'device', device_id: 'dev/1', starter_id: 's1', day: days[0] }, '/diary?from=2026-10-09');
 assert.equal(returnTarget.path, '/devices/dev%2F1/trend');
-assert.equal(returnTarget.query.returnTo, '/records?from=2026-10-09');
+assert.equal(returnTarget.query.returnTo, '/diary?from=2026-10-09');
 const feeding = { id: 'f1', kind: 'feeding', starter_id: 's1', occurred_at: '2026-10-22T09:00:00Z', ratio: '1:2:2', input: {} };
 const next = { id: 'f2', kind: 'feeding', starter_id: 's1', occurred_at: '2026-10-22T15:00:00Z', input: {} };
 const observation = { id: 'o1', kind: 'observation', starter_id: 's1', occurred_at: '2026-10-22T11:00:00Z' };

@@ -100,7 +100,7 @@ async function claim() {
   if (result?.device_id && current(c)) {
     notice.value = result.already_mine ? '已在你的设备中。' : '设备绑定成功。';
     code.value = ''; confirmed.value = false;
-    if (route.query.bind === '1') router.replace('/today');
+    if (route.query.bind === '1') router.replace('/device');
     else router.push(`/me/devices/${encodeURIComponent(result.device_id)}`);
   }
 }

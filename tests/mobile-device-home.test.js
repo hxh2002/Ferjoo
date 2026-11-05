@@ -6,13 +6,13 @@ import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
 import { CLOSE_REASON_LABELS } from '../src/lib/mobile-records.js';
 
-const file = new URL('../src/views/mobile/MobileToday.vue', import.meta.url);
+const file = new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
 const { descriptor, errors } = parse(source);
 assert.deepEqual(errors, []);
 const compiled = compileScript(descriptor, { id: 'today-test' });
 assert.equal(compiled.bindings.refresh, 'setup-const');
-assert.match(source, /defineOptions\(\{ name: 'MobileToday' \}\)/);
+assert.match(source, /defineOptions\(\{ name: 'MobileDeviceHome' \}\)/);
 assert.match(source, /chart-feature/);
 assert.match(source, /SeriesChart/);
 assert.match(source, /listMeasurementsRange/);
@@ -23,7 +23,7 @@ assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/
 assert.match(source, /\/me\/devices\?bind=1/);
 assert.match(source, /mode: 'diagnosis'/);
 assert.match(source, /linkStarterDevice/);
-const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileToday.vue', id: 'today-test' });
+const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'today-test' });
 assert.deepEqual(template.errors, []);
 
 const now = Date.now();
@@ -118,7 +118,7 @@ assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable 
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
 // 进入喂养页就是要记下一条：已确认的草稿自动变成空表单，不再提供重复入口。
 assert.match(feedingSource, /startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/, 'entering the page starts the next feeding form when the draft is confirmed');
-assert.doesNotMatch(feedingSource, /class="m-primary" to="\/today"/, 'the feeding page relies on the header back button instead of a duplicate Today button');
+assert.doesNotMatch(feedingSource, /class="m-primary" to="\/device"/, 'the feeding page relies on the header back button instead of a duplicate device button');
 assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the Today page instead of duplicating it here');
 assert.match(await h.html(), /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(await h.html(), /传感器异常/, 'sensor error is surfaced as an explicit jar state');

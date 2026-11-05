@@ -3,6 +3,9 @@ import { useAuth } from '../composables/useAuth.js';
 import { isMobileBrowser } from '../lib/device.js';
 import { safeRedirect } from '../lib/accountNavigation.js';
 
+// 旧地址保留 redirect，书签、推送与已安装的 PWA 都能落到新信息架构。
+const legacy = (path) => (to) => ({ path, query: to.query, hash: to.hash, replace: true });
+
 const routes = [
   { path: '/', name: 'doctor', component: () => import('../views/DoctorView.vue') },
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
@@ -14,9 +17,12 @@ const routes = [
     path: '/',
     component: () => import('../components/MobileShell.vue'),
     children: [
-      { path: 'today', name: 'mobile-today', component: () => import('../views/mobile/MobileToday.vue') },
-      { path: 'records', name: 'mobile-records', component: () => import('../views/mobile/MobileRecords.vue') },
-      { path: 'records/:id', name: 'record-detail', component: () => import('../views/mobile/MobileRecordDetail.vue'), meta: { requiresAuth: true } },
+      { path: 'device', name: 'mobile-device', component: () => import('../views/mobile/MobileDeviceHome.vue') },
+      { path: 'diary', name: 'mobile-diary', component: () => import('../views/mobile/MobileDiary.vue') },
+      { path: 'diary/records/:id', name: 'record-detail', component: () => import('../views/mobile/MobileRecordDetail.vue'), meta: { requiresAuth: true } },
+      { path: 'today', redirect: legacy('/device') },
+      { path: 'records', redirect: legacy('/diary') },
+      { path: 'records/:id', redirect: (to) => ({ path: `/diary/records/${encodeURIComponent(to.params.id)}`, query: to.query, hash: to.hash, replace: true }) },
       { path: 'me', name: 'mobile-me', component: () => import('../views/mobile/MobileMe.vue') },
       { path: 'checkin', name: 'mobile-checkin', component: () => import('../views/mobile/MobileCheckin.vue') },
       { path: 'feeding', name: 'mobile-feeding', component: () => import('../views/mobile/MobileFeeding.vue'), meta: { requiresAuth: true } },
@@ -44,7 +50,7 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   if (to.name === 'doctor' && to.query.view !== 'desktop' && isMobileBrowser()) {
-    return { name: 'mobile-today', query: to.query, hash: to.hash, replace: true };
+    return { name: 'mobile-device', query: to.query, hash: to.hash, replace: true };
   }
   if (!to.meta.requiresAuth) return true;
   const auth = useAuth();

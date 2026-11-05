@@ -98,7 +98,7 @@ Deno.serve(async (request) => {
         title: `高度已达基线的 ${event.target} 倍`,
         body: `当前高度约为基线的 ${Number(event.ratio).toFixed(2)} 倍，可回到今日页查看本轮喂养情况。`,
         tag: `ferjoo-height-${event.feeding_id}-${event.target}`,
-        url: `/today?starter=${encodeURIComponent(event.starter_id)}`,
+        url: `/device?starter=${encodeURIComponent(event.starter_id)}`,
       });
       try {
         await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 600, timeout: 10000 });

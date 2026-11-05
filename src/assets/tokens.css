@@ -1,5 +1,5 @@
 :root {
-  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", Inter, ui-sans-serif, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif;
   --ink: #2a1d17;
   --ink-soft: #5a4338;
   --orange: #ff7c2d;
@@ -14,6 +14,9 @@
   --shadow: 0 28px 70px rgba(94, 43, 8, .20);
   --radius: 30px;
   --brand-primary: #ff6b25;
+  --brand-light: #ffb05a;
+  --brand-accent: #ff9646;
+  --nav-icon-idle: #b5a79d;
   --brand-action: #a54214;
   --surface-page: #fff9f3;
   --surface-card: #fffdf8;
