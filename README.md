@@ -478,6 +478,21 @@ GitHub `hxh2002/Ferjoo` 的 `main` 是生产环境唯一发布入口。默认流
 
 不要把生产发布默认理解为本地直接部署：不使用 `vercel deploy`、Supabase MCP、生产 SQL Editor 或本地 `supabase db push` 作为常规发布路径。只有在明确的故障恢复或迁移修复场景下，才单独执行平台控制台或 CLI 操作。
 
+### 一次性平台授权清单
+
+自动化链路只需要在首次接入时完成以下授权；之后的发布完全由 git push 触发，无需本地登录任何平台。
+
+| 平台 | 需要的授权 | 在哪里配置 | 验证方式 |
+| --- | --- | --- | --- |
+| GitHub | 本地 git 凭据可写 `hxh2002/Ferjoo` | `git config credential.helper osxkeychain` 或 GitHub PAT | `git push origin main` 成功 |
+| Vercel | Git 集成已关联本仓库 `main` 分支；Vercel 账号有 `team_5RBhfRXHkZG39ZzoDZRofX5b` 的部署权限 | Vercel → Project `ferjoo` → Settings → Git | push 后 Vercel 自动产生 Production deployment |
+| Vercel 环境变量 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` / `VITE_VAPID_PUBLIC_KEY` 仅 Production | Vercel → Project → Settings → Environment Variables | 部署后页面可登录并读取设备 |
+| Supabase | GitHub Integration 已关联 `hxh2002/Ferjoo`，工作目录 `.`，生产分支 `main` | Supabase Dashboard → Project `yccvmeepajpdagizplgp` → Integrations → GitHub | push 新迁移后 migration 日志出现对应版本 |
+| Supabase 扩展 | `pg_cron`、`pg_net` 已启用 | Database → Extensions | 迁移 `020_height_web_push.sql` 能成功执行 |
+| Supabase Edge Function | 函数 `process-height-alerts` 已部署，secrets 含 VAPID 三件套与内部密钥 | `npx supabase@latest functions deploy process-height-alerts --no-verify-jwt` 与 `secrets set` | 函数详情页显示已部署版本 |
+
+其中 GitHub、Vercel Git 集成、Supabase GitHub Integration 是发布链路的必要条件；VAPID、Edge Function 属于高度提醒推送功能的上线前置，与常规代码发布解耦。本地 CLI 登录态（`vercel whoami`、`supabase login`）过期**不会**影响自动部署，仅影响手动运维操作。
+
 ### 部署状态核查（2026-10-16）
 
 通过 GitHub API 核查提交 `6c40b9307d9af14dc7ecef1e91d47ccd7adf0236`（包含此前的设备注册迁移）：

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Ferjoo 全新 UI 与交互设计规范：品牌、视觉变量、组件、状态、页面范式与可体验原型。">
+  <meta name="theme-color" content="#FBF8F3">
+  <title>Ferjoo · UI 与交互设计规范 1.0</title>
+  <link rel="icon" href="assets/brand/companion.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/tokens.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到正文</a>
+<header class="site-header">
+  <a class="brand" href="#overview" aria-label="Ferjoo 规范首页"><img src="assets/brand/ferjoo.svg" width="100" height="40" alt="Ferjoo"><span class="brand-divider"></span><span>Design guidelines</span></a>
+  <div class="header-actions"><span class="version">V1.0 · 设计提案</span><button class="text-button print-button" id="print-doc"><svg class="icon"><use href="#i-print"/></svg>打印 / 存为 PDF</button><button class="icon-button menu-button" aria-label="打开章节目录" aria-expanded="false" aria-controls="sidebar" id="menu-toggle"><svg class="icon"><use href="#i-menu"/></svg></button></div>
+</header>
+<aside class="sidebar" id="sidebar" aria-label="章节目录">
+  <div class="side-heading">UI & INTERACTION <span>2026.10</span></div>
+  <label class="nav-search"><svg class="icon"><use href="#i-search"/></svg><input type="search" id="chapter-search" placeholder="查找章节" aria-label="查找章节标题"></label>
+  <nav id="chapter-nav">
+    <span class="nav-group">开始 · START</span>
+    <a href="#direction"><em>01</em>设计方向</a><a href="#references"><em>02</em>参考与取舍</a>
+    <span class="nav-group">基础 · FOUNDATIONS</span>
+    <a href="#identity"><em>03</em>品牌标识</a><a href="#color"><em>04</em>色彩体系</a><a href="#type"><em>05</em>字体与排版</a><a href="#layout"><em>06</em>布局与材质</a><a href="#imagery"><em>07</em>图标与陪伴</a>
+    <span class="nav-group">构建 · BUILD</span>
+    <a href="#components"><em>08</em>组件规范</a><a href="#interaction"><em>09</em>交互行为</a><a href="#patterns"><em>10</em>页面范式</a><a href="#states"><em>11</em>状态与文案</a>
+    <span class="nav-group">交付 · SHIP</span>
+    <a href="#accessibility"><em>12</em>无障碍与适配</a><a href="#handoff"><em>13</em>交付与验收</a>
+  </nav>
+  <p class="search-empty" hidden>没有匹配章节，试试“组件”或“交互”。</p>
+  <div class="side-note"><span class="live-dot"></span> A little warmth. A little joy.<small>面向移动应用与响应式 Web<br>基于旧规范及 10 张参考图重构</small></div>
+</aside>
+<div class="nav-scrim" id="nav-scrim" hidden></div>
+<main id="main">
+<section class="hero" id="overview">
+  <div class="hero-copy"><div class="eyebrow"><span></span> FERJOO DESIGN SYSTEM / 1.0</div><h1>让发酵，<br>多一点<span class="orange">轻盈。</span></h1><p class="hero-en">Small care. A little joy.</p><p class="hero-description">温暖的视觉，清楚的下一步。<br>为日常观察、记录与养护，建立一套柔和、<br class="desktop-br">有秩序，也经得起使用的界面语言。</p><div class="hero-links"><a class="btn primary" href="#direction">探索新版规范 <svg class="icon"><use href="#i-arrow"/></svg></a><a class="text-link" href="#patterns">体验页面交互 <span>↗</span></a></div><p class="hero-meta">原始品牌延续 / UI 体系重构 / 交互细则补全</p></div>
+  <div class="hero-visual" aria-label="新版 Ferjoo 视觉概念示意">
+    <div class="visual-kicker">A softer everyday.</div><div class="visual-circle"></div>
+    <img class="hero-companion" src="assets/brand/companion.svg" width="220" height="240" alt="带有微笑表情的酵种罐插画">
+    <div class="visual-label">好事，正在慢慢发生。</div>
+    <div class="floating-note"><span class="mini-icon"><svg class="icon"><use href="#i-leaf"/></svg></span><div><strong>小麦的观察日记</strong><small>第 8 天 · 最近记录 10:30</small></div><span class="status-dot"></span></div>
+    <div class="floating-action"><span>今天，先观察一下</span><span class="round-arrow"><svg class="icon"><use href="#i-arrow"/></svg></span></div>
+    <span class="visual-foot">界面概念 / 示例数据</span>
+  </div>
+</section>
+<div class="intro-strip"><div><span class="strip-index">01—13</span><strong>从视觉，到行为。</strong></div><p>这是一份可执行的规范：每个视觉选择，<br>都应帮助用户更快看懂、更轻松完成任务。</p><a href="#handoff">查看交付清单 <svg class="icon"><use href="#i-arrow"/></svg></a></div>
+
+<section class="doc-section" id="direction" data-title="设计方向">
+  <div class="section-heading"><div><span class="eyebrow">01 / DESIGN DIRECTION</span><h2>亲近一点，秩序依然清楚。</h2></div><p>从“笔记式平铺”转向“任务优先的日常工具”。<br>柔和来自比例、留白和反馈，而非堆叠装饰。</p></div>
+  <div class="principles"><article><span>01</span><h3>先看懂，再行动</h3><p>每屏只强调一个主任务。状态、最近记录和下一步同处一个视线范围；次要操作降低权重。</p></article><article><span>02</span><h3>有温度，也有分寸</h3><p>暖白、杏橙与圆润轮廓构成亲近感。情绪只出现在欢迎、记录完成和空状态，数据区保持安静。</p></article><article><span>03</span><h3>每次操作，都有回应</h3><p>按下、加载、成功、失败均有明确反馈。保留用户输入，让取消、重试和返回始终可预期。</p></article></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>旧稿中的限制</th><th>新版决定</th><th>落地规则</th></tr></thead><tbody><tr><td>所有组件统一直角</td><td>按角色分配圆角</td><td>控件 12px；信息卡 20px；大容器 28px；胶囊仅用于标签与分段器。</td></tr><tr><td>橙色同时承担品牌与功能</td><td>品牌橙与操作橙分工</td><td>原始渐变只用于标识与品牌展示；主要按钮使用深橙纯色。</td></tr><tr><td>细边框分割每一层内容</td><td>先用空间和底色分组</td><td>静态卡片用低对比边界；输入框、交互边界使用更清楚的描边。</td></tr><tr><td>正文个性字体覆盖全部内容</td><td>工具信息提高辨识度</td><td>长文和表单使用系统中文黑体；方圆体用于短句；Rubik 用于数值。</td></tr><tr><td>只有少量按钮与输入示例</td><td>完整覆盖流程与状态</td><td>补充底部导航、记录面板、日期切换、单位设置、错误恢复及动效规则。</td></tr></tbody></table></div>
+  <div class="callout"><svg class="icon"><use href="#i-info"/></svg><p><strong>适用边界</strong> 本规范以酵种观察与日常养护工具为场景假设，给出新的 UI 与交互提案。页面中的天数、温度、配比和提醒均为演示数据；业务判断、养护内容与功能范围仍需产品确认。</p></div>
+</section>
+
+<section class="doc-section" id="references" data-title="参考与取舍">
+  <div class="section-heading"><div><span class="eyebrow">02 / CURATED REFERENCES</span><h2>借用方法，形成自己的语言。</h2></div><p>参考图承担设计依据，不直接成为产品资产。<br>点击缩略图可查看对应参考。</p></div>
+  <div class="reference-feature"><div class="ref-feature-art"><button class="reference-image" data-reference="r10" aria-label="放大参考 R10 柔光卡片"><img src="assets/references/r10.webp" width="736" height="1104" alt="R10：暖白圆角卡片、底部杏橙柔光与极简表情"></button></div><div><span class="eyebrow">THE VISUAL THREAD</span><h3>奶油底色。<br>柔和轮廓。<br>少量活泼。</h3><p>参考中的柔光与表情，让工具界面有了情绪。新版把它们留给品牌区和轻量反馈，把对比度、信息密度与明确操作留给日常使用。</p><div class="tag-row"><span class="tag">温暖</span><span class="tag">克制</span><span class="tag">易读</span><span class="tag">可恢复</span></div></div></div>
+  <div id="reference-grid" class="reference-grid"><!-- populated from local reference metadata --></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>来源</th><th>采纳</th><th>调整 / 舍弃</th><th>对应章节</th></tr></thead><tbody>
+  <tr><td>R01–R02 · 图标构建</td><td>圆润体块、少量叠层与柔和橙色</td><td>不沿用灰底厚重拟物与全图标光晕；改为统一 SVG 线性图标。</td><td>07</td></tr>
+  <tr><td>R03 · 提示面板</td><td>单一主行动、底部操作区</td><td>缩短说明；警示基于可验证条件，避免把“未记录”直接判断为“不安全”。</td><td>09 / 11</td></tr>
+  <tr><td>R04 · 酵种主页</td><td>角色陪伴与轻量布局</td><td>压缩无效空白；补齐当前状态、最近记录与有文字的导航；红色只给危险操作。</td><td>07 / 10</td></tr>
+  <tr><td>R05 · 日记</td><td>按日查看与提示卡分层</td><td>统一日期入口与空记录行动；不使用低对比浅黄色正文。</td><td>10 / 11</td></tr>
+  <tr><td>R06 · 计算器</td><td>分段导航、数量步进器</td><td>结果保持清晰可读；不借模糊遮挡制造付费焦虑；边界与单位始终可见。</td><td>08 / 10</td></tr>
+  <tr><td>R07 · 设置</td><td>分组列表、尾部值与行内开关</td><td>收敛图标色彩；补充系统通知权限被拒的说明；低频管理项移到底部。</td><td>08 / 10</td></tr>
+  <tr><td>R08 · 专注工具概念</td><td>奶油表面、进度信息和整齐的卡片比例</td><td>不移植无关的任务统计；发酵进度不伪装为精确倒计时。</td><td>06 / 08</td></tr>
+  <tr><td>R09 · 渐变海报</td><td>温暖色相与纵向节奏</td><td>大面积高饱和渐变仅作品牌展示；不进入表单、日志和计算结果底层。</td><td>04 / 06</td></tr>
+  <tr><td>R10 · 柔光卡片</td><td>软边界、暖色柔光、极简表情</td><td>光晕限单处低频出现；正文放在实色面板上，避免背景干扰。</td><td>06 / 07</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="doc-section" id="identity" data-title="品牌标识">
+  <div class="section-heading"><div><span class="eyebrow">03 / BRAND IDENTITY</span><h2>熟悉的 Ferjoo，轻一点的呈现。</h2></div><p>保留旧稿中的原始矢量路径与五节点渐变。<br>不重新排字，不改动 j 上方的像素细节。</p></div>
+  <div class="logo-grid"><div class="logo-stage"><div class="logo-safe"><img src="assets/brand/ferjoo.svg" alt="Ferjoo 原始渐变标识" width="234" height="94"></div><span>01 / 浅色界面 · 原始渐变</span></div><div class="logo-stage ink-stage"><img src="assets/brand/ferjoo-white.svg" alt="Ferjoo 反白标识" width="234" height="94"><span>02 / 深色品牌区 · 纯白</span></div></div>
+  <div class="rule-grid"><div><h4>尺寸与安全区</h4><p>显示宽度不小于 112px；四周净空 ≥ 标识显示高度的 ¼。示例中虚线用于说明净空，实际界面不显示。</p></div><div><h4>背景与组合</h4><p>默认放在暖白或白色上。深色背景用独立反白文件。品牌口号作为独立文字排版，不与标识挤在同一安全区。</p></div><div><h4>禁止变形与装饰</h4><p>不拉伸、倾斜、裁切或加投影；不给路径添加描边。应用图标是另一个资产，不直接裁切文字 Logo。</p></div></div>
+</section>
+
+<section class="doc-section" id="color" data-title="色彩体系">
+  <div class="section-heading"><div><span class="eyebrow">04 / COLOR SYSTEM</span><h2>橙色负责温度，深色负责清晰。</h2></div><p>点击色块复制 HEX。<br>先选语义角色，再选颜色。</p></div>
+  <div class="color-lead"><div class="brand-gradient"><span>BRAND GRADIENT</span><strong>保留品牌的暖意。</strong><small>0% #FF6B25 · 12% #FF762E · 48% #FF9646<br>79% #FFA954 · 100% #FFB05A</small></div><div class="color-note"><h3>把“好看”与“可读”同时做好。</h3><p>品牌主橙 <code>#FF6B25</code> 保持不变。功能按钮另设深橙 <code>#B84A16</code>，搭配白字；品牌橙配深棕文字，避免橙底白字对比不足。</p><p>页面以暖白与白色为主。橙色每屏优先留给当前主行动和选中态；成功、提醒、错误使用各自的语义色。</p></div></div>
+  <div class="palette" id="palette"></div>
+  <h3 class="subheading">语义色必须带文字或图形。</h3><div class="semantic-row"><span class="badge success"><svg class="icon"><use href="#i-check"/></svg>已保存</span><span class="badge warning"><svg class="icon"><use href="#i-info"/></svg>待确认</span><span class="badge danger"><svg class="icon"><use href="#i-warning"/></svg>保存失败</span><span class="badge info"><svg class="icon"><use href="#i-info"/></svg>仅供参考</span></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>推荐组合</th><th>对比度</th><th>用途 / 约束</th></tr></thead><tbody id="contrast-table"></tbody></table></div>
+  <p class="note">对比度按 sRGB 相对亮度计算并四舍五入；这里验证的是指定色对，不代表整个产品已经通过无障碍认证。低对比边线只能承担装饰分组，不能作为唯一可操作线索。</p>
+</section>
+
+<section class="doc-section" id="type" data-title="字体与排版">
+  <div class="section-heading"><div><span class="eyebrow">05 / TYPOGRAPHY</span><h2>让个性留在短句，让信息读得轻松。</h2></div><p>收敛字重与字体角色。<br>字号以下均为 CSS px / 设计逻辑像素。</p></div>
+  <div class="type-showcase"><div><span class="eyebrow">CHINESE / UI & BODY</span><h3>今天，先观察一下。</h3><p>气泡、顶部和高度，<br>一次只记录你看见的变化。</p><small>系统中文黑体 · 400 / 500 / 600<br>PingFang SC → Microsoft YaHei → sans-serif</small></div><div class="type-english"><span class="eyebrow">ENGLISH / BRAND MOMENTS</span><h3>Good things<br>take a little time.</h3><small>Fredoka · 300<br>仅用于英文品牌标题，不用于密集表单。</small></div></div>
+  <div class="type-details"><div><span class="eyebrow">DATA / RUBIK 400–500</span><p class="data-specimen">24.5 <small>°C</small> <span>1 : 2 : 2</span></p><p>数字使用等宽数字特性 <code>tabular-nums</code>。数值与单位之间留 4px，千位分组一致，小数不超过业务需要。</p></div><div><span class="eyebrow">COMPANION / 方圆体 400</span><p class="companion-copy">慢慢来，好事正在发生。</p><p>延续旧稿的方圆体，收敛到陪伴语与短说明。长段落、错误信息和工具数据不使用装饰性字体。</p></div></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>层级</th><th>移动端 / 桌面端</th><th>行高 / 字重</th><th>用途</th></tr></thead><tbody><tr><td>品牌展示 Display</td><td>36 / 56</td><td>1.2 / 中文 500、英文 300</td><td>欢迎与品牌区域；本规范首屏为文档展示特例。</td></tr><tr><td>页面标题 H1</td><td>28 / 32</td><td>1.3 / 600</td><td>每个业务页 1 个；最多两行。</td></tr><tr><td>分区标题 H2</td><td>20 / 24</td><td>1.4 / 600</td><td>区块与面板标题。</td></tr><tr><td>组件标题 H3</td><td>17 / 18</td><td>1.4 / 500</td><td>卡片、列表项与设置行。</td></tr><tr><td>正文 Body</td><td>16 / 16</td><td>1.65 / 400</td><td>长文、表单说明；每行中文约 22–38 字。</td></tr><tr><td>操作 Label</td><td>15 / 15</td><td>1.4 / 500</td><td>按钮、标签、分段器；不依赖字重区分选中态。</td></tr><tr><td>辅助 Caption</td><td>13 / 13</td><td>1.5 / 400</td><td>时间与辅助说明；必要信息不低于 13px。</td></tr></tbody></table></div>
+  <div class="font-playground"><div><h4>试读品牌标题</h4><p>滑块只改变下方 Fredoka 示例。业务界面不提供字体设置。</p></div><label for="font-weight">字重 <output id="font-weight-value">300</output><input id="font-weight" type="range" min="300" max="700" step="50" value="300"></label><p id="font-specimen">A little care, every day.</p></div>
+  <p class="note">字体取舍：不继续分发旧 HTML 内来源未核验的“萍方”嵌入文件，中文工具信息回到系统字体。Fredoka、Rubik 沿用附件并保留 OFL；方圆体沿用附件，用于本提案预览，后续发布按原字体授权核验。不要用浏览器模拟缺失字重。</p>
+</section>
+
+<section class="doc-section" id="layout" data-title="布局与材质">
+  <div class="section-heading"><div><span class="eyebrow">06 / SPACE & MATERIAL</span><h2>有呼吸，但不空洞。</h2></div><p>层级依次来自：布局 → 间距 → 底色 → 边界。<br>阴影只在需要表达层叠时出现。</p></div>
+  <div class="spacing-scale"><span style="--space:4px">4</span><span style="--space:8px">8</span><span style="--space:12px">12</span><span style="--space:16px">16</span><span style="--space:24px">24</span><span style="--space:32px">32</span><span style="--space:48px">48</span><span style="--space:64px">64</span><span style="--space:96px">96</span></div>
+  <div class="material-grid"><div class="material-preview"><div class="surface-sample"><span class="eyebrow">SURFACE 01</span><strong>安静的内容容器</strong><small>20px 圆角 · 24px 内边距</small></div></div><div class="material-rules"><h3>三种半径，两级悬浮。</h3><dl><dt>12px / Control</dt><dd>按钮、输入框、轻量浮层。</dd><dt>20px / Card</dt><dd>内容卡、提示卡、设置分组。</dd><dt>28px / Container</dt><dd>大容器与面板顶部；不用于所有小组件。</dd><dt>阴影</dt><dd>普通卡片无阴影或极弱阴影；浮层 0 16px 48px / 棕黑 14%。不以阴影代替焦点边界。</dd></dl></div></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>视口</th><th>栅格 / 边距</th><th>行为</th></tr></thead><tbody><tr><td>320–767px / 移动端</td><td>4 栏；左右 20px（320px 时 16px）；栏距 12px</td><td>单列任务流；底栏 64px + safe-area；主按钮可铺满；不出现页面级横向滚动。</td></tr><tr><td>768–1199px / 中屏</td><td>8 栏；左右 32px；栏距 20px</td><td>最多双列；主内容优先，辅助说明跟随；底栏可转侧栏。</td></tr><tr><td>≥1200px / 桌面端</td><td>12 栏；最大内容宽 1200px；栏距 24px</td><td>主内容 8 栏 + 侧说明 4 栏；表单宽 480–640px；弹窗宽 480px。</td></tr></tbody></table></div>
+  <div class="rule-grid"><div><h4>留白按关系分配</h4><p>图标与文字 8px；标签与控件 8px；同组控件 16px；卡片间 16–24px；分区间 32–48px。相关性越强，间距越小。</p></div><div><h4>光晕是点缀</h4><p>品牌插画下可用一次暖橙径向柔光，覆盖不超过容器 ⅓；不放在正文、输入和错误信息之后；移动端禁用持续大模糊动画。</p></div><div><h4>固定区避免遮挡</h4><p>内容底部补足底栏或操作区高度；键盘打开时优先露出当前输入与错误；不要把提交按钮压在系统安全区。</p></div></div>
+</section>
+
+<section class="doc-section" id="imagery" data-title="图标与陪伴">
+  <div class="section-heading"><div><span class="eyebrow">07 / ICONS & COMPANION</span><h2>一点表情，足够亲近。</h2></div><p>图标传达功能，角色传达情绪。<br>二者使用各自的尺度与出现时机。</p></div>
+  <div class="icon-gallery" id="icon-gallery"></div>
+  <div class="rule-grid"><div><h4>图标绘制</h4><p>24 × 24 网格；2px 描边；圆端点与圆连接。常规图标 20/24px；底栏 24px。填充色只用于选中底座与语义背景。</p></div><div><h4>文字伴随</h4><p>底部导航始终带标签。陌生图标不单独承担操作；图标按钮必须有可读名称与 44 × 44px 点击区域。</p></div><div><h4>颜色一致</h4><p>普通图标为次级棕灰；选中为深橙；危险为错误红。设置列表不把每项都做成不同糖果色。</p></div></div>
+  <div class="companion-panel"><img src="assets/brand/companion.svg" width="180" height="195" alt="Ferjoo 酵种罐陪伴插画"><div><span class="eyebrow">A LITTLE COMPANY</span><h3>陪伴感，发生在恰好的地方。</h3><p>欢迎页、首次记录、完成状态可使用酵种罐表情。姿态简单、线条柔和，单屏最多一个主体；插画高度 96–180px。常规工具页不让角色挤占数据空间。</p><p class="note">此处酵种罐为本次新绘制的概念资产，区别于原始文字 Logo。角色不替代状态文字，不通过难过表情或责备文案催促用户。</p></div></div>
+</section>
+
+<section class="doc-section" id="components" data-title="组件规范">
+  <div class="section-heading"><div><span class="eyebrow">08 / COMPONENT LIBRARY</span><h2>组件要完整，也要好用。</h2></div><p>尺寸、状态、反馈和键盘行为共同构成组件。<br>以下示例可直接操作。</p></div>
+  <div class="component-tabs" role="tablist" aria-label="组件分类"><button role="tab" id="tab-actions" aria-controls="panel-actions" aria-selected="true" tabindex="0">按钮与反馈</button><button role="tab" id="tab-inputs" aria-controls="panel-inputs" aria-selected="false" tabindex="-1">输入与选择</button><button role="tab" id="tab-navigation" aria-controls="panel-navigation" aria-selected="false" tabindex="-1">导航与信息</button></div>
+  <div class="component-panel" id="panel-actions" role="tabpanel" aria-labelledby="tab-actions">
+    <div class="demo-surface"><span class="demo-label">BUTTONS / 点击体验状态</span><div class="button-row"><button class="btn primary" id="save-demo"><svg class="icon"><use href="#i-plus"/></svg><span>保存记录</span></button><button class="btn secondary" data-toast="已取消本次编辑（示例）">取消</button><button class="btn quiet" data-toast="已打开辅助说明（示例）">查看说明 <svg class="icon"><use href="#i-arrow"/></svg></button><button class="btn primary" disabled>暂不可用</button></div><div class="button-row"><button class="btn danger-button" id="delete-demo"><svg class="icon"><use href="#i-trash"/></svg>删除示例记录</button><span class="demo-hint">可撤销操作：完成后提供撤销入口。</span></div><p id="delete-state" class="note">示例记录仍保留。</p></div>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>类型 / 尺寸</th><th>默认与悬停</th><th>按下 / 加载 / 禁用</th></tr></thead><tbody><tr><td>主按钮<br>48px 高 / 水平 20px / 半径 12px</td><td>深橙底白字；hover #9D3D10；同一任务区最多 1 个。</td><td>pressed #84310B；loading 保宽、旋转图标、禁止重复提交；disabled 灰底棕灰字、保留原因。</td></tr><tr><td>次按钮 / 文字按钮<br>同主按钮高；最小触达 44px</td><td>次按钮白底、深色描边；文字按钮无底色，hover 增加浅底。</td><td>pressed 加深浅底；键盘焦点为 2px 蓝色外环 + 3px 间隔。</td></tr><tr><td>危险操作</td><td>错误红字或红底；从主任务区移入更多菜单。</td><td>可恢复删除先执行并提供 8 秒撤销；不可恢复删除二次确认、明确对象与后果。</td></tr></tbody></table></div>
+  </div>
+  <div class="component-panel" id="panel-inputs" role="tabpanel" aria-labelledby="tab-inputs" hidden>
+    <div class="input-demo-grid"><form id="field-demo" novalidate class="demo-surface"><label for="starter-name">酵种名称 <span class="required">必填</span></label><input class="field" id="starter-name" name="starterName" autocomplete="off" placeholder="例如：小麦" maxlength="12" aria-describedby="name-help name-error"><div class="field-footer"><span id="name-help">1–12 个字符，方便下次找到它。</span><output id="name-count">0 / 12</output></div><p id="name-error" class="field-error" hidden></p><button class="btn primary" type="submit">保存名称</button></form><div class="demo-surface"><div class="settings-row"><div><strong>记录提醒</strong><small>示例设置，可随时关闭</small></div><button class="switch" id="reminder-switch" role="switch" aria-checked="true" aria-label="记录提醒"><span></span></button></div><div class="settings-row"><strong>温度单位</strong><div class="segmented" role="group" aria-label="温度单位"><button class="selected" aria-pressed="true" data-unit="c">°C</button><button aria-pressed="false" data-unit="f">°F</button></div></div><p class="unit-readout" id="unit-readout">24.0 °C</p><p class="note">切换单位只改变显示，内部原始值保持不变。</p></div></div>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>组件</th><th>规格</th><th>行为</th></tr></thead><tbody><tr><td>文本输入</td><td>高 48px；内边距 14px；半径 12px；边线 #9B8D82；字号 16px。</td><td>标签始终在外部；首次提交或编辑后失焦校验；报错就近说明并保留输入；提交聚焦首个错误。</td></tr><tr><td>开关</td><td>可见轨道 44 × 26px；触达 44 × 44px；开与关同时改变位置和底色。</td><td>即时生效；需要系统权限时先解释再请求，拒绝后仍保持关闭并提供设置入口。</td></tr><tr><td>分段选择</td><td>高 44px；底座半径 12px；选中白底 + 深橙字 + 边界。</td><td>2–4 个互斥选项；Tab 进入、方向键切换；不用于跳转不同层级的页面。</td></tr><tr><td>数字步进</td><td>增减按钮触达 44px；中间数值可读；范围在说明中明确。</td><td>单击单步；到上下限禁用对应按钮；输入支持数字键盘；不循环跳转。</td></tr></tbody></table></div>
+  </div>
+  <div class="component-panel" id="panel-navigation" role="tabpanel" aria-labelledby="tab-navigation" hidden>
+    <div class="navigation-demo"><div class="information-card"><div class="card-top"><span class="badge info">观察记录</span><span class="small-muted">今天 10:30</span></div><h3>顶部平整，出现细小气泡</h3><p>先记录看到的变化，再查看相关说明。</p><button class="text-link" data-toast="记录详情示例：顶部平整，侧壁细小气泡。">查看记录 <svg class="icon"><use href="#i-arrow"/></svg></button></div><div><div class="mini-bottom-nav" aria-label="导航视觉示例"><span class="selected"><svg class="icon"><use href="#i-jar"/></svg>酵种</span><span><svg class="icon"><use href="#i-book"/></svg>日记</span><span><svg class="icon"><use href="#i-scale"/></svg>工具</span><span><svg class="icon"><use href="#i-settings"/></svg>设置</span></div><p class="note">这是静态导航样式；完整切换见第 10 章。</p></div></div>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>组件</th><th>规格</th><th>规则</th></tr></thead><tbody><tr><td>底部导航</td><td>4 个稳定入口；高 64px + 安全区；24px 图标 / 12px 标签。</td><td>选中深橙 + 浅橙底座；保留各页滚动位置。新增记录属于页内行动，不作为中央红色导航按钮。</td></tr><tr><td>信息卡 / 设置行</td><td>卡片半径 20px；内边距 20–24px；设置行最小高 64px。</td><td>一张卡只承载一个主题；整行可点击时用同一触达区；避免卡片整体链接与内部按钮嵌套。</td></tr><tr><td>标签 / 进度</td><td>标签高 24–28px；文字 12–13px；状态与图标同现。</td><td>只读标签不伪装按钮；进度必须有可计算依据，否则用“最近记录 / 待观察”描述。</td></tr><tr><td>Toast / 提示条</td><td>短反馈最多 2 行；普通 Toast 4 秒；带撤销 8 秒。</td><td>成功使用 polite 播报；错误放在任务区域持续展示；撤销在 hover / focus 时暂停计时。</td></tr></tbody></table></div>
+  </div>
+  <div class="callout neutral"><svg class="icon"><use href="#i-info"/></svg><p><strong>同一套状态词典</strong> default → hover → pressed → focus-visible → loading → success / error；selected、disabled 按组件需要补充。触屏无 hover，不把必要说明藏在 hover 里。</p></div>
+</section>
+
+<section class="doc-section" id="interaction" data-title="交互行为">
+  <div class="section-heading"><div><span class="eyebrow">09 / INTERACTION RULES</span><h2>让用户始终知道，发生了什么。</h2></div><p>以“观察 → 记录 → 回看”为核心链路。<br>任何反馈都应指向明确的下一步。</p></div>
+  <ol class="flow"><li><span>1</span><strong>打开酵种页</strong><small>当前对象 + 最近记录</small></li><li><span>2</span><strong>点击记录观察</strong><small>保持当前页面上下文</small></li><li><span>3</span><strong>填写与校验</strong><small>字段附近给出可修正原因</small></li><li><span>4</span><strong>保存并回看</strong><small>更新最近记录 + 日记条目</small></li></ol>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>场景</th><th>必须发生的行为</th><th>边界处理</th></tr></thead><tbody><tr><td>打开面板</td><td>移动端优先底部面板，最大高 90dvh；桌面居中 480px；背景不可交互，焦点移入并限制在面板内。</td><td>长内容面板内部滚动；标题与关闭按钮可见；关闭后焦点回到触发按钮。</td></tr><tr><td>取消 / 返回</td><td>关闭、Esc、点遮罩都遵循同一关闭逻辑；未修改直接关闭。</td><td>有未保存修改时显示“继续编辑 / 放弃修改”；不因误触丢失数据。</td></tr><tr><td>提交</td><td>即时显示按下与忙碌状态；提交中按钮保宽、禁止重复发送；成功更新数据后关闭面板。</td><td>失败保留输入，面板内持续展示“保存失败，请重试”；不只用易消失的 Toast。</td></tr><tr><td>慢任务</td><td>约 300ms 后仍未完成时展示加载提示；约 10 秒时补充“仍在处理中”。</td><td>网络中断给出重试；请求具有幂等键，避免超时重试形成重复记录；返回后可恢复草稿。</td></tr><tr><td>页面跳转</td><td>返回恢复先前筛选、日期与滚动位置；主导航状态稳定。</td><td>删除当前对象时跳到对象列表并播报；空列表提供新建入口。</td></tr><tr><td>提醒权限</td><td>用户主动开启后再请求系统权限；允许后才显示已开启。</td><td>拒绝时说明原因与设置路径；不循环弹系统权限框；通知能力不阻塞记录。</td></tr><tr><td>危险操作</td><td>可恢复删除提供撤销；不可逆删除说明对象、数量与后果，确认按钮写“删除这条记录”。</td><td>取消优先获得焦点；不可逆危险按钮不作为回车默认提交。</td></tr></tbody></table></div>
+  <div class="motion-grid"><div><span class="motion-number">120<span>ms</span></span><h4>触达反馈</h4><p>按钮背景、选中底座、开关即时响应；按下不大幅缩放和跳动。</p></div><div><span class="motion-number">180<span>ms</span></span><h4>轻量切换</h4><p>标签页与提示用透明度过渡；ease-out；同屏变化不连续闪烁。</p></div><div><span class="motion-number">240<span>ms</span></span><h4>面板进入</h4><p>位移 16px + 渐显；离开 180ms。减少动态效果时取消位移与平滑滚动。</p></div></div>
+</section>
+
+<section class="doc-section" id="patterns" data-title="页面范式">
+  <div class="section-heading"><div><span class="eyebrow">10 / SCREEN PATTERNS</span><h2>把规则，放进日常。</h2></div><p>可交互的移动端缩略示例。<br>实际组件尺寸按第 08 章执行。</p></div>
+  <div class="prototype-layout"><div class="prototype-stage"><div class="phone"><div class="phone-status" aria-hidden="true"><span>9:41</span><span class="phone-notch"></span><span>▰</span></div><div class="phone-screen" id="phone-screen" tabindex="0" role="region" aria-label="酵种页面预览"></div><nav class="phone-nav" aria-label="原型页面导航"><button class="selected" data-screen="home" aria-current="page"><svg class="icon"><use href="#i-jar"/></svg><span>酵种</span></button><button data-screen="journal"><svg class="icon"><use href="#i-book"/></svg><span>日记</span></button><button data-screen="tools"><svg class="icon"><use href="#i-scale"/></svg><span>工具</span></button><button data-screen="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button></nav></div><small class="prototype-caption">缩略原型 · 示例数据 · 刷新后重置</small></div><div class="prototype-notes"><span class="eyebrow" id="pattern-number">PATTERN 01 / HOME</span><h3 id="pattern-title">先知道状态，再决定行动。</h3><p id="pattern-description">标题确认对象；最近记录建立上下文。插画作为轻量陪伴，把主要空间留给观察摘要和“记录观察”。</p><dl id="pattern-rules"><dt>信息顺序</dt><dd>对象 → 最近记录 → 当前摘要 → 主行动。</dd><dt>操作层级</dt><dd>每屏 1 个主按钮；日记回看为次要入口。</dd><dt>内容边界</dt><dd>只描述记录，不把时间长短自动解释为酵种健康程度。</dd></dl><div class="prototype-controls"><label class="check-label"><input type="checkbox" id="simulate-failure">模拟下一次记录保存失败</label><p class="note">可验证：校验 → 加载 → 错误保留输入 → 重试成功。此处只演示页面状态，不连接真实服务。</p><button class="text-link" id="reset-prototype">重置示例 <svg class="icon"><use href="#i-reset"/></svg></button></div></div></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>页面</th><th>保留重点</th><th>不应出现</th></tr></thead><tbody><tr><td>酵种主页</td><td>当前对象、最近记录、观察摘要与记录入口；未记录时仍可开始。</td><td>大面积空白配无标签图标；将删除伪装成主要行动。</td></tr><tr><td>日记</td><td>明确日期、可操作的前后切换、时间线与空日提示；未来日期不允许继续前进。</td><td>只显示“Day N”而无日期；空白区域没有解释或入口。</td></tr><tr><td>工具</td><td>输入范围、单位、公式说明与可见结果；非精确业务数据注明估算。</td><td>模糊结果、自动跳至订阅；将演示配比呈现为通用养护建议。</td></tr><tr><td>设置</td><td>通知、单位、对象管理分组；当前值尾随显示；次要解释就近出现。</td><td>每行都用独立鲜艳色；开关与系统权限实际状态不一致。</td></tr></tbody></table></div>
+</section>
+
+<section class="doc-section" id="states" data-title="状态与文案">
+  <div class="section-heading"><div><span class="eyebrow">11 / STATES & VOICE</span><h2>友好，意味着说明白。</h2></div><p>观察事实，解释原因，给出行动。<br>不责备用户，也不夸大确定性。</p></div>
+  <div class="state-grid"><article><span class="state-icon"><svg class="icon"><use href="#i-book"/></svg></span><h3>今天还没有记录</h3><p>先记下看到的变化，下次就能一起回看。</p><span class="state-action">记录观察 →</span><small>空状态 / 说明“为什么空”与“如何开始”</small></article><article><span class="state-icon danger"><svg class="icon"><use href="#i-warning"/></svg></span><h3>记录还没保存成功</h3><p>网络连接中断，填写内容已保留。连接恢复后可以重试。</p><span class="state-action">重新保存 →</span><small>错误状态 / 任务区域持续展示</small></article><article><span class="state-icon success"><svg class="icon"><use href="#i-check"/></svg></span><h3>这次观察，记下了。</h3><p>可以在今天的日记里找到这条记录。</p><span class="state-action">查看日记 →</span><small>成功状态 / 确认结果与去向</small></article></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>状态</th><th>界面规则</th><th>文案建议</th></tr></thead><tbody><tr><td>首次使用 / 空数据</td><td>一段说明 + 一个主行动；不用空骨架伪装内容。</td><td>“还没有酵种档案。给它起个名字，开始第一条记录。”</td></tr><tr><td>加载</td><td>初次加载可用结构一致的静态骨架；已有内容刷新时保留旧内容并标明更新时间。</td><td>“正在加载记录…”；耗时较长时“仍在加载，可以稍后重试”。</td></tr><tr><td>离线 / 异常</td><td>展示最近同步时间；允许浏览已缓存内容；未实现离线保存时必须明确。</td><td>“当前离线，显示上次同步的内容。”不宣称已保存到云端。</td></tr><tr><td>校验失败</td><td>错误定位到字段；告知可修正范围。</td><td>“请输入 1–12 个字符的名称。”避免只写“输入有误”。</td></tr><tr><td>长内容 / 缺失值</td><td>标题最多两行后提供详情；备注保留换行；缺失数字显示“未记录”。</td><td>不用 0 替代未知值；重要错误不截断。</td></tr><tr><td>长时间未记录</td><td>陈述记录事实，给观察或了解入口；异常业务判断需独立验证。</td><td>“你已经 7 天没有添加记录了。先观察一下现在的变化。”</td></tr><tr><td>权限关闭 / 功能受限</td><td>说明限制原因、继续可用的能力与解除方式；保持普通记录流程可用。</td><td>“系统通知未开启，提醒不会送达。你仍可手动记录。”</td></tr></tbody></table></div>
+  <div class="voice-comparison"><div class="avoid"><span>避免</span><p>“小麦饿坏了！”<br>“操作失败，请稍后再试。”</p></div><div class="prefer"><span>采用</span><p>“距离上次记录已过 7 天，先看看现在的变化。”<br>“没有保存成功，填写内容已保留。请检查连接后重试。”</p></div></div>
+</section>
+
+<section class="doc-section" id="accessibility" data-title="无障碍与适配">
+  <div class="section-heading"><div><span class="eyebrow">12 / ACCESSIBILITY & ADAPTATION</span><h2>温柔的界面，也要照顾更多人。</h2></div><p>把可读、可达与可恢复作为验收目标。<br>以下为产品实现要求，不是认证声明。</p></div>
+  <div class="a11y-grid"><article><span class="a11y-number">4.5 : 1</span><h3>普通文本对比度</h3><p>正文与按钮文字至少 4.5:1；大号文本至少 3:1；关键控件边界、焦点与有意义图形至少 3:1。</p></article><article><span class="a11y-number">44 × 44</span><h3>最小触达区域</h3><p>业务交互目标采用至少 44px 的宽高；相邻小图标不挤在一起；手势操作必须有按钮替代。</p></article><article><span class="a11y-number">200%</span><h3>文本放大验证</h3><p>文字放大后不截断关键内容，按钮允许增高；在 320px 视口检查重排；双列改为单列。</p></article></div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="规范表格，窄屏可横向滚动"><table><thead><tr><th>对象</th><th>实现要求</th><th>验收方式</th></tr></thead><tbody><tr><td>键盘</td><td>Tab 顺序跟随视觉顺序；Enter / Space 触发；选项卡支持左右箭头与 Home / End；不依赖 hover。</td><td>从页首走完一次记录流程；面板关闭后焦点回触发处；焦点环不被裁切。</td></tr><tr><td>读屏</td><td>语义标题与标签；状态用 aria-live；开关提供名称与 checked；选项卡配对 tabpanel。</td><td>读出对象、当前页、字段错误与保存结果；装饰图像不重复播报。</td></tr><tr><td>颜色 / 动态</td><td>状态带文字或图标；尊重 prefers-reduced-motion；不闪烁、不强制循环角色动画。</td><td>灰度下仍识别状态；减少动态模式下无大位移与强制平滑滚动。</td></tr><tr><td>移动端 / 安全区</td><td>触达 ≥44px；输入字号 ≥16px；底部留 env(safe-area-inset-bottom)；面板高度用 dvh。</td><td>检查窄屏、横屏、虚拟键盘与底栏共存；提交区不被遮住。</td></tr><tr><td>长文与本地化</td><td>支持中文长名称和英文长单词换行；单位与数值绑定；日期使用明确年月日。</td><td>测试 12 字名称、两行标题、长备注、缺失数据与不同小数位。</td></tr></tbody></table></div>
+  <p class="note">本次交付验证范围记录在下一章。业务端上线前还应使用真实设备与读屏软件复核权限、键盘和网络场景。</p>
+</section>
+
+<section class="doc-section" id="handoff" data-title="交付与验收">
+  <div class="section-heading"><div><span class="eyebrow">13 / HANDOFF</span><h2>从一套规则，到一致的体验。</h2></div><p>视觉变量先统一，组件行为再复用。<br>把需要确认的业务问题留在清楚的位置。</p></div>
+  <div class="handoff-grid"><div><h3>交付结构</h3><ul class="file-list"><li><code>index.html</code><span>完整网页文档</span></li><li><code>assets/style.css · app.js</code><span>文档样式与示例交互</span></li><li><code>assets/tokens.css · tokens.json</code><span>语义色、间距、圆角、动效变量</span></li><li><code>assets/brand · icons</code><span>原始 Logo、反白版、新绘概念插画与 SVG 图标</span></li><li><code>assets/fonts · references</code><span>预览字体、字体说明与 10 张参考缩略图</span></li><li><code>README.txt · QA.txt</code><span>使用方法、来源与实际验证记录</span></li></ul><p class="note">规范正文离线可读。组件与原型均为状态演示，不代表后端已实现；原型数据只在当前页面内存中保留，刷新后重置。另附单文件 HTML，已嵌入所需资源。</p></div><div><h3>变量使用示例</h3><pre><code>.primary-action {
+  color: var(--on-action);
+  background: var(--action-primary);
+  min-height: 48px;
+  padding-inline: var(--space-20);
+  border-radius: var(--radius-control);
+  transition: background var(--duration-fast)
+              var(--ease-out);
+}</code></pre><button class="text-link" id="copy-tokens">复制核心 CSS 变量 <svg class="icon"><use href="#i-copy"/></svg></button></div></div>
+  <div class="subsection-heading"><h3>产品交付验收清单</h3><span class="small-muted">下列勾选仅为本地评审笔记，刷新后重置。</span></div>
+  <div class="checklist"><label><input type="checkbox">每屏只有一个视觉优先的主行动，底栏入口和名称稳定。</label><label><input type="checkbox">颜色、圆角与间距使用语义变量，不随页面临时增加例外。</label><label><input type="checkbox">表单覆盖默认、焦点、错误、加载、成功和禁用状态。</label><label><input type="checkbox">取消不会丢失修改，保存失败可重试，删除有对应恢复策略。</label><label><input type="checkbox">320px 窄屏、200% 文字、键盘路径及读屏状态经过检查。</label><label><input type="checkbox">提醒依据、公式、权限逻辑与内容已经产品和业务核实。</label></div>
+  <div class="decisions"><h3>上线前需要确认的 4 件事</h3><ol><li>“状态”由哪些可验证数据得出，哪些只展示观察事实。</li><li>工具配比的适用条件、范围、舍入规则及真实公式。</li><li>提醒是站内、浏览器还是系统通知，以及关闭与拒绝后的路径。</li><li>数据同步、草稿持久化、可撤销删除的时限，以及字体发布授权。</li></ol></div>
+  <div class="closing"><span class="eyebrow">FERMENT WITH JOY.</span><p>少一点生硬，<br>多一点照顾。</p><a class="text-link" href="#overview">回到开头 <span>↑</span></a></div>
+</section>
+<footer><span>Ferjoo · UI & Interaction Guidelines</span><span>V1.0 / 2026.10.28 · 设计提案</span></footer>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toast-message"></span><button id="toast-action" hidden>撤销</button><button id="toast-dismiss" class="icon-button" aria-label="关闭提示"><svg class="icon"><use href="#i-close"/></svg></button></div>
+<dialog id="reference-dialog" class="reference-dialog" aria-labelledby="reference-title"><div class="dialog-header"><h3 id="reference-title"></h3><button class="icon-button" data-close-reference aria-label="关闭参考图"><svg class="icon"><use href="#i-close"/></svg></button></div><div class="reference-detail"><img id="reference-large" alt=""><div><p id="reference-caption"></p><p id="reference-filename" class="note"></p></div></div></dialog>
+<dialog id="record-dialog" class="record-dialog" aria-labelledby="record-title"><div class="sheet-handle" aria-hidden="true"></div><div class="dialog-header"><div><span class="eyebrow">OBSERVATION</span><h3 id="record-title">记录这次观察</h3></div><button class="icon-button" id="close-record" aria-label="关闭记录面板"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="record-form" novalidate><p class="record-context">小麦 · <span id="record-date"></span> · 示例</p><label for="observation">看到了什么？ <span class="required">必填</span></label><textarea class="field" id="observation" rows="3" maxlength="100" placeholder="例如：顶部平整，侧壁出现细小气泡" aria-describedby="observation-help observation-error"></textarea><div class="field-footer"><span id="observation-help">描述观察事实，1–100 个字符。</span><output id="observation-count">0 / 100</output></div><p id="observation-error" class="field-error" hidden></p><label for="record-temperature">环境温度 <span class="small-muted">选填 / °C</span></label><input class="field" id="record-temperature" type="number" inputmode="decimal" min="-20" max="60" step="0.1" placeholder="例如：24" aria-describedby="temperature-help temperature-error"><p id="temperature-help" class="note">演示输入范围 −20 至 60 °C；不表示养护建议范围。</p><p id="temperature-error" class="field-error" hidden></p><div class="inline-error" id="save-error" role="alert" hidden><svg class="icon"><use href="#i-warning"/></svg><span>保存失败，填写内容已保留。请重试。</span></div><div id="discard-confirm" class="discard-confirm" hidden><strong>要放弃这次修改吗？</strong><p>未保存的内容会清空。</p><div class="button-row"><button type="button" class="btn secondary" id="continue-editing">继续编辑</button><button type="button" class="btn danger-button" id="discard-editing">放弃修改</button></div></div><div class="sheet-actions"><button type="button" class="btn secondary" id="cancel-record">取消</button><button type="submit" class="btn primary" id="submit-record"><span>保存观察</span></button></div></form></dialog>
+<dialog id="permission-dialog" class="permission-dialog" aria-labelledby="permission-title"><div class="dialog-header"><h3 id="permission-title">开启记录提醒</h3><button class="icon-button" id="close-permission" aria-label="关闭提醒示例"><svg class="icon"><use href="#i-close"/></svg></button></div><p>这是权限流程演示，不会请求你的系统通知权限。真实产品应在用户了解用途后，再调用系统授权。</p><div class="permission-options"><button class="btn primary" id="permission-allow">模拟允许</button><button class="btn secondary" id="permission-deny">模拟拒绝</button></div></dialog>
+<svg class="svg-symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol><symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-9v.01"/></symbol><symbol id="i-warning" viewBox="0 0 24 24"><path d="m10.3 4.5-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-2.5l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5m0 3v.01"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></symbol><symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 17H3v-8h18v8h-3"/><path d="M6 14h12v7H6zM17 11h1"/></symbol><symbol id="i-jar" viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="14" rx="4"/><rect x="4" y="3" width="16" height="4" rx="1.5"/><path d="M5 13c3-2 5 2 7 0s4-2 7 0"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5v16M3 4c4-1 6 0 9 2 3-2 5-3 9-2v15c-4-1-6 0-9 2-3-2-5-3-9-2V4Z"/></symbol><symbol id="i-scale" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="M8 5V3h8v2M8 10h8m-4 0 2-2M7 17h10"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><path d="m9 3-.5 3-2 1.2-2.8-1.1-2 3.5L4 11.5v2l-2.3 1.9 2 3.5 2.8-1.1 2 1.2.5 3h4l.5-3 2-1.2 2.8 1.1 2-3.5-2.3-1.9v-2l2.3-1.9-2-3.5-2.8 1.1-2-1.2L13 3H9Z" transform="translate(1 -1) scale(.95)"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3C10 2 3 6 4 13s11 8 14 1c2-4 2-7 2-11Z"/><path d="M4 21 15 10"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol><symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7"/></symbol></svg>
+<script src="assets/app.js"></script>
+</body></html>

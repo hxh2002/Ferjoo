@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 240" fill="none">
+<title>Ferjoo 酵种罐概念插画</title><defs><linearGradient id="glass" x1="48" y1="68" x2="180" y2="218" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFDF9"/><stop offset="1" stop-color="#F7E9D4"/></linearGradient><linearGradient id="starter" x1="110" y1="125" x2="110" y2="211" gradientUnits="userSpaceOnUse"><stop stop-color="#F7D398"/><stop offset="1" stop-color="#EFC185"/></linearGradient></defs>
+<ellipse cx="111" cy="222" rx="62" ry="9" fill="#D8C2A0" opacity=".26"/>
+<rect x="48" y="49" width="124" height="167" rx="37" fill="url(#glass)" stroke="#C8AD89" stroke-width="2.5"/>
+<path d="M56 130c24-8 32 7 54 0s34-7 54 0v47c0 20-12 31-32 31H88c-20 0-32-11-32-31v-47Z" fill="url(#starter)"/>
+<path d="M57 130c24-8 31 7 53 0s34-7 53 0" stroke="#D5AA70" stroke-width="2" stroke-linecap="round"/>
+<rect x="42" y="38" width="136" height="28" rx="11" fill="#FBF6ED" stroke="#BDA383" stroke-width="2.5"/>
+<path d="M57 45v13m13-13v13m13-13v13m13-13v13m13-13v13m13-13v13m13-13v13m13-13v13m13-13v13" stroke="#D5C3AA" stroke-width="2" stroke-linecap="round"/>
+<path d="M64 83v28" stroke="#FFF" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+<path d="M143 89h14m-10 14h10" stroke="#C8AD89" stroke-width="2" stroke-linecap="round"/>
+<circle cx="76" cy="150" r="3" fill="#FFF6E8"/><circle cx="145" cy="183" r="4" fill="#FFF6E8"/><circle cx="92" cy="192" r="2.5" fill="#FFF6E8"/><circle cx="131" cy="147" r="2.5" fill="#FFF6E8"/>
+<path d="M94 160v6m32-6v6" stroke="#72533A" stroke-width="5" stroke-linecap="round"/><path d="M105 174c3 4 7 4 10 0" stroke="#72533A" stroke-width="2.5" stroke-linecap="round"/>
+<ellipse cx="84" cy="173" rx="6" ry="3" fill="#EDAF83" opacity=".7"/><ellipse cx="137" cy="173" rx="6" ry="3" fill="#EDAF83" opacity=".7"/>
+<path d="M179 102h10m-5-5v10M30 137h8m-4-4v8" stroke="#D7AC72" stroke-width="2" stroke-linecap="round"/>
+</svg>
