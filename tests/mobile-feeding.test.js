@@ -102,3 +102,49 @@ saved.stop();
 
 delete globalThis.localStorage;
 console.log('mobile feeding: entry resets confirmed drafts, keeps pending drafts locked, and save stays confirmed');
+
+// --- 六态状态机：editing / validating / saving / pending / saved / next ---
+globalThis.localStorage = {
+  getItem: (key) => (store.has(key) ? store.get(key) : null),
+  setItem: (key, value) => store.set(key, String(value)),
+  removeItem: (key) => store.delete(key)
+};
+
+const editing = mountAs('account-phase-editing', null);
+assert.equal(editing.vm.phase, 'editing', 'fresh form starts in editing');
+assert.equal(editing.vm.phaseLabel, '记录已发生的喂养');
+assert.equal(editing.vm.submitLabel, '保存喂养记录');
+editing.stop();
+
+const validating = mountAs('account-phase-validating', draftOf({ submission: {} }));
+validating.vm.draft.starterId = '';
+await validating.vm.save();
+await Vue.nextTick();
+assert.equal(validating.vm.phase, 'validating', 'validation failure enters validating');
+assert.equal(validating.vm.phaseLabel, '请先修正表单');
+assert.ok(validating.vm.error, 'error message is present');
+validating.stop();
+
+const pendingPhase = mountAs('account-phase-pending', draftOf({ confirmed: false }));
+assert.equal(pendingPhase.vm.phase, 'pending', 'locked unconfirmed submission is pending');
+assert.equal(pendingPhase.vm.phaseLabel, '待确认 · 内容已锁定');
+assert.equal(pendingPhase.vm.submitLabel, '重试确认本次保存');
+pendingPhase.stop();
+
+const savingMod = mountAs('account-phase-saving', draftOf({ submission: {} }));
+savingMod.vm.draft.ratio = '1:2:2';
+// saveFeeding resolves asynchronously; saving flag should be true immediately after call.
+const savePromise = savingMod.vm.save();
+assert.equal(savingMod.vm.phase, 'saving', 'in-flight save enters saving');
+assert.equal(savingMod.vm.submitLabel, '保存中…');
+await savePromise;
+await Vue.nextTick();
+assert.equal(savingMod.vm.phase, 'saved', 'confirmed save enters saved');
+assert.equal(savingMod.vm.phaseLabel, '已保存');
+savingMod.vm.startNext(savingMod.vm.draft.starterId);
+await Vue.nextTick();
+assert.equal(savingMod.vm.phase, 'editing', 'startNext returns to editing for next entry');
+savingMod.stop();
+
+delete globalThis.localStorage;
+console.log('mobile feeding: six-phase state machine (editing/validating/saving/pending/saved/next) contracts passed');
