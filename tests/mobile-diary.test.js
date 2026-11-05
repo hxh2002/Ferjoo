@@ -37,6 +37,19 @@ assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
 assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
+// 顶部标题与医生咨询入口：沿用选中酵种直达 /checkin。
+assert.match(source, /class="diary-head"[\s\S]*<h1>我的日记<\/h1>/);
+assert.match(source, /class="doctor-cta"[\s\S]*path: '\/checkin'/);
+assert.match(source, /selectedStarterId \? \{ starter: selectedStarterId \}/);
+assert.match(source, /医生咨询/);
+assert.match(source, /\.diary-head\{[^}]*min-height:36px/);
+assert.match(source, /\.doctor-cta\{[^}]*background:var\(--brand-light\)/);
+// 观察/诊断页头部与步骤条。
+const checkinSource = await readFile(new URL('../src/views/mobile/MobileCheckin.vue', import.meta.url), 'utf8');
+assert.match(checkinSource, /class="checkin-head"[\s\S]*医生咨询/);
+assert.match(checkinSource, /class="step-track"[\s\S]*stepMeta\.total/);
+assert.match(checkinSource, /\.step-track li\.active \.step-dot\{background:var\(--brand-action\)/);
+assert.match(checkinSource, /checkin-starter/);
 // 一级页面只保留设备在线时间与采样数，曲线下放到各轮次，采样明细仍走设备二级页。
 assert.match(source, /deviceBlocks/);
 assert.match(source, /单日数据/);

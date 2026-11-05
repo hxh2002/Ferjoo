@@ -448,7 +448,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="m-page">
+  <main class="m-page mobile-diary">
+    <header class="diary-head">
+      <h1>我的日记</h1>
+      <RouterLink class="doctor-cta" :to="{ path: '/checkin', query: selectedStarterId ? { starter: selectedStarterId } : {} }" aria-label="医生咨询">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>
+        <span>医生咨询</span>
+      </RouterLink>
+    </header>
     <section ref="datePanelRef" class="m-card date-card" :class="{ expanded: calendarOpen }">
       <div class="date-head">
         <div><strong>{{ calendarTitle }}</strong><small>{{ calendarOpen ? '选择日期' : '近两周' }}</small></div>
@@ -560,6 +567,14 @@ onUnmounted(() => {
 
 <style scoped>
 .m-page{padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
+.mobile-area .m-page.mobile-diary{padding-top:calc(12px + env(safe-area-inset-top));gap:0}
+.mobile-area .mobile-main .m-page.mobile-diary > .date-card{margin-block:0 12px}
+.mobile-area .mobile-main .m-page.mobile-diary > .day-card{margin-block:0 12px}
+.diary-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 12px}
+.diary-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
+.doctor-cta{display:inline-flex;align-items:center;gap:6px;flex:none;height:36px;padding:0 14px;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:13px;font-weight:500;text-decoration:none;box-shadow:0 3px 12px rgba(48,37,31,.07)}
+.doctor-cta svg{width:16px;height:16px;flex:none}
+.doctor-cta:active{background:var(--brand-accent)}
 .date-card{padding:.7rem .75rem;overflow:hidden}
 .date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
 .date-head strong{display:block;font-size:.9rem}

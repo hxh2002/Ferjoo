@@ -151,8 +151,18 @@ function applyPending(key) {
 </script>
 
 <template>
-  <main class="m-page mobile-checkin">
-    <p class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步 · <span v-if="draft.starterId">当前酵种：{{ starterName }}</span><span v-else>尚未选择酵种，<RouterLink to="/device">去今天选择</RouterLink></span></p>
+  <main class="m-page mobile-checkin" :data-mode="diagnosisMode ? 'diagnosis' : 'observation'">
+    <header class="checkin-head">
+      <h1>{{ diagnosisMode ? '医生咨询' : '观察记录' }}</h1>
+      <span v-if="draft.starterId" class="checkin-starter">{{ starterName }}</span>
+    </header>
+    <ol class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
+      <li v-for="n in stepMeta.total" :key="n" :class="{ active: n === stepMeta.index, done: n < stepMeta.index }">
+        <span class="step-dot" aria-hidden="true"></span>
+        <span class="step-label">{{ n === 1 ? '观察' : n === 2 && stepMeta.total === 3 ? '本轮' : '核对' }}</span>
+      </li>
+    </ol>
+    <p class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
     <section v-if="diagnosisMode" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
@@ -201,16 +211,34 @@ function applyPending(key) {
 </template>
 
 <style scoped>
-.m-context{margin:0;overflow-wrap:anywhere}
-.m-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem}
-.m-actions .m-primary{flex:1}
+.mobile-area .m-page.mobile-checkin{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
+.checkin-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 12px}
+.checkin-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
+.checkin-starter{flex:none;display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:14px;background:var(--m-icon-disc);color:var(--brand-action);font-size:13px;font-weight:500;max-width:50vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.step-track{display:flex;align-items:center;gap:0;list-style:none;margin:0 0 12px;padding:0}
+.step-track li{display:flex;align-items:center;gap:6px;flex:1;font-size:12px;color:var(--text-secondary)}
+.step-track li:last-child{flex:0 0 auto}
+.step-track li:not(:last-child)::after{content:'';flex:1;height:2px;margin:0 8px;background:var(--border-subtle);border-radius:1px}
+.step-track li.done:not(:last-child)::after{background:var(--brand-action)}
+.step-dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--border-subtle)}
+.step-track li.active .step-dot{background:var(--brand-action);box-shadow:0 0 0 4px var(--m-icon-disc)}
+.step-track li.done .step-dot{background:var(--brand-action)}
+.step-track li.active{color:var(--brand-action);font-weight:500}
+.step-label{white-space:nowrap}
+.mobile-checkin .m-card{padding:var(--m-card-space);margin-bottom:12px}
+.m-context{margin:0 0 12px;overflow-wrap:anywhere;font-size:13px;line-height:19px}
+.m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
+.m-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.m-actions .m-primary{flex:1;display:flex;align-items:center;justify-content:center;min-height:60px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer}
+.m-actions .m-primary:active{background:var(--brand-accent)}
+.m-actions .m-secondary{min-height:44px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px;font-weight:500;cursor:pointer}
 .note,dd,li{overflow-wrap:anywhere;white-space:pre-wrap}
 dt{font-weight:600;margin-top:.75rem}
 dd{margin-left:0}
 summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
 li{margin:.75rem 0}
 [aria-invalid=true]{outline:2px solid var(--danger-text)}
-.link-button{padding:0;border:0;background:none;font:inherit;color:var(--brand-action,#a54214);text-decoration:underline;cursor:pointer}
-.mode-tag{display:inline-block;margin-right:.35rem;padding:.05rem .4rem;border-radius:var(--radius-badge);background:var(--accent-soft,#fdf1e7);color:var(--brand-action,#a54214);font-size:.68rem;font-weight:700}
-.skip-note{margin:.35rem 0 0;font-size:.72rem;line-height:1.5;color:var(--warn,#8a5a12)}
+.link-button{padding:0;border:0;background:none;font:inherit;color:var(--brand-action);text-decoration:underline;cursor:pointer}
+.mode-tag{display:inline-block;margin-right:.35rem;padding:.05rem .4rem;border-radius:var(--radius-badge);background:var(--m-icon-disc);color:var(--brand-action);font-size:.68rem;font-weight:700}
+.skip-note{margin:.35rem 0 0;font-size:.72rem;line-height:1.5;color:var(--warning-text)}
 </style>
