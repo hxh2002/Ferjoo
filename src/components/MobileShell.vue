@@ -2,7 +2,6 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
-import { classicAssets } from '../constants/classicAssets.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
 
 import navDevice from '../assets/icons/nav-device.svg';
@@ -111,12 +110,7 @@ function go(path) {
 
 <template>
   <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
-    <header v-if="showTabs" class="mobile-topbar">
-      <RouterLink class="mobile-brand" to="/device" aria-label="Ferjoo 设备"><img :src="classicAssets.logoBrand" alt="Ferjoo" /></RouterLink>
-      <RouterLink v-if="!auth.user.value" class="mobile-login" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</RouterLink>
-      <RouterLink v-else class="mobile-account" to="/me">{{ auth.profile.value?.display_name || auth.user.value.email }}</RouterLink>
-    </header>
-    <header v-else class="mobile-topbar mobile-subbar">
+    <header v-if="!showTabs" class="mobile-topbar mobile-subbar">
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span>返回</span>
       </button>

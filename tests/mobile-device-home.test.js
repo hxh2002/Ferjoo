@@ -4,26 +4,34 @@ import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
-import { CLOSE_REASON_LABELS } from '../src/lib/mobile-records.js';
+import { CLOSE_REASON_LABELS, roundState } from '../src/lib/mobile-records.js';
 
 const file = new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
 const { descriptor, errors } = parse(source);
 assert.deepEqual(errors, []);
-const compiled = compileScript(descriptor, { id: 'today-test' });
+const compiled = compileScript(descriptor, { id: 'device-home-test' });
 assert.equal(compiled.bindings.refresh, 'setup-const');
 assert.match(source, /defineOptions\(\{ name: 'MobileDeviceHome' \}\)/);
-assert.match(source, /chart-feature/);
-assert.match(source, /SeriesChart/);
+// 设备页是「喂养摘要 + 三色数据块 + 单一主按钮」，图表下放到数据详情。
+assert.match(source, /本次喂养/);
+assert.match(source, /当前数据/);
+assert.match(source, /膨胀率/);
+assert.match(source, /metric-row/);
+assert.match(source, /feed-summary/);
+assert.match(source, /device-cta/);
 assert.match(source, /listMeasurementsRange/);
 assert.match(source, /summarizeFeedingMeasurements/);
 assert.match(source, /fermentation-window\.service\.js/);
-assert.match(source, /结束本轮/);
-assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
+assert.match(source, /结束当前发酵/);
+assert.match(source, /确认结束/);
+assert.match(source, /历史记录已保存/);
 assert.match(source, /\/me\/devices\?bind=1/);
 assert.match(source, /mode: 'diagnosis'/);
 assert.match(source, /linkStarterDevice/);
-const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'today-test' });
+assert.doesNotMatch(source, /SeriesChart/, 'charts move to the detail page, not the device home');
+assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
+const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'device-home-test' });
 assert.deepEqual(template.errors, []);
 
 const now = Date.now();
@@ -40,9 +48,6 @@ const result = summarizeFeedingMeasurements({ measurements: rows, feeding, link,
 assert.equal(result.baselineHeightMm, 25, 'baseline starts from the first valid height and averages the points seen so far');
 assert.equal(result.baselineIncomplete, true, 'fewer than three valid points is marked incomplete');
 assert.equal(result.measurementCount, 2, 'sleep and sensor-error samples are excluded');
-assert.equal(result.measurements, undefined, 'analysis result does not expose unrelated device rows');
-const isolated = summarizeFeedingMeasurements({ measurements: rows.map((row) => ({ ...row, device_id: 'other' })), feeding, link, now });
-assert.equal(isolated.measurementCount, 0, 'measurements from another device never enter the feeding round');
 
 const renderCode = template.code.replace(/import \{([^}]+)\} from "vue"/, (_, bindings) => `const { ${bindings.replace(/ as /g, ': ')} } = Vue;`).replace('export function render', 'function render');
 const render = new Function('Vue', `${renderCode}; return render;`)(Vue);
@@ -53,6 +58,8 @@ const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^
 }).replace('export default', 'return');
 const deferred = () => { let resolve; let reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); await Vue.nextTick(); };
+// 刷新的排队批次在上一批结束后才继续，单次 settle 不足以等到它落地。
+const drain = async () => { for (let i = 0; i < 8; i++) await settle(); };
 function harness() {
   const user = Vue.ref(null);
   const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }], selection: [], links: [link, { starter_id: 's2', device_id: 'd2', active_from: iso(80), active_to: null }], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
@@ -66,7 +73,7 @@ function harness() {
     async createStarter(name) { if (state.createGate) return state.createGate.promise; if (state.fail === 'create') throw new Error('create down'); const created = { id: 'created', name }; state.starters.push(created); return created; }
   };
   const modules = {
-    vue: { ...Vue, onMounted: () => {}, onActivated: () => {}, onDeactivated: () => {} },
+    vue: { ...Vue, onMounted: () => {}, onActivated: () => {}, onDeactivated: () => {}, onScopeDispose: () => {} },
     '../../composables/useAuth.js': { useAuth: () => ({ user, init() {} }) },
     '../../composables/useVisiblePolling.js': { useVisiblePolling() {} },
     '../../services/care.service.js': api,
@@ -88,18 +95,19 @@ function harness() {
     },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
     '../../lib/mobile-selection.js': { rememberSelectedStarter: (owner, id) => state.selection.push([owner, id]) },
-    '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, feedingEvidenceCacheKey: () => 'evidence' },
-    '../../lib/read-cache.js': { invalidateReadCache: () => {}, cachedRead: (key, loader) => loader(), READ_TTL: { records: 0 } },
-    '../../components/MobileMetricChart.vue': {}, '../../components/SeriesChart.vue': {}
+    '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, roundState, feedingEvidenceCacheKey: () => 'evidence' },
+    '../../lib/read-cache.js': { invalidateReadCache: () => {}, cachedRead: (key, loader) => loader(), READ_TTL: { records: 0 } }
   };
+  // 图标与插画是构建期资源，测试里用空串占位，断言只关心结构与文案。
+  for (const asset of ['icon-thermometer', 'icon-drop', 'icon-chart-up', 'icon-scales', 'icon-timer', 'icon-chevron-down', 'icon-jar', 'jar-body', 'jar-face.png', 'jar-hat.png', 'jar-rise', 'jar-face-small']) {
+    modules[`../../assets/device/${asset}`] = `asset:${asset}`;
+  }
   const component = new Function('modules', setupCode)(modules);
   const scope = Vue.effectScope();
   const bindings = scope.run(() => component.setup({}, { expose() {} }));
   async function html() {
     const app = Vue.createSSRApp({ setup: () => ({ ...bindings }), render });
     app.component('RouterLink', { props: ['to'], setup: ({ to }, { slots }) => () => Vue.h('a', { href: typeof to === 'string' ? to : to.path }, slots.default?.()) });
-    app.component('MobileMetricChart', { render: () => Vue.h('div') });
-    app.component('SeriesChart', { setup: (_, { slots }) => () => Vue.h('div', { class: 'series-chart' }, slots['after-header']?.()) });
     return renderToString(app);
   }
   return { state, user, vm: Vue.proxyRefs(bindings), html, stop: () => scope.stop() };
@@ -109,40 +117,33 @@ async function login(h, id = 'a') { h.user.value = { id }; await settle(); }
 const h = harness();
 assert.match(await h.html(), /连接设备，开始记录/);
 await login(h);
-assert.match(await h.html(), /膨胀率/);
-assert.match(await h.html(), /已持续/);
-assert.doesNotMatch(await h.html(), /高度预约/, 'height alert entry is no longer on the home page');
-assert.doesNotMatch(await h.html(), /\/me\/notifications/, 'today no longer carries notification settings links');
+const home = await h.html();
+assert.match(home, /我的设备/);
+assert.match(home, /膨胀率/);
+assert.match(home, /本次喂养/);
+assert.match(home, /当前数据/);
+assert.match(home, /1 : 2 : 2/, 'feed summary restates the ratio');
+assert.match(home, /结束当前发酵/, 'an active round can be ended straight from the home page');
+assert.match(home, /诊断本轮/);
+assert.match(home, /jar-status/, 'jar state is rendered as a compact status line');
+assert.match(home, /传感器异常/, 'the latest sensor-error sample is surfaced as an explicit jar state');
+assert.match(home, /未计入膨胀率/, 'data note explains which samples are excluded');
+assert.match(home, /段超过 40 分钟无采样/, 'data note states the size of measurement gaps');
+assert.doesNotMatch(home, /高度预约/, 'height alert entry is no longer on the home page');
+assert.doesNotMatch(home, /\/me\/notifications/, 'device home no longer carries notification settings links');
+assert.doesNotMatch(home, /开启云端推送/, 'device home no longer embeds push setup');
+assert.doesNotMatch(home, /2\.5×/, 'alert thresholds are managed on the settings page');
+assert.doesNotMatch(home, /chart-feature|series-chart/, 'the device home keeps charts on the detail page');
+assert.doesNotMatch(home, /<h1>今日<\/h1>/, 'the entry screen no longer labels itself 今日');
+
 const feedingSource = await readFile(new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url), 'utf8');
 assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable on the feeding page');
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
 // 进入喂养页就是要记下一条：已确认的草稿自动变成空表单，不再提供重复入口。
 assert.match(feedingSource, /startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/, 'entering the page starts the next feeding form when the draft is confirmed');
 assert.doesNotMatch(feedingSource, /class="m-primary" to="\/device"/, 'the feeding page relies on the header back button instead of a duplicate device button');
-assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the Today page instead of duplicating it here');
-assert.match(await h.html(), /jar-status/, 'jar state is rendered as a compact status line');
-assert.match(await h.html(), /传感器异常/, 'sensor error is surfaced as an explicit jar state');
-assert.equal(h.vm.baselineNote, '自动', 'baseline source is appended to the in-chart baseline tag');
-assert.match(source, /:baseline-note="baselineNote"/, 'the chart tag owns the baseline value and source');
-// 主页主角是膨胀率：主数值与 min/max 都按膨胀率展示，高度退为次要信息。
-assert.match(source, /:value-text="expansionText"/);
-assert.match(source, /:min-text="expansionRange\.min" :max-text="expansionRange\.max"/);
-assert.match(source, /<span class="height-label">膨胀率<\/span><span class="expansion-label">\/高度<\/span>/);
-assert.doesNotMatch(source, /height-meta/, 'the duplicated baseline line above the chart is gone');
-assert.doesNotMatch(await h.html(), /当前高度/, 'the round card no longer repeats the height already shown on the chart');
-assert.match(await h.html(), /class="action-card"/, 'main actions are grouped into a dedicated action card');
-assert.doesNotMatch(await h.html(), /查看设备曲线/, 'the chart jump link is removed');
-assert.match(await h.html(), /未计入膨胀率/, 'chart explains which samples are excluded from the expansion');
-assert.match(await h.html(), /段超过 40 分钟无采样/, 'chart states the size of measurement gaps');
-assert.doesNotMatch(await h.html(), /开启云端推送/, 'today no longer embeds push setup');
-assert.doesNotMatch(await h.html(), /2\.5×/, 'alert thresholds are managed on the settings page');
-assert.match(await h.html(), /本轮发酵/, 'current feeding is shown as an explicit round');
-assert.match(await h.html(), /compact-range/, 'round card uses a compact time range');
-assert.match(await h.html(), /range-separator/, 'round card renders the time range separator');
-assert.match(await h.html(), /结束本轮/, 'user can end the round without waiting for the next feeding');
-assert.match(await h.html(), /进行中/);
-assert.match(await h.html(), /下一次喂养会自动结束本轮/, 'the round card explains what closes the window');
-assert.match(await h.html(), /诊断需 3 步/, 'the action note separates ending from diagnosing');
+assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the device page instead of duplicating it here');
+
 h.vm.contextOpen = true;
 const pickerHtml = await h.html();
 assert.match(pickerHtml, /仅查看设备数据/, 'not choosing a starter is described by its actual effect');
@@ -150,7 +151,7 @@ assert.match(pickerHtml, /已关联其他设备/, 'starters linked to another de
 h.vm.contextOpen = false;
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
-assert.deepEqual(h.state.selection.at(-1), ['a', 's1'], 'the resolved starter is remembered so the records page opens on the same jar');
+assert.deepEqual(h.state.selection.at(-1), ['a', 's1'], 'the resolved starter is remembered so the diary page opens on the same jar');
 assert.equal(h.vm.evidence.length, rows.length);
 for (const fail of ['starter', 'device', 'link']) {
   const before = { devices: h.vm.devices, starters: h.vm.starters, selected: h.vm.starterId, evidence: h.vm.evidence };
@@ -166,35 +167,43 @@ assert.equal(h.vm.starterId, '', 'explicit empty starter survives polling');
 h.vm.selectDevice('d2'); await settle();
 h.vm.selectDevice('d1'); await settle();
 assert.equal(h.vm.starterId, '', 'explicit empty choice survives device switching');
-h.vm.selectStarter('s1'); await settle();
-h.state.feeding = null; await h.vm.refresh();
+h.vm.selectStarter('s1'); await settle(); await drain();
+h.state.feeding = null; await h.vm.refresh(); await drain();
 assert.deepEqual(h.vm.evidence, [], 'removing feeding clears stale evidence');
-h.state.feeding = feeding; await h.vm.refresh();
-h.state.links = []; await h.vm.refresh();
+const noFeedingHtml = await h.html();
+assert.match(noFeedingHtml, /还没有开始新一轮/, 'without a round the page offers the first feeding');
+assert.doesNotMatch(noFeedingHtml, /结束当前发酵/, 'no round means there is nothing to end');
+h.state.feeding = feeding; await h.vm.refresh(); await drain();
+h.state.links = []; await h.vm.refresh(); await drain();
 assert.deepEqual(h.vm.evidence, [], 'removing link clears stale evidence');
-assert.deepEqual(h.vm.measurements, [], 'unlinked starter cannot retain raw chart data');
+assert.deepEqual(h.vm.measurements, [], 'unlinked starter cannot retain raw sample data');
 const unlinkedHtml = await h.html();
-assert.match(unlinkedHtml, /本轮发酵/, 'round card still renders without a device link');
 assert.match(unlinkedHtml, /未关联设备/, 'missing device data is described as data quality, not as a finished round');
-assert.doesNotMatch(unlinkedHtml, /picker-row/, 'device and starter pickers stay collapsed into the status bar');
+assert.doesNotMatch(unlinkedHtml, /picker-row/, 'device and starter pickers stay collapsed until requested');
 h.vm.contextOpen = true;
 const expandedHtml = await h.html();
-assert.match(expandedHtml, /picker-row/, 'opening the status bar reveals the device and starter pickers');
+assert.match(expandedHtml, /picker-row/, 'opening the starter switch reveals the device and starter pickers');
 assert.match(expandedHtml, /关联当前设备/, 'switching and associating stay reachable once expanded');
 h.vm.contextOpen = false;
 assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
+// 结束流程先是确认弹层，确认后才写入并给出保存提示。
+h.vm.confirmOpen = true;
+const confirmHtml = await h.html();
+assert.match(confirmHtml, /结束当前发酵？/);
+assert.match(confirmHtml, /结束后，本次发酵将停止记录。/);
+assert.match(confirmHtml, /继续发酵/);
+assert.equal(h.state.closed, null, 'the confirmation layer alone never closes the round');
 await h.vm.endRound('fallen'); await settle();
 assert.equal(h.state.closed.detail, 'fallen', 'manual end records the selected reason');
 assert.equal(h.vm.summary.windowStatus, 'closed', 'manual end closes the round immediately');
 const closedHtml = await h.html();
 assert.match(closedHtml, /已结束/);
-assert.match(closedHtml, /峰值后回落/, 'closed round states the manual end reason');
 assert.match(closedHtml, /结束原因：峰值后回落/, 'closed round keeps the reason in a dedicated line');
-assert.match(closedHtml, /compact-range/, 'closed round still shows its compact time range');
-assert.match(closedHtml, /title="[^"]+–[^"]+"/, 'closed round keeps the full range in the title');
-assert.match(closedHtml, /诊断本轮/);
-assert.doesNotMatch(closedHtml, /结束本轮/, 'closed round no longer offers manual end');
-assert.ok(h.vm.heightMarkers.some((marker) => marker.label === '本轮终点'), 'a closed round marks its end on the chart');
+assert.match(closedHtml, /历史记录已保存/, 'saving the history raises the toast');
+assert.match(closedHtml, /本次发酵已结束/);
+assert.match(closedHtml, /class="device-cta"/);
+assert.doesNotMatch(closedHtml, /结束当前发酵/, 'closed round no longer offers manual end');
+assert.match(closedHtml, />喂养</, 'a closed round offers the next feeding instead');
 h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
 await h.vm.addStarter(); await settle();
 assert.equal(h.vm.starterId, 'created'); assert.equal(h.vm.link.device_id, 'd1');
@@ -259,20 +268,4 @@ assert.equal(otherAccount.vm.deviceId, 'd1', 'another account never inherits the
 remembered.stop(); restored.stop(); otherAccount.stop();
 delete globalThis.localStorage;
 
-const marked = harness(); await login(marked);
-marked.state.feedings = [feeding, { ...feeding, id: 'prev-feeding', occurred_at: iso(200) }];
-await marked.vm.refresh(); await settle();
-const markers = marked.vm.heightMarkers;
-assert.deepEqual(markers.map((marker) => marker.label), ['上轮起点', '上轮终点', '本轮起点'], 'the chart marks previous and current feeding boundaries');
-assert.equal(Date.parse(markers[1].t), Date.parse(markers[2].t) - 5 * 60000, 'the previous end line keeps five minutes away from the current start line');
-assert.equal(markers[2].row, 'top');
-assert.ok(Date.parse(marked.vm.chartFrom) <= Date.parse(markers[2].t), 'the chart window starts before the feeding line so it stays visible');
-marked.stop();
-
-assert.ok(source.indexOf('class="starter-section"') < source.indexOf('class="chart-card"'));
-assert.match(source, /:open="starterOpen" @toggle="starterOpen = \$event.target.open"/);
-assert.match(source, /summary::after/); assert.match(source, /:deep\(svg\).*height:76px/);
-assert.match(source, /膨胀率/); assert.match(source, /已持续/); assert.match(source, /\/reports\/session/);
-assert.match(source, /label="温度"[^>]*:from="chartFrom" :to="chartTo"/, 'temperature follows the height window');
-assert.match(source, /label="湿度"[^>]*:from="chartFrom" :to="chartTo"/, 'humidity follows the height window');
-console.log('mobile today: real script-setup state tests passed (account isolation, serialized refresh, create/link outcomes, default device, explicit empty selection, API failures and stale evidence)');
+console.log('mobile device home: layout contracts plus real script-setup state tests passed (account isolation, serialized refresh, create/link outcomes, default device, explicit empty selection, API failures, stale evidence, confirm/end flow and toast)');

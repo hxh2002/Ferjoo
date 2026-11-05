@@ -256,7 +256,7 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
   .mobile-area :is(.m-secondary, .btn-secondary, .ghost-button):hover:not(:disabled) { background: var(--surface-warm); }
   .mobile-area .mobile-tabbar button:hover { color: var(--brand-action); }
 }
-@media (max-width: 380px) {
+@media (max-width: 340px) {
   :root.mobile-mode { --m-page-space: 16px; --m-card-space: 16px; }
   .mobile-area .mobile-main .today-page .round-window { grid-template-columns: 1fr; gap: 6px; }
 }
