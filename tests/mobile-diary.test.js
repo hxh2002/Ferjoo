@@ -17,17 +17,21 @@ for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/vi
   assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
 }
 assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);
-assert.match(source, /\.date-grid-shared \.date-cell\{[^}]*min-height:0;height:34px/);
+assert.match(source, /\.date-grid-shared \.date-cell\{[^}]*min-height:0;height:36px/);
 assert.doesNotMatch(source, /\.date-cell\{[^}]*border-radius:\s*\d+%/);
 assert.match(source, /recentRecordDays\(\)/);
-assert.match(source, /更多日期/);
+assert.match(source, /展开日历/);
 assert.match(source, /starter-chip/);
-assert.match(source, /class="date-controls"[\s\S]*class="starter-picker"[\s\S]*class="date-more"/);
+assert.match(source, /class="date-controls"[\s\S]*class="starter-picker"[\s\S]*class="date-calendar"/);
 assert.match(source, /class="date-grid date-grid-shared"[\s\S]*v-for="item in dateCells"/);
 assert.match(source, /:key="item\.value" :data-date="item\.value"/);
 assert.match(source, /const firstRects = new Map[\s\S]*first\.left - last\.left[\s\S]*first\.top - last\.top/);
 assert.match(source, /cell\.animate\(\[\{ opacity: 0 \}, \{ opacity: 1 \}\]/);
-assert.match(source, /grid-template-rows:repeat\(2,34px\)/);
+assert.match(source, /grid-template-rows:82px/);
+assert.match(source, /height:82px/);
+assert.match(source, /aria-label="上一周"/);
+assert.match(source, /aria-label="选择年月"/);
+assert.match(source, /MWheelPicker/);
 assert.doesNotMatch(source, /week-rows|weekLabel|compactWeek|blank-|repeat\(6,34px\)|auto-fit/);
 assert.match(source, /weekday-row weekday-row-shared[\s\S]*v-for="item in weekdayColumns"[\s\S]*class="date-grid date-grid-shared"/);
 assert.match(source, /weekdayRects = new Map[\s\S]*weekdayRow\.children[\s\S]*duration: 360, easing/);
@@ -37,9 +41,9 @@ assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
 assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
-// 顶部标题与医生咨询入口：沿用选中酵种直达 /checkin。
-assert.match(source, /class="diary-head"[\s\S]*<h1>我的日记<\/h1>/);
-assert.match(source, /class="doctor-cta"[\s\S]*path: '\/checkin'/);
+// 顶部标题与医生咨询入口：沿用选中酵种进入轮次选择，不直接打开观察表单。
+assert.match(source, /class="diary-head"[\s\S]*<h1>日记<\/h1>/);
+assert.match(source, /class="doctor-cta"[\s\S]*path: '\/doctor\/rounds'/);
 assert.match(source, /selectedStarterId \? \{ starter: selectedStarterId \}/);
 assert.match(source, /医生咨询/);
 assert.match(source, /\.diary-head\{[^}]*min-height:36px/);

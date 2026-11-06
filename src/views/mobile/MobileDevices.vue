@@ -2,10 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
-import { confirmDialog } from '../../platform/dialog.js';
 import { listStarters } from '../../services/care.service.js';
 import { getStarterDeviceLink, linkStarterDevice } from '../../services/starter-device.service.js';
+import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
+import MSheet from '../../components/mobile/MSheet.vue';
+import MToast from '../../components/mobile/MToast.vue';
 const starters = ref([]);
+const starterLinks = ref({});
 const linkedStarter = ref('');
 const savedStarter = ref('');
 async function saveLink() {
@@ -16,7 +19,7 @@ async function saveLink() {
     const result = await linkStarterDevice({ userId: c.user, starterId, deviceId: c.device });
     if (current(c)) savedStarter.value = starterId;
     return result;
-  }, '酵种关联已更新；历史关联时间段保留。');
+  }, '设置已保存');
 }
 import { mobileDeviceService, mobileError, normalizeBindCode } from '../../services/mobile-device.service.js';
 const router = useRouter();
@@ -34,6 +37,11 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const notice = ref('');
+const toast = ref('');
+const toastTone = ref('success');
+const renameOpen = ref(false);
+const starterOpen = ref(false);
+const unbindTarget = ref(null);
 let version = 0;
 const userId = computed(() => auth.user.value?.id || '');
 const deviceId = computed(() => String(route.params.deviceId || ''));
@@ -57,7 +65,8 @@ async function load() {
       const links = await Promise.all(names.map(item => getStarterDeviceLink({ userId: c.user, starterId: item.id })));
       if (!current(c)) return;
       starters.value = names;
-      linkedStarter.value = names.find((item, index) => links[index]?.device_id === c.device)?.id || '';
+      starterLinks.value = Object.fromEntries(names.map((item, index) => [item.id, links[index]?.device_id || '']));
+      linkedStarter.value = names.find((item) => starterLinks.value[item.id] === c.device)?.id || '';
       savedStarter.value = linkedStarter.value;
       if (manager.value) {
         const list = await service.members(c.device);
@@ -87,6 +96,7 @@ async function perform(action, success) {
     const result = await action(service, c);
     if (!current(c)) return;
     notice.value = success;
+    if (success === '设置已保存') showToast(success);
     return result;
   } catch (e) { if (current(c)) error.value = mobileError(e); }
   finally { if (current(c)) saving.value = false; }
@@ -108,7 +118,7 @@ async function rename() {
   if (!manager.value) return;
   if (!name.value.trim() || name.value.trim().length > 80) { error.value = '设备名称须为一至八十个字符。'; return; }
   const c = context();
-  const result = await perform((service) => service.rename(c.device, name.value), '名称已更新，对所有共享成员生效。');
+  const result = await perform((service) => service.rename(c.device, name.value), '设置已保存');
   if (result && current(c)) device.value = { ...device.value, name: result.name };
 }
 async function addMember() {
@@ -118,10 +128,18 @@ async function addMember() {
   const result = await perform((service) => service.bind(c.device, target.value), '成员已加入，可查看全部历史采样。');
   if (result && current(c)) { target.value = ''; await load(); }
 }
+function askRemove(member, self = false) {
+  if (member.member_role === 'owner' || (!self && !manager.value)) return;
+  unbindTarget.value = { member, self };
+}
+async function confirmRemove() {
+  const target = unbindTarget.value;
+  unbindTarget.value = null;
+  if (target) await removeMember(target.member, target.self);
+}
 async function removeMember(member, self = false) {
   if (member.member_role === 'owner' || (!self && !manager.value)) return;
   const c = context();
-  if (!await confirmDialog(self ? '确认解绑这台设备？解绑后将不再通过成员身份访问设备历史，原始数据不会删除。' : `确认移除 ${member.system_user_id}？该成员将失去设备历史访问权限。`)) return;
   if (!current(c)) return;
   const result = await perform((service) => service.unbind(c.device, member.system_user_id), '已解除共享关系。');
   if (result && current(c)) { if (self) { device.value = null; router.replace('/me/devices'); } else await load(); }
@@ -131,30 +149,81 @@ async function copy(value) {
   try { await navigator.clipboard.writeText(value); if (current(c)) notice.value = '绑定码已复制。'; }
   catch { if (current(c)) notice.value = '复制失败，请长按下方绑定码手动复制。'; }
 }
+const offline = computed(() => isOffline(device.value?.last_seen_at));
+const lastSync = computed(() => formatSeen(device.value?.last_seen_at));
+const linkableStarters = computed(() => starters.value.filter((item) => !starterLinks.value[item.id]));
+function isOffline(value) {
+  const seen = Date.parse(value);
+  return !Number.isFinite(seen) || Date.now() - seen > 40 * 60 * 1000;
+}
+function formatSeen(value) {
+  const seen = Date.parse(value);
+  if (!Number.isFinite(seen)) return '从未同步';
+  const date = new Date(seen);
+  const now = new Date();
+  const clock = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return date.toDateString() === now.toDateString() ? `今天 ${clock}` : date.toLocaleString('zh-CN', { hour12: false });
+}
+function showToast(message, tone = 'success') {
+  toastTone.value = tone;
+  toast.value = message;
+}
+async function refreshDevice() {
+  const scoped = Boolean(deviceId.value);
+  const seen = device.value?.last_seen_at || '';
+  await load();
+  if (error.value || (scoped && offline.value)) { showToast('设备仍离线', 'error'); return; }
+  if (scoped && (device.value?.last_seen_at || '') === seen) showToast('暂无新数据', 'neutral');
+}
+async function chooseStarter(id) {
+  linkedStarter.value = id;
+  starterOpen.value = false;
+  await saveLink();
+}
 watch([userId, deviceId], () => {
   version += 1; devices.value = []; device.value = null; members.value = [];
   code.value = ''; confirmed.value = false; name.value = ''; target.value = '';
-  showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; linkedStarter.value = ''; savedStarter.value = '';
+  showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; starterLinks.value = {}; linkedStarter.value = ''; savedStarter.value = '';
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
   if (userId.value) load();
 }, { immediate: true, flush: 'sync' });
-watch(() => route.fullPath, () => { showBinding.value = !deviceId.value && route.query.bind === '1'; }, { immediate: true, flush: 'sync' });
+watch(() => route.fullPath, () => {
+  if (!deviceId.value && route.query.bind === '1') router.replace('/me/devices/add');
+}, { immediate: true, flush: 'sync' });
 watch(manager, (value) => { if (!value) members.value = []; });
 onMounted(async () => { try { await auth.init(); } catch { error.value = '登录状态读取失败，请稍后重试。'; } });
 onBeforeUnmount(() => { version += 1; });
 </script>
 <template>
-  <main :key="`${userId}:${route.fullPath}`" class="m-page">
+  <main :key="`${userId}:${route.fullPath}`" class="m-page devices-page">
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
-    <div class="page-actions"><button class="m-text-action" :disabled="loading || saving || !userId" @click="load">{{ loading ? '正在读取…' : '刷新设备' }}</button></div>
     <template v-if="!deviceId">
-      <section class="m-card">
-        <div class="section-heading"><h2>已绑定设备<span v-if="devices.length" class="m-muted count"> · {{ devices.length }} 台</span></h2><button class="m-text-action" :aria-expanded="showBinding" aria-controls="device-binding" @click="showBinding = !showBinding">{{ showBinding ? '收起绑定' : '+ 绑定' }}</button></div>
-        <p v-if="!devices.length && !loading" class="m-muted">还没有绑定设备。</p>
-        <RouterLink v-for="item in devices" :key="item.device_id" :to="`/me/devices/${encodeURIComponent(item.device_id)}`" class="m-list-row">
+      <header class="devices-head">
+        <h1>我的设备</h1>
+        <button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button>
+      </header>
+      <section v-if="loading && !devices.length" class="m-skeleton" aria-busy="true" aria-label="正在读取设备"><span></span><span></span></section>
+      <section v-else-if="!devices.length" class="m-card empty-card">
+        <img class="empty-art" src="../../assets/device/jar-body.svg" alt="" width="120" height="160" />
+        <p>还没有绑定设备</p>
+        <RouterLink class="m-primary" to="/me/devices/add">添加设备</RouterLink>
+      </section>
+      <section v-else-if="devices.length === 1" class="m-card overview-card">
+        <span class="device-disc large" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="24" height="24" /></span>
+        <div class="overview-copy">
+          <div class="overview-title"><strong>{{ devices[0].name || devices[0].device_id }}</strong><span class="status-pill" :data-offline="isOffline(devices[0].last_seen_at) || null">{{ isOffline(devices[0].last_seen_at) ? '离线' : '已连接' }}</span></div>
+          <small>{{ devices[0].device_id }}</small>
+          <small>最近同步 {{ formatSeen(devices[0].last_seen_at) }}</small>
+        </div>
+        <RouterLink class="data-chip" :to="`/me/devices/${encodeURIComponent(devices[0].device_id)}`">设备设置</RouterLink>
+      </section>
+      <section v-else class="m-card device-list">
+        <div class="section-heading"><h2>已绑定设备<span v-if="devices.length" class="count"> · {{ devices.length }} 台</span></h2><RouterLink class="m-text-action" to="/me/devices/add">添加设备</RouterLink></div>
+        <RouterLink v-for="item in devices" :key="item.device_id" :to="`/me/devices/${encodeURIComponent(item.device_id)}`" class="device-row">
+          <span class="device-disc" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="20" height="20" /></span>
           <span class="row-main"><strong>{{ item.name || item.device_id }}</strong><small>{{ item.my_role === 'owner' ? '所有者' : '成员' }} · {{ item.quality }}</small>
-          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span aria-hidden="true">›</span>
+          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
         </RouterLink>
       </section>
       <section v-if="showBinding" id="device-binding" class="m-card"><h2>绑定设备</h2>
@@ -165,46 +234,91 @@ onBeforeUnmount(() => { version += 1; });
         </form>
       </section>
     </template>
+    <section v-else-if="loading && !device" class="m-skeleton" aria-busy="true" aria-label="正在读取设备"><span></span><span></span></section>
     <template v-else-if="device">
-      <section class="m-card"><h2>{{ device.name || device.device_id }}</h2>
-        <p>我的设备角色：{{ device.my_role === 'owner' ? '所有者' : device.my_role === 'member' ? '成员' : '无成员身份（管理员访问）' }}</p>
-        <p class="m-muted">最近接收：{{ device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '从未接收' }}</p>
-        <RouterLink class="m-text-action" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备数据</RouterLink>
+      <p v-if="offline" class="offline-banner" role="status">设备离线<button type="button" :disabled="loading" @click="refreshDevice">刷新</button><span>上次同步 {{ lastSync }}</span></p>
+      <header class="devices-head"><h1>{{ device.name || device.device_id }}</h1><button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button></header>
+      <section class="m-card overview-card">
+        <span class="device-disc large" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="24" height="24" /></span>
+        <div class="overview-copy">
+          <div class="overview-title"><strong>{{ device.name || device.device_id }}</strong><span class="status-pill" :data-offline="offline || null">{{ offline ? '离线' : '已连接' }}</span></div>
+          <small>{{ device.device_id }}</small>
+          <small>最近同步 {{ lastSync }}</small>
+        </div>
+        <a class="data-chip" href="#device-settings">设备设置</a>
       </section>
-      <section class="m-card">
-        <details v-if="manager" class="m-disclosure">
-          <summary>设备名称 · {{ device.name || device.device_id }}</summary>
-          <form @submit.prevent="rename"><label class="m-field">设备名称<input v-model="name" maxlength="80"></label><button class="m-primary" :disabled="saving">保存名称</button></form>
-        </details>
-        <details class="m-disclosure">
-          <summary>关联酵种 · {{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</summary>
-          <form @submit.prevent="saveLink"><label class="m-field">关联酵种<select v-model="linkedStarter"><option value="">请选择酵种</option><option v-for="item in starters" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><button class="m-secondary" :disabled="saving || !linkedStarter">保存关联</button></form>
-        </details>
+      <p class="group-label">设备设置</p>
+      <section id="device-settings" class="m-card settings-card">
+        <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">设备数据 <span aria-hidden="true">›</span></RouterLink>
+        <RouterLink class="settings-row" :to="`/me/devices/${encodeURIComponent(deviceId)}/info`">设备信息 <span aria-hidden="true">›</span></RouterLink>
+        <button v-if="manager" type="button" class="settings-row" @click="renameOpen = true">修改设备名称 <span aria-hidden="true">›</span></button>
+        <button type="button" class="settings-row" @click="starterOpen = true">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small></button>
+        <button v-if="device.my_role === 'member'" type="button" class="settings-row danger" :disabled="saving || !mySystemId" @click="askRemove({ member_role: 'member', system_user_id: mySystemId }, true)">解除绑定</button>
+        <p v-else-if="device.my_role === 'owner'" class="settings-note">所有者不能解绑自己。</p>
       </section>
       <details v-if="manager" class="m-card m-disclosure">
-        <summary>共享与成员管理</summary>
+        <summary>共享与成员</summary>
         <p>持有绑定码的账号加入后可查看全部历史采样。</p>
         <p class="m-code">{{ device.bind_code || '暂无绑定码' }}</p><button class="m-text-action" :disabled="!device.bind_code" @click="copy(device.bind_code)">复制绑定码</button>
         <h2>共享成员</h2><p class="m-muted">暂不支持转让所有者。</p>
-        <div v-for="member in members" :key="member.system_user_id" class="m-list-row"><span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '所有者' : '成员' }}</span><button v-if="member.member_role !== 'owner'" class="m-text-action danger-action" :disabled="saving" @click="removeMember(member)">移除成员</button></div>
+        <div v-for="member in members" :key="member.system_user_id" class="member-row"><span>{{ member.system_user_id }} · {{ member.member_role === 'owner' ? '所有者' : '成员' }}</span><button v-if="member.member_role !== 'owner'" class="m-text-action danger-action" :disabled="saving" @click="askRemove(member)">移除成员</button></div>
         <form @submit.prevent="addMember"><label class="m-field">系统用户编号<input v-model="target" placeholder="例如 U26010001" maxlength="9"></label><button class="m-primary" :disabled="saving">添加成员</button></form>
       </details>
-      <details class="m-card m-disclosure"><summary>技术信息</summary><p class="m-code">设备编号：{{ device.device_id }}</p><p>型号：{{ device.model || '未提供' }}；固件：{{ device.firmware_version || '未提供' }}</p></details>
-      <div class="unbind-action">
-        <p v-if="device.my_role === 'owner'" class="m-muted">所有者不能解绑自己。</p>
-        <template v-else-if="device.my_role === 'member'"><p class="m-muted">解绑只撤销你的访问权限。</p><button class="m-text-action danger-action" :disabled="saving || !mySystemId" @click="removeMember({ member_role: 'member', system_user_id: mySystemId }, true)">解绑自己</button></template>
-        <p v-else class="m-muted">当前账号没有需要解除的设备成员关系。</p>
-      </div>
     </template>
+    <MSheet :open="renameOpen" title="修改设备名称" @close="renameOpen = false">
+      <form class="rename-form" @submit.prevent="rename().then(() => { if (!error.value) renameOpen = false; })"><label class="rename-field">设备名称<input v-model="name" maxlength="80"></label><button class="rename-save" :disabled="saving">保存</button></form>
+    </MSheet>
+    <MSheet :open="starterOpen" title="关联酵种" @close="starterOpen = false">
+      <p v-if="!linkableStarters.length" class="m-muted">还没有可关联的酵种。</p>
+      <button v-for="item in linkableStarters" :key="item.id" type="button" class="settings-row" @click="chooseStarter(item.id)">{{ item.name }}</button>
+    </MSheet>
+    <MConfirmDialog :open="!!unbindTarget" danger title="解除绑定" :message="unbindTarget?.self ? '解绑后将不再通过成员身份访问设备历史，原始数据不会删除。' : '该成员将失去设备历史访问权限。'" confirm-label="解除绑定" @cancel="unbindTarget = null" @confirm="confirmRemove" />
+    <MToast :open="!!toast" :message="toast" :tone="toastTone" @close="toast = ''" />
   </main>
 </template>
 <style scoped>
-.page-actions{display:flex;justify-content:flex-end}
+.devices-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
+.devices-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
+.group-label{margin:18px 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
+.empty-card{display:grid;gap:12px;justify-items:center;text-align:center}
+.empty-art{width:120px;height:160px;object-fit:contain}
+.empty-card p{margin:0;font-size:16px;line-height:24px}
+.empty-card .m-primary{display:flex;align-items:center;justify-content:center;width:min(327px,100%);height:60px;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:16px;font-weight:500;text-decoration:none}
+.device-list,.settings-card{padding:8px 16px}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.section-heading h2{margin:0;font-size:16px;font-weight:500}
+.count{color:var(--text-secondary);font-size:13px;font-weight:400}
+.device-row,.member-row{display:flex;align-items:center;gap:12px;min-height:76px;padding:12px 0;border-top:1px solid var(--border-subtle);color:inherit;text-decoration:none}
+.device-list .device-row:first-of-type{border-top:0}
+.device-disc{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--m-icon-disc)}
+.device-disc img{width:20px;height:20px}
+.device-disc.large{width:56px;height:56px}
+.device-disc.large img{width:24px;height:24px}
+.overview-card{display:flex;align-items:center;gap:12px;min-height:144px}
+.overview-copy{display:grid;gap:4px;min-width:0;flex:1}
+.overview-title{display:flex;align-items:center;gap:8px}
+.overview-card strong{font-size:16px;font-weight:500}
+.overview-card small{color:var(--text-secondary);font-size:12px;line-height:18px}
+.status-pill{display:inline-flex;align-items:center;justify-content:center;width:72px;height:26px;border-radius:13px;background:var(--success-bg);color:var(--success-text);font-size:12px;font-weight:500}
+.status-pill[data-offline]{background:var(--warning-bg);color:var(--warning-text)}
+.data-chip{display:inline-flex;align-items:center;justify-content:center;flex:none;width:94px;height:32px;border-radius:16px;background:var(--brand-light);color:var(--text-primary);font-size:13px;font-weight:500;text-decoration:none}
+.row-main{display:grid;gap:2px;min-width:0;flex:1;overflow-wrap:anywhere}
+.row-main strong{font-size:15px;font-weight:500}
+.row-main small{color:var(--text-secondary);font-size:12px}
+.chevron{color:var(--text-secondary);font-size:18px}
 .m-code{overflow-wrap:anywhere;user-select:text;font-family:ui-monospace,monospace}
-.section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.section-heading h2{margin:0}
-.count{font-size:.82rem;font-weight:400}
-.row-main{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}
 .binding-confirm{grid-template-columns:auto minmax(0,1fr);align-items:start}
 .m-text-action.danger-action{color:var(--danger-text)}
 .unbind-action{margin-top:24px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:68px;padding:0;border:0;border-top:1px solid var(--border-warm);background:transparent;color:inherit;font:inherit;font-size:var(--text-md);text-align:left;text-decoration:none}
+.settings-row.danger{color:var(--danger-text)}
+.settings-note{margin:0;padding:12px 0;color:var(--text-secondary);font-size:var(--text-sm)}
+.settings-card .settings-row:first-child{border-top:0}
+.settings-row small{color:var(--text-secondary);font-size:var(--text-sm)}
+.offline-banner{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:12px 16px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:var(--text-sm)}
+.offline-banner button{min-height:32px;padding:0 12px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary)}
+.rename-form{display:grid;gap:16px;width:min(327px,100%)}
+.rename-field{display:grid;gap:8px;font-size:var(--text-sm);font-weight:500}
+.rename-field input{width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md)}
+.rename-save{display:flex;align-items:center;justify-content:center;width:100%;height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
 </style>

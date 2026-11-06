@@ -31,6 +31,11 @@ const socials = [
       </a>
     </div>
   </section>
+  <nav class="m-card help-links" aria-label="帮助">
+    <RouterLink to="/me/help/faq">常见问题</RouterLink>
+    <RouterLink to="/me/help/feedback">意见反馈</RouterLink>
+    <RouterLink to="/me/help/privacy">隐私与权限</RouterLink>
+  </nav>
   <section class="m-card help-info">
     <h2>开始养护</h2>
     <p>先添加酵种，记录喂养时间和比例，再通过「记录观察」获取建议。没有设备也可手工使用。</p>
@@ -44,7 +49,10 @@ const socials = [
 </main>
 </template>
 <style scoped>
-.help-page{color:#30251f}
+.help-page{color:var(--text-primary)}
+.help-links{display:grid;padding:0 16px}
+.help-links a{display:flex;align-items:center;min-height:56px;border-top:1px solid var(--border-warm);color:inherit;text-decoration:none;font-weight:500}
+.help-links a:first-child{border-top:0}
 section{margin-top:16px}
 .help-info{ text-align:left }
 p{line-height:1.7}
@@ -52,7 +60,7 @@ h2{font-size:20px}
 .about-card{text-align:center}
 .about-logo{width:160px;height:auto;margin:.25rem auto 1rem;display:block}
 .about-card h2{font-size:1.25rem;margin:0 0 .5rem}
-.about-card p{font-size:.85rem;color:#625e56;margin:0}
+.about-card p{font-size:.85rem;color:var(--text-muted);margin:0}
 .about-socials{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:1rem}
 .about-social{position:relative;width:52px;height:52px;border:1px solid var(--m-border);border-radius:var(--m-radius-button);display:grid;place-items:center;background:var(--m-surface);color:inherit;text-decoration:none}
 .about-social svg{width:22px;height:22px;fill:currentColor}

@@ -3,10 +3,11 @@ import { computed, onScopeDispose, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { getCareRecord, listStarters } from '../../services/care.service.js';
-import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { expansionSeries, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { describeField } from '../../services/mobile-diagnosis.service.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead } from '../../lib/read-cache.js';
+import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -77,6 +78,35 @@ const durationText = computed(() => {
   return h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
 });
 const temperatureText = computed(() => Number.isFinite(summary.value?.tempC) ? `${summary.value.tempC.toFixed(1)} °C` : '');
+function chartSeries(rows, key) {
+  return rows.map((row) => {
+    const value = Number(row[key]);
+    return { t: row.recorded_at, v: Number.isFinite(value) ? value : null };
+  });
+}
+function chartHasValue(points) {
+  return points.some((point) => point.v != null);
+}
+const roundCharts = computed(() => {
+  const rows = [...(evidence.value?.measurements || [])]
+    .filter((row) => row?.recorded_at && Number.isFinite(Date.parse(row.recorded_at)))
+    .sort((left, right) => Date.parse(left.recorded_at) - Date.parse(right.recorded_at));
+  if (!rows.length) return null;
+  const height = chartSeries(rows, 'height_mm');
+  const expansion = expansionSeries(height, baseline.value);
+  const charts = {
+    from: rows[0].recorded_at,
+    to: rows.at(-1).recorded_at,
+    expansion: chartHasValue(expansion) ? expansion : null,
+    temperature: chartHasValue(chartSeries(rows, 'temperature_c')) ? chartSeries(rows, 'temperature_c') : null,
+    humidity: chartHasValue(chartSeries(rows, 'humidity_percent')) ? chartSeries(rows, 'humidity_percent') : null
+  };
+  return charts.expansion || charts.temperature || charts.humidity ? charts : null;
+});
+const peakExpansion = computed(() => {
+  const values = (roundCharts.value?.expansion || []).map((point) => point.v).filter((value) => Number.isFinite(value));
+  return values.length ? Math.max(...values).toFixed(0) : '';
+});
 const evidenceText = computed(() => {
   const value = summary.value;
   if (!value) return '';
@@ -137,8 +167,13 @@ onScopeDispose(() => { generation++; });
 
 <template>
   <main class="m-page mobile-record-detail">
-    <header><h1>发酵轮次</h1><p class="m-muted">{{ name }}<template v-if="when"> · {{ when }}</template></p></header>
-    <p v-if="loading" role="status">正在加载…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
+    <header class="detail-head"><h1>数据详情</h1><p class="m-muted">{{ name }}<template v-if="when"> · {{ when }}</template></p></header>
+    <div v-if="loading" class="m-skeleton" role="status" aria-label="正在加载"><span></span><span></span><span></span></div>
+    <p v-if="error" class="m-error" role="alert">{{ error }}</p>
+    <section v-if="record" class="detail-summary" aria-label="本次喂养">
+      <div><span>喂养比例</span><strong>{{ describeField('ratio', record.ratio) }}</strong></div>
+      <div><span>已发酵</span><strong>{{ durationText }}</strong></div>
+    </section>
     <section v-if="record" class="m-card window-card">
       <div class="window-head">
         <div><strong>{{ describeField('ratio', record.ratio) }}</strong><small>喂养比例（老种 : 水 : 面粉）</small></div>
@@ -162,6 +197,20 @@ onScopeDispose(() => { generation++; });
       <p v-if="hint" class="window-hint">{{ hint }}</p>
       <p v-if="evidenceText" class="window-meta">{{ evidenceText }}</p>
     </section>
+    <section v-if="roundCharts" class="m-card chart-card" aria-label="本轮曲线">
+      <div v-if="roundCharts.expansion" class="chart-block">
+        <div class="chart-title"><strong>膨胀率</strong><span v-if="peakExpansion">最高 {{ peakExpansion }}%</span></div>
+        <MDraggableChart label="膨胀率" unit="%" color="var(--chart-height)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+      <div v-if="roundCharts.temperature" class="chart-block">
+        <div class="chart-title"><strong>温度</strong></div>
+        <MDraggableChart label="温度" unit="°C" color="var(--chart-temp)" :height="126" :points="roundCharts.temperature" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+      <div v-if="roundCharts.humidity" class="chart-block">
+        <div class="chart-title"><strong>湿度</strong></div>
+        <MDraggableChart label="湿度" unit="%" color="var(--chart-humidity)" :height="126" :points="roundCharts.humidity" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+    </section>
     <section v-if="record" class="m-card">
       <template v-if="weights"><h2>投喂重量</h2><p>{{ weights }}</p></template>
       <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
@@ -171,6 +220,11 @@ onScopeDispose(() => { generation++; });
 
 <style scoped>
 .mobile-record-detail{overflow-wrap:anywhere}
+.detail-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
+.detail-summary{display:grid;grid-template-columns:1fr 1fr;align-items:center;min-height:76px;padding:12px 16px;border:1px solid var(--border-warm);border-radius:var(--radius-card);background:var(--surface-card)}
+.detail-summary div{display:grid;gap:4px;min-width:0}
+.detail-summary span{color:var(--text-secondary);font-size:12px;line-height:18px}
+.detail-summary strong{font-size:16px;line-height:24px;font-weight:500}
 .m-card{margin:1rem 0;padding:1rem;border:1px solid var(--border-default);background:var(--surface-card)}
 .m-card h2{margin:0 0 .35rem;font-size:.9rem}
 .m-card p{margin:.2rem 0 .6rem}
@@ -178,23 +232,29 @@ header h1{margin:0}
 header p{margin:.25rem 0 0;font-size:.8rem}
 .window-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem}
 .window-head strong{display:block;font-size:1rem}
-.window-head small{display:block;margin-top:.15rem;font-size:.7rem;color:var(--muted,#756d63)}
-.window-state{padding:.15rem .5rem;border-radius:var(--radius-badge);background:#e8f0fa;color:#2B6CB0;font-size:.7rem;font-weight:600;white-space:nowrap}
-.window-state[data-tone="closed"]{background:#e7f4ed;color:#2B7A55}
-.window-state[data-tone="pending"]{background:#fdf3e2;color:#8a5a17}
+.window-head small{display:block;margin-top:.15rem;font-size:.7rem;color:var(--text-secondary)}
+.window-state{padding:.15rem .5rem;border-radius:var(--radius-badge);background:var(--info-bg);color:var(--info-text);font-size:.7rem;font-weight:600;white-space:nowrap}
+.window-state[data-tone="closed"]{background:var(--success-bg);color:var(--success-text)}
+.window-state[data-tone="pending"]{background:var(--warning-bg);color:var(--warning-text)}
 .window-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-top:.85rem}
 .window-grid > div{display:grid;gap:.1rem;min-width:0}
-.window-grid span{font-size:.68rem;color:var(--muted,#756d63)}
+.window-grid span{font-size:.68rem;color:var(--text-secondary)}
 .window-grid strong{font-size:.95rem;font-variant-numeric:tabular-nums;white-space:nowrap}
-.window-grid .day-offset{display:inline-grid;place-items:center;min-width:.85rem;height:.75rem;margin-left:.2rem;padding:0 .12rem;border-radius:var(--radius-badge);background:#f2dcd7;color:#a4524a;font-size:.52rem;line-height:1;font-weight:600}
-.window-end{margin:.6rem 0 0;font-size:.75rem;color:var(--muted,#756d63)}
-.measure-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-top:.85rem;padding-top:.75rem;border-top:1px solid var(--border-subtle,#e7e0d7)}
+.window-grid .day-offset{display:inline-grid;place-items:center;min-width:.85rem;height:.75rem;margin-left:.2rem;padding:0 .12rem;border-radius:var(--radius-badge);background:var(--danger-bg);color:var(--danger-text);font-size:.52rem;line-height:1;font-weight:600}
+.window-end{margin:.6rem 0 0;font-size:.75rem;color:var(--text-secondary)}
+.measure-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-top:.85rem;padding-top:.75rem;border-top:1px solid var(--border-subtle)}
 .measure-grid > div{display:grid;gap:.1rem;min-width:0}
-.measure-grid span{font-size:.68rem;color:var(--muted,#756d63)}
+.measure-grid span{font-size:.68rem;color:var(--text-secondary)}
 .measure-grid strong{font-size:1rem;font-variant-numeric:tabular-nums;white-space:nowrap}
-.measure-grid small{font-size:.62rem;color:var(--muted,#756d63)}
-.window-meta{margin:.6rem 0 0;font-size:.72rem;color:var(--muted,#756d63)}
-.window-hint{margin:.6rem 0 0;padding:.5rem .6rem;border-radius:var(--radius-control);background:#fdf3e2;font-size:.72rem;line-height:1.5;color:#8a5a17}
+.measure-grid small{font-size:.62rem;color:var(--text-secondary)}
+.window-meta{margin:.6rem 0 0;font-size:.72rem;color:var(--text-secondary)}
+.window-hint{margin:.6rem 0 0;padding:.5rem .6rem;border-radius:var(--radius-control);background:var(--warning-bg);font-size:.72rem;line-height:1.5;color:var(--warning-text)}
+.chart-block + .chart-block{margin-top:16px}
+.chart-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px}
+.chart-title strong{font-size:15px;font-weight:500}
+.chart-title span{color:var(--text-secondary);font-size:12px}
+.chart-card :deep(.series-plot){height:var(--m-chart-height,126px)}
+.chart-card :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
 .m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid var(--border-input);color:inherit;text-decoration:none}
 .m-error{color:var(--danger-text)}
 </style>

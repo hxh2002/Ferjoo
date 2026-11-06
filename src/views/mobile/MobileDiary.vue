@@ -8,6 +8,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
 import SeriesChart from '../../components/SeriesChart.vue';
+import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
@@ -35,6 +36,7 @@ const scrollY = ref(0);
 const datePanelRef = ref(null);
 const calendarOpen = ref(false);
 const calendarMonth = ref(Date.now());
+const monthPicker = ref(false);
 
 const loader = createRecordsLoader({ listCareRecords, listStarterDeviceLinks, loadWindowClosures, mobileDeviceService });
 const accountId = computed(() => auth.user.value?.id || '');
@@ -50,7 +52,7 @@ function formatClock(value) {
 function formatDayLabel(value) {
   const date = new Date(`${value}T00:00:00`);
   if (!Number.isFinite(date.getTime())) return value;
-  return `${date.getMonth() + 1}月${date.getDate()}日 周${'日一二三四五六'[date.getDay()]}`;
+  return `${date.getMonth() + 1} 月 ${date.getDate()} 日`;
 }
 function durationText(fromMs, toMs) {
   const minutes = Math.max(0, Math.round((toMs - fromMs) / 60000));
@@ -96,21 +98,20 @@ const selectedDay = computed(() => query.value.from);
 const page = computed(() => Number(query.value.page) || 1);
 const selectedStarterId = computed(() => query.value.starter || '');
 const selectedStarterName = computed(() => starters.value.find((item) => item.id === selectedStarterId.value)?.name || '');
-const isToday = computed(() => selectedDay.value === recentRecordDays().at(-1));
-const dayLabel = computed(() => formatDayLabel(selectedDay.value));
+const todayKey = computed(() => recentRecordDays().at(-1));
+const isToday = computed(() => selectedDay.value === todayKey.value);
+const dayLabel = computed(() => (isToday.value ? '今天' : formatDayLabel(selectedDay.value)));
 const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-// 历史日期收起后仍保留在两周视窗内，不跳回今天。
-const compactDays = computed(() => {
-  const recent = recentRecordDays();
-  return recent.includes(selectedDay.value) ? recent : recentRecordDays(new Date(`${selectedDay.value}T12:00:00`));
-});
+function shiftDate(value, amount) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + amount);
+  return dateKey(date);
+}
+// 收起态以所选日期为中心，前后各 3 天；切周时整窗移动 7 天。
+const compactDays = computed(() => Array.from({ length: 7 }, (_, index) => shiftDate(selectedDay.value, index - 3)));
 const calendarTitle = computed(() => {
-  if (!calendarOpen.value) {
-    const first = compactDays.value[0];
-    return `${first.slice(5).replace('-', '/')} – ${compactDays.value.at(-1).slice(5).replace('-', '/')}`;
-  }
-  const date = new Date(calendarMonth.value);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+  const date = calendarOpen.value ? new Date(calendarMonth.value) : new Date(`${selectedDay.value}T12:00:00`);
+  return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
 });
 const dateCells = computed(() => {
   const today = recentRecordDays().at(-1);
@@ -130,11 +131,14 @@ const dateCells = computed(() => {
   });
 });
 const weekdayColumns = computed(() => {
-  const latest = new Date(`${compactDays.value.at(-1)}T12:00:00`);
-  const latestWeekday = (latest.getDay() + 6) % 7;
-  return Array.from('一二三四五六日', (label, index) => ({
-    label, column: calendarOpen.value ? index + 1 : (index - latestWeekday + 7) % 7 + 1
-  }));
+  if (!calendarOpen.value) {
+    return compactDays.value.map((value, index) => ({
+      label: '一二三四五六日'[(new Date(`${value}T12:00:00`).getDay() + 6) % 7],
+      column: index + 1,
+      key: value
+    }));
+  }
+  return Array.from('一二三四五六日', (label, index) => ({ label, column: index + 1, key: label }));
 });
 const weekStripRef = ref(null);
 const dateGridRef = ref(null);
@@ -337,7 +341,7 @@ async function loadMarks() {
 }
 
 function selectDay(value) {
-  if (!validLocalDay(value) || value > recentRecordDays().at(-1)) return;
+  if (!validLocalDay(value) || value > todayKey.value) return;
   if (calendarOpen.value) toggleCalendar();
   listPositions.delete(positionKey());
   router.replace({ path: '/diary', query: { ...query.value, from: value, to: value, page: '1', scroll: '0' } });
@@ -349,12 +353,28 @@ function selectStarter(id) {
   router.replace({ path: '/diary', query: { from: selectedDay.value, to: selectedDay.value, page: '1', starter: id, scroll: '0' } });
 }
 function toToday() {
-  selectDay(recentRecordDays().at(-1));
+  selectDay(todayKey.value);
+}
+function shiftWeek(amount) {
+  const next = shiftDate(selectedDay.value, amount * 7);
+  selectDay(next > todayKey.value ? todayKey.value : next);
+}
+let weekSwipeX = 0;
+function onWeekPointerDown(event) {
+  weekSwipeX = event.clientX;
+}
+function onWeekPointerUp(event) {
+  if (calendarOpen.value) return;
+  const delta = event.clientX - weekSwipeX;
+  if (Math.abs(delta) < 42) return;
+  shiftWeek(delta < 0 ? 1 : -1);
 }
 function nextPage() {
   router.replace({ path: '/diary', query: { ...query.value, page: String(page.value + 1), scroll: String(Math.round(window.scrollY)) } });
 }
 async function toggleCalendar() {
+  if (monthPicker.value) monthPicker.value = false;
+  await nextTick();
   const panel = datePanelRef.value;
   const grid = dateGridRef.value;
   const weekdayRow = weekStripRef.value;
@@ -394,6 +414,27 @@ async function toggleCalendar() {
 function changeMonth(delta) {
   const date = new Date(calendarMonth.value);
   calendarMonth.value = delta === 0 ? Date.now() : new Date(date.getFullYear(), date.getMonth() + delta, 1).getTime();
+}
+const shownYear = computed(() => String(new Date(calendarMonth.value).getFullYear()));
+const shownMonth = computed(() => String(new Date(calendarMonth.value).getMonth() + 1).padStart(2, '0'));
+const yearOptions = computed(() => {
+  const end = Number(String(todayKey.value).slice(0, 4));
+  const start = Math.min(end - 10, Number(shownYear.value));
+  return Array.from({ length: end - start + 1 }, (_, index) => {
+    const value = String(start + index);
+    return { value, label: `${value} 年` };
+  });
+});
+const monthWheelOptions = Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: `${index + 1} 月` }));
+function chooseCalendarMonth(year = shownYear.value, month = shownMonth.value) {
+  const today = new Date(`${todayKey.value}T12:00:00`);
+  let nextYear = Number(year);
+  let nextMonth = Number(month);
+  if (nextYear > today.getFullYear() || (nextYear === today.getFullYear() && nextMonth > today.getMonth() + 1)) {
+    nextYear = today.getFullYear();
+    nextMonth = today.getMonth() + 1;
+  }
+  calendarMonth.value = new Date(nextYear, nextMonth - 1, 1).getTime();
 }
 
 async function restoreScroll(token) {
@@ -450,34 +491,44 @@ onUnmounted(() => {
 <template>
   <main class="m-page mobile-diary">
     <header class="diary-head">
-      <h1>我的日记</h1>
-      <RouterLink class="doctor-cta" :to="{ path: '/checkin', query: selectedStarterId ? { starter: selectedStarterId } : {} }" aria-label="医生咨询">
+      <h1>日记</h1>
+      <RouterLink class="doctor-cta" :to="{ path: '/doctor/rounds', query: selectedStarterId ? { starter: selectedStarterId } : {} }" aria-label="医生咨询">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>
         <span>医生咨询</span>
       </RouterLink>
     </header>
     <section ref="datePanelRef" class="m-card date-card" :class="{ expanded: calendarOpen }">
       <div class="date-head">
-        <div><strong>{{ calendarTitle }}</strong><small>{{ calendarOpen ? '选择日期' : '近两周' }}</small></div>
+        <button v-if="!calendarOpen" type="button" class="week-shift" aria-label="上一周" @click="shiftWeek(-1)">‹</button>
+        <button v-if="calendarOpen" type="button" class="month-title" :aria-expanded="monthPicker" aria-label="选择年月" @click="monthPicker = !monthPicker">
+          <strong>{{ calendarTitle }}</strong><small>{{ monthPicker ? '滚动选择年月' : '选择日期' }}</small>
+        </button>
+        <div v-else><strong>{{ calendarTitle }}</strong><small>前后各三天</small></div>
         <div class="date-controls">
           <div v-if="starters.length" class="starter-picker" role="group" aria-label="选择酵种">
             <button v-for="item in starters" :key="item.id" type="button" class="starter-chip" :class="{ active: item.id === selectedStarterId }" :aria-pressed="item.id === selectedStarterId" @click="selectStarter(item.id)">{{ item.name }}</button>
           </div>
-          <button type="button" class="date-more" :aria-expanded="calendarOpen" @click="toggleCalendar">
-            <span>{{ calendarOpen ? '收起' : '更多日期' }}</span><span class="date-chevron" :class="{ up: calendarOpen }" aria-hidden="true">⌄</span>
+          <button v-if="!calendarOpen" type="button" class="week-shift" aria-label="下一周" :disabled="selectedDay >= todayKey" @click="shiftWeek(1)">›</button>
+          <button type="button" class="date-calendar" :aria-expanded="calendarOpen" :aria-label="calendarOpen ? '收起日历' : '展开日历'" @click="toggleCalendar">
+            <span aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></svg></span>
           </button>
         </div>
       </div>
-      <div class="date-view" :class="{ expanded: calendarOpen }">
+      <div v-if="calendarOpen && monthPicker" class="month-wheels">
+        <MWheelPicker :model-value="shownYear" :options="yearOptions" label="年份" @update:model-value="chooseCalendarMonth($event, shownMonth)" />
+        <MWheelPicker :model-value="shownMonth" :options="monthWheelOptions" label="月份" @update:model-value="chooseCalendarMonth(shownYear, $event)" />
+      </div>
+      <div v-show="!(calendarOpen && monthPicker)" class="date-view" :class="{ expanded: calendarOpen }" @pointerdown="onWeekPointerDown" @pointerup="onWeekPointerUp">
         <div ref="weekStripRef" class="weekday-row weekday-row-shared" aria-hidden="true">
           <span v-for="item in weekdayColumns" :key="item.label" :data-weekday="item.label" :style="{ gridColumn: item.column }">{{ item.label }}</span>
         </div>
-        <div ref="dateGridRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '近两周日期'">
+        <div ref="dateGridRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '七日日期'">
           <button v-for="item in dateCells" :key="item.value" :data-date="item.value" type="button" class="date-cell"
             :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
             :style="calendarOpen ? { gridColumn: `${((new Date(`${item.value}T12:00:00`).getDay() + 6) % 7) + 1}` } : null"
             :disabled="item.future" :aria-pressed="item.value === selectedDay" :aria-label="`${item.value} 周${item.weekday}`" @click="selectDay(item.value)">
-            <span>{{ item.day }}</span><i v-if="marks[item.value]" class="date-mark" aria-hidden="true"></i>
+            <span v-if="!calendarOpen" class="cell-weekday">{{ item.weekday }}</span>
+            <span class="cell-day">{{ item.day }}</span>
           </button>
         </div>
         <div v-if="calendarOpen" class="calendar-nav">
@@ -488,14 +539,13 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section v-if="!auth.user.value" class="m-card records-empty"><img class="jojo-mascot" src="/assets/jojo1.png" alt="Jojo 吉祥物" /><div><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></div></section>
-    <template v-else>
-      <section class="m-card day-card">
-        <div class="day-head">
-          <div><strong>{{ dayLabel }}</strong><small>{{ dayCaption }}</small></div>
-          <span v-if="isToday" class="day-today">今天</span>
-        </div>
-        <p v-if="loading && !model" class="m-muted" role="status">正在读取记录…</p>
+    <section class="m-card day-card">
+      <div class="day-head">
+        <div><strong>{{ dayLabel }}</strong><small>{{ dayCaption }}</small></div>
+      </div>
+      <div v-if="!auth.user.value" class="records-empty"><img class="jojo-mascot" src="/assets/jojo1.png" alt="Jojo 吉祥物" /><div><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></div></div>
+      <template v-else>
+        <div v-if="loading && !model" class="m-skeleton" role="status" aria-label="正在读取记录"><span></span><span></span></div>
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
         <template v-if="!error && model">
@@ -520,10 +570,10 @@ onUnmounted(() => {
               </RouterLink>
               <div v-if="item.chart" class="round-chart">
                 <div class="chart-grid">
-                  <SeriesChart label="高度" unit=" mm" color="#2B6CB0" :points="item.chart.height" :baseline="item.chart.baseline" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                  <SeriesChart label="温度" unit="°C" color="#C04B0A" :points="item.chart.temperature" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                  <SeriesChart label="湿度" unit="%" color="#2B7A55" :points="item.chart.humidity" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                  <SeriesChart label="电量" unit="%" color="#7A5C14" :points="item.chart.battery" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="高度" unit=" mm" color="var(--chart-height)" :points="item.chart.height" :baseline="item.chart.baseline" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="温度" unit="°C" color="var(--chart-temp)" :points="item.chart.temperature" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="湿度" unit="%" color="var(--chart-humidity)" :points="item.chart.humidity" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
+                  <SeriesChart label="电量" unit="%" color="var(--chart-battery)" :points="item.chart.battery" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
                 </div>
               </div>
               <p v-else class="round-chart-empty">本轮没有可绘制的设备读数。</p>
@@ -560,8 +610,8 @@ onUnmounted(() => {
           </div>
           <button v-if="hasMore" type="button" class="more-row" :disabled="loading" @click="nextPage">加载更多记录</button>
         </template>
-      </section>
-    </template>
+      </template>
+    </section>
   </main>
 </template>
 
@@ -577,100 +627,109 @@ onUnmounted(() => {
 .doctor-cta:active{background:var(--brand-accent)}
 .date-card{padding:.7rem .75rem;overflow:hidden}
 .date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
-.date-head strong{display:block;font-size:.9rem}
-.date-head small{display:block;margin-top:.1rem;font-size:.7rem;color:var(--m-muted,#625e56)}
+.month-title{min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.month-title strong,.month-title small{display:block}
+.month-wheels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 4px}
+.week-shift{flex:none;width:44px;height:44px;border:0;background:transparent;color:var(--text-primary);font-size:var(--text-lg);line-height:1;cursor:pointer}
+.week-shift:disabled{opacity:.32;cursor:default}
+.date-head strong{display:block;font-size:var(--text-sm)}
+.date-head small{display:block;margin-top:2px;font-size:var(--text-xs);color:var(--text-secondary)}
 .date-controls{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;min-width:0}
-.date-more{display:flex;align-items:center;gap:.25rem;min-height:36px;padding:.2rem .55rem;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--m-surface);color:var(--brand-action);font:inherit;font-size:.74rem;font-weight:650;white-space:nowrap;cursor:pointer}
-.date-chevron{display:inline-block;font-size:1rem;line-height:1;transition:transform var(--motion-fast) var(--ease-standard)}
-.date-chevron.up{transform:rotate(180deg)}
+.date-calendar{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--brand-action);cursor:pointer}
+.date-calendar span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--m-icon-disc)}
+.date-calendar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.date-head strong{font-size:14px;font-weight:500;line-height:21px}
 .starter-picker{display:flex;align-items:center;gap:.25rem;max-width:min(54vw,15rem);overflow-x:auto;scrollbar-width:none}
 .starter-picker::-webkit-scrollbar{display:none}
-.date-card .starter-chip{flex:none;max-width:100%;min-height:32px;padding:.3rem .7rem;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;line-height:1.4;font-weight:500;cursor:pointer}
+.date-card .starter-chip{flex:none;max-width:100%;min-height:32px;padding:4px 12px;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:transparent;color:var(--text-secondary);font:inherit;font-size:var(--text-xs);line-height:18px;font-weight:500;cursor:pointer}
 .date-card .starter-chip.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .date-view{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:18px auto;transform-origin:top center;overflow:hidden}
-.weekday-row-shared{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem;align-items:center;margin-bottom:.15rem;text-align:center;color:var(--m-muted,#756d63);font-size:.62rem}
+.weekday-row-shared{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:2px;align-items:center;margin-bottom:2px;text-align:center;color:var(--text-secondary);font-size:var(--text-xs)}
 .date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem;row-gap:.1rem}
 .date-grid-shared{grid-column:1/-1;grid-row:2;grid-auto-rows:34px;overflow:visible}
-.date-view:not(.expanded) .date-grid-shared{grid-template-rows:repeat(2,34px);grid-template-columns:repeat(7,minmax(0,1fr))}
+.date-view:not(.expanded) .weekday-row-shared{display:none}
+.date-view:not(.expanded) .date-grid-shared{grid-template-rows:82px;grid-template-columns:repeat(7,42px);justify-content:space-between;column-gap:0}
 .date-grid-shared.expanded{grid-template-columns:repeat(7,minmax(0,1fr))}
-.date-grid-shared .date-cell{min-height:0;height:34px}
-.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:.78rem;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
+.date-grid-shared .date-cell{min-height:0;height:36px}
+.date-view:not(.expanded) .date-grid-shared .date-cell{height:82px;border-radius:20px}
+.cell-weekday{font-size:14px;line-height:21px;font-weight:400}
+.date-view:not(.expanded) .cell-day{font-size:18px;line-height:26px;font-weight:500}
+.date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
-.date-cell.active{background:var(--brand-action);color:#fff}
-.date-cell.today:not(.active){border-color:var(--brand-action);font-weight:700}
+.date-cell.active{background:var(--brand-light);color:var(--text-primary);font-weight:500}
+.date-cell.marked:not(.active){background:var(--m-icon-disc)}
+.date-cell.today:not(.active){font-weight:500}
 .date-cell.off{opacity:.36}
 .date-cell.future{opacity:.32;cursor:default}
-.date-cell .date-mark{position:absolute;bottom:3px;width:4px;height:4px;border:0;border-radius:50%;background:var(--brand-action)}
-.date-cell.active .date-mark{background:#fff}
-.calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-top:.25rem;border-top:1px solid var(--m-border,#e7e0d7)}
-.calendar-nav button{min-width:44px;min-height:38px;border:0;background:transparent;color:#8f3b18;font:inherit;font-size:1.2rem;cursor:pointer}
-.calendar-nav .calendar-today{font-size:.74rem;font-weight:600}
-.day-card{padding:.75rem}
-.day-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}
-.day-head strong{display:block;font-size:.9rem}
-.day-head small{display:block;margin-top:.1rem;font-size:.72rem;color:var(--m-muted,#625e56)}
-.day-today{padding:.15rem .5rem;border-radius:var(--radius-badge);background:#e7f4ed;color:#2B7A55;font-size:.7rem;font-weight:600;white-space:nowrap}
-.record-group{display:grid;gap:.5rem;margin-top:1rem;min-width:0}
-.record-group-title{display:flex;align-items:center;gap:.4rem;margin:0;font-size:.78rem;font-weight:700;color:var(--text-secondary,#5f574e)}
+.calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-top:.25rem;border-top:1px solid var(--border-warm)}
+.calendar-nav button{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-lg);cursor:pointer}
+.calendar-nav .calendar-today{font-size:var(--text-xs);font-weight:500}
+.day-card{padding:var(--m-card-space)}
+.day-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.day-head strong{display:block;font-size:var(--m-text-confirm);line-height:28px;font-weight:500}
+.day-head small{display:block;margin-top:2px;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
+.day-today{padding:2px 8px;border-radius:var(--radius-badge);background:var(--success-bg);color:var(--success-text);font-size:var(--text-xs);font-weight:500;white-space:nowrap}
+.record-group{display:grid;gap:8px;margin-top:16px;min-width:0}
+.record-group-title{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--text-sm);line-height:21px;font-weight:500;color:var(--text-secondary)}
 .group-mark{width:3px;height:12px;border-radius:2px;background:var(--brand-action);flex:none}
-.chart-mark{background:#2B6CB0}.observation-mark{background:#2B7A55}
-.group-note{margin-left:auto;font-size:.7rem;font-weight:500;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums}
+.chart-mark{background:var(--chart-height)}.observation-mark{background:var(--chart-humidity)}
+.group-note{margin-left:auto;font-size:var(--text-xs);line-height:18px;font-weight:500;color:var(--text-secondary);font-variant-numeric:tabular-nums}
 /* 每轮一张卡片：上方是可点的轮次摘要，下方复用单日数据同一套曲线。 */
-.round-card{display:grid;gap:.55rem;padding:.7rem;border:1px solid color-mix(in srgb,#2B6CB0 16%,var(--m-border,#d8d2c8));border-radius:var(--m-radius-card,12px);background:color-mix(in srgb,#2B6CB0 3%,var(--m-surface,#fffdf8))}
+.round-card{display:grid;gap:.55rem;padding:.7rem;border:1px solid color-mix(in srgb,var(--chart-height) 16%,var(--border-warm));border-radius:var(--radius-card);background:color-mix(in srgb,var(--chart-height) 3%,var(--surface-card))}
 .round-summary{display:grid;gap:.25rem;min-width:0;color:inherit;text-decoration:none}
 .round-head{display:flex;align-items:center;gap:.3rem;min-width:0}
-.round-head .record-title{display:inline-flex;align-items:center;gap:.15rem;font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
+.round-head .record-title{display:inline-flex;align-items:center;gap:2px;font-size:var(--text-md);line-height:24px;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
 .round-head .record-state{margin-left:auto}
-.round-arrow{font-size:.8rem;color:var(--m-muted,#8a8277)}
+.round-arrow{font-size:var(--text-md);color:var(--text-secondary)}
 @media(max-width:360px){.round-head{flex-wrap:wrap}.round-head .record-state{margin-left:0}}
-.round-summary .record-sub,.round-summary .record-note{display:block;min-width:0;line-height:1.35}
-.round-summary .record-sub{font-size:.74rem;color:var(--text-secondary,#5f574e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.round-summary .record-note{font-size:.72rem;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
-.round-chart{display:grid;gap:.4rem;padding-top:.55rem;border-top:1px solid color-mix(in srgb,#2B6CB0 12%,var(--m-border,#d8d2c8))}
-.round-axis-note{margin:0;font-size:.68rem;line-height:1.5;color:var(--m-muted,#8a8277)}
-.round-chart-empty{margin:0;font-size:.72rem;color:var(--m-muted,#8a8277)}
+.round-summary .record-sub,.round-summary .record-note{display:block;min-width:0;line-height:18px}
+.round-summary .record-sub{font-size:var(--text-xs);color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.round-summary .record-note{font-size:var(--text-xs);color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
+.round-chart{display:grid;gap:.4rem;padding-top:.55rem;border-top:1px solid color-mix(in srgb,var(--chart-height) 12%,var(--border-warm))}
+.round-axis-note{margin:0;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
+.round-chart-empty{margin:0;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
 .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
 .chart-grid :deep(.series-chart){min-width:0;--series-stroke:1.5px}
 .chart-grid :deep(.series-plot){position:relative;height:88px}
 .chart-grid :deep(svg){display:block;width:100%;height:88px}
 .chart-grid :deep(.series-line){fill:none;stroke-width:1.5}
-.chart-grid :deep(.series-grid){stroke:var(--m-border,#d8d2c8);stroke-width:.3;stroke-dasharray:2 2}
+.chart-grid :deep(.series-grid){stroke:var(--border-warm);stroke-width:.3;stroke-dasharray:2 2}
 .chart-grid :deep(.series-dot),.chart-grid :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
 .chart-grid :deep(.series-dot){border-radius:0}
 .chart-grid :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}
-.chart-grid :deep(.series-guide){stroke:var(--m-muted,#625e56);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
-.chart-grid :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--m-card,#fff);border:1px solid var(--m-border,#d8d2c8);padding:.25rem .4rem;pointer-events:none;white-space:nowrap;font-size:.72rem;box-shadow:0 3px 12px #30251f12}
-.chart-grid :deep(.series-tip span){display:block;color:var(--m-muted,#625e56)}
-.chart-grid :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:.72rem;color:var(--m-muted,#625e56);background:var(--m-surface,#fffdf8)}
-.chart-grid :deep(.series-value){font-size:1.02rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.chart-grid :deep(.series-guide){stroke:var(--text-secondary);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
+.chart-grid :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--surface-card);border:1px solid var(--border-warm);padding:4px 6px;pointer-events:none;font-size:var(--text-xs);box-shadow:var(--m-shadow)}
+.chart-grid :deep(.series-tip span){display:block;color:var(--text-secondary)}
+.chart-grid :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:var(--text-xs);color:var(--text-secondary);background:var(--surface-card)}
+.chart-grid :deep(.series-value){font-size:var(--text-md);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .chart-grid :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.35rem;margin-bottom:.25rem}
 .chart-grid :deep(.series-headline){display:flex;align-items:baseline;gap:.2rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
-.chart-grid :deep(.series-label){font-size:.78rem;font-weight:700}
+.chart-grid :deep(.series-label){font-size:var(--text-xs);font-weight:500}
 .chart-grid :deep(.series-delta){display:none}
 .chart-grid :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.2rem;min-width:0}
 .chart-grid :deep(.series-time-range){white-space:nowrap}
-.day-card .record-row{align-items:center;gap:.6rem;min-width:0;padding:.75rem;border:1px solid var(--m-border,#d8d2c8);border-radius:var(--m-radius-card,12px);background:var(--m-surface,#fffdf8);text-decoration:none}
+.day-card .record-row{align-items:center;gap:.6rem;min-width:0;padding:.75rem;border:1px solid var(--border-warm);border-radius:var(--radius-card);background:var(--surface-card);text-decoration:none}
 .window-facts{display:flex;flex-wrap:wrap;gap:.3rem .4rem;margin-top:.15rem}
-.window-fact{padding:.1rem .4rem;border-radius:var(--radius-badge);background:#f1ece4;font-size:.7rem;font-weight:650;line-height:1.5;font-variant-numeric:tabular-nums;color:var(--text-primary,#30251f)}
-.window-fact[data-tone="base"]{background:#eef2f7;color:#4c5b6b}
-.window-fact[data-tone="up"]{background:#e7f4ed;color:#2B7A55}
-.window-fact[data-tone="down"]{background:#fdf1ee;color:#a4524a}
+.window-fact{padding:2px 6px;border-radius:var(--radius-badge);background:var(--surface-warm);font-size:var(--text-xs);font-weight:500;line-height:18px;font-variant-numeric:tabular-nums;color:var(--text-primary)}
+.window-fact[data-tone="base"]{background:var(--info-bg);color:var(--info-text)}
+.window-fact[data-tone="up"]{background:var(--success-bg);color:var(--success-text)}
+.window-fact[data-tone="down"]{background:var(--danger-bg);color:var(--danger-text)}
 .record-main{display:grid;gap:.25rem;min-width:0;flex:1}
 .day-card .record-note{white-space:normal;overflow-wrap:anywhere}
 .day-card .record-sub{white-space:normal;overflow-wrap:anywhere}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
-.round-index{display:inline-grid;place-items:center;flex:none;min-width:1.05rem;height:1.05rem;padding:0 .2rem;border-radius:50%;background:#a44213;color:#fff;font-size:.6rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
-.record-row .record-title{font-size:.92rem;font-weight:650;color:var(--text-primary,#30251f);font-variant-numeric:tabular-nums;white-space:nowrap}
-.record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
-.record-row .record-sub{font-size:.74rem;color:var(--text-secondary,#5f574e)}
-.record-row .record-note{font-size:.72rem;color:var(--m-muted,#8a8277);font-variant-numeric:tabular-nums}
-.day-offset{display:inline-grid;place-items:center;min-width:.95rem;height:.85rem;padding:0 .16rem;border-radius:var(--radius-badge);background:#f2dcd7;color:#a4524a;font-size:.56rem;line-height:1;font-weight:600}
+.round-index{display:inline-grid;place-items:center;flex:none;min-width:18px;height:18px;padding:0 4px;border-radius:50%;background:var(--brand-action);color:var(--surface-card);font-size:var(--text-xs);font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.record-row .record-title{font-size:var(--text-md);font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px}
+.record-row .record-sub{font-size:var(--text-xs);color:var(--text-secondary)}
+.record-row .record-note{font-size:var(--text-xs);color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.day-offset{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:var(--radius-badge);background:var(--danger-bg);color:var(--danger-text);font-size:var(--text-xs);line-height:1;font-weight:500}
 .record-side{display:flex;align-items:center;gap:.3rem;flex:none}
-.record-state{padding:.12rem .45rem;border-radius:var(--radius-badge);font-size:.68rem;font-weight:600;background:#e8f0fa;color:#2B6CB0;white-space:nowrap}
-.record-state[data-tone="closed"]{background:#e7f4ed;color:#2B7A55}
-.record-state[data-tone="pending"]{background:#fdf3e2;color:#8a5a17}
-.record-go{font-size:1.1rem;line-height:1;color:#b9b1a5}
-.more-row{width:100%;min-height:40px;margin-top:.5rem;border:1px solid var(--m-border,#d8d2c8);border-radius:8px;background:transparent;color:#a44213;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
+.record-state{padding:2px 8px;border-radius:var(--radius-badge);font-size:var(--text-xs);font-weight:500;background:var(--info-bg);color:var(--info-text);white-space:nowrap}
+.record-state[data-tone="closed"]{background:var(--success-bg);color:var(--success-text)}
+.record-state[data-tone="pending"]{background:var(--warning-bg);color:var(--warning-text)}
+.record-go{font-size:var(--text-md);line-height:1;color:var(--text-muted)}
+.more-row{width:100%;min-height:44px;margin-top:8px;border:1px solid var(--border-warm);border-radius:var(--m-radius-bubble);background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);font-weight:500;cursor:pointer}
 .records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}
 .records-empty p{margin:.1rem 0 .35rem}
 .jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}

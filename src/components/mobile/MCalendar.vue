@@ -8,7 +8,8 @@ const props = defineProps({
   month: { type: String, default: '' },
   min: { type: String, default: '1900-01-01' },
   max: { type: String, default: '' },
-  marked: { type: Array, default: () => [] }
+  marked: { type: Array, default: () => [] },
+  disabled: { type: Boolean, default: false }
 });
 const emit = defineEmits(['update:modelValue', 'update:month']);
 const shownMonth = computed(() => calendarMonth(props.month || props.modelValue));
@@ -20,7 +21,7 @@ function move(amount) {
   emit('update:month', shiftCalendarMonth(shownMonth.value, amount, props.min.slice(0, 7), maxDay.value.slice(0, 7)));
 }
 function choose(cell) {
-  if (!cell.disabled) emit('update:modelValue', cell.date);
+  if (!props.disabled && !cell.disabled) emit('update:modelValue', cell.date);
 }
 </script>
 
@@ -42,7 +43,7 @@ function choose(cell) {
         class="m-calendar-day"
         role="gridcell"
         :class="{ 'is-selected': cell.date === modelValue, 'is-outside': cell.outside, 'is-today': cell.today, 'is-marked': marks.has(cell.date) }"
-        :disabled="cell.disabled"
+        :disabled="disabled || cell.disabled"
         :aria-pressed="cell.date === modelValue"
         :aria-label="cell.date"
         @click="choose(cell)"

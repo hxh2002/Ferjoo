@@ -16,7 +16,7 @@ export function safeRedirect(value, router) {
 
 // today/records 是迁移前的地址，仍需按移动端渲染以便 redirect 生效。
 export function isMobilePath(path) {
-  return /^\/(device|diary|today|records|checkin|feeding|reports|devices|me)(\/|$)/.test(path);
+  return /^\/(device|diary|today|records|checkin|feeding|reports|devices|doctor|me)(\/|$)/.test(path);
 }
 
 export function isSharedAccountPage(route) {

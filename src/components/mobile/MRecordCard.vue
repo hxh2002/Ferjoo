@@ -38,8 +38,12 @@ const paths = {
       <span v-if="summary" class="m-record-card-summary">{{ summary }}</span>
       <svg class="m-record-card-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
     </button>
-    <div v-show="open" :id="contentId" class="m-record-card-body">
-      <slot />
+    <div class="m-record-card-panel" :class="{ 'is-open': open }">
+      <div :id="contentId" class="m-record-card-body">
+        <div class="m-record-card-inner">
+          <slot />
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -47,15 +51,16 @@ const paths = {
 <style scoped>
 .m-record-card { overflow: hidden; border: 1px solid var(--border-warm); border-radius: var(--radius-card); background: var(--surface-card); box-shadow: var(--m-shadow); }
 .m-record-card-toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 14px 16px; border: 0; background: transparent; text-align: left; cursor: pointer; }
-.m-record-card-title { flex: none; font-size: var(--text-sm); font-weight: 500; line-height: 21px; }
+.m-record-card-title { flex: none; color: var(--text-primary); font-size: var(--text-sm); font-weight: 500; line-height: 21px; }
 .m-record-card-summary { flex: 1; min-width: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 21px; text-align: right; }
 .m-record-card-chevron { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--text-secondary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
 .is-open .m-record-card-chevron { transform: rotate(180deg); }
-.m-record-card-body { padding: 0 16px 16px; border-top: 1px solid var(--border-warm); animation: m-record-expand var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
+.m-record-card-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
+.m-record-card-panel.is-open { grid-template-rows: 1fr; }
+.m-record-card-body { overflow: hidden; min-height: 0; }
+.m-record-card-inner { padding: 0 16px 16px; border-top: 1px solid var(--border-warm); }
 .is-disabled .m-record-card-summary { opacity: .55; }
-@keyframes m-record-expand { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .m-record-card-chevron { transition: none; }
-  .m-record-card-body { animation: none; }
+  .m-record-card-chevron, .m-record-card-panel { transition: none; }
 }
 </style>

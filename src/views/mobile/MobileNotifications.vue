@@ -44,6 +44,14 @@ async function load() {
   }
 }
 
+async function requestSystemAccess() {
+  if (permission.value === 'denied') {
+    notice.value = '无法代开系统设置。请在系统或浏览器的站点设置里允许通知。';
+    return;
+  }
+  await enable();
+}
+
 async function enable() {
   if (busy.value) return;
   notice.value = ''; error.value = '';
@@ -102,29 +110,27 @@ onMounted(() => auth.init().then(load));
 
 <template>
 <main class="m-page notify-page">
-  <section class="m-card">
-    <div class="status-row">
-      <div class="status-meta">
-        <strong>本机云端推送</strong>
-        <small>系统通知权限：{{ permissionLabel }}</small>
-      </div>
-      <span class="status-pill" :class="{ on: subscribed }">{{ statusLabel }}</span>
+  <p v-if="permission !== 'granted'" class="permission-banner" role="status">系统通知未开启。<button type="button" @click="requestSystemAccess">去系统设置开启</button></p>
+  <p v-if="notice" class="hint" role="status">{{ notice }}</p>
+  <section class="m-card switch-card">
+    <div class="switch-row">
+      <span><strong>系统通知</strong><small>权限 {{ permissionLabel }} · {{ statusLabel }}</small></span>
+      <button type="button" class="m-switch" role="switch" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
-    <button v-if="!subscribed" class="m-primary push-action" type="button" :disabled="busy === 'push' || loading" @click="enable">
-      {{ busy === 'push' ? '开启中…' : '开启云端推送' }}
-    </button>
-    <button v-else class="m-secondary push-action" type="button" :disabled="busy === 'push'" @click="disable">
-      {{ busy === 'push' ? '关闭中…' : '关闭本机推送' }}
-    </button>
-    <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
-    <p v-if="error" class="m-error" role="alert">{{ error }}</p>
-    <p v-else-if="notice" class="hint" role="status">{{ notice }}</p>
+    <div class="switch-row">
+      <span><strong>诊断提醒</strong><small>诊断结论保存在日记。这里不另存一条推送开关。</small></span>
+    </div>
+    <div class="switch-row">
+      <span><strong>高度提醒</strong><small>可选 2×、2.5×、3×。每个阈值每轮喂养只提醒一次。</small></span>
+    </div>
   </section>
+  <p v-if="error" class="m-error" role="alert">{{ error }}</p>
+  <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
 
   <section class="m-card">
-    <div class="section-heading"><h2>提醒阈值</h2><span v-if="loading" class="m-muted">读取中…</span></div>
-    <p class="hint">高度达到基线所选倍数时提醒，可多选；每个阈值每轮喂养只提醒一次。</p>
-    <p v-if="!loading && !starters.length" class="m-muted">还没有酵种，请先到「今日」页新建。</p>
+    <h2>高度提醒</h2>
+    <div v-if="loading && !starters.length" class="m-skeleton" aria-busy="true" aria-label="正在读取通知"><span></span><span></span></div>
+    <p v-else-if="!starters.length" class="m-muted">还没有酵种，请先到「今日」页新建。</p>
     <div v-for="row in starters" :key="row.id" class="starter-row">
       <div class="starter-head">
         <strong>{{ row.name }}</strong>
@@ -169,27 +175,33 @@ onMounted(() => auth.init().then(load));
 
 <style scoped>
 .notify-page{padding-bottom:calc(2rem + env(safe-area-inset-bottom))}
-.section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}
-.status-row{display:flex;align-items:center;justify-content:space-between;gap:1rem}
-.status-meta{display:grid;gap:2px;min-width:0}
-.status-meta small{color:var(--text-secondary,#75665b);font-size:.82rem}
-.status-pill{padding:.2rem .6rem;border:1px solid var(--border-default,#d8d2c8);font-size:.78rem;color:var(--text-secondary,#75665b);flex-shrink:0}
-.status-pill.on{border-color:var(--brand-action,#a54214);color:var(--brand-action,#a54214)}
-.push-action{width:100%;margin-top:.75rem}
-.hint{margin:.6rem 0 0;font-size:.8rem;line-height:1.6;color:var(--text-secondary,#75665b)}
-.hint.warn{color:#a12c23}
-.starter-row{display:grid;gap:.5rem;padding:.75rem 0;border-top:1px solid var(--border-default,#d8d2c8)}
+.switch-card{display:grid;padding:4px 16px}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;border-top:1px solid var(--border-warm)}
+.switch-row:first-child{border-top:0}
+.switch-row > span{display:grid;gap:2px;min-width:0}
+.switch-row strong{font-size:var(--text-md);font-weight:500}
+.switch-row small{color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
+.m-switch{position:relative;flex:none;width:52px;height:32px;min-height:32px;padding:0;border:0;border-radius:16px;background:var(--border-warm);cursor:pointer}
+.m-switch span{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-fast) ease}
+.m-switch[aria-checked="true"]{background:var(--brand-light)}
+.m-switch[aria-checked="true"] span{transform:translateX(20px)}
+.m-switch:disabled{opacity:.55;cursor:not-allowed}
+.hint{margin:0;font-size:var(--text-sm);line-height:21px;color:var(--text-secondary)}
+.hint.warn{color:var(--danger-text)}
+.permission-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:12px 16px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:var(--text-sm)}
+.permission-banner button{min-height:32px;padding:0 12px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary)}
+.starter-row{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border-warm)}
 .starter-row:first-of-type{border-top:0}
-.starter-head{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
-.starter-head small{font-size:.75rem;color:var(--text-secondary,#75665b)}
-.targets{display:flex;gap:.35rem}
-.target{flex:1;min-height:44px;padding:0 .3rem;border:1px solid var(--m-border);border-radius:var(--m-radius-button);background:var(--m-surface);font:inherit;font-size:.9rem;color:inherit;cursor:pointer}
-.target.active{border-color:var(--brand-action,#a54214);background:var(--brand-action,#a54214);color:#fff;font-weight:600}
+.starter-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.starter-head small{font-size:var(--text-xs);color:var(--text-secondary)}
+.targets{display:flex;gap:6px}
+.target{flex:1;min-height:44px;padding:0 4px;border:1px solid var(--border-warm);border-radius:var(--m-radius-button);background:var(--surface-input);font:inherit;font-size:var(--text-sm);color:inherit;cursor:pointer}
+.target.active{border-color:var(--brand-action);background:var(--brand-light);color:var(--text-primary);font-weight:500}
 .target:disabled{opacity:.55}
-.rules{margin:0;padding-left:1.1rem;display:grid;gap:.4rem;font-size:.85rem;line-height:1.6;color:var(--text-secondary,#75665b)}
-.guide{border-top:1px solid var(--border-default,#d8d2c8);padding:.6rem 0}
+.rules{margin:0;padding-left:18px;display:grid;gap:6px;font-size:var(--text-sm);line-height:21px;color:var(--text-secondary)}
+.guide{border-top:1px solid var(--border-warm);padding:8px 0}
 .guide:first-of-type{border-top:0}
-.guide summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:.9rem}
-.guide p{margin:.25rem 0 0;font-size:.82rem;line-height:1.6;color:var(--text-secondary,#75665b)}
-.guide code{font-size:.78rem;overflow-wrap:anywhere}
+.guide summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:var(--text-md)}
+.guide p{margin:4px 0 0;font-size:var(--text-sm);line-height:21px;color:var(--text-secondary)}
+.guide code{font-size:var(--text-xs);overflow-wrap:anywhere}
 </style>

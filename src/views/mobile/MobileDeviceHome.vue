@@ -2,7 +2,8 @@
 import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { useVisiblePolling } from '../../composables/useVisiblePolling.js';
-import { createStarter, listCareRecords, listStarters } from '../../services/care.service.js';
+import { createStarter, deleteStarter, listCareRecords, listStarters } from '../../services/care.service.js';
+import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
 import { listMeasurementsRange } from '../../services/device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { linkStarterDevice, listStarterDeviceLinks } from '../../services/starter-device.service.js';
@@ -37,7 +38,7 @@ const newName = ref(''); const now = ref(Date.now()); const explicitStarter = re
 const evidence = ref(null); const mutationError = ref('');
 const nextFeedingAt = ref(null); const closure = ref(null);
 const closing = ref(false); const closeError = ref('');
-const confirmOpen = ref(false); const toast = ref('');
+const confirmOpen = ref(false); const toast = ref(''); const starterPendingDelete = ref(null);
 let toastTimer;
 let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
 // 与 feeding-analysis 的新鲜度窗口保持一致，仅用于「数据是否还新鲜」的提示。
@@ -83,6 +84,13 @@ const chartFrom = computed(() => {
 });
 const chartTo = computed(() => to.value);
 const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(0)}%` : '—');
+const jarLevel = computed(() => {
+  const base = Number(summary.value?.baselineHeightMm);
+  const current = Number(summary.value?.currentHeightMm);
+  if (!(base > 0) || !(current > 0)) return null;
+  return Math.min(1, Math.max(0, current / base - 1));
+});
+const jarStyle = computed(() => (jarLevel.value == null ? null : { '--jar-level': String(jarLevel.value) }));
 // 指标只取最近一条有效样本：休眠与传感器故障的读数不能当作当前环境展示。
 const latest = computed(() => chartRows.value.filter((row) => !row.sensor_error && (!row.mode || row.mode === 'fer')).at(-1) || null);
 function metricText(key, unit) {
@@ -122,11 +130,12 @@ const jarStatus = computed(() => {
   if (starterId.value && !link.value) return { tone: 'none', label: '未关联设备', detail: '点按切换或关联' };
   const last = chartRows.value.at(-1);
   if (!last) return { tone: 'none', label: '暂无数据', detail: '最近 24 小时未收到采样' };
-  if (last.sensor_error) return { tone: 'fault', label: '传感器异常', detail: `最近更新 ${relative(last.recorded_at)}` };
-  if (last.mode && last.mode !== 'fer') return { tone: last.mode === 'sleep' ? 'none' : 'warn', label: last.mode === 'sleep' ? '设备休眠中' : '设备模式异常', detail: `最近更新 ${relative(last.recorded_at)}` };
+  if (last.sensor_error) return { tone: 'fault', label: '传感器异常', detail: `保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
+  if (last.mode && last.mode !== 'fer') return { tone: last.mode === 'sleep' ? 'none' : 'warn', label: last.mode === 'sleep' ? '设备休眠中' : '设备模式异常', detail: `保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
+  if (summary.value?.dataQuality === 'insufficient' || summary.value?.dataQuality === 'partial') return { tone: 'warn', label: '采样不足', detail: `保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
   const at = Date.parse(last.recorded_at);
   if (Number.isFinite(at) && now.value - at <= FRESH_MS) return { tone: 'ok', label: '设备已连接', detail: `最近更新 ${relative(last.recorded_at)}` };
-  return { tone: 'warn', label: '数据偏旧', detail: `最近更新 ${relative(last.recorded_at)}` };
+  return { tone: 'warn', label: '断连', detail: `数据延迟 · 保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
 });
 // 被排除的样本和断档要说清楚，否则用户会把缺口误读成发酵停止。
 const dataNote = computed(() => {
@@ -135,7 +144,7 @@ const dataNote = computed(() => {
   const excluded = rows.filter((row) => row.sensor_error || (row.mode && row.mode !== 'fer')).length;
   let gaps = 0;
   for (let i = 1; i < rows.length; i += 1) if (Date.parse(rows[i].recorded_at) - Date.parse(rows[i - 1].recorded_at) > FRESH_MS) gaps += 1;
-  return [excluded ? `${excluded} 条休眠/异常样本未计入膨胀率` : '', gaps ? `${gaps} 段超过 40 分钟无采样` : ''].filter(Boolean).join('；');
+  return [excluded ? `${excluded} 条休眠/异常样本未计入膨胀率` : '', gaps ? `${gaps} 段超过 40 分钟无采样` : '', summary.value?.dataQuality === 'insufficient' ? '采样不足，当前数字不是实时值' : ''].filter(Boolean).join('；');
 });
 const detailTarget = computed(() => ({
   path: `/devices/${encodeURIComponent(deviceId.value)}/trend`,
@@ -280,6 +289,22 @@ async function associateSelected() {
   catch (cause) { if (current(token, owner) && mutationToken === mutationGeneration) mutationError.value = cause?.message || '关联失败，请重试。'; }
   finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
 }
+async function removeStarter() {
+  const item = starterPendingDelete.value;
+  starterPendingDelete.value = null;
+  if (!item || item.link || saving.value) return;
+  const owner = accountId.value; const token = generation; saving.value = true; mutationError.value = '';
+  try {
+    await deleteStarter(item.id);
+    if (!current(token, owner)) return;
+    starters.value = starters.value.filter((row) => row.id !== item.id);
+    if (starterId.value === item.id) selectStarter('');
+  } catch (cause) {
+    if (current(token, owner)) mutationError.value = cause?.message || '删除失败，请重试。';
+  } finally {
+    if (current(token, owner)) saving.value = false;
+  }
+}
 async function addStarter() {
   if (saving.value || !accountId.value || !newName.value.trim()) return;
   const owner = accountId.value; const token = generation; const mutationToken = ++mutationGeneration; saving.value = true; error.value = '';
@@ -331,7 +356,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
       <section class="jar-stage" aria-label="酵种罐示意">
         <img class="jar-photo" :src="jarFace" alt="" width="128" height="170" />
         <img class="jar-ticks" :src="jarBody" alt="" width="180" height="180" />
-        <span class="jar-rise"><img :src="jarRise" alt="" width="78" height="52" /></span>
+        <span class="jar-window"><span class="jar-rise" :class="{ measured: jarLevel != null }" :style="jarStyle"><img :src="jarRise" alt="" width="78" height="52" /></span></span>
         <span class="jar-face"><img :src="jarFaceSmall" alt="" width="30" height="15" /></span>
         <img class="jar-hat" :src="jarHat" alt="" width="147" height="98" />
       </section>
@@ -399,7 +424,10 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
           <summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary>
           <div class="picker-menu starter-menu">
             <button type="button" :class="{ active: !starterId }" @click="selectStarter('')">仅查看设备数据</button>
-            <button v-for="item in starters" :key="item.id" type="button" :class="{ active: item.id === starterId }" :disabled="!!item.link?.device_id && item.link.device_id !== deviceId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? (item.link.device_id === deviceId ? '已关联当前设备' : '已关联其他设备 · 切换设备后可选') : '未关联设备 · 仅查看记录' }}</small></button>
+            <div v-for="item in starters" :key="item.id" class="starter-choice">
+              <button type="button" :class="{ active: item.id === starterId }" :disabled="!!item.link?.device_id && item.link.device_id !== deviceId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? (item.link.device_id === deviceId ? '已关联当前设备' : '已关联其他设备 · 切换设备后可选') : '未关联设备 · 仅查看记录' }}</small></button>
+              <button v-if="!item.link" type="button" class="starter-delete" :disabled="saving" @click="starterPendingDelete = item">删除</button>
+            </div>
             <button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button>
             <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建并关联当前设备' }}</button></form>
             <button v-if="starterId && !link && deviceId" class="menu-action" type="button" :disabled="saving || loading" @click="associateSelected">关联当前设备</button>
@@ -407,14 +435,8 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
         </details>
       </section>
 
-      <div v-if="confirmOpen" class="confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-        <section class="confirm-card">
-          <h2 id="confirm-title">结束当前发酵？</h2>
-          <p>结束后，本次发酵将停止记录。<br />你可以开始下一次喂养。</p>
-          <button type="button" class="confirm-primary" :disabled="closing" @click="endRound(null)">{{ closing ? '正在结束…' : '确认结束' }}</button>
-          <button type="button" class="confirm-text" :disabled="closing" @click="confirmOpen = false">继续发酵</button>
-        </section>
-      </div>
+      <MConfirmDialog :open="!!starterPendingDelete" danger title="删除酵种" :message="`删除「${starterPendingDelete?.name || ''}」后，未关联设备的记录入口会消失。已关联设备的酵种不能在这里删除。`" confirm-label="删除" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
+      <MConfirmDialog :open="confirmOpen" danger title="结束当前发酵？" message="结束后，本次发酵将停止记录。你可以开始下一次喂养。" :confirm-label="closing ? '正在结束…' : '确认结束'" cancel-label="继续发酵" @cancel="confirmOpen = false" @confirm="endRound(null)" />
 
       <div v-if="toast" class="saved-toast" role="status">
         <span class="toast-disc" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></span>
@@ -436,8 +458,8 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .jar-status{display:flex;align-items:center;gap:6px;min-height:24px;margin:8px 0 0;font-size:14px;line-height:21px;font-weight:500;color:var(--brand-action)}
 .jar-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .jar-status[data-tone="none"]{color:var(--text-secondary)}
-.jar-status[data-tone="warn"]{color:#B4761F}
-.jar-status[data-tone="fault"]{color:#A12C23}
+.jar-status[data-tone="warn"]{color:var(--warning-text)}
+.jar-status[data-tone="fault"]{color:var(--danger-text)}
 .jar-label{flex:1;min-width:0}
 .jar-refresh{flex:none;display:grid;place-items:center;width:24px;height:24px;min-height:0;margin-right:-4px;padding:4px;border:0;border-radius:50%;background:transparent;color:var(--text-secondary);cursor:pointer}
 .jar-refresh svg{width:16px;height:16px;min-height:0}
@@ -446,8 +468,10 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .jar-stage{position:relative;width:180px;height:180px;margin:0 auto}
 .jar-photo{position:absolute;left:26px;top:20px;width:128px;height:170px;object-fit:cover;pointer-events:none}
 .jar-ticks{position:absolute;inset:0;width:180px;height:180px}
-.jar-rise{position:absolute;left:51px;top:118px;width:78px;height:52px;transform-origin:50% 50%;animation:jar-rise 2s ease-in-out infinite}
-.jar-rise img{display:block;width:100%;height:100%}
+.jar-window{position:absolute;left:51px;top:118px;width:78px;height:52px;overflow:hidden}
+.jar-rise{position:absolute;left:0;bottom:0;width:78px;height:52px;transform-origin:50% 100%;animation:jar-rise 2s ease-in-out infinite}
+.jar-rise.measured{height:calc(8px + var(--jar-level, 0) * 44px);animation:none}
+.jar-rise img{display:block;width:100%;height:100%;object-fit:cover;object-position:bottom}
 .jar-face{position:absolute;left:75px;top:140px;width:30px;height:15px;animation:jar-face 2s ease-in-out infinite}
 .jar-face img{display:block;width:100%;height:100%}
 .jar-hat{position:absolute;left:18px;top:-9px;width:147px;height:98px;object-fit:contain;pointer-events:none}
@@ -508,18 +532,15 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .picker-menu button,.picker-menu a{display:grid;gap:2px;width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface-input);color:inherit;font:inherit;font-size:14px;text-align:left;text-decoration:none;cursor:pointer}
 .picker-menu button.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .picker-menu button:disabled{opacity:.55;cursor:not-allowed}
+.starter-choice{display:flex;align-items:center;gap:8px}
+.starter-choice > button:first-child{flex:1}
+.starter-delete{flex:none;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
 .picker-menu small{font-size:11px;color:var(--text-secondary)}
 .menu-action{color:var(--brand-action)!important}
 .new-starter{display:grid;gap:8px;margin-top:4px}
 .new-starter input{min-height:44px;padding:8px 10px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:14px;background:var(--surface-input);color:var(--text-primary)}
 .new-starter .m-primary{width:100%;min-height:44px;font-size:14px}
-.confirm-backdrop{position:fixed;inset:0;z-index:var(--m-z-modal);display:grid;place-items:center;padding:24px;background:rgba(48,37,31,.25)}
-.confirm-card{width:100%;max-width:327px;padding:24px;border-radius:24px;background:var(--surface-card);box-shadow:0 4px 18px rgba(48,37,31,.08)}
-.confirm-card h2{margin:0;font-size:20px;line-height:30px;font-weight:500}
-.confirm-card p{margin:14px 0 0;font-size:14px;line-height:21px;color:var(--text-secondary)}
-.confirm-primary{display:flex;align-items:center;justify-content:center;width:100%;height:44px;min-height:44px;margin-top:45px;border:0;border-radius:22px;background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:15px;font-weight:500;cursor:pointer}
-.confirm-text{width:100%;min-height:32px;margin-top:14px;border:0;background:none;color:var(--text-secondary);font:inherit;font-size:14px;font-weight:500;cursor:pointer}
-.saved-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 87px);z-index:var(--m-z-modal);display:flex;align-items:center;gap:12px;width:280px;max-width:calc(100vw - 48px);min-height:68px;padding:13px;border:1px solid #FFD0A5;border-radius:18px;background:var(--surface-card);box-shadow:0 5px 18px rgba(48,37,31,.14);transform:translateX(-50%);animation:toast-in 220ms ease-out}
+.saved-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 87px);z-index:var(--m-z-modal);display:flex;align-items:center;gap:12px;width:280px;max-width:calc(100vw - 48px);min-height:68px;padding:13px;border:1px solid var(--brand-light);border-radius:var(--m-radius-toast);background:var(--surface-card);box-shadow:0 5px 18px rgba(48,37,31,.14);transform:translateX(-50%);animation:toast-in 220ms ease-out}
 .toast-disc{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:rgba(255,176,90,.16);color:var(--brand-action)}
 .toast-disc svg{width:20px;height:20px}
 .toast-copy{display:grid;gap:2px;min-width:0}

@@ -10,6 +10,9 @@ import {
   updateProfile,
   uploadAvatar
 } from '../services/auth.service.js';
+import MRadioCard from '../components/mobile/MRadioCard.vue';
+import MWheelPicker from '../components/mobile/MWheelPicker.vue';
+import { GENDER_OPTIONS, IDENTITY_OPTIONS } from '../lib/profile-options.js';
 
 const VIEW = 320;
 const EXPORT = 512;
@@ -47,22 +50,60 @@ const dragging = ref(false);
 let dragPointer = null;
 let objectUrl = null;
 
-const GENDER_OPTIONS = [
-  { value: '', label: '未设置' },
-  { value: 'male', label: '男' },
-  { value: 'female', label: '女' },
-  { value: 'other', label: '其他' },
-  { value: 'secret', label: '保密' }
-];
-
-const IDENTITY_OPTIONS = [
-  { value: '', label: '未设置' },
-  { value: 'secondary', label: '中学生' },
-  { value: 'college', label: '大学生' },
-  { value: 'graduate', label: '研究生' },
-  { value: 'working', label: '已工作' },
-  { value: 'other', label: '其他' }
-];
+const todayParts = computed(() => {
+  const date = new Date();
+  return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+});
+const birthParts = computed(() => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(form.birthDate || '');
+  return match ? { year: match[1], month: match[2], day: match[3] } : { year: '', month: '', day: '' };
+});
+const birthYearOptions = computed(() => {
+  const end = todayParts.value.year;
+  const years = Array.from({ length: 101 }, (_, index) => {
+    const value = String(end - index);
+    return { value, label: `${value} 年` };
+  });
+  return [{ value: '', label: '未设置' }, ...years];
+});
+const birthMonthOptions = computed(() => {
+  const max = birthParts.value.year === String(todayParts.value.year) ? todayParts.value.month : 12;
+  return Array.from({ length: max }, (_, index) => {
+    const value = String(index + 1).padStart(2, '0');
+    return { value, label: `${index + 1} 月` };
+  });
+});
+function daysInMonth(year, month) {
+  return new Date(Number(year), Number(month), 0).getDate();
+}
+const birthDayOptions = computed(() => {
+  const { year, month } = birthParts.value;
+  if (!year || !month) return [{ value: '', label: '未设置' }];
+  let max = daysInMonth(year, month);
+  if (year === String(todayParts.value.year) && Number(month) === todayParts.value.month) max = Math.min(max, todayParts.value.day);
+  return Array.from({ length: max }, (_, index) => {
+    const value = String(index + 1).padStart(2, '0');
+    return { value, label: `${index + 1} 日` };
+  });
+});
+function setBirth(year = birthParts.value.year, month = birthParts.value.month, day = birthParts.value.day) {
+  if (!year) {
+    form.birthDate = '';
+    return;
+  }
+  const now = todayParts.value;
+  if (Number(year) > now.year) {
+    form.birthDate = `${now.year}-${String(now.month).padStart(2, '0')}-${String(now.day).padStart(2, '0')}`;
+    return;
+  }
+  let monthNumber = Number(month) || 1;
+  if (Number(year) === now.year) monthNumber = Math.min(monthNumber, now.month);
+  const monthValue = String(monthNumber).padStart(2, '0');
+  let dayMax = daysInMonth(year, monthValue);
+  if (Number(year) === now.year && monthNumber === now.month) dayMax = Math.min(dayMax, now.day);
+  const dayValue = String(Math.min(Math.max(Number(day) || 1, 1), dayMax)).padStart(2, '0');
+  form.birthDate = `${year}-${monthValue}-${dayValue}`;
+}
 
 const accountName = computed(
   () =>
@@ -357,22 +398,13 @@ async function clearAvatar() {
             用户名
             <input v-model.trim="form.displayName" type="text" maxlength="80" placeholder="你的显示名称" />
           </label>
-          <label class="m-field">
-            性别
-            <select v-model="form.gender">
-              <option v-for="option in GENDER_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-          <label class="m-field">
-            出生年月日
-            <input v-model="form.birthDate" type="date" :max="new Date().toISOString().slice(0, 10)" />
-          </label>
-          <label class="m-field">
-            身份
-            <select v-model="form.identity">
-              <option v-for="option in IDENTITY_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
+          <MRadioCard :model-value="form.gender" :options="GENDER_OPTIONS" :columns="2" label="性别" @update:model-value="form.gender = $event" />
+          <div class="birth-wheels">
+            <MWheelPicker :model-value="birthParts.year" :options="birthYearOptions" label="出生年" @update:model-value="setBirth($event, birthParts.month, birthParts.day)" />
+            <MWheelPicker :model-value="birthParts.month" :options="birthMonthOptions" label="出生月" @update:model-value="birthParts.year && setBirth(birthParts.year, $event, birthParts.day)" />
+            <MWheelPicker :model-value="birthParts.day" :options="birthDayOptions" label="出生日" @update:model-value="birthParts.year && setBirth(birthParts.year, birthParts.month, $event)" />
+          </div>
+          <MRadioCard :model-value="form.identity" :options="IDENTITY_OPTIONS" label="身份" @update:model-value="form.identity = $event" />
         </div>
         <button class="m-primary" :disabled="infoBusy">{{ infoBusy ? '保存中…' : '保存资料' }}</button>
       </form>
@@ -617,6 +649,7 @@ async function clearAvatar() {
 .identity-hint{margin:0;font-size:12px;line-height:1.6}
 .mobile-fields{display:grid;gap:var(--m-module-gap)}
 .mobile-fields .m-field{margin:0}
+.birth-wheels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .mobile-profile .m-primary{width:100%}
 .mobile-profile .invite-hero{margin:0}
 .mobile-profile .meter-track{overflow:hidden}

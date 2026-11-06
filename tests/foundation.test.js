@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computed, ref, watch } from 'vue';
+import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -36,7 +37,8 @@ for (const fn of ['getStarterDeviceLink', 'listStarterDeviceLinks', 'linkStarter
 assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
 const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/gm, '').replace("const emit = defineEmits(['select']);", 'const emit = () => {};');
-const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
+const renderChartRaw = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', 'onBeforeUnmount', 'CHART_RELEASE_MS', 'chartSegments', 'moveSampleIndex', 'nearestSampleIndex', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
+const renderChart = (defineProps) => renderChartRaw(defineProps, computed, ref, watch, () => 'test', () => {}, CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex);
 const chartGeometry = (label, unit, values, baseline = null) => renderChart(() => ({ label, unit, points: values.map((v, index) => ({ t: `2026-01-01T00:${String(index * 10).padStart(2, '0')}:00Z`, v })), baseline }), computed, ref, watch, () => 'test');
 const points = [
   { t: '2026-01-01T00:00:00Z', v: 1 },
@@ -49,15 +51,15 @@ const points = [
 ];
 const geometry = renderChart(() => ({ points }), computed, ref, watch, () => 'test');
 assert.equal(geometry.coords.value[1].x, 13.18, 'x must follow real timestamps');
-assert.equal(geometry.linePaths.value.length, 2, '只有超过 30 分钟的空档才断开曲线');
+assert.equal(geometry.linePaths.value.length, 2, '空值和超过 30 分钟的空档都会断开，单点不成折线');
 assert.equal(geometry.linePaths.value.join('').match(/M/g).length, 2, '每段曲线各自从 M 起笔');
-assert.equal(geometry.linePaths.value.join('').match(/L/g).length, 4, '所有有效点都必须连入曲线');
+assert.equal(geometry.linePaths.value.join('').match(/L/g).length, 3, '空值两侧不再连线');
 assert.equal(geometry.areaPaths.value.length, 2, '面积跟随曲线分段闭合');
 assert.equal(geometry.coords.value.length, 6, 'sensor_error 行只要有有效值仍须保留采样点');
-assert.equal(geometry.dots.value.length, 1, '只有末点需要单独补点');
+assert.equal(geometry.dots.value.length, 2, '空值断开后的孤立点和末点都要单独补点');
 geometry.hoverIdx.value = 0;
 assert.ok(geometry.hoverPoint.value, '悬停应命中最近的采样点');
-assert.equal(geometry.dots.value.length, 1, '悬停时孤立点不得消失');
+assert.equal(geometry.dots.value.length, 2, '悬停时孤立点不得消失');
 geometry.hoverIdx.value = null;
 assert.equal(geometry.stats.value.dataMax, 7, 'max 文案取数据极值');
 assert.doesNotMatch(geometry.linePaths.value.join(''), /C/, 'no Bezier interpolation');

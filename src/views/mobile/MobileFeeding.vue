@@ -54,6 +54,7 @@ const error = ref('');
 const status = ref('');
 const saving = ref(false);
 const openCard = ref('');
+const timePicker = ref('');
 const alertNotice = ref('');
 const ratioPresets = [
   { value: '1:1:1', label: '1 : 1 : 1' },
@@ -85,7 +86,11 @@ const earliestDay = computed(() => addDays(today.value, -365));
 const occurredDate = computed(() => String(draft.value.occurredAt || '').slice(0, 10));
 const occurredHour = computed(() => String(draft.value.occurredAt || '').slice(11, 13) || '00');
 const occurredMinute = computed(() => String(draft.value.occurredAt || '').slice(14, 16) || '00');
-const timeSummary = computed(() => (draft.value.occurredAt ? draft.value.occurredAt.replace('T', ' ') : '选择时间'));
+const timeSummary = computed(() => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(draft.value.occurredAt || '');
+  if (!match) return '选择时间';
+  return `${match[1]} 年 ${Number(match[2])} 月 ${Number(match[3])} 日  ${match[4]}:${match[5]}`;
+});
 const ratioSummary = computed(() => {
   const preset = [...ratioPresets, ...moreRatios].find((item) => item.value === draft.value.ratio);
   if (preset) return preset.label;
@@ -97,12 +102,18 @@ const inputsLocked = computed(() => locked.value || saving.value);
 function toggleCard(name) {
   if (inputsLocked.value) return;
   openCard.value = openCard.value === name ? '' : name;
+  if (openCard.value !== 'time') timePicker.value = '';
+}
+function toggleTimePicker(name) {
+  timePicker.value = timePicker.value === name ? '' : name;
 }
 function setOccurred(date = occurredDate.value, hour = occurredHour.value, minute = occurredMinute.value) {
+  if (inputsLocked.value) return;
   draft.value.occurredAt = `${date || today.value}T${hour || '00'}:${minute || '00'}`;
 }
 function restoreNow() {
   draft.value.occurredAt = localDateTimeValue();
+  timePicker.value = '';
 }
 function selectRatio(value) {
   ratioMode.value = 'preset';
@@ -114,13 +125,18 @@ function selectCustom() {
   ratioMode.value = 'custom';
 }
 function customPart(field) {
-  return ratioParts(draft.value.ratio)?.[field] || '';
+  if (draft.value.weightValue === '' || !weights.value) return '';
+  return weights.value[field] ?? '';
 }
 function setCustomPart(field, raw) {
-  const current = ratioParts(customRatio.value ? draft.value.ratio : '1:1:1') || { starter: 1, water: 1, flour: 1 };
-  const next = { ...current, [field]: Number(raw) };
-  if (['starter', 'water', 'flour'].some((key) => !(next[key] > 0))) return;
-  draft.value.ratio = `${next.starter}:${next.water}:${next.flour}`;
+  if (inputsLocked.value) return;
+  const ratio = ratioParts(draft.value.ratio) ? draft.value.ratio : '1:1:1';
+  const grams = computeWeights(ratio, field, raw);
+  if (!grams) return;
+  ratioMode.value = 'custom';
+  draft.value.ratio = ratio;
+  draft.value.weightField = field;
+  draft.value.weightValue = String(raw);
 }
 async function chooseHeightAlert(value) {
   const previous = draft.value.heightAlert;
@@ -177,11 +193,8 @@ watch([accountId, () => route.query.starter], () => {
   // 时间默认取当前时刻：草稿不再沿用上次进入时保存的旧时间，避免用户误提交错时间。
   if (!locked.value) draft.value.occurredAt = localDateTimeValue();
   const starterId = typeof route.query.starter === 'string' ? route.query.starter : '';
-  // 进入本页就是为了记下一条喂养：已确认保存的草稿直接换成空白新表单，
-  // 不要让用户停在一个只有「开始下一条」的只读页上。
-  if (draft.value.confirmed) {
-    startNext(starterId || draft.value.starterId, { quiet: true });
-  } else if (!locked.value && starterId && starterId !== draft.value.starterId) {
+  // 已保存的横幅留到用户点「开始下一条」，刷新后仍停在 saved，不自动清掉。
+  if (!draft.value.confirmed && !locked.value && starterId && starterId !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId });
     else draft.value.starterId = starterId;
   }
@@ -198,7 +211,7 @@ function validate() {
     if (parseLocalDateTime(draft.value.occurredAt) > new Date()) return '喂养时间不能晚于现在。';
   } catch (cause) { return cause.message; }
   if (!draft.value.ratio) return '请选择这次使用的喂养比例。';
-  if (draft.value.weightValue !== '' && !weights.value) return '投喂重量需大于 0，且当前比例需可换算。';
+  if (draft.value.weightValue !== '' && !weights.value) return ratioMode.value === 'custom' ? '请填写大于 0 的比例数值。' : '投喂重量需大于 0，且当前比例需可换算。';
   if (draft.value.baselineHeightMm !== '' && (!Number.isFinite(Number(draft.value.baselineHeightMm)) || Number(draft.value.baselineHeightMm) <= 0)) return '起始高度需为大于 0 的毫米数，未测量可留空。';
   return '';
 }
@@ -283,7 +296,7 @@ async function save() {
       <span class="saved-disc" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
       </span>
-      <div class="saved-copy"><strong>喂养已保存</strong><small>本轮发酵已开始计时，可在设备页查看。</small></div>
+      <div class="saved-copy"><strong>已保存</strong><small>本轮发酵已开始计时，可在设备页查看。</small></div>
       <RouterLink class="saved-link" :to="{ path: '/device', query: { starter: draft.starterId } }">查看本轮</RouterLink>
     </section>
 
@@ -294,13 +307,13 @@ async function save() {
     <p class="feeding-section">喂养措施</p>
     <form class="feeding-form" @submit.prevent="save">
       <MRecordCard title="时间" icon="clock" :summary="timeSummary" :open="openCard === 'time'" :disabled="inputsLocked" content-id="feeding-time" @toggle="toggleCard('time')">
-        <div class="time-fields">
-          <label>日期<input :value="occurredDate" type="date" :min="earliestDay" :max="today" :disabled="inputsLocked" @input="setOccurred($event.target.value)" /></label>
-          <label>时间<input :value="`${occurredHour}:${occurredMinute}`" type="time" :disabled="inputsLocked" @input="setOccurred(occurredDate, $event.target.value.slice(0, 2), $event.target.value.slice(3, 5))" /></label>
+        <div class="time-switch">
+          <button type="button" :aria-expanded="timePicker === 'date'" :disabled="inputsLocked" @click="toggleTimePicker('date')">{{ occurredDate }}</button>
+          <button type="button" :aria-expanded="timePicker === 'time'" :disabled="inputsLocked" @click="toggleTimePicker('time')">{{ occurredHour }}:{{ occurredMinute }}</button>
         </div>
         <button type="button" class="restore-time" :disabled="inputsLocked" @click="restoreNow">恢复当前时间</button>
-        <MCalendar :model-value="occurredDate" :min="earliestDay" :max="today" @update:model-value="setOccurred($event)" />
-        <div class="time-wheels">
+        <MCalendar v-if="timePicker === 'date'" :model-value="occurredDate" :min="earliestDay" :max="today" :disabled="inputsLocked" @update:model-value="setOccurred($event)" />
+        <div v-if="timePicker === 'time'" class="time-wheels">
           <MWheelPicker :model-value="occurredHour" :options="hourOptions" label="小时" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, $event, occurredMinute)" />
           <MWheelPicker :model-value="occurredMinute" :options="minuteOptions" label="分钟" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, occurredHour, $event)" />
         </div>
@@ -347,14 +360,14 @@ async function save() {
 
       <div class="m-actions">
         <button v-if="!draft.confirmed" type="submit" class="m-primary feeding-submit" :disabled="saving || (!locked && !draft.ratio)">{{ submitLabel }}</button>
-        <button v-else type="button" class="m-primary feeding-submit" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条喂养记录</button>
+        <button v-else type="button" class="m-primary feeding-submit" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条</button>
       </div>
     </form>
   </main>
 </template>
 
 <style scoped>
-.mobile-area .m-page.mobile-feeding{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
+.mobile-area .m-page.mobile-feeding{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:0;gap:0}
 .feeding-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 10px}
 .feeding-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em}
 .phase-chip{flex:none;display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:13px;background:var(--m-icon-disc);color:var(--brand-action);font-size:12px;font-weight:500}
@@ -365,6 +378,9 @@ async function save() {
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
 .feeding-section{margin:0 0 8px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
 .feeding-form{display:grid;gap:12px}
+.time-switch{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:8px}
+.time-switch button{min-height:48px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-variant-numeric:tabular-nums;cursor:pointer}
+.time-switch button[aria-expanded="true"]{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .time-fields,.custom-grid,.ratio-presets,.time-wheels{display:grid;gap:8px}
 .time-fields{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
 .time-wheels,.custom-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -394,12 +410,12 @@ async function save() {
 .baseline-details summary::-webkit-details-marker{display:none}
 .baseline-details .m-field{padding:0 0 12px}
 .m-status{margin:0;font-size:13px;line-height:19px;color:var(--success-text)}
-.m-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:4px}
+.m-actions{position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
 .feeding-submit{flex:1;display:flex;align-items:center;justify-content:center;width:100%;height:60px;min-height:60px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer;text-decoration:none}
 .feeding-submit:active:not(:disabled){background:var(--brand-accent)}
 .feeding-submit:disabled{opacity:.6;cursor:not-allowed}
 .saved-banner{display:flex;align-items:center;gap:12px;padding:14px 16px;margin:0 0 14px;border-radius:var(--radius-card);background:var(--success-bg);color:var(--success-text);box-shadow:var(--m-shadow)}
-.saved-disc{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.7);color:var(--success-text)}
+.saved-disc{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--surface-card);color:var(--success-text)}
 .saved-disc svg{width:18px;height:18px}
 .saved-copy{display:grid;gap:2px;min-width:0;flex:1}
 .saved-copy strong{font-size:15px;font-weight:500;color:var(--text-primary)}

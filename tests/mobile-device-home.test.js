@@ -22,6 +22,8 @@ assert.match(source, /feed-summary/);
 assert.match(source, /device-cta/);
 assert.match(source, /listMeasurementsRange/);
 assert.match(source, /summarizeFeedingMeasurements/);
+assert.match(source, /jarLevel/);
+assert.match(source, /jar-rise[\s\S]*measured/);
 assert.match(source, /fermentation-window\.service\.js/);
 assert.match(source, /结束当前发酵/);
 assert.match(source, /确认结束/);
@@ -108,6 +110,7 @@ function harness() {
   async function html() {
     const app = Vue.createSSRApp({ setup: () => ({ ...bindings }), render });
     app.component('RouterLink', { props: ['to'], setup: ({ to }, { slots }) => () => Vue.h('a', { href: typeof to === 'string' ? to : to.path }, slots.default?.()) });
+    app.component('MConfirmDialog', { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', { class: props.danger ? 'is-danger' : '' }, props.confirmLabel)]) : null; } });
     return renderToString(app);
   }
   return { state, user, vm: Vue.proxyRefs(bindings), html, stop: () => scope.stop() };
@@ -140,7 +143,7 @@ const feedingSource = await readFile(new URL('../src/views/mobile/MobileFeeding.
 assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable on the feeding page');
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
 // 进入喂养页就是要记下一条：已确认的草稿自动变成空表单，不再提供重复入口。
-assert.match(feedingSource, /startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/, 'entering the page starts the next feeding form when the draft is confirmed');
+assert.doesNotMatch(feedingSource, /startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/, 'a confirmed feeding stays on screen until the user starts the next one');
 assert.doesNotMatch(feedingSource, /class="m-primary" to="\/device"/, 'the feeding page relies on the header back button instead of a duplicate device button');
 assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the device page instead of duplicating it here');
 

@@ -21,6 +21,16 @@ export function recentRecordDays(now = new Date()) {
     return localDayKey(day);
   });
 }
+export function formatDoctorRound(row, { elapsedHours, closed = false } = {}) {
+  const time = new Date(row?.occurred_at);
+  const clock = Number.isFinite(time.getTime()) ? `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}` : '--:--';
+  const ratio = row?.ratio === 'deep_reset'
+    ? '大比例刷新'
+    : (typeof row?.ratio === 'string' && row.ratio ? row.ratio.split(':').join(' : ') : '比例未记录');
+  const elapsed = Number(elapsedHours);
+  const duration = Number.isFinite(elapsed) && elapsed >= 0 ? `${elapsed >= 10 ? Math.round(elapsed) : Math.round(elapsed * 10) / 10} 小时` : '';
+  return { title: `${clock} 喂养`, detail: [closed ? '已结束' : '喂养记录', ratio, duration].filter(Boolean).join(' · ') };
+}
 export function recordDayRange(day) {
   const start = new Date(`${day}T00:00:00`);
   const end = new Date(start); end.setDate(end.getDate() + 1);

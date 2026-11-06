@@ -7,8 +7,7 @@ import { localDateTimeValue, parseLocalDateTime } from '../src/lib/localDateTime
 import { computeWeights, ratioParts, weightFields } from '../src/lib/feeding-weights.js';
 import { randomUuid, isUuid } from '../src/lib/uuid.js';
 
-// 喂养页的入口约定：点「记录下一次喂养」进来就应该是一张空白表单，
-// 已确认的旧草稿不能把用户挡在只读页上，待确认草稿则必须保持锁定。
+// 已确认的喂养留在 saved，直到用户点「开始下一条」。待确认草稿仍保持锁定。
 const file = new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
 const { descriptor, errors } = parse(source);
@@ -74,12 +73,10 @@ function mountAs(account, draft) {
 }
 
 const confirmed = mountAs('account-confirmed', draftOf({ confirmed: true }));
-assert.equal(confirmed.vm.draft.confirmed, false, 'a confirmed draft is replaced by a new form on entry');
-assert.equal(confirmed.vm.draft.ratio, '', 'the new form starts without a ratio');
-assert.deepEqual(Object.keys(confirmed.vm.draft.submission), [], 'the new form has no frozen submission');
-assert.equal(confirmed.vm.locked, false, 'the new form is editable');
-assert.equal(confirmed.vm.status, '', 'entering does not claim a previous record was just saved');
-assert.equal(confirmed.vm.draft.starterId, STARTER, 'the starter is carried into the next feeding');
+assert.equal(confirmed.vm.draft.confirmed, true, 'a confirmed draft stays until the user starts the next record');
+assert.equal(confirmed.vm.draft.ratio, '1:2:2', 'the saved ratio remains visible after refresh');
+assert.equal(confirmed.vm.phase, 'saved', 'refresh keeps the saved banner');
+assert.equal(confirmed.vm.draft.starterId, STARTER, 'the starter stays with the confirmed draft');
 confirmed.stop();
 
 const pending = mountAs('account-pending', draftOf({ confirmed: false }));
@@ -106,7 +103,7 @@ assert.notEqual(saved.vm.status, '', 'the explicit action explains what happened
 saved.stop();
 
 delete globalThis.localStorage;
-console.log('mobile feeding: entry resets confirmed drafts, keeps pending drafts locked, and save stays confirmed');
+console.log('mobile feeding: confirmed drafts stay saved, pending drafts stay locked, and startNext clears them');
 
 // --- 六态状态机：editing / validating / saving / pending / saved / next ---
 globalThis.localStorage = {
@@ -150,6 +147,24 @@ savingMod.vm.startNext(savingMod.vm.draft.starterId);
 await Vue.nextTick();
 assert.equal(savingMod.vm.phase, 'editing', 'startNext returns to editing for next entry');
 savingMod.stop();
+
+const custom = mountAs('account-custom-ratio', null);
+custom.vm.selectRatio('1:2:2');
+custom.vm.selectCustom();
+assert.equal(custom.vm.draft.ratio, '1:2:2', 'opening custom keeps the selected preset');
+custom.vm.setCustomPart('starter', '50');
+assert.equal(custom.vm.weights.water, 100);
+assert.equal(custom.vm.weights.flour, 100);
+custom.stop();
+const customBlank = mountAs('account-custom-blank', null);
+customBlank.vm.selectCustom();
+assert.equal(customBlank.vm.draft.ratio, '', 'opening custom does not invent a ratio');
+customBlank.vm.setCustomPart('starter', '50');
+assert.equal(customBlank.vm.draft.ratio, '1:1:1');
+assert.equal(customBlank.vm.weights.water, 50);
+customBlank.stop();
+assert.match(source, /<strong>已保存<\/strong>/);
+assert.match(source, />开始下一条</);
 
 delete globalThis.localStorage;
 console.log('mobile feeding: six-phase state machine (editing/validating/saving/pending/saved/next) contracts passed');

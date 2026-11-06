@@ -1,11 +1,11 @@
 <script setup>
-import { computed, ref, useId, watch } from 'vue';
-import { nearestSampleIndex } from '../lib/chart-selection.js';
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
+import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../lib/chart-selection.js';
 
 const props = defineProps({
   label: { type: String, required: true },
   unit: { type: String, default: '' },
-  color: { type: String, default: '#C04B0A' },
+  color: { type: String, default: 'var(--chart-temp)' },
   baseline: { type: Number, default: null },
   // 基线来源（手工/自动）直接跟在图内基线标签后，避免在别处再重复一次。
   baselineNote: { type: String, default: '' },
@@ -38,8 +38,6 @@ const PAD_X = 5;
 const PAD_Y = 6;
 // 设备正常按分钟上报；相邻采样超过 30 分钟才视为真实空档并断开曲线，
 // 更短的空白说明中间仍有采集，直接直线连上即可。
-const GAP_MS = 30 * 60 * 1000;
-
 const gid = useId();
 const gridYs = [H * 0.25, H * 0.5, H * 0.75];
 
@@ -104,27 +102,24 @@ const stats = computed(() => {
 });
 
 const coords = computed(() => {
-  const pts = series.value;
+  const groups = chartSegments(samples.value);
+  const pts = groups.flat();
   if (!pts.length || !stats.value) return [];
   const { min, max } = stats.value;
   const span = max - min;
   const tMin = domain.value?.start ?? new Date(pts[0].t).getTime();
   const tMax = domain.value?.end ?? new Date(pts.at(-1).t).getTime();
   const tSpan = Math.max(tMax - tMin, 1);
-  let prevT = null;
-  return pts.map((p, index) => {
+  return groups.flatMap((group, groupIndex) => group.map((p, index) => {
     const t = new Date(p.t).getTime();
-    // 只按真实时间间隔判断空档：中间夹了几条空值行不代表这里没有数据。
-    const breakBefore = index > 0 && t - prevT > GAP_MS;
-    prevT = t;
     return {
       x: round(domain.value || pts.length > 1 ? PAD_X + ((t - tMin) / tSpan) * (W - PAD_X * 2) : W / 2),
       y: round(span === 0 ? H / 2 : H - PAD_Y - ((p.v - min) / span) * (H - PAD_Y * 2)),
       t: p.t,
       v: p.v,
-      breakBefore
+      breakBefore: groupIndex > 0 && index === 0
     };
-  });
+  }));
 });
 
 function round(n) {
@@ -194,22 +189,63 @@ function onMove(e) {
   if (!rect.width) return;
   selectAt((e.clientX - rect.left) / rect.width);
 }
+const releasing = ref(false);
+let pointerHeld = false;
+let releaseTimer = 0;
+let clearTimer = 0;
+function cancelRelease() {
+  clearTimeout(releaseTimer);
+  clearTimeout(clearTimer);
+  releaseTimer = 0;
+  clearTimer = 0;
+  releasing.value = false;
+}
+function finishRelease() {
+  hoverIdx.value = null;
+  releasing.value = false;
+  emit('select', null);
+}
+function scheduleRelease() {
+  if (!props.sticky || hoverIdx.value == null) return;
+  cancelRelease();
+  releaseTimer = setTimeout(() => {
+    releasing.value = true;
+    clearTimer = setTimeout(finishRelease, 240);
+  }, CHART_RELEASE_MS);
+}
+function onPointerDown(event) {
+  if (props.sticky) cancelRelease();
+  pointerHeld = true;
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  onMove(event);
+}
+function onPointerMove(event) {
+  if (props.sticky && !pointerHeld && event.buttons === 0) return;
+  if (props.sticky) cancelRelease();
+  onMove(event);
+}
+function onPointerUp() {
+  pointerHeld = false;
+  if (props.sticky) scheduleRelease();
+}
+onBeforeUnmount(cancelRelease);
 function onKey(e) {
   if (!props.sticky || !coords.value.length) return;
-  const current = hoverIdx.value ?? 0;
-  let next = current;
-  if (e.key === 'ArrowRight') next = Math.min(coords.value.length - 1, current + 1);
-  else if (e.key === 'ArrowLeft') next = Math.max(0, current - 1);
-  else if (e.key === 'Home') next = 0;
-  else if (e.key === 'End') next = coords.value.length - 1;
-  else return;
+  const next = moveSampleIndex(hoverIdx.value, coords.value.length, e.key);
+  if (next == null) return;
   e.preventDefault();
+  cancelRelease();
   hoverIdx.value = next;
   emit('select', coords.value[next]);
 }
+function onBlur() {
+  if (props.sticky) scheduleRelease();
+}
 
 function clearHover() {
-  if (!props.sticky) hoverIdx.value = null;
+  if (pointerHeld) return;
+  if (props.sticky) scheduleRelease();
+  else hoverIdx.value = null;
 }
 
 const deltaText = computed(() => {
@@ -344,7 +380,7 @@ const bandBadges = computed(() => {
       </div>
     </div>
     <div v-if="series.length" class="series-body">
-      <div class="series-plot" :class="{ 'is-sticky': sticky }" :tabindex="sticky ? 0 : undefined" :aria-label="sticky ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="sticky ? 'polite' : undefined" @pointerdown="onMove" @pointermove="onMove" @pointerleave="clearHover" @keydown="onKey">
+      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-releasing': releasing }" :tabindex="sticky ? 0 : undefined" :aria-label="sticky ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="sticky ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient :id="gid" x1="0" y1="0" x2="0" y2="1">
@@ -455,6 +491,21 @@ const bandBadges = computed(() => {
           class="series-hover-dot"
           :style="{ left: `${(hoverPoint.x / W) * 100}%`, top: `${(hoverPoint.y / H) * 100}%`, background: color }"
         ></span>
+        <span
+          v-if="sticky && hoverPoint"
+          class="series-value-label"
+          :style="{ top: `${(hoverPoint.y / H) * 100}%` }"
+        >{{ fmt(hoverPoint.v) }}</span>
+        <span
+          v-if="sticky && hoverPoint"
+          class="series-time-label"
+          :style="{ left: `${(hoverPoint.x / W) * 100}%` }"
+        >{{ fmtTime(hoverPoint.t) }}</span>
+        <span
+          v-if="sticky && coords.length"
+          class="series-now"
+          :style="{ left: `${(coords.at(-1).x / W) * 100}%`, top: `${(coords.at(-1).y / H) * 100}%` }"
+        >当前</span>
         <div
           v-if="hoverPoint"
           class="series-tip"
@@ -485,7 +536,16 @@ const bandBadges = computed(() => {
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .series-guide-y { stroke: var(--brand-action); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.series-value-label { position: absolute; left: 0; z-index: 2; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 20px; padding: 0 4px; border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: var(--m-shadow); }
+.series-time-label { position: absolute; bottom: 0; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 20px; transform: translateX(-50%); border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; pointer-events: none; }
+.series-now { position: absolute; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 16px; margin-left: 4px; color: var(--text-secondary); font-size: 9px; line-height: 16px; pointer-events: none; }
+.series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: opacity 240ms linear; }
+.series-plot.is-releasing :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { opacity: 0; }
+.series-plot { min-height: 44px; }
 .series-plot.is-sticky:focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: none; }
+}
 /* 发酵窗口整段底色：相邻轮次用两种极浅的深浅交替，仍能看出边界。 */
 .series-band { fill: rgba(48, 37, 31, .045); }
 .series-band.alt { fill: rgba(48, 37, 31, .075); }

@@ -52,6 +52,11 @@
   --m-radius-card: var(--radius-card);
   --m-radius-button: 32px;
   --m-radius-input: var(--radius-control);
+  --m-radius-sheet: 24px;
+  --m-radius-confirm: 22px;
+  --m-radius-toast: 18px;
+  --m-radius-bubble: 8px;
+  --m-text-confirm: 20px;
   font-family: var(--font-sans);
   font-synthesis: none;
   color: var(--text-primary);
@@ -59,6 +64,9 @@
   scroll-behavior: auto;
 }
 body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: transparent; font-size: 16px; isolation: isolate; }
+body.mobile-mode .m-draggable-chart .series-tip { width: 104px; min-height: 38px; max-width: 104px; padding: 4px 8px; border: 1px solid var(--border-warm); border-radius: var(--m-radius-bubble); background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow); white-space: normal; font-size: var(--text-xs); line-height: 18px; }
+body.mobile-mode .m-draggable-chart .series-tip span { display: block; color: var(--text-secondary); font-size: var(--text-xs); line-height: 18px; opacity: 1; white-space: normal; }
+body.mobile-mode .m-draggable-chart .series-tip strong { color: var(--text-primary); font-size: var(--text-md); font-weight: 500; line-height: 24px; white-space: normal; }
 body.mobile-mode::before { content: ''; display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #FFF9F3; }
 body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-sizing: border-box; }
 .mobile-area { min-height: 100vh; color: var(--text-primary); overflow-wrap: anywhere; background: transparent; }
@@ -72,7 +80,7 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area input:is([type="checkbox"], [type="radio"]) { width: 24px; min-height: 24px; height: 24px; flex-shrink: 0; padding: 0; margin: 10px 8px 10px 0; accent-color: var(--brand-action); }
 .mobile-area textarea { resize: vertical; }
 .mobile-area :is(button, input, select, textarea):disabled { opacity: .55; cursor: not-allowed; }
-.mobile-area :focus-visible { outline: 2px solid #285DA8; outline-offset: 3px; }
+body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 .mobile-area :is(img, canvas, video) { max-width: 100%; }
 .mobile-area :is(fieldset, .m-page, .m-card, .panel, form, label) { min-width: 0; }
 .mobile-area .mobile-shell { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -88,10 +96,13 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area :is(.mobile-back, .mobile-tabbar) svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .mobile-area .mobile-main { flex: 1; width: 100%; min-width: 0; }
 .mobile-area .has-tabs > .mobile-main { padding-bottom: calc(var(--m-tab-height) + max(12px, env(safe-area-inset-bottom)) + 16px); }
+.mobile-area .m-skeleton { display: grid; gap: 12px; }
+.mobile-area .m-skeleton span { display: block; height: 76px; border-radius: var(--radius-card); background: var(--border-warm); }
+.mobile-area .m-skeleton span:first-child { height: 28px; width: 42%; background: var(--surface-warm, rgba(255, 176, 90, .12)); }
 .mobile-area .mobile-main .m-page { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; padding: var(--m-page-space) max(var(--m-page-space), env(safe-area-inset-right)) 32px max(var(--m-page-space), env(safe-area-inset-left)); display: flex; flex-direction: column; gap: var(--m-module-gap); }
 .mobile-area .mobile-main .m-page > * { margin-block: 0; }
 .mobile-area .mobile-main .today-page > .today-heading:empty { display: none; }
-.mobile-area .mobile-main .m-page h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.35; font-weight: 600; letter-spacing: -.025em; }
+.mobile-area .mobile-main .m-page h1 { margin: 0 0 8px; font-size: var(--text-xl); line-height: 36px; font-weight: 500; letter-spacing: -.025em; }
 .mobile-area .mobile-main .m-page h2 { margin: 0 0 12px; font-size: 20px; line-height: 1.4; font-weight: 600; letter-spacing: -.015em; }
 .mobile-area p { line-height: 1.75; }
 .mobile-area .mobile-main :is(.m-card, .panel, .profile-plate, .round-card, .alert-entry, .chart-card, .table-card, .action-card, .auth-card, .picker, .picker-menu) { background: var(--m-card); border: 1px solid var(--border-subtle); border-radius: var(--m-radius-card); box-shadow: var(--m-shadow); -webkit-backdrop-filter: var(--m-glass-blur); backdrop-filter: var(--m-glass-blur); }
@@ -112,7 +123,7 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area :is(.m-primary, .m-secondary, .btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 18px; font: inherit; font-weight: 500; line-height: 1.5; text-decoration: none; cursor: pointer; border: 1px solid var(--border-input); border-radius: var(--m-radius-button); transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease; }
 .mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary) { background: var(--brand-action); border-color: var(--brand-action); color: #fff; }
 .mobile-area :is(.m-secondary, .btn-secondary, .ghost-button) { background: var(--surface-card); color: var(--text-primary); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65); }
-.mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary):active:not(:disabled) { background: #84310B; border-color: #84310B; }
+.mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary):active:not(:disabled) { background: var(--orange-deep); border-color: var(--orange-deep); }
 .mobile-area :is(.m-secondary, .btn-secondary, .ghost-button):active:not(:disabled) { background: var(--surface-selected); }
 .mobile-area :is(.m-primary, .m-secondary):active { transform: scale(.98); }
 .mobile-area .diagnose-button { width: 100%; margin-top: 12px; flex-wrap: wrap; }

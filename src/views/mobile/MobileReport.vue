@@ -12,9 +12,15 @@ const accountId = computed(() => user.value?.id || 'guest');
 const router = useRouter();
 const { replace: replaceDraft } = useCheckinDraft(accountId);
 const risk = computed(() => report.value?.result?.status === 'discard' || [report.value?.input?.color, report.value?.input?.smell].includes('suspicious'));
+const insufficient = computed(() => !risk.value && ['needs-check', 'incomplete'].includes(report.value?.result?.status));
 function regenerate() {
-  replaceDraft({ ...snapshot(report.value.input), starterId: report.value.starterId || '', step: 1 });
-  router.push('/checkin');
+  const feeding = report.value?.input?.feedingId;
+  if (feeding) {
+    replaceDraft({ ...snapshot(report.value.input), starterId: report.value.starterId || '', step: 1 });
+    router.push({ path: '/checkin', query: { feeding, starter: report.value.starterId || undefined, mode: 'diagnosis' } });
+    return;
+  }
+  router.push('/doctor/rounds');
 }
 const report = ref(null);
 const starterName = ref('名称不可用');
@@ -107,17 +113,19 @@ onUnmounted(() => { disposed = true; generation++; });
 <template>
   <main class="m-page mobile-report">
     <header><h1>{{ cloud ? (report?.kind === 'feeding' ? '喂养记录（只读）' : '观察记录（只读）') : '本次建议' }}</h1></header>
-    <p v-if="loading" role="status">正在加载云端记录…</p><p v-if="error" class="m-error" role="alert">{{ error }}</p>
+    <div v-if="loading" class="m-skeleton" role="status" aria-label="正在加载云端记录"><span></span><span></span></div><p v-if="error" class="m-error" role="alert">{{ error }}</p>
     <section v-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录不存在、读取失败，或当前账号没有访问权限。' : '本机会话已结束或已切换账号。' }}</p><RouterLink v-if="cloud && !user" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录后查看</RouterLink><RouterLink v-else to="/checkin">继续或重新记录观察</RouterLink></section>
     <template v-if="report && report.kind === 'feeding'">
       <section class="m-card"><p role="status">已云端保存的事实记录</p><p class="m-muted">喂养时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ starterName }}</p><h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ report.ratio === 'deep_reset' ? '大比例刷新' : report.ratio || '未记录' }}</p><h2>起始高度</h2><p>{{ report.input?.baseline_height_mm == null ? '未记录' : `${report.input.baseline_height_mm} mm` }}<span v-if="report.input?.baseline_height_mm != null">（{{ report.input.baseline_source === 'device' ? '设备读取' : report.input.baseline_source === 'manual' ? '手工记录' : '来源未记录' }}）</span></p><RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: report.starterId, feeding: report.savedId } }">基于这次喂养记录观察</RouterLink></section>
       <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId }}<br>酵种编号：{{ report.starterId || '未记录' }}</p></details>
     </template>
     <template v-else-if="report">
-      <section class="m-card"><p role="status">{{ report.savedId ? '已云端保存' : '已生成，未云端保存' }}</p><p class="m-muted">观察时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ report.starterId ? starterName : '未选择，仅生成建议' }}</p><p v-if="!risk" class="m-muted" role="status">{{ report.result.badge }}</p><h2>{{ risk ? '食品安全优先：请停止使用并丢弃这份酵种' : report.result.title }}</h2><p v-if="!risk">{{ report.result.subtitle }}</p></section>
-      <section v-if="!risk" class="m-card"><h2>下一步</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul><h3>为什么</h3><ul><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul></section>
-      <section v-if="!risk && report.result.status !== 'needs-check' && report.result.status !== 'incomplete' && (report.result.timing || report.result.timingNote || report.result.ph)" class="m-card"><h2>辅助信息</h2><p v-if="report.result.timing">{{ report.result.timing.display }}</p><p class="m-muted">{{ report.result.timingNote }}</p><p v-if="report.result.ph">{{ report.result.ph.label }}<br>{{ report.result.ph.message }}</p></section>
-      <section v-if="risk" class="m-card m-risk"><h2>食品安全优先</h2><p>请停止使用并丢弃这份酵种，不要品尝；清洁接触过的容器与工具。</p></section>
+      <section v-if="risk" class="m-card m-risk"><p role="status">食品安全优先</p><h2>请停止使用并丢弃这份酵种</h2><p>不要品尝；清洁接触过的容器与工具。这不是一条普通养护建议。</p></section>
+      <section v-else-if="insufficient" class="m-card m-insufficient"><p role="status">{{ report.result.badge }}</p><h2>{{ report.result.title }}</h2><ul><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul></section>
+      <section v-else class="m-card"><p role="status">{{ report.savedId ? '已保存到日记' : '已生成，尚未保存到日记' }}</p><p class="m-muted">观察时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ report.starterId ? starterName : '未选择，仅生成建议' }}</p><p class="m-muted" role="status">{{ report.result.badge }}</p><h2>{{ report.result.title }}</h2><p>{{ report.result.subtitle }}</p></section>
+      <section v-if="!risk && !insufficient" class="m-card"><h2>下一步</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul><h3>为什么</h3><ul><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul></section>
+      <section v-if="!risk && !insufficient && (report.result.timing || report.result.timingNote || report.result.ph)" class="m-card"><h2>辅助信息</h2><p v-if="report.result.timing">{{ report.result.timing.display }}</p><p class="m-muted">{{ report.result.timingNote }}</p><p v-if="report.result.ph">{{ report.result.ph.label }}<br>{{ report.result.ph.message }}</p></section>
+      <section v-if="risk" class="m-card"><h2>请立即处理</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul></section>
       <section v-if="report.result.safety?.length" class="m-card"><h2>安全提醒</h2><ul><li v-for="item in report.result.safety" :key="item">{{ item }}</li></ul></section>
       <details class="m-card"><summary>依据与来源</summary><template v-for="group in [{ public: true, title: '公开来源' }, { public: false, title: '项目经验先验（未经同行评审）' }]" :key="group.title"><h3>{{ group.title }}</h3><ul><li v-for="item in (report.result.citations || []).filter((item) => item.public === group.public)" :key="item.key"><a v-if="item.url && group.public" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.title || item.citation }}</a><span v-else>{{ item.citation || item.key }}</span><p>{{ item.displayNote || item.supports }}</p></li></ul></template><p>经验先验样本有限。</p></details>
       <details class="m-card"><summary>本次输入快照与来源</summary><p class="m-muted">{{ report.source || '已保存的观察快照' }}</p><dl><template v-for="(label, key) in fieldLabels" :key="key"><dt>{{ label }}</dt><dd>{{ describeField(key, report.input[key]) }}<small class="m-muted"> · 来源：{{ describeSource(report.input, key) }}</small></dd></template></dl><p v-if="report.input.quickText">一句话原文：{{ report.input.quickText }}</p></details>
@@ -127,11 +135,11 @@ onUnmounted(() => { disposed = true; generation++; });
       <p v-if="!cloud && !user" class="m-muted">登录后才能云端保存。<RouterLink to="/login?redirect=/reports/session">前往登录</RouterLink></p>
       <button type="button" class="m-secondary" @click="copy">复制建议</button><p role="status">{{ copyStatus }}</p>
       <label v-if="readable" class="m-field">可选择的建议文本<textarea :value="text" readonly rows="12" /></label>
-      <div v-if="!cloud" class="m-actions"><RouterLink v-if="!risk" class="m-secondary" :to="{ path: '/checkin', query: { edit: 'session', ...(report.starterId ? { starter: report.starterId } : {}) } }">修改本次输入</RouterLink><button class="m-primary" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已云端保存' : '保存到云端' }}</button></div>
+      <div v-if="!cloud" class="m-actions"><button type="button" class="m-secondary" @click="regenerate">重新观察</button><button class="m-primary" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已保存到日记' : '保存到日记' }}</button></div>
     </template>
   </main>
 </template>
 
 <style scoped>
-.mobile-report{padding-bottom:calc(11rem + env(safe-area-inset-bottom));overflow-wrap:anywhere}.m-card{margin:1rem 0;padding:1rem;background:var(--surface-card);border:1px solid var(--border-default)}.m-actions{position:fixed;bottom:calc(0px + env(safe-area-inset-bottom));left:0;right:0;z-index:20;width:100%;max-width:var(--m-page-max,42rem);margin-inline:auto;display:flex;justify-content:center;gap:.75rem;padding:.75rem;background:var(--surface-card);border-top:1px solid var(--border-default)}.m-primary,.m-secondary{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:.65rem 1rem;font:inherit;text-decoration:none;cursor:pointer}.m-primary{background:var(--brand-action);border:1px solid var(--brand-action);color:#fff}.m-secondary{border:1px solid #938d83;background:transparent;color:inherit}button:disabled{opacity:.55;cursor:default}.m-error{color:var(--danger-text)}.m-muted{color:var(--text-secondary);font-size:.92rem}li{margin:.65rem 0}.m-field{display:grid;gap:.5rem;margin:1rem 0}textarea{width:100%;box-sizing:border-box;font:inherit;padding:.75rem}dt{font-weight:600;margin-top:.75rem}dd{margin:0;white-space:pre-wrap}summary{min-height:44px;cursor:pointer}.m-risk{color:var(--danger-text);background:var(--danger-bg);border-color:var(--danger-text)}
+.mobile-report{padding-bottom:calc(11rem + env(safe-area-inset-bottom));overflow-wrap:anywhere}.mobile-report > header h1{margin:0;font-size:24px;line-height:32px;font-weight:500}.m-card{margin:1rem 0;padding:1rem;background:var(--surface-card);border:1px solid var(--border-default)}.m-actions{position:fixed;bottom:env(safe-area-inset-bottom);left:0;right:0;z-index:20;width:100%;max-width:var(--m-page-max,42rem);margin-inline:auto;display:flex;justify-content:center;gap:12px;padding:12px 24px;background:var(--surface-card);border-top:1px solid var(--border-default)}.m-primary,.m-secondary{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;flex:1;height:60px;min-height:60px;padding:0 16px;font:inherit;font-size:16px;font-weight:500;text-decoration:none;cursor:pointer}.m-primary{border-radius:var(--m-radius-button);background:var(--brand-light);border:0;color:var(--text-primary)}.m-secondary{border:1px solid var(--border-warm);border-radius:var(--m-radius-button);background:transparent;color:inherit}.m-insufficient{background:var(--warning-bg);color:var(--warning-text)}button:disabled{opacity:.55;cursor:default}.m-error{color:var(--danger-text)}.m-muted{color:var(--text-secondary);font-size:.92rem}li{margin:.65rem 0}.m-field{display:grid;gap:.5rem;margin:1rem 0}textarea{width:100%;box-sizing:border-box;font:inherit;padding:.75rem}dt{font-weight:600;margin-top:.75rem}dd{margin:0;white-space:pre-wrap}summary{min-height:44px;cursor:pointer}.m-risk{color:var(--danger-text);background:var(--danger-bg);border-color:var(--danger-text)}
 </style>

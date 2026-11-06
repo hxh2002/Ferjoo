@@ -81,6 +81,16 @@ export function listStarters({ userId } = {}) {
   }), { ttl: READ_TTL.starter });
 }
 
+export function deleteStarter(starterId) {
+  return run(async () => {
+    const id = requiredUuid(starterId, '酵种 ID');
+    const { error } = await requireClient().from('starters').delete().eq('id', id);
+    if (error) throw error;
+    invalidateReadCache('care:starters');
+    return { id };
+  });
+}
+
 export function createStarter(name) {
   return run(async () => {
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) fail('酵种名称需为 1 至 80 个字符。');

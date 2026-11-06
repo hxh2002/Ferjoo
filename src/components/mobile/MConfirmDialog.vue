@@ -73,11 +73,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .m-confirm-layer { position: fixed; inset: 0; z-index: var(--m-z-modal, 99); display: grid; place-items: center; padding: 24px; }
 .m-confirm-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: rgba(48, 37, 31, .25); }
-.m-confirm { position: relative; width: min(327px, 100%); padding: 24px; border: 1px solid var(--border-warm); border-radius: 24px; background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow); }
-.m-confirm h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 500; }
+.m-confirm { position: relative; width: min(327px, 100%); padding: 24px; border: 1px solid var(--border-warm); border-radius: var(--m-radius-sheet); background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow); }
+.m-confirm h2 { margin: 0; font-size: var(--m-text-confirm); line-height: 28px; font-weight: 500; }
 .m-confirm p { margin: 8px 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 21px; }
 .m-confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
-.m-confirm-actions button { min-height: 44px; padding: 0 12px; border-radius: 22px; font: inherit; font-size: var(--text-md); font-weight: 500; cursor: pointer; }
+.m-confirm-actions button { min-height: 44px; padding: 0 12px; border-radius: var(--m-radius-confirm); font: inherit; font-size: var(--text-md); font-weight: 500; cursor: pointer; }
+.m-confirm :focus-visible, .m-confirm-backdrop:focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 .m-confirm-cancel { border: 1px solid var(--border-warm); background: var(--surface-card); color: var(--text-primary); }
 .m-confirm-accept { border: 0; background: var(--brand-light); color: var(--text-primary); }
 .m-confirm-accept.is-danger { background: var(--danger-bg); color: var(--danger-text); }

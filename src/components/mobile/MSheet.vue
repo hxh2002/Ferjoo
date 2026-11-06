@@ -81,7 +81,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .m-sheet-layer { position: fixed; inset: 0; z-index: var(--m-z-modal, 99); display: flex; align-items: flex-end; justify-content: center; }
 .m-sheet-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: rgba(48,37,31,.25); cursor: default; }
-.m-sheet { position: relative; width: min(100%, var(--m-page-max, 42rem)); max-height: 85vh; overflow: auto; padding: 8px var(--m-page-space, 24px) calc(24px + env(safe-area-inset-bottom)); border: 1px solid var(--border-warm); border-bottom: 0; border-radius: 24px 24px 0 0; background: var(--surface-page); color: var(--text-primary); outline: none; }
+.m-sheet { position: relative; width: min(100%, var(--m-page-max, 42rem)); max-height: 85vh; overflow: auto; padding: 8px var(--m-page-space, 24px) calc(24px + env(safe-area-inset-bottom)); border: 1px solid var(--border-warm); border-bottom: 0; border-radius: var(--m-radius-sheet) var(--m-radius-sheet) 0 0; background: var(--surface-page); color: var(--text-primary); }
+.m-sheet :focus-visible, .m-sheet-close:focus-visible, .m-sheet-backdrop:focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 .m-sheet-handle { width: 36px; height: 4px; margin: 0 auto 16px; border-radius: 2px; background: var(--border-input); }
 .m-sheet-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .m-sheet-header h2 { margin: 0; font-size: var(--text-lg); line-height: 26px; font-weight: 500; }

@@ -8,6 +8,14 @@ const MAX_FEEDING_ROWS = 40000;
 const time = (value) => value == null || value === '' ? NaN : new Date(value).getTime();
 const number = (value) => value == null || value === '' || typeof value === 'boolean' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
 const mean = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+export function expansionPercentFrom(heightMm, baselineMm) {
+  const height = Number(heightMm);
+  const baseline = Number(baselineMm);
+  return baseline > 0 && height > 0 ? (height / baseline - 1) * 100 : null;
+}
+export function expansionSeries(points, baselineMm) {
+  return (points || []).map((point) => ({ t: point.t, v: expansionPercentFrom(point.v, baselineMm) }));
+}
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -83,7 +91,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const historicalRound = windowClosed;
   const heightStale = !!freshest && (historicalRound ? end - freshestAt > FRESH_MS : currentTime - freshestAt > FRESH_MS);
   const currentHeightMm = number(freshest?.height_mm);
-  const expansionPercent = baselineHeightMm > 0 && currentHeightMm != null ? (currentHeightMm / baselineHeightMm - 1) * 100 : null;
+  const expansionPercent = expansionPercentFrom(currentHeightMm, baselineHeightMm);
   // 只映射实测涨幅；峰值、回落或液层需要用户确认。
   const height = heightBand(baselineHeightMm, currentHeightMm)?.value || '';
   const temperatureRows = rows.filter((row) => number(row.temperature_c) != null);
