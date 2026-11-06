@@ -50,7 +50,12 @@ const modules = {
   '../../composables/useStarterName.js': { useStarterName: () => ({ starterName: Vue.ref('一号') }) },
   '../../lib/uuid.js': { randomUuid, isUuid },
   '../../lib/localDateTime.js': { localDateTimeValue, parseLocalDateTime },
-  '../../lib/feeding-weights.js': { computeWeights, ratioParts, weightFields }
+  '../../lib/feeding-weights.js': { computeWeights, ratioParts, weightFields },
+  '../../services/height-alert.service.js': { HEIGHT_ALERT_TARGETS: [2, 2.5, 3] },
+  '../../services/web-push.service.js': { loadHeightTargets: async () => [], saveHeightTargets: async () => {} },
+  '../../components/mobile/MRecordCard.vue': {},
+  '../../components/mobile/MCalendar.vue': {},
+  '../../components/mobile/MWheelPicker.vue': {}
 };
 const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/g, (_, bindings, from) => {
   if (bindings.trim().startsWith('{')) return `const ${bindings.replace(/\bas\b/g, ':')} = modules[${JSON.stringify(from)}];`;

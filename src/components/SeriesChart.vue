@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, useId, watch } from 'vue';
+import { nearestSampleIndex } from '../lib/chart-selection.js';
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -25,8 +26,11 @@ const props = defineProps({
   // 主数值与极值标签允许换成换算后的文案（如高度换算膨胀率），绘图用的仍是原始数值。
   valueText: { type: String, default: '' },
   minText: { type: String, default: '' },
-  maxText: { type: String, default: '' }
+  maxText: { type: String, default: '' },
+  // 详情页拖动后保留选中点；普通图表仍在指针离开时清除。
+  sticky: { type: Boolean, default: false }
 });
+const emit = defineEmits(['select']);
 
 const W = 100;
 const H = 44;
@@ -179,25 +183,33 @@ const tipStyle = computed(() => {
   return { left: `${(p.x / W) * 100}%`, top: `${(p.y / H) * 100}%` };
 });
 
+function selectAt(ratio) {
+  const index = nearestSampleIndex(coords.value, ratio);
+  if (index == null) return;
+  hoverIdx.value = index;
+  emit('select', coords.value[index]);
+}
 function onMove(e) {
-  const pts = coords.value;
-  if (!pts.length) return;
   const rect = e.currentTarget.getBoundingClientRect();
-  const fx = ((e.clientX - rect.left) / rect.width) * W;
-  let best = 0;
-  let bestDist = Infinity;
-  for (let i = 0; i < pts.length; i++) {
-    const d = Math.abs(pts[i].x - fx);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
-    }
-  }
-  hoverIdx.value = best;
+  if (!rect.width) return;
+  selectAt((e.clientX - rect.left) / rect.width);
+}
+function onKey(e) {
+  if (!props.sticky || !coords.value.length) return;
+  const current = hoverIdx.value ?? 0;
+  let next = current;
+  if (e.key === 'ArrowRight') next = Math.min(coords.value.length - 1, current + 1);
+  else if (e.key === 'ArrowLeft') next = Math.max(0, current - 1);
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = coords.value.length - 1;
+  else return;
+  e.preventDefault();
+  hoverIdx.value = next;
+  emit('select', coords.value[next]);
 }
 
 function clearHover() {
-  hoverIdx.value = null;
+  if (!props.sticky) hoverIdx.value = null;
 }
 
 const deltaText = computed(() => {
@@ -332,7 +344,7 @@ const bandBadges = computed(() => {
       </div>
     </div>
     <div v-if="series.length" class="series-body">
-      <div class="series-plot" @pointermove="onMove" @pointerleave="clearHover">
+      <div class="series-plot" :class="{ 'is-sticky': sticky }" :tabindex="sticky ? 0 : undefined" :aria-label="sticky ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="sticky ? 'polite' : undefined" @pointerdown="onMove" @pointermove="onMove" @pointerleave="clearHover" @keydown="onKey">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient :id="gid" x1="0" y1="0" x2="0" y2="1">
@@ -406,6 +418,14 @@ const bandBadges = computed(() => {
             :y1="0"
             :y2="H"
           />
+          <line
+            v-if="sticky && hoverPoint"
+            class="series-guide-y"
+            :x1="PAD_X"
+            :x2="hoverPoint.x"
+            :y1="hoverPoint.y"
+            :y2="hoverPoint.y"
+          />
         </svg>
         <template v-if="bandLabels">
           <span
@@ -440,8 +460,10 @@ const bandBadges = computed(() => {
           class="series-tip"
           :style="tipStyle"
         >
-          <strong>{{ fmt(hoverPoint.v) }}</strong>
-          <span>{{ fmtTime(hoverPoint.t) }}</span>
+          <slot name="tip" :point="hoverPoint">
+            <strong>{{ fmt(hoverPoint.v) }}</strong>
+            <span>{{ fmtTime(hoverPoint.t) }}</span>
+          </slot>
         </div>
         <span
           v-if="baselineY != null"
@@ -462,6 +484,8 @@ const bandBadges = computed(() => {
 
 <style scoped>
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.series-guide-y { stroke: var(--brand-action); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.series-plot.is-sticky:focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 /* 发酵窗口整段底色：相邻轮次用两种极浅的深浅交替，仍能看出边界。 */
 .series-band { fill: rgba(48, 37, 31, .045); }
 .series-band.alt { fill: rgba(48, 37, 31, .075); }

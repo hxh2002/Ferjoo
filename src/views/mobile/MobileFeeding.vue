@@ -8,6 +8,11 @@ import { useStarterName } from '../../composables/useStarterName.js';
 import { randomUuid, isUuid } from '../../lib/uuid.js';
 import { localDateTimeValue, parseLocalDateTime } from '../../lib/localDateTime.js';
 import { computeWeights, ratioParts, weightFields } from '../../lib/feeding-weights.js';
+import { HEIGHT_ALERT_TARGETS } from '../../services/height-alert.service.js';
+import { loadHeightTargets, saveHeightTargets } from '../../services/web-push.service.js';
+import MRecordCard from '../../components/mobile/MRecordCard.vue';
+import MCalendar from '../../components/mobile/MCalendar.vue';
+import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
 
 const route = useRoute();
 const { user } = useAuth();
@@ -26,7 +31,8 @@ const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId,
     step: 1,
     requestId: '',
     submission: {},
-    confirmed: false
+    confirmed: false,
+    heightAlert: ''
   })
 });
 const { starterName } = useStarterName(accountId, computed(() => draft.value.starterId));
@@ -47,6 +53,91 @@ function setWeight(field, value) {
 const error = ref('');
 const status = ref('');
 const saving = ref(false);
+const openCard = ref('');
+const alertNotice = ref('');
+const ratioPresets = [
+  { value: '1:1:1', label: '1 : 1 : 1' },
+  { value: '1:2:2', label: '1 : 2 : 2' },
+  { value: '1:3:3', label: '1 : 3 : 3' }
+];
+const moreRatios = [
+  { value: '1:5:5', label: '1 : 5 : 5' },
+  { value: '1:2:1', label: '1 : 2 : 1' },
+  { value: 'deep_reset', label: '大比例刷新' }
+];
+const customRatio = computed(() => Boolean(draft.value.ratio) && ![...ratioPresets, ...moreRatios].some((item) => item.value === draft.value.ratio));
+const ratioMode = ref('preset');
+const showCustom = computed(() => ratioMode.value === 'custom' || customRatio.value);
+const hourOptions = Array.from({ length: 24 }, (_, hour) => ({ value: String(hour).padStart(2, '0'), label: `${String(hour).padStart(2, '0')} 时` }));
+const minuteOptions = Array.from({ length: 60 }, (_, minute) => ({ value: String(minute).padStart(2, '0'), label: `${String(minute).padStart(2, '0')} 分` }));
+const alertOptions = [{ value: '', label: '不提醒' }, ...HEIGHT_ALERT_TARGETS.map((target) => ({ value: String(target), label: `${target}×` }))];
+
+function dayKey(date = new Date()) {
+  return localDateTimeValue(date).slice(0, 10);
+}
+function addDays(day, amount) {
+  const date = new Date(`${day}T12:00:00`);
+  date.setDate(date.getDate() + amount);
+  return dayKey(date);
+}
+const today = computed(() => dayKey());
+const earliestDay = computed(() => addDays(today.value, -365));
+const occurredDate = computed(() => String(draft.value.occurredAt || '').slice(0, 10));
+const occurredHour = computed(() => String(draft.value.occurredAt || '').slice(11, 13) || '00');
+const occurredMinute = computed(() => String(draft.value.occurredAt || '').slice(14, 16) || '00');
+const timeSummary = computed(() => (draft.value.occurredAt ? draft.value.occurredAt.replace('T', ' ') : '选择时间'));
+const ratioSummary = computed(() => {
+  const preset = [...ratioPresets, ...moreRatios].find((item) => item.value === draft.value.ratio);
+  if (preset) return preset.label;
+  return draft.value.ratio ? draft.value.ratio.split(':').join(' : ') : '选择比例';
+});
+const alertSummary = computed(() => (draft.value.heightAlert ? `${draft.value.heightAlert}×` : '不提醒'));
+const inputsLocked = computed(() => locked.value || saving.value);
+
+function toggleCard(name) {
+  if (inputsLocked.value) return;
+  openCard.value = openCard.value === name ? '' : name;
+}
+function setOccurred(date = occurredDate.value, hour = occurredHour.value, minute = occurredMinute.value) {
+  draft.value.occurredAt = `${date || today.value}T${hour || '00'}:${minute || '00'}`;
+}
+function restoreNow() {
+  draft.value.occurredAt = localDateTimeValue();
+}
+function selectRatio(value) {
+  ratioMode.value = 'preset';
+  draft.value.ratio = value;
+  draft.value.weightField = '';
+  draft.value.weightValue = '';
+}
+function selectCustom() {
+  ratioMode.value = 'custom';
+}
+function customPart(field) {
+  return ratioParts(draft.value.ratio)?.[field] || '';
+}
+function setCustomPart(field, raw) {
+  const current = ratioParts(customRatio.value ? draft.value.ratio : '1:1:1') || { starter: 1, water: 1, flour: 1 };
+  const next = { ...current, [field]: Number(raw) };
+  if (['starter', 'water', 'flour'].some((key) => !(next[key] > 0))) return;
+  draft.value.ratio = `${next.starter}:${next.water}:${next.flour}`;
+}
+async function chooseHeightAlert(value) {
+  const previous = draft.value.heightAlert;
+  draft.value.heightAlert = value;
+  alertNotice.value = '';
+  if (!isUuid(draft.value.starterId)) return;
+  try {
+    const current = await loadHeightTargets(draft.value.starterId);
+    const retained = current.filter((target) => String(target) !== String(previous));
+    const next = value === '' ? retained : [...new Set([...retained, Number(value)])].sort((a, b) => a - b);
+    await saveHeightTargets(draft.value.starterId, next);
+    alertNotice.value = value === '' ? '已关闭这罐酵种的高度提醒。' : `高度提醒已设为 ${value}×。`;
+  } catch (cause) {
+    draft.value.heightAlert = previous;
+    alertNotice.value = cause?.message || '高度提醒没有保存。';
+  }
+}
 const locked = computed(() => Object.keys(draft.value.submission).length > 0);
 const baselineOpen = ref(false);
 
@@ -115,8 +206,11 @@ function startNext(starterId = draft.value.starterId, { quiet = false } = {}) {
   if (saving.value || !draft.value.confirmed) return;
   try {
     const requestId = randomUuid();
-    replace({ starterId, occurredAt: localDateTimeValue(), ratio: '', requestId });
+    replace({ starterId, occurredAt: localDateTimeValue(), ratio: '', requestId, heightAlert: '' });
     baselineOpen.value = false;
+    openCard.value = '';
+    ratioMode.value = 'preset';
+    alertNotice.value = '';
     status.value = quiet ? '' : '已开始下一条喂养记录，请填写本次事实。';
     error.value = '';
   } catch (cause) { error.value = cause.message; }
@@ -197,49 +291,53 @@ async function save() {
       当前保留的是「{{ starterName }}」的待确认喂养草稿，内容已锁定；不会切换酵种或覆盖草稿，请先重试确认原提交后再记录下一条。
     </p>
 
-    <form class="m-card feeding-form" @submit.prevent="save">
-      <label class="m-field">
-        <span class="field-label">这次什么时候喂的</span>
-        <input v-model="draft.occurredAt" type="datetime-local" :disabled="locked || saving" required />
-      </label>
-
-      <label class="m-field">
-        <span class="field-label">喂养比例（老种 : 水 : 面粉）</span>
-        <select v-model="draft.ratio" :disabled="locked || saving" required>
-          <option disabled value="">请选择</option>
-          <option value="1:1:1">1 : 1 : 1</option>
-          <option value="1:2:2">1 : 2 : 2</option>
-          <option value="1:3:3">1 : 3 : 3</option>
-          <option value="1:5:5">1 : 5 : 5</option>
-          <option value="deep_reset">大比例刷新</option>
-          <option value="1:2:1">1 : 2 : 1</option>
-        </select>
-      </label>
-
-      <fieldset v-if="draft.ratio" class="weight-fields" :disabled="locked || saving">
-        <legend>投喂重量（g，可选）</legend>
-        <div class="weight-grid">
-          <label v-for="field in weightFields" :key="field" class="weight-item">
-            <span>{{ weightLabels[field] }}</span>
-            <input
-              type="number"
-              min="0"
-              step="any"
-              inputmode="decimal"
-              :value="weightDisplay(field)"
-              :disabled="!canConvert"
-              @input="setWeight(field, $event.target.value)"
-            />
-          </label>
+    <p class="feeding-section">喂养措施</p>
+    <form class="feeding-form" @submit.prevent="save">
+      <MRecordCard title="时间" icon="clock" :summary="timeSummary" :open="openCard === 'time'" :disabled="inputsLocked" content-id="feeding-time" @toggle="toggleCard('time')">
+        <div class="time-fields">
+          <label>日期<input :value="occurredDate" type="date" :min="earliestDay" :max="today" :disabled="inputsLocked" @input="setOccurred($event.target.value)" /></label>
+          <label>时间<input :value="`${occurredHour}:${occurredMinute}`" type="time" :disabled="inputsLocked" @input="setOccurred(occurredDate, $event.target.value.slice(0, 2), $event.target.value.slice(3, 5))" /></label>
         </div>
-        <p class="m-muted">{{ canConvert ? '填任一项或合计，其余自动按比例换算。' : '大比例刷新没有固定配比，重量不换算。' }}</p>
-      </fieldset>
+        <button type="button" class="restore-time" :disabled="inputsLocked" @click="restoreNow">恢复当前时间</button>
+        <MCalendar :model-value="occurredDate" :min="earliestDay" :max="today" @update:model-value="setOccurred($event)" />
+        <div class="time-wheels">
+          <MWheelPicker :model-value="occurredHour" :options="hourOptions" label="小时" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, $event, occurredMinute)" />
+          <MWheelPicker :model-value="occurredMinute" :options="minuteOptions" label="分钟" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, occurredHour, $event)" />
+        </div>
+      </MRecordCard>
+
+      <MRecordCard title="比例" icon="scales" :summary="ratioSummary" :open="openCard === 'ratio'" :disabled="inputsLocked" content-id="feeding-ratio" @toggle="toggleCard('ratio')">
+        <div class="ratio-presets" role="group" aria-label="喂养比例">
+          <button v-for="item in ratioPresets" :key="item.value" type="button" :class="{ 'is-selected': draft.ratio === item.value && !showCustom }" :disabled="inputsLocked" :aria-pressed="draft.ratio === item.value && !showCustom" @click="selectRatio(item.value)">{{ item.label }}</button>
+        </div>
+        <button type="button" class="custom-ratio" :class="{ 'is-selected': showCustom }" :disabled="inputsLocked" @click="selectCustom">自定义比例 <span aria-hidden="true">›</span></button>
+        <div v-if="showCustom" class="custom-grid">
+          <label v-for="field in ['starter', 'water', 'flour']" :key="field">{{ weightLabels[field] }}<input type="number" min="0" step="any" inputmode="decimal" :disabled="inputsLocked" :value="customPart(field)" @input="setCustomPart(field, $event.target.value)" /></label>
+        </div>
+        <details class="more-ratios"><summary>更多比例</summary><button v-for="item in moreRatios" :key="item.value" type="button" :class="{ 'is-selected': draft.ratio === item.value }" :disabled="inputsLocked" @click="selectRatio(item.value)">{{ item.label }}</button></details>
+        <fieldset v-if="draft.ratio" class="weight-fields" :disabled="inputsLocked">
+          <legend>投喂重量（g，可选）</legend>
+          <div class="weight-grid">
+            <label v-for="field in weightFields" :key="field" class="weight-item">
+              <span>{{ weightLabels[field] }}</span>
+              <input type="number" min="0" step="any" inputmode="decimal" :value="weightDisplay(field)" :disabled="!canConvert" @input="setWeight(field, $event.target.value)" />
+            </label>
+          </div>
+          <p class="m-muted">{{ canConvert ? '填任一项或合计，其余自动按比例换算。' : '大比例刷新没有固定配比，重量不换算。' }}</p>
+        </fieldset>
+      </MRecordCard>
+
+      <MRecordCard title="高度提醒" icon="alert" :summary="alertSummary" :open="openCard === 'alert'" :disabled="inputsLocked" content-id="feeding-alert" @toggle="toggleCard('alert')">
+        <MWheelPicker :model-value="String(draft.heightAlert)" :options="alertOptions" label="高度提醒" :disabled="inputsLocked" @update:model-value="chooseHeightAlert" />
+        <p class="m-muted">{{ alertNotice || '留空表示不提醒。达到后每轮只推送一次。' }}</p>
+        <RouterLink class="alert-settings" to="/me/notifications">高度预约的完整阈值在通知设置中管理</RouterLink>
+      </MRecordCard>
 
       <details class="baseline-details" :open="baselineOpen" @toggle="baselineOpen = $event.target.open">
         <summary>喂养后起始高度（可选）<span v-if="draft.baselineHeightMm !== ''"> · {{ draft.baselineHeightMm }} mm</span></summary>
         <label class="m-field">
           <span class="field-label">手动修正起始高度（mm）</span>
-          <input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="locked || saving" @input="draft.baselineSource = 'manual'" />
+          <input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="inputsLocked" @input="draft.baselineSource = 'manual'" />
           <span class="m-muted">可留空；填写后按此值计算膨胀率。</span>
         </label>
       </details>
@@ -248,18 +346,10 @@ async function save() {
       <p v-if="status" class="m-status" role="status">{{ status }}</p>
 
       <div class="m-actions">
-        <button v-if="!draft.confirmed" type="submit" class="m-primary feeding-submit" :disabled="saving">{{ submitLabel }}</button>
+        <button v-if="!draft.confirmed" type="submit" class="m-primary feeding-submit" :disabled="saving || (!locked && !draft.ratio)">{{ submitLabel }}</button>
         <button v-else type="button" class="m-primary feeding-submit" :disabled="saving" @click="startNext(typeof route.query.starter === 'string' ? route.query.starter : draft.starterId)">开始下一条喂养记录</button>
       </div>
     </form>
-
-    <RouterLink class="m-card feeding-alert" to="/me/notifications">
-      <span class="feeding-alert-main">
-        <strong>高度预约</strong>
-        <small>达到目标膨胀倍数时推送提醒，在通知设置中统一管理。</small>
-      </span>
-      <span class="feeding-alert-action" aria-hidden="true">›</span>
-    </RouterLink>
   </main>
 </template>
 
@@ -273,7 +363,22 @@ async function save() {
 .phase-chip[data-phase="saving"]{background:var(--brand-light);color:var(--text-primary)}
 .m-context{margin:0 0 12px;font-size:13px;line-height:19px;overflow-wrap:anywhere}
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
-.feeding-form{display:grid;gap:12px;padding:var(--m-card-space)}
+.feeding-section{margin:0 0 8px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+.feeding-form{display:grid;gap:12px}
+.time-fields,.custom-grid,.ratio-presets,.time-wheels{display:grid;gap:8px}
+.time-fields{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.time-wheels,.custom-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.custom-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px}
+.time-fields label,.custom-grid label{display:grid;gap:4px;color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
+.restore-time,.custom-ratio,.ratio-presets button,.more-ratios button{min-height:42px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit}
+.restore-time{width:124px;min-height:28px;margin:12px 0;border-radius:14px;font-size:var(--text-xs)}
+.ratio-presets{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:8px}
+.ratio-presets button.is-selected,.custom-ratio.is-selected,.more-ratios button.is-selected{border-color:var(--brand-action);background:var(--surface-selected)}
+.custom-ratio{display:flex;align-items:center;justify-content:space-between;width:100%;padding:0 12px}
+.more-ratios{margin-top:8px}
+.more-ratios summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+.more-ratios button{width:100%;margin-bottom:8px}
+.alert-settings{display:inline-flex;align-items:center;min-height:44px;color:var(--brand-action);font-size:var(--text-sm);font-weight:500;text-decoration:none}
 .field-label{display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
 .feeding-form input,.feeding-form select{width:100%;min-height:44px;padding:10px 12px;box-sizing:border-box;border:1px solid var(--border-input);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:15px}
 .feeding-form input:disabled,.feeding-form select:disabled{opacity:.7;cursor:not-allowed}

@@ -44,7 +44,7 @@ Figma 文件共 5 个页面：
 | 设备页 / 确认结束 | `370:16515` | `MobileDeviceHome.vue` 确认弹层 | ✅ 已完成 |
 | 设备页 / 历史记录已保存 | `370:16636` | `MobileDeviceHome.vue` Toast | ✅ 已完成 |
 | 数据详情 | `370:15961` | `MobileTrend.vue` | ⚠️ 部分（缺可拖动数据点） |
-| 记录喂养 · 375 × 812 | `370:16248` | `MobileFeeding.vue` | ❌ 结构不符（折叠卡模式未实现） |
+| 记录喂养 · 375 × 812 | `370:16248` | `MobileFeeding.vue` | ⚠️ 三张折叠卡已接入，展开高度与滚轮细节仍需逐项验收 |
 | 记录喂养 / 展开时间 | `370:16263` | `MobileFeeding.vue` | ❌ 缺失 |
 | 记录喂养 / 时间 / 日历 | `370:16777` | — | ❌ 缺失 |
 | 记录喂养 / 时间 / 时间滚轮 | `370:16879` | — | ❌ 缺失 |
@@ -137,8 +137,8 @@ Figma 文件共 5 个页面：
 | 辅助文字 | 14px | Regular 400 | 21px | 说明、时间、次级信息 |
 | 标签（补充） | 12px | Regular 400 | 18px | 角标、图表注释 |
 
-> Token 映射：`--text-xl: 28px` / `--text-lg: 22px` / `--text-md: 17px` / `--text-sm: 14px` / `--text-xs: 12px`。
-> **待办**：`--text-lg` 应为 `18px`（当前 22px 与设计稿卡片标题不符），`--text-md` 应为 `16px`（当前 17px）。
+> Token 映射：`--text-xl: 28px` / `--text-sm: 14px` / `--text-xs: 12px`。
+> 移动端已在 `src/assets/mobile.css` 覆盖 `--text-lg: 18px`、`--text-md: 16px`。桌面端仍保留 22px / 17px，避免扩大这次改造的影响面。
 
 ### 2.2 配色
 
@@ -150,9 +150,9 @@ Figma 文件共 5 个页面：
 | 暖白背景 | `#FFF9F3` | `--surface-page` | 页面底色 |
 | 正文 | `#30251F` | `--text-primary` | 主文字 |
 | 次级文字 | `#75665B` | `--text-secondary` | 说明、标签 |
-| 暖边框 | `#EADDD2` | **缺失 token** | 卡片分隔线、页面描边 |
+| 暖边框 | `#EADDD2` | `--border-warm` | 卡片分隔线、页面描边；移动端 `--border-default`、`--border-subtle`、`--border-input` 都引用它 |
 
-> **待办**：新增 `--border-warm: #EADDD2`，用于分隔线与卡片描边。设计稿中「暖边框」明确出现于 UI 规范，当前代码使用 `--border-subtle: #e9e2da`（接近但不一致）。
+> 移动端边框已统一到 `--border-warm`。桌面端的 `--border-subtle` 仍是 `#e9e2da`。
 
 数据色块（设备首页「当前数据」）：
 
@@ -237,7 +237,7 @@ Figma 文件共 5 个页面：
 | P2 | 酵种罐动画未接高度数据 | 设计稿标注为「过渡方案可接受」 |
 | P2 | 酵种管理缺删除 | P2 明确要求 |
 | P2 | 数据详情缺「最高」标注与选中态坐标轴 | 细节缺失 |
-| P3 | `--text-lg` / `--text-md` / 暖边框 token 偏差 | 全局字体与描边细节 |
+| P3 | 桌面端 `--text-lg` / `--text-md` 仍与设计稿不同 | 移动端已按 18px / 16px 覆盖，桌面端保持原值 |
 
 ---
 
@@ -261,6 +261,8 @@ Figma 文件共 5 个页面：
 | `MIconDisc.vue` | 圆形图标底，尺寸 26/30/36/40 可配，背景 `--m-icon-disc` | 全站图标底 |
 
 **验收**：每个组件独立可渲染；`tests/mobile-components.test.js` 断言尺寸、token 引用、状态类名。
+
+S0 已落地：10 个组件、日历状态模型、采样点吸附，以及移动端字号和暖边框修正。喂养页已开始使用时间、比例、高度提醒三张折叠卡；云端阈值仍以通知设置为准，喂养页只追加或移除当前选择，不覆盖其余阈值。
 
 ---
 
@@ -765,6 +767,7 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
 | 2026-11-05 | v1.0 | 首次成文：完成设计稿全量盘点、现状审计、10 个模块方案与 10 阶段计划 |
+| 2026-11-06 | v1.1 | S0 组件库落地；移动端字号与暖边框修正；喂养页接入三张折叠卡 |
 
 ---
 
@@ -784,10 +787,10 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 | `--surface-page` | `#fff9f3` | 与设计稿一致 |
 | `--text-primary` | `#30251f` | 与设计稿一致 |
 | `--text-secondary` | `#75665b` | 与设计稿一致 |
-| `--border-subtle` | `#e9e2da` | 设计稿「暖边框」为 `#EADDD2`，**不一致，需新增 `--border-warm`** |
+| `--border-warm` | `#eaddd2` | 已新增；移动端边框引用它 |
 | `--text-xl` | `28px` | 与设计稿一致 |
-| `--text-lg` | `22px` | **设计稿卡片标题为 18px，需修正** |
-| `--text-md` | `17px` | **设计稿正文 / 按钮为 16px，需修正** |
+| `--text-lg` | 桌面 `22px` / 移动端 `18px` | 移动端已按卡片标题修正 |
+| `--text-md` | 桌面 `17px` / 移动端 `16px` | 移动端已按正文与按钮修正 |
 | `--radius-card` | `18px` → `mobile.css` 覆盖 `20px` | 移动端实际 20px，与设计稿一致 |
 | `--m-radius-button` | `32px` | 与设计稿一致 |
 | `--m-tab-height` | `80px` | 与设计稿一致 |

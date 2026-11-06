@@ -35,7 +35,7 @@ const service = source('src/services/starter-device.service.js');
 for (const fn of ['getStarterDeviceLink', 'listStarterDeviceLinks', 'linkStarterDevice']) assert.match(service, new RegExp(`export async function ${fn}\\(`));
 assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
-const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/m, '');
+const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/gm, '').replace("const emit = defineEmits(['select']);", 'const emit = () => {};');
 const renderChart = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
 const chartGeometry = (label, unit, values, baseline = null) => renderChart(() => ({ label, unit, points: values.map((v, index) => ({ t: `2026-01-01T00:${String(index * 10).padStart(2, '0')}:00Z`, v })), baseline }), computed, ref, watch, () => 'test');
 const points = [
