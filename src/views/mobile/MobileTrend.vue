@@ -1,13 +1,15 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { deviceStatus, mobileDeviceService, mobileError } from '../../services/mobile-device.service.js';
 import { localDateTimeValue } from '../../lib/localDateTime.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
-import { READ_TTL, cachedRead, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
+import { READ_TTL, cachedRead, invalidateReadCache, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
+import deviceHat from '../../assets/icons/nav-device-active.svg';
+import emptyChart from '../../assets/device/icon-chart-up.svg';
 
 const route = useRoute();
 const router = useRouter();
@@ -30,7 +32,9 @@ const INCOMPLETE = '这一天的采样尚未完整加载，请稍后重试。';
 const snapshotKey = computed(() => readCacheKey(['device', 'trend', auth.user.value?.id ?? '', deviceId.value, starterId.value, day.value]));
 
 const device = ref(null); const rows = ref([]);
-const loading = ref(false); const error = ref(''); const completeness = ref(''); const calendarOpen = ref(false);
+const loading = ref(false); const refreshing = ref(false); const error = ref(''); const completeness = ref(''); const calendarOpen = ref(false);
+const headerTitle = inject('mobileHeaderTitle', null);
+const headerTone = inject('mobileHeaderTone', null);
 let version = 0; let hidden = false;
 
 const isToday = computed(() => day.value === todayValue.value);
@@ -45,6 +49,7 @@ const chartPoints = computed(() => {
   };
 });
 const validCount = computed(() => rows.value.filter((row) => !row.sensor_error && row.mode === 'fer').length);
+const showEmpty = computed(() => !!device.value && !rows.value.length && !error.value && (!loading.value || refreshing.value));
 const summaryText = computed(() => {
   const latest = rows.value.at(-1);
   return [
@@ -72,6 +77,16 @@ function changeDay(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > todayValue.value) return;
   calendarOpen.value = false;
   router.replace({ path: route.path, query: { ...route.query, day: value } });
+}
+function syncHeader() {
+  if (!headerTitle || !headerTone) return;
+  headerTitle.value = showEmpty.value ? '设备数据' : '';
+  headerTone.value = showEmpty.value ? 'settings' : '';
+}
+async function refresh() {
+  refreshing.value = true;
+  invalidateReadCache('device:trend');
+  try { await load(); } finally { refreshing.value = false; }
 }
 
 async function load() {
@@ -135,39 +150,55 @@ async function fetchSnapshot(owner, id) {
 function onVisibility() { hidden = document.hidden; if (!hidden) load(); }
 watch(() => auth.user.value?.id, (next, old) => { if (next !== old) { version++; rows.value = []; device.value = null; loading.value = false; if (next) load(); } });
 watch([deviceId, starterId, day], load);
+watch(showEmpty, syncHeader);
 onMounted(async () => {
   await auth.init();
   document.addEventListener('visibilitychange', onVisibility);
-  if (auth.user.value) load();
+  if (auth.user.value) await load();
+  syncHeader();
 });
-onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychange', onVisibility); });
+onBeforeUnmount(() => {
+  version++;
+  document.removeEventListener('visibilitychange', onVisibility);
+  if (headerTitle) headerTitle.value = '';
+  if (headerTone) headerTone.value = '';
+});
 </script>
 
 <template>
-  <main class="m-page mobile-trend">
-    <header class="trend-head">
-      <div class="trend-title">
-        <h1>{{ device?.name || '数据明细' }}</h1>
-        <p class="m-muted">{{ summaryText }}</p>
+  <main class="m-page mobile-trend" :class="{ 'is-empty': showEmpty }">
+    <header v-if="showEmpty" class="device-row">
+      <span class="device-disc" aria-hidden="true"><img :src="deviceHat" alt="" width="32" height="21" /></span>
+      <div>
+        <strong>{{ device.name || '设备' }}</strong>
+        <p>设备编号 {{ device.device_id }}</p>
       </div>
+      <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="calendarOpen = !calendarOpen">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
+    </header>
+    <header v-else class="trend-head">
+      <p class="m-muted">{{ device?.name || '设备' }} · {{ summaryText }}</p>
       <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="calendarOpen = !calendarOpen">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
     </header>
     <MCalendar v-if="calendarOpen" class="trend-calendar" :model-value="day" :max="todayValue" @update:model-value="changeDay" />
     <p v-if="completeness" class="m-error">{{ completeness }}</p>
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
-    <div v-if="loading" class="m-skeleton" role="status" aria-label="正在读取设备数据"><span></span><span></span><span></span></div>
+    <div v-if="loading && !showEmpty" class="m-skeleton" role="status" aria-label="正在读取设备数据"><span></span><span></span><span></span></div>
 
-    <section class="chart-card" aria-label="全天设备数据">
-      <div class="chart-title"><strong>全天数据</strong><span>{{ rows.length }} 条采样</span></div>
-      <div class="chart-grid">
-        <div class="chart-cell"><MDraggableChart label="高度" unit=" mm" color="var(--chart-height)" :points="chartPoints.height" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-        <div class="chart-cell"><MDraggableChart label="温度" unit="°C" color="var(--chart-temp)" :points="chartPoints.temperature" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-        <div class="chart-cell"><MDraggableChart label="湿度" unit="%" color="var(--chart-humidity)" :points="chartPoints.humidity" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-        <div class="chart-cell"><MDraggableChart label="电量" unit="%" color="var(--chart-battery)" :points="chartPoints.battery" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-      </div>
+    <section v-if="showEmpty" class="sample-empty">
+      <span class="empty-mark" aria-hidden="true"><img :src="emptyChart" alt="" width="18" height="18" /></span>
+      <h2>暂无数据</h2>
+      <p>设备同步后，可在这里查看采样记录。</p>
+      <button type="button" class="empty-refresh" :disabled="refreshing" @click="refresh">刷新数据</button>
     </section>
 
-    <section class="table-card">
+    <section v-else class="metric-stack" aria-label="全天数据">
+      <div class="metric-chart is-rise"><MDraggableChart label="高度" caption="当前" unit=" mm" color="var(--brand-primary)" :height="200" :points="chartPoints.height" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-temp"><MDraggableChart label="温度" caption="当前" unit="°C" color="var(--brand-primary)" :height="126" :points="chartPoints.temperature" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-humidity"><MDraggableChart label="湿度" caption="当前" unit="%" color="var(--brand-primary)" :height="126" :points="chartPoints.humidity" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-battery"><MDraggableChart label="电量" caption="当前" unit="%" color="var(--chart-battery)" :height="126" :points="chartPoints.battery" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+    </section>
+
+    <section v-if="!showEmpty" class="table-card">
       <details class="table-details">
         <summary class="chart-title">
           <strong>数据明细</strong>
@@ -206,34 +237,49 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 
 <style scoped>
 .mobile-area .m-page.mobile-trend{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
-.trend-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
-.trend-title h1{margin:0;font-size:var(--text-xl);line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
-.trend-title p{margin:4px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}
+.mobile-area .m-page.mobile-trend.is-empty{padding-top:16px}
+.device-row{display:flex;align-items:center;gap:12px;min-height:40px;margin:0 0 72px}
+.device-disc{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:20px;background:var(--m-icon-disc)}
+.device-row div{min-width:0}
+.device-row strong{display:block;overflow:hidden;font-size:16px;line-height:24px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
+.device-row p{margin:0;overflow:hidden;color:var(--text-secondary);font-size:12px;line-height:18px;text-overflow:ellipsis;white-space:nowrap}
+.device-row .day-picker{margin-left:auto}
+.sample-empty{display:grid;justify-items:center;text-align:center}
+.empty-mark{display:grid;place-items:center;width:64px;height:64px;border-radius:32px;background:var(--m-icon-disc)}
+.sample-empty h2{margin:24px 0 0;font-size:18px;line-height:26px;font-weight:500}
+.sample-empty p{margin:8px 0 0;color:var(--text-secondary);font-size:14px;line-height:21px}
+.empty-refresh{width:100%;height:60px;margin-top:24px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px;font-weight:500;cursor:pointer}
+.empty-refresh:disabled{opacity:.6;cursor:default}
+.trend-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
+.trend-head p{margin:0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .day-picker{flex:none;min-height:36px;padding:0 12px;border:1px solid var(--border-warm);border-radius:18px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:13px;cursor:pointer}
 .trend-calendar{margin:0 0 14px}
-.chart-card{margin:0 0 14px;padding:var(--m-card-space);border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow)}
+.metric-stack{display:grid;gap:12px;margin:0 0 14px}
+.metric-chart{min-width:0;padding:12px 16px 16px;border:0;border-radius:var(--radius-card);background:var(--m-chart-rise)}
+.metric-chart.is-temp{background:var(--m-chart-warm)}
+.metric-chart.is-humidity{background:var(--m-chart-pale)}
+.metric-chart.is-battery{background:var(--surface-card);box-shadow:var(--m-shadow)}
 .chart-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .chart-title strong{font-size:15px;font-weight:500;color:var(--text-primary)}
 .chart-title span{font-size:12px;color:var(--text-secondary)}
-.chart-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-.chart-cell{min-width:0}
-.chart-grid :deep(.series-chart){min-width:0;--series-stroke:1.5px}
-.chart-grid :deep(.series-plot){position:relative;height:126px}
-.chart-grid :deep(svg){display:block;width:100%;height:126px}
-.chart-grid :deep(.series-line){fill:none;stroke-width:1.5}
-.chart-grid :deep(.series-grid){stroke:var(--border-subtle);stroke-width:.3;stroke-dasharray:2 2}
-.chart-grid :deep(.series-dot),.chart-grid :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
-.chart-grid :deep(.series-dot){border-radius:0}
-.chart-grid :deep(.series-hover-dot){border-radius:50%}
-.chart-grid :deep(.series-guide){stroke:var(--text-secondary);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
-.chart-grid :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:var(--text-xs);color:var(--text-secondary);background:var(--surface-warm);border-radius:var(--radius-control)}
-.chart-grid :deep(.series-value){font-size:16px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.chart-grid :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:6px}
-.chart-grid :deep(.series-headline){display:flex;align-items:baseline;gap:4px;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
-.chart-grid :deep(.series-label){font-size:13px;font-weight:500}
-.chart-grid :deep(.series-delta){display:none}
-.chart-grid :deep(.series-range){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px;min-width:0}
-.chart-grid :deep(.series-time-range){white-space:nowrap}
+.metric-chart :deep(.series-chart){min-width:0;--series-stroke:1.5px}
+.metric-chart :deep(.series-plot){position:relative;height:var(--m-chart-height,126px)}
+.metric-chart :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
+.metric-chart :deep(.series-line){fill:none;stroke-width:1.5}
+.metric-chart :deep(.series-grid){stroke:var(--border-subtle);stroke-width:.3;stroke-dasharray:2 2}
+.metric-chart :deep(.series-dot),.metric-chart :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
+.metric-chart :deep(.series-dot){border-radius:0}
+.metric-chart :deep(.series-hover-dot){border-radius:50%}
+.metric-chart :deep(.series-guide){stroke:var(--text-secondary);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
+.metric-chart :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:var(--text-xs);color:var(--text-secondary);background:transparent;border-radius:var(--radius-control)}
+.metric-chart :deep(.series-value){font-size:16px;font-weight:500;line-height:23px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.metric-chart :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:6px}
+.metric-chart :deep(.series-headline){display:flex;align-items:baseline;gap:4px;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
+.metric-chart :deep(.series-label){font-size:14px;font-weight:500;letter-spacing:0;line-height:20px;color:var(--text-primary)}
+.metric-chart :deep(.series-delta){display:none}
+.metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px}
+.metric-chart :deep(.series-range){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px;min-width:0}
+.metric-chart :deep(.series-time-range){white-space:nowrap}
 .table-card{margin:0 0 14px;padding:var(--m-card-space);border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow)}
 /* 明细默认折叠：只留一行标题，用户点开才铺开采样表。 */
 .table-details>summary{list-style:none;cursor:pointer;min-height:32px;margin-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px}

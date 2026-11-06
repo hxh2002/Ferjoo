@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onBeforeUnmount, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
@@ -51,16 +51,29 @@ function settleSlider() {
 const cachedTabs = ['MobileDeviceHome', 'MobileDiary', 'MobileMe'];
 const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
+const headerAside = ref('');
+const headerTitle = ref('');
+const headerTone = ref('');
+provide('mobileHeaderAside', headerAside);
+provide('mobileHeaderTitle', headerTitle);
+provide('mobileHeaderTone', headerTone);
 const title = computed(() => {
+  if (headerTitle.value) return headerTitle.value;
   if (typeof route.meta.title === 'string') return route.meta.title;
   if (route.path === '/me/devices/add') return '添加设备';
   if (/^\/me\/devices\/[^/]+\/info$/.test(route.path)) return '设备信息';
-  if (route.path.startsWith('/devices/')) return '设备数据';
+  if (route.path.startsWith('/devices/')) return '数据详情';
   if (route.path.startsWith('/doctor/')) return '酵种医生';
   if (route.path.startsWith('/diary/records/')) return '数据详情';
   if (route.path.startsWith('/reports/')) return '诊断报告';
   if (route.path.startsWith('/me/devices/')) return '设备设置';
   return ({ '/checkin': '诊断记录', '/feeding': '记录喂养', '/reports': '诊断报告', '/me': '我的', '/me/devices': '我的设备', '/me/profile': '个人资料', '/me/profile/edit': '编辑资料', '/me/invite': '我的邀请码', '/me/notifications': '通知设置', '/me/account': '修改密码', '/me/help': '关于与帮助', '/me/help/faq': '常见问题', '/me/help/feedback': '意见反馈', '/me/help/privacy': '隐私与权限', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
+});
+const navTone = computed(() => {
+  if (headerTone.value) return headerTone.value;
+  if (route.path === '/feeding') return 'feeding';
+  if (route.path.startsWith('/diary/records/') || route.path.startsWith('/devices/') || route.path.startsWith('/reports/')) return 'detail';
+  return '';
 });
 const backTarget = computed(() => {
   const returnTo = safeRedirect(route.query.returnTo, router);
@@ -118,11 +131,12 @@ function go(path) {
 
 <template>
   <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
-    <header v-if="!showTabs" class="mobile-topbar mobile-subbar">
+    <header v-if="!showTabs" class="mobile-topbar mobile-subbar" :class="navTone ? `is-${navTone}` : ''">
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span>返回</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span v-if="!navTone">返回</span>
       </button>
       <h1>{{ title }}</h1>
+      <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
     </header>
     <main class="mobile-main">
       <slot>
@@ -146,6 +160,17 @@ function go(path) {
 </template>
 
 <style scoped>
+.mobile-subbar.is-feeding,
+.mobile-subbar.is-detail,
+.mobile-subbar.is-settings { border-bottom: 0; background: transparent; box-shadow: none; }
+.mobile-subbar.is-feeding h1 { font-size: 24px; font-weight: 500; line-height: 35px; letter-spacing: 0; }
+.mobile-subbar.is-detail h1 { font-size: 20px; font-weight: 500; line-height: 29px; letter-spacing: 0; }
+.mobile-subbar.is-settings { flex-wrap: wrap; align-items: flex-start; min-height: 0; padding-bottom: 0; }
+.mobile-subbar.is-settings h1 { flex: 1 0 100%; margin: 8px 0 0; font-size: 28px; font-weight: 500; line-height: 36px; letter-spacing: 0; }
+.mobile-subbar.is-feeding .mobile-back,
+.mobile-subbar.is-detail .mobile-back { position: relative; width: 24px; min-width: 24px; }
+.mobile-subbar.is-settings .mobile-back { width: 44px; min-width: 44px; min-height: 44px; }
+.mobile-aside { margin-left: auto; color: var(--text-secondary); font-size: 13px; font-weight: 400; line-height: 22px; white-space: nowrap; }
 .mobile-page-enter-active { animation: mobile-arrive 280ms cubic-bezier(.2, .8, .3, 1); }
 .mobile-shell :deep(details[open] > :not(summary)),
 .mobile-shell :deep(.picker-row),

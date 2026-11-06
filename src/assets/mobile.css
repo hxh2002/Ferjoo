@@ -26,6 +26,11 @@
   --m-metric-mid: rgba(255, 176, 90, .18);
   --m-metric-soft: rgba(255, 176, 90, .12);
   --m-icon-disc: rgba(255, 176, 90, .16);
+  --m-chart-rise: #ffe7ce;
+  --m-chart-warm: #ffebd8;
+  --m-chart-pale: #fff0e1;
+  --m-chart-ink: #80360f;
+  --m-shadow-field: 0 4px 9px rgba(48, 37, 31, .07);
   --motion-fast: 140ms;
   --motion-base: 240ms;
   --m-spring: cubic-bezier(.22, 1.35, .42, 1);

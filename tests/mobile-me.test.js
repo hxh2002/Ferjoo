@@ -43,7 +43,13 @@ const toasts = {
 };
 for (const [file, text] of Object.entries(toasts)) assert.match(read(file.split('#')[0]), new RegExp(text));
 assert.doesNotMatch(read('src/views/mobile/MobileInvite.vue'), /邀请码已复制。/);
+assert.match(compile('src/views/mobile/MobileInvite.vue'), /点击复制邀请码/);
+assert.match(read('src/views/mobile/MobileInvite.vue'), /还可邀请/);
 assert.doesNotMatch(read('src/views/mobile/MobileAccount.vue'), /密码修改成功。/);
+assert.match(compile('src/views/mobile/MobileAccount.vue'), /确认修改/);
+assert.match(read('src/views/mobile/MobileAccount.vue'), /为了账号安全，请先验证当前密码。/);
+assert.match(compile('src/views/mobile/MobileDeviceInfo.vue'), /待设备上报/);
+assert.match(read('src/views/mobile/MobileDeviceInfo.vue'), /排查连接问题时，可提供设备编号和固件版本。/);
 
 const devices = compile('src/views/mobile/MobileDevices.vue');
 assert.match(devices, /<MConfirmDialog[\s\S]*danger[\s\S]*解除绑定/);

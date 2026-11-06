@@ -89,14 +89,17 @@ const occurredMinute = computed(() => String(draft.value.occurredAt || '').slice
 const timeSummary = computed(() => {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(draft.value.occurredAt || '');
   if (!match) return '选择时间';
-  return `${match[1]} 年 ${Number(match[2])} 月 ${Number(match[3])} 日  ${match[4]}:${match[5]}`;
+  return `${Number(match[2])} 月 ${Number(match[3])} 日 ${match[4]}:${match[5]}`;
 });
 const ratioSummary = computed(() => {
   const preset = [...ratioPresets, ...moreRatios].find((item) => item.value === draft.value.ratio);
   if (preset) return preset.label;
   return draft.value.ratio ? draft.value.ratio.split(':').join(' : ') : '选择比例';
 });
-const alertSummary = computed(() => (draft.value.heightAlert ? `${draft.value.heightAlert}×` : '不提醒'));
+const alertSummary = computed(() => {
+  const value = Number(draft.value.heightAlert);
+  return Number.isFinite(value) && value > 0 ? `${Math.round(value * 100)}%` : '不提醒';
+});
 const inputsLocked = computed(() => locked.value || saving.value);
 
 function toggleCard(name) {
@@ -281,10 +284,7 @@ async function save() {
 
 <template>
   <main class="m-page mobile-feeding" :data-phase="phase">
-    <header class="feeding-head">
-      <h1>记录喂养</h1>
-      <span class="phase-chip" :data-phase="phase">{{ phaseLabel }}</span>
-    </header>
+    <p v-if="phase !== 'editing'" class="phase-chip" :data-phase="phase">{{ phaseLabel }}</p>
 
     <p class="m-context m-muted">
       <span v-if="draft.starterId">当前酵种：{{ starterName }}</span>
@@ -340,7 +340,7 @@ async function save() {
         </fieldset>
       </MRecordCard>
 
-      <MRecordCard title="高度提醒" icon="alert" :summary="alertSummary" :open="openCard === 'alert'" :disabled="inputsLocked" content-id="feeding-alert" @toggle="toggleCard('alert')">
+      <MRecordCard class="alert-card" title="高度提醒" icon="alert" :summary="alertSummary" :open="openCard === 'alert'" :disabled="inputsLocked" content-id="feeding-alert" @toggle="toggleCard('alert')">
         <MWheelPicker class="alert-wheel" :model-value="String(draft.heightAlert)" :options="alertOptions" label="高度提醒" :disabled="inputsLocked" @update:model-value="chooseHeightAlert" />
         <p class="m-muted">{{ alertNotice || '留空表示不提醒。达到后每轮只推送一次。' }}</p>
         <RouterLink class="alert-settings" to="/me/notifications">高度预约的完整阈值在通知设置中管理</RouterLink>
@@ -368,15 +368,14 @@ async function save() {
 
 <style scoped>
 .mobile-area .m-page.mobile-feeding{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:0;gap:0}
-.feeding-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 10px}
-.feeding-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em}
-.phase-chip{flex:none;display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:13px;background:var(--m-icon-disc);color:var(--brand-action);font-size:12px;font-weight:500}
+.phase-chip{display:inline-flex;align-items:center;align-self:flex-start;min-height:26px;margin:0 0 10px;padding:0 10px;border-radius:13px;background:var(--m-icon-disc);color:var(--brand-action);font-size:12px;font-weight:500}
 .phase-chip[data-phase="saved"]{background:var(--success-bg);color:var(--success-text)}
 .phase-chip[data-phase="validating"],.phase-chip[data-phase="pending"]{background:var(--warning-bg);color:var(--warning-text)}
 .phase-chip[data-phase="saving"]{background:var(--brand-light);color:var(--text-primary)}
 .m-context{margin:0 0 12px;font-size:13px;line-height:19px;overflow-wrap:anywhere}
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
-.feeding-section{margin:0 0 8px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+.feeding-section{margin:0 0 9px;color:var(--text-secondary);font-size:var(--text-sm);font-weight:500;line-height:21px}
+.alert-card :deep(.m-record-card-summary){font-size:14px;line-height:21px}
 .feeding-form{display:grid;gap:12px}
 .time-switch{display:grid;grid-template-columns:minmax(0,1.786fr) minmax(0,1fr);gap:8px;max-width:295px}
 .time-switch button{height:48px;min-height:48px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-variant-numeric:tabular-nums;cursor:pointer}

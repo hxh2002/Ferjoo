@@ -13,7 +13,9 @@ const props = defineProps({
   interactive: { type: Boolean, default: true },
   bubble: { type: Boolean, default: true },
   highlight: { type: Boolean, default: true },
-  sticky: { type: Boolean, default: true }
+  sticky: { type: Boolean, default: true },
+  caption: { type: String, default: '' },
+  valueText: { type: String, default: '' }
 });
 const chartStyle = computed(() => ({ '--m-chart-height': `${props.height}px` }));
 
@@ -45,6 +47,8 @@ function elapsedCaption(point) {
     :points="points"
     :from="from"
     :to="to"
+    :caption="caption"
+    :value-text="valueText"
   >
     <template #tip="{ point }">
       <span>{{ elapsedCaption(point) }}</span>

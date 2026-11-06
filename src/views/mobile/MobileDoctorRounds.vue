@@ -89,8 +89,7 @@ watch([() => auth.user.value?.id, day, () => route.query.starter], () => { auth.
 <template>
   <main class="m-page doctor-rounds">
     <header class="doctor-head">
-      <h1>酵种医生</h1>
-      <p>选择发酵轮次</p>
+      <h1>选择发酵轮次</h1>
       <small>选择需要了解的一次喂养</small>
     </header>
     <div class="day-row">
@@ -115,10 +114,9 @@ watch([() => auth.user.value?.id, day, () => route.query.starter], () => { auth.
 </template>
 
 <style scoped>
-.doctor-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
-.doctor-head p{margin:12px 0 0;font-size:20px;line-height:28px;font-weight:500}
-.doctor-head small{display:block;margin-top:4px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
-.day-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 12px}
+.doctor-head h1{margin:0;font-size:21px;line-height:31px;font-weight:500}
+.doctor-head small{display:block;margin-top:6px;color:var(--text-secondary);font-size:14px;line-height:20px}
+.day-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:32px 0 12px}
 .day-row strong{font-size:14px;line-height:21px;font-weight:500}
 .day-picker,.month-entry,.retry{min-height:34px;padding:0 12px;border:1px solid var(--border-warm);border-radius:17px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px}
 .day-picker{width:115px;height:34px;padding:0 10px}

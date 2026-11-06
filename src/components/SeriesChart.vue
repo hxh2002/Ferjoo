@@ -32,7 +32,9 @@ const props = defineProps({
   // 三个开关独立于 sticky。sticky 只负责松手后停留再淡出；不传时保持原有悬停提示。
   interactive: { type: Boolean, default: false },
   bubble: { type: Boolean, default: true },
-  highlight: { type: Boolean, default: false }
+  highlight: { type: Boolean, default: false },
+  // 详情页把「当前 / 最高 / 平均」放在数值前；不传时标题行保持原样。
+  caption: { type: String, default: '' }
 });
 const emit = defineEmits(['select']);
 const canInteract = computed(() => props.interactive || props.sticky);
@@ -380,6 +382,7 @@ const bandBadges = computed(() => {
       <span class="series-label"><slot name="label">{{ label }}</slot></span>
       <div class="series-headline">
         <span v-if="stats" class="series-delta" :class="deltaClass">{{ deltaText }}</span>
+        <span v-if="caption" class="series-caption">{{ caption }}</span>
         <strong class="series-value">{{ valueText || fmt(stats?.last) }}</strong>
         <slot name="after-header" />
       </div>
@@ -639,6 +642,7 @@ const bandBadges = computed(() => {
 /* 数值和时间段保持完整，避免窄卡片把数字拆成多行。 */
 .series-head { min-width: 0; gap: 4px; }
 .series-headline { min-width: 0; flex: 0 1 auto; flex-wrap: nowrap; gap: 4px; }
+.series-caption { color: var(--text-secondary); font-size: 11px; font-weight: 400; line-height: 16px; }
 .series-value, .series-delta { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .series-range { flex-wrap: nowrap; min-width: 0; gap: 4px; }
 .series-range > :last-child { margin-left: auto; min-width: 0; }

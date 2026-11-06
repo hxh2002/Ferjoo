@@ -32,7 +32,7 @@ const heightMoreOpen = ref(false);
 const observePart = ref(1);
 const safetyOptions = {
   color: [{ value: 'normal', label: '未见异常' }, { value: 'suspicious', label: '彩色斑块 / 绒毛霉菌' }, { value: 'unknown', label: '不确定' }],
-  smell: [{ value: 'normal', label: '正常酸香' }, { value: 'suspicious', label: '明显腐败 / 恶臭' }, { value: 'unknown', label: '不确定' }]
+  smell: [{ value: 'normal', label: '未见异常' }, { value: 'suspicious', label: '明显腐败 / 恶臭' }, { value: 'unknown', label: '不确定' }]
 };
 const primaryHeights = computed(() => mobileOptions.height.filter((item) => ['none', 'slight', 'near', 'double'].includes(item.value)));
 const moreHeights = computed(() => [...mobileOptions.height.filter((item) => !['none', 'slight', 'near', 'double'].includes(item.value)), { value: 'unknown', label: '不确定' }]);
@@ -54,10 +54,12 @@ const autoHeight = computed(() => {
   return summary ? heightBand(summary.baselineHeightMm, summary.currentHeightMm) : null;
 });
 const heightOverridden = computed(() => !!autoHeight.value && draft.value.height !== autoHeight.value.value);
+const reviewKeys = computed(() => diagnosisMode.value ? ['color', 'smell', 'height', 'ratio', 'elapsedHours'] : Object.keys(fieldLabels));
+const diagnosisReviewLabels = { color: '颜色 / 霉斑', smell: '气味', height: '涨幅表现', ratio: '喂养比例', elapsedHours: '喂养后经过' };
 const summaryKeys = computed(() => ['color', 'smell', ...Object.keys(fieldLabels).filter((key) => !['color', 'smell'].includes(key) && draft.value[key] !== '' && draft.value[key] != null)]);
 const emptySummaryKeys = computed(() => Object.keys(fieldLabels).filter((key) => !summaryKeys.value.includes(key)));
 watch([accountId, () => route.query.starter, () => route.query.mode, () => route.query.feeding], () => {
-  if (diagnosisMode.value) replace({ ...emptyCheckin(), starterId: typeof route.query.starter === 'string' ? route.query.starter : '' });
+  if (diagnosisMode.value && route.query.edit !== 'session') replace({ ...emptyCheckin(), starterId: typeof route.query.starter === 'string' ? route.query.starter : '' });
   if (typeof route.query.starter === 'string' && route.query.starter !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId: route.query.starter });
     else draft.value.starterId = route.query.starter;
@@ -65,9 +67,9 @@ watch([accountId, () => route.query.starter, () => route.query.mode, () => route
   errors.value = {};
   pending.value = {};
 }, { immediate: true });
-if (!diagnosisMode.value && route.query.edit === 'session') {
+if (route.query.edit === 'session') {
   const report = loadSessionReport(accountId.value);
-  if (report) replace({ ...report.input, step: 1 });
+  if (report) replace({ ...report.input, starterId: report.starterId || report.input?.starterId || '', step: diagnosisMode.value ? 3 : 1 });
 }
 let contextGeneration = 0;
 watch([accountId, () => draft.value.starterId, () => route.query.feeding, () => route.query.mode], async ([owner, starterId, feedingId]) => {
@@ -124,9 +126,14 @@ function observationReady(part = observePart.value) {
   return draft.value.height !== '' && draft.value.height != null;
 }
 const canAdvance = computed(() => step.value > 1 || observationReady());
+function reviewLabel(key) {
+  return diagnosisMode.value ? diagnosisReviewLabels[key] || fieldLabels[key] : fieldLabels[key];
+}
 function reviewValue(key) {
   const value = draft.value[key];
   if (value === '' || value == null) return '未选择';
+  if (diagnosisMode.value && safetyOptions[key]) return safetyOptions[key].find((item) => item.value === value)?.label || describeField(key, value);
+  if (diagnosisMode.value && key === 'elapsedHours') return `${value} 小时`;
   return describeField(key, value);
 }
 function back() {
@@ -200,13 +207,13 @@ function applyPending(key) {
       <span v-if="step === 1" class="observe-index">观察 {{ observePart }} / {{ skipsBackground ? 2 : 3 }}</span>
       <span v-if="draft.starterId" class="checkin-starter">{{ starterName }}</span>
     </header>
-    <ol v-if="!(diagnosisMode && step === 1)" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
+    <ol v-if="!(diagnosisMode && (step === 1 || step === 3))" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
       <li v-for="n in stepMeta.total" :key="n" :class="{ active: n === stepMeta.index, done: n < stepMeta.index }">
         <span class="step-dot" aria-hidden="true"></span>
         <span class="step-label">{{ n === 1 ? '观察' : n === 2 && stepMeta.total === 3 ? '本轮' : '核对' }}</span>
       </li>
     </ol>
-    <p v-if="!(diagnosisMode && step === 1)" class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
+    <p v-if="!(diagnosisMode && (step === 1 || step === 3))" class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
     <section v-if="diagnosisMode && feedingEvidence" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
@@ -227,13 +234,14 @@ function applyPending(key) {
           <span v-if="errors.color" class="m-error">{{ errors.color }}</span>
         </div>
         <div v-else-if="observePart === 2" :aria-invalid="!!errors.smell" tabindex="-1">
-          <h2>闻起来是什么气味？</h2>
-          <span id="smell-help" class="m-muted">区分酸香、酒精味与腐败味。</span>
+          <h2>酵种闻起来怎么样？</h2>
+          <span id="smell-help" class="m-muted">无法判断时，请选择“不确定”。</span>
           <MRadioCard :model-value="draft.smell" :options="safetyOptions.smell" label="气味" marker="end" @update:model-value="selectSafety('smell', $event)" />
           <span v-if="errors.smell" class="m-error">{{ errors.smell }}</span>
         </div>
         <div v-else :aria-invalid="!!errors.height" tabindex="-1">
           <h2>这次发酵的涨幅如何？</h2>
+          <p class="height-note">设备数据可供参考，也可以手动修改。</p>
           <MRadioCard :model-value="draft.height" :options="primaryHeights" :columns="2" label="主要涨幅表现" marker="end" @update:model-value="selectHeight" />
           <button type="button" class="more-heights" :aria-expanded="showMoreHeights" @click="heightMoreOpen = !heightMoreOpen">{{ showMoreHeights ? '收起更多情况' : '查看更多情况' }}</button>
           <MRadioCard v-if="showMoreHeights" :model-value="draft.height" :options="moreHeights" :columns="2" label="更多涨幅情况" marker="end" @update:model-value="selectHeight" />
@@ -241,7 +249,7 @@ function applyPending(key) {
           <span v-else-if="diagnosisMode && feedingEvidence" class="m-muted">缺少有效起始高度或最新高度，无法自动计算，请手动选择。</span>
           <span v-if="errors.height" class="m-error">{{ errors.height }}</span>
         </div>
-        <p class="safety-note"><strong>请勿品尝生酵种。</strong><span>设备不能判断颜色、气味或食品安全，请逐项确认。</span></p>
+        <p v-if="observePart === 1" class="safety-note"><strong>请勿品尝生酵种。</strong><span>设备不能判断颜色、气味或食品安全，请逐项确认。</span></p>
         <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
@@ -257,11 +265,15 @@ function applyPending(key) {
         <button type="button" class="m-secondary" :aria-expanded="extra" @click="extra = !extra">{{ extra ? '收起' : '补充' }} pH 与备注（可选）</button>
         <div v-show="extra"><label class="m-field">pH<input v-model="draft.ph" type="number" step="any" inputmode="decimal" :aria-invalid="!!errors.ph"><span v-if="errors.ph" class="m-error">{{ errors.ph }}</span></label><label class="m-field">备注<textarea v-model="draft.notes" rows="3" /></label></div>
       </section>
-      <section v-show="step === 3" class="m-card">
+      <section v-show="step === 3" class="review-step">
+        <p v-if="diagnosisMode" class="observe-index">最后一步</p>
         <h2>确认本次信息</h2>
-        <p class="sample-note">示例数据 · 可返回修改</p>
+        <p v-if="diagnosisMode" class="m-muted">请核对后再生成建议。</p>
+        <div class="review-card">
         <p v-if="skipsBackground" class="skip-note">安全答案需要优先处理，已跳过后续观察；本次不会生成常规养护结论。</p>
-        <dl><template v-for="(label, key) in fieldLabels" :key="key"><dt>{{ label }}</dt><dd>{{ reviewValue(key) }}<small class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
+        <dl><template v-for="key in reviewKeys" :key="key"><dt>{{ reviewLabel(key) }}</dt><dd>{{ reviewValue(key) }}<small v-if="!diagnosisMode" class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
+        </div>
+        <p class="sample-note">示例数据 · 可返回修改</p>
         <p v-if="draft.quickText" class="note">原始一句话：{{ draft.quickText }}</p>
         <button type="button" class="m-secondary" @click="draft.step = 1; observePart = 1">修改观察</button> <button v-if="!skipsBackground" type="button" class="m-secondary" @click="draft.step = 2">修改背景</button>
       </section>
@@ -277,12 +289,19 @@ function applyPending(key) {
 .checkin-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
 .observe-index{flex:none;color:var(--text-secondary);font-size:13px;line-height:19px}
 .checkin-starter{flex:none;display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:14px;background:var(--m-icon-disc);color:var(--brand-action);font-size:13px;font-weight:500;max-width:50vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sample-note{margin:0 0 8px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+.review-step h2{margin:8px 0;font-size:21px;line-height:31px;font-weight:500}
+.review-step > .m-muted{display:block;margin:0 0 16px;font-size:13px;line-height:19px}
+.review-card{padding:8px 16px 16px;border-radius:20px;background:var(--surface-card)}
+.review-card dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 12px;margin:12px 0 0;align-items:baseline}
+.review-card dt{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
+.review-card dd{margin:0;font-size:14px;line-height:21px;font-weight:500;text-align:right}
+.sample-note{margin:12px 0 8px;color:var(--text-secondary);font-size:12px;line-height:18px}
 .observe-step h2{margin:18px 0 8px;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
 .observe-step .m-muted{display:block;margin:0 0 16px;font-size:13px;line-height:19px}
 .safety-note{display:grid;gap:2px;margin:16px 0 0;padding:12px 14px;border-radius:15px;background:var(--m-icon-disc);color:var(--text-primary)}
 .safety-note strong{font-size:13px;line-height:19px;font-weight:500}
 .safety-note span{font-size:11px;line-height:16px;color:var(--text-secondary);font-weight:400}
+.height-note{display:block;margin:0 0 16px;color:var(--text-secondary);font-size:13px;line-height:19px}
 .more-heights{min-height:44px;margin:8px 0;padding:0;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);cursor:pointer}
 .step-track{display:flex;align-items:center;gap:0;list-style:none;margin:0 0 12px;padding:0}
 .step-track li{display:flex;align-items:center;gap:6px;flex:1;font-size:12px;color:var(--text-secondary)}

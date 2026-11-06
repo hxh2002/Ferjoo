@@ -49,11 +49,11 @@ const paths = {
 </template>
 
 <style scoped>
-.m-record-card { overflow: hidden; border: 1px solid var(--border-warm); border-radius: var(--radius-card); background: var(--surface-card); box-shadow: var(--m-shadow); }
+.m-record-card { overflow: hidden; border: 0; border-radius: var(--radius-card); background: var(--surface-card); box-shadow: var(--m-shadow-field, 0 4px 9px rgba(48, 37, 31, .07)); }
 .m-record-card-toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 14px 16px; border: 0; background: transparent; text-align: left; cursor: pointer; }
-.m-record-card-title { flex: none; color: var(--text-primary); font-size: var(--text-sm); font-weight: 500; line-height: 21px; }
-.m-record-card-summary { flex: 1; min-width: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 21px; text-align: right; }
-.m-record-card-chevron { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--text-secondary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
+.m-record-card-title { flex: none; color: var(--text-primary); font-size: var(--text-md); font-weight: 400; line-height: 24px; }
+.m-record-card-summary { flex: none; min-width: 0; margin-left: 16px; color: var(--text-primary); font-size: var(--text-md); font-weight: 400; line-height: 24px; text-align: left; }
+.m-record-card-chevron { flex: none; width: 18px; height: 18px; margin-left: auto; fill: none; stroke: var(--text-secondary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
 .is-open .m-record-card-chevron { transform: rotate(180deg); }
 .m-record-card-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
 .m-record-card-panel.is-open { grid-template-rows: 1fr; }

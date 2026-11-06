@@ -1,5 +1,7 @@
 <script setup>
-import { computed, onScopeDispose, ref, watch } from 'vue';
+import { computed, inject, onScopeDispose, ref, watch } from 'vue';
+import iconScales from '../../assets/device/icon-scales.svg';
+import iconTimer from '../../assets/device/icon-timer.svg';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { getCareRecord, listStarters } from '../../services/care.service.js';
@@ -11,6 +13,7 @@ import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 
 const route = useRoute();
 const router = useRouter();
+const headerAside = inject('mobileHeaderAside', null);
 const { user } = useAuth();
 const record = ref(null);
 const evidence = ref(null);
@@ -75,8 +78,24 @@ const durationText = computed(() => {
   if (!Number.isFinite(hours) || hours < 0) return '—';
   const minutes = Math.round(hours * 60);
   const h = Math.floor(minutes / 60); const m = minutes % 60;
-  return h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
+  if (!h) return `${m} 分钟`;
+  return m ? `${h} 小时 ${m} 分钟` : `${h} 小时`;
 });
+const asideDate = computed(() => {
+  const date = new Date(record.value?.occurred_at);
+  return Number.isFinite(date.getTime()) ? `${date.getMonth() + 1} 月 ${date.getDate()} 日` : '';
+});
+const roundMeta = computed(() => {
+  const from = Date.parse(summary.value?.windowFrom || record.value?.occurred_at);
+  if (!Number.isFinite(from)) return '';
+  return `${clockText(from)} 开始 · ${summary.value?.windowClosed ? '已结束' : '进行中'}`;
+});
+function averageText(points, digits, suffix) {
+  const values = (points || []).map((point) => point.v).filter((value) => Number.isFinite(value));
+  if (!values.length) return '';
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return `${mean.toFixed(digits)}${suffix}`;
+}
 const temperatureText = computed(() => Number.isFinite(summary.value?.tempC) ? `${summary.value.tempC.toFixed(1)} °C` : '');
 function chartSeries(rows, key) {
   return rows.map((row) => {
@@ -129,6 +148,7 @@ const hint = computed(() => {
   if (!value.measurementCount) return '本轮没有可用的设备采样，仅保留喂养事实。';
   return '';
 });
+watch(asideDate, (value) => { if (headerAside) headerAside.value = value; }, { immediate: true });
 let generation = 0;
 watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
   const token = ++generation;
@@ -162,19 +182,38 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
   } catch (cause) { if (token === generation) error.value = cause.message || '记录加载失败。'; }
   finally { if (token === generation) loading.value = false; }
 }, { immediate: true });
-onScopeDispose(() => { generation++; });
+onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; });
 </script>
 
 <template>
   <main class="m-page mobile-record-detail">
-    <header class="detail-head"><h1>数据详情</h1><p class="m-muted">{{ name }}<template v-if="when"> · {{ when }}</template></p></header>
+    <p v-if="roundMeta" class="round-meta">{{ roundMeta }}</p>
     <div v-if="loading" class="m-skeleton" role="status" aria-label="正在加载"><span></span><span></span><span></span></div>
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
-    <section v-if="record" class="detail-summary" aria-label="本次喂养">
-      <div><span>喂养比例</span><strong>{{ describeField('ratio', record.ratio) }}</strong></div>
-      <div><span>已发酵</span><strong>{{ durationText }}</strong></div>
+    <section v-if="record" class="feed-summary" aria-label="本次喂养">
+      <span class="feed-cell">
+        <span class="feed-head"><span class="disc"><img :src="iconScales" alt="" width="16" height="16" /></span><span class="feed-label">喂养比例</span></span>
+        <strong class="feed-value">{{ describeField('ratio', record.ratio) }}</strong>
+      </span>
+      <span class="feed-cell">
+        <span class="feed-head"><span class="disc"><img :src="iconTimer" alt="" width="16" height="16" /></span><span class="feed-label">已发酵</span></span>
+        <strong class="feed-value">{{ durationText }}</strong>
+      </span>
     </section>
-    <section v-if="record" class="m-card window-card">
+    <section v-if="roundCharts" class="metric-stack" aria-label="本轮曲线">
+      <div v-if="roundCharts.expansion" class="metric-chart is-rise">
+        <MDraggableChart label="膨胀率" caption="最高" :value-text="peakExpansion ? `${peakExpansion}%` : ''" unit="%" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+      <div v-if="roundCharts.temperature" class="metric-chart is-temp">
+        <MDraggableChart label="温度" caption="平均" :value-text="averageText(roundCharts.temperature, 1, '°C')" unit="°C" color="var(--brand-primary)" :height="126" :points="roundCharts.temperature" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+      <div v-if="roundCharts.humidity" class="metric-chart is-humidity">
+        <MDraggableChart label="湿度" caption="平均" :value-text="averageText(roundCharts.humidity, 0, '%')" unit="%" color="var(--brand-primary)" :height="126" :points="roundCharts.humidity" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+    </section>
+    <details v-if="record" class="detail-more">
+      <summary>本轮记录</summary>
+      <p class="m-muted">{{ name }}<template v-if="when"> · {{ when }}</template></p>
       <div class="window-head">
         <div><strong>{{ describeField('ratio', record.ratio) }}</strong><small>喂养比例（老种 : 水 : 面粉）</small></div>
         <span v-if="state" class="window-state" :data-tone="state.tone">{{ state.label }}</span>
@@ -196,21 +235,7 @@ onScopeDispose(() => { generation++; });
       <p v-if="temperatureText" class="window-meta">轮次均温 {{ temperatureText }}</p>
       <p v-if="hint" class="window-hint">{{ hint }}</p>
       <p v-if="evidenceText" class="window-meta">{{ evidenceText }}</p>
-    </section>
-    <section v-if="roundCharts" class="m-card chart-card" aria-label="本轮曲线">
-      <div v-if="roundCharts.expansion" class="chart-block">
-        <div class="chart-title"><strong>膨胀率</strong><span v-if="peakExpansion">最高 {{ peakExpansion }}%</span></div>
-        <MDraggableChart label="膨胀率" unit="%" color="var(--chart-height)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
-      </div>
-      <div v-if="roundCharts.temperature" class="chart-block">
-        <div class="chart-title"><strong>温度</strong></div>
-        <MDraggableChart label="温度" unit="°C" color="var(--chart-temp)" :height="126" :points="roundCharts.temperature" :from="roundCharts.from" :to="roundCharts.to" />
-      </div>
-      <div v-if="roundCharts.humidity" class="chart-block">
-        <div class="chart-title"><strong>湿度</strong></div>
-        <MDraggableChart label="湿度" unit="%" color="var(--chart-humidity)" :height="126" :points="roundCharts.humidity" :from="roundCharts.from" :to="roundCharts.to" />
-      </div>
-    </section>
+    </details>
     <section v-if="record" class="m-card">
       <template v-if="weights"><h2>投喂重量</h2><p>{{ weights }}</p></template>
       <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
@@ -220,11 +245,26 @@ onScopeDispose(() => { generation++; });
 
 <style scoped>
 .mobile-record-detail{overflow-wrap:anywhere}
-.detail-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
-.detail-summary{display:grid;grid-template-columns:1fr 1fr;align-items:center;min-height:76px;padding:12px 16px;border:1px solid var(--border-warm);border-radius:var(--radius-card);background:var(--surface-card)}
-.detail-summary div{display:grid;gap:4px;min-width:0}
-.detail-summary span{color:var(--text-secondary);font-size:12px;line-height:18px}
-.detail-summary strong{font-size:16px;line-height:24px;font-weight:500}
+.round-meta{margin:0;color:var(--text-secondary);font-size:11px;line-height:16px}
+.feed-summary{display:grid;grid-template-columns:1fr 1fr;min-height:76px;padding:8px 0;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow)}
+.feed-cell{display:grid;gap:4px;align-content:start;min-width:0;padding:0 18px}
+.feed-cell+.feed-cell{border-left:1px solid var(--border-warm)}
+.feed-head{display:flex;align-items:center;gap:6px;min-width:0}
+.disc{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:50%;background:var(--m-icon-disc)}
+.disc img{display:block}
+.feed-label{font-size:14px;line-height:21px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed-value{font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.metric-stack{display:grid;gap:12px}
+.metric-chart{padding:12px 16px 16px;border:0;border-radius:var(--radius-card);background:var(--m-chart-rise)}
+.metric-chart.is-temp{background:var(--m-chart-warm)}
+.metric-chart.is-humidity{background:var(--m-chart-pale)}
+.metric-chart :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.metric-chart :deep(.series-label){font-size:14px;font-weight:500;letter-spacing:0;line-height:20px;color:var(--text-primary)}
+.metric-chart :deep(.series-value){font-size:16px;font-weight:500;line-height:23px;color:var(--text-primary)}
+.metric-chart :deep(.series-delta),.metric-chart :deep(.series-now){display:none}
+.metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px}
+.detail-more{border-top:1px solid var(--border-warm);border-bottom:1px solid var(--border-warm)}
+.detail-more summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-size:14px;font-weight:500}
 .m-card{margin:1rem 0;padding:1rem;border:1px solid var(--border-default);background:var(--surface-card)}
 .m-card h2{margin:0 0 .35rem;font-size:.9rem}
 .m-card p{margin:.2rem 0 .6rem}
@@ -249,12 +289,8 @@ header p{margin:.25rem 0 0;font-size:.8rem}
 .measure-grid small{font-size:.62rem;color:var(--text-secondary)}
 .window-meta{margin:.6rem 0 0;font-size:.72rem;color:var(--text-secondary)}
 .window-hint{margin:.6rem 0 0;padding:.5rem .6rem;border-radius:var(--radius-control);background:var(--warning-bg);font-size:.72rem;line-height:1.5;color:var(--warning-text)}
-.chart-block + .chart-block{margin-top:16px}
-.chart-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px}
-.chart-title strong{font-size:15px;font-weight:500}
-.chart-title span{color:var(--text-secondary);font-size:12px}
-.chart-card :deep(.series-plot){height:var(--m-chart-height,126px)}
-.chart-card :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
+.metric-chart :deep(.series-plot){height:var(--m-chart-height,126px)}
+.metric-chart :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
 .m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid var(--border-input);color:inherit;text-decoration:none}
 .m-error{color:var(--danger-text)}
 </style>

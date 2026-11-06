@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { mobileDeviceService, mobileError, normalizeBindCode } from '../../services/mobile-device.service.js';
 
 const router = useRouter();
 const auth = useAuth();
+const headerTone = inject('mobileHeaderTone', null);
 const code = ref('');
 const confirmed = ref(false);
 const error = ref('');
@@ -39,13 +40,15 @@ async function submit() {
     saving.value = false;
   }
 }
+onMounted(() => { if (headerTone) headerTone.value = 'settings'; });
+onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 </script>
 
 <template>
-  <main class="m-page">
-    <h1>添加设备</h1>
-    <form class="m-card" @submit.prevent="submit">
-      <label>设备编号<input v-model="code" autocomplete="off" autocapitalize="characters" maxlength="24" aria-describedby="code-error" /></label>
+  <main class="m-page add-device">
+    <form @submit.prevent="submit">
+      <label class="code-field">设备编号<input v-model="code" autocomplete="off" autocapitalize="characters" maxlength="24" placeholder="请输入设备编号" aria-describedby="code-hint code-error" /></label>
+      <p id="code-hint" class="hint">编号可在设备标签或说明书中查看。</p>
       <p v-if="error" id="code-error" class="m-error" role="alert">{{ error }}</p>
       <label class="confirm"><input v-model="confirmed" type="checkbox" />我确认：绑定后可查看这台设备的全部历史采样。</label>
       <button class="m-primary" :disabled="saving">{{ saving ? '绑定中…' : '绑定设备' }}</button>
@@ -54,10 +57,11 @@ async function submit() {
 </template>
 
 <style scoped>
-h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
-label{display:grid;gap:8px;font-size:var(--text-sm)}
-input:not([type="checkbox"]){min-height:64px;padding:0 16px;border:1px solid var(--border-input);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:16px}
-input[type="checkbox"]{width:24px}
-.confirm{display:flex;align-items:center;gap:8px;margin:12px 0}
-.m-primary{width:100%;min-height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary)}
+.mobile-area .m-page.add-device{padding-top:16px}
+.code-field{display:grid;gap:8px;color:var(--text-primary);font-size:var(--text-sm);line-height:21px}
+input:not([type="checkbox"]){min-height:64px;padding:0 16px;border:1px solid var(--border-input);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md);line-height:24px}
+input[type="checkbox"]{width:24px;height:24px}
+.hint{margin:8px 0 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+.confirm{display:flex;align-items:center;gap:8px;margin:16px 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+.m-primary{width:100%;min-height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500}
 </style>

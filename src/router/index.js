@@ -27,7 +27,7 @@ const routes = [
       { path: 'doctor/rounds', name: 'doctor-rounds', component: () => import('../views/mobile/MobileDoctorRounds.vue'), meta: { requiresAuth: true, title: '酵种医生' } },
       { path: 'checkin', name: 'mobile-checkin', component: () => import('../views/mobile/MobileCheckin.vue'), meta: { title: '酵种医生' }, beforeEnter: (to) => (to.query.feeding || to.query.edit === 'session' ? true : { path: '/doctor/rounds', query: to.query, replace: true }) },
       { path: 'feeding', name: 'mobile-feeding', component: () => import('../views/mobile/MobileFeeding.vue'), meta: { requiresAuth: true } },
-      { path: 'reports/session', name: 'report-session', component: () => import('../views/mobile/MobileReport.vue') },
+      { path: 'reports/session', name: 'report-session', component: () => import('../views/mobile/MobileReport.vue'), meta: { title: '酵种医生' } },
       { path: 'reports/:id?', name: 'mobile-report', component: () => import('../views/mobile/MobileReport.vue'), meta: { requiresAuth: true } },
       { path: 'me/profile', name: 'mobile-profile', component: () => import('../views/mobile/MobileProfile.vue'), meta: { requiresAuth: true, title: '个人资料' } },
       { path: 'me/profile/edit', name: 'mobile-profile-edit', component: () => import('../views/mobile/MobileProfileEdit.vue'), meta: { requiresAuth: true, title: '编辑资料' } },

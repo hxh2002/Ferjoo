@@ -176,9 +176,9 @@ function selectStarter(id) {
   if (saving.value) return;
   const item = starters.value.find((row) => row.id === id);
   if (id && (!item || item.link?.device_id && item.link.device_id !== deviceId.value)) return;
-  generation++; explicitStarter.value = true; starterId.value = id || ''; starterOpen.value = false; clearSelected(); void refresh();
+  generation++; explicitStarter.value = true; starterId.value = id || ''; starterOpen.value = false; contextOpen.value = false; clearSelected(); void refresh();
 }
-function openPicker() { contextOpen.value = true; }
+function openPicker() { contextOpen.value = !contextOpen.value; }
 
 // 手动刷新必须绕过缓存重新向云端确认；自动轮询仍可复用刚读到的数据。
 function refreshNow() {
@@ -337,13 +337,39 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
       <section class="m-card intro-card"><img class="jojo-mascot jojo-login" src="/assets/jojo1.png" alt="Jojo 吉祥物"><p class="eyebrow">设备</p><h1>连接设备，开始记录</h1><RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/device' } }">登录后开始</RouterLink></section>
     </template>
     <template v-else>
+      <button v-if="contextOpen" type="button" class="picker-backdrop" aria-label="关闭酵种选择" @click="contextOpen = false"></button>
       <header class="device-head">
         <h1>我的设备</h1>
-        <button type="button" class="starter-switch" :aria-expanded="contextOpen" @click="openPicker">
-          <img class="switch-jar" :src="iconJar" alt="" width="16" height="16" />
-          <span class="switch-name">{{ starter?.name || activeDevice?.name || '选择酵种' }}</span>
-          <img class="switch-caret" :src="iconChevron" alt="" width="16" height="16" />
-        </button>
+        <div class="starter-anchor">
+          <button type="button" class="starter-switch" :aria-expanded="contextOpen" aria-haspopup="dialog" @click="openPicker">
+            <img class="switch-jar" :src="iconJar" alt="" width="16" height="16" />
+            <span class="switch-name">{{ starter?.name || activeDevice?.name || '选择酵种' }}</span>
+            <img class="switch-caret" :src="iconChevron" alt="" width="16" height="16" />
+          </button>
+          <section v-if="contextOpen" class="picker-row" role="dialog" aria-label="选择酵种">
+            <div class="sheet-head"><strong>选择酵种</strong><button type="button" class="sheet-close" aria-label="收起" @click="contextOpen = false">收起</button></div>
+            <details class="picker" :open="deviceOpen" @toggle="deviceOpen = $event.target.open">
+              <summary><span class="picker-label">酵种罐</span><span class="picker-value">{{ activeDevice?.name || activeDevice?.device_id || '未选择' }}</span></summary>
+              <div class="picker-menu">
+                <button v-for="item in devices" :key="item.device_id" type="button" :class="{ active: item.device_id === deviceId }" @click="selectDevice(item.device_id)">{{ item.name || item.device_id }}</button>
+                <RouterLink to="/me/devices?bind=1">新增/连接酵种罐</RouterLink>
+              </div>
+            </details>
+            <details class="picker" :open="starterOpen" @toggle="starterOpen = $event.target.open">
+              <summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary>
+              <div class="picker-menu starter-menu">
+                <button type="button" :class="{ active: !starterId }" @click="selectStarter('')">仅查看设备数据</button>
+                <div v-for="item in starters" :key="item.id" class="starter-choice">
+                  <button type="button" :class="{ active: item.id === starterId }" :disabled="!!item.link?.device_id && item.link.device_id !== deviceId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? (item.link.device_id === deviceId ? '已关联当前设备' : '已关联其他设备 · 切换设备后可选') : '未关联设备 · 仅查看记录' }}</small></button>
+                  <button v-if="!item.link" type="button" class="starter-delete" :disabled="saving" @click="starterPendingDelete = item">删除</button>
+                </div>
+                <button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button>
+                <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建并关联当前设备' }}</button></form>
+                <button v-if="starterId && !link && deviceId" class="menu-action" type="button" :disabled="saving || loading" @click="associateSelected">关联当前设备</button>
+              </div>
+            </details>
+          </section>
+        </div>
       </header>
       <p class="jar-status" :data-tone="jarStatus.tone">
         <span class="jar-dot" aria-hidden="true"></span><span class="jar-label">{{ jarStatus.label }}</span>
@@ -411,30 +437,6 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/diary/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
 
-      <section v-if="contextOpen" class="picker-row" aria-label="选择酵种">
-        <div class="sheet-head"><strong>选择酵种</strong><button type="button" class="sheet-close" aria-label="收起" @click="contextOpen = false">收起</button></div>
-        <details class="picker" :open="deviceOpen" @toggle="deviceOpen = $event.target.open">
-          <summary><span class="picker-label">酵种罐</span><span class="picker-value">{{ activeDevice?.name || activeDevice?.device_id || '未选择' }}</span></summary>
-          <div class="picker-menu">
-            <button v-for="item in devices" :key="item.device_id" type="button" :class="{ active: item.device_id === deviceId }" @click="selectDevice(item.device_id)">{{ item.name || item.device_id }}</button>
-            <RouterLink to="/me/devices?bind=1">新增/连接酵种罐</RouterLink>
-          </div>
-        </details>
-        <details class="picker" :open="starterOpen" @toggle="starterOpen = $event.target.open">
-          <summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary>
-          <div class="picker-menu starter-menu">
-            <button type="button" :class="{ active: !starterId }" @click="selectStarter('')">仅查看设备数据</button>
-            <div v-for="item in starters" :key="item.id" class="starter-choice">
-              <button type="button" :class="{ active: item.id === starterId }" :disabled="!!item.link?.device_id && item.link.device_id !== deviceId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? (item.link.device_id === deviceId ? '已关联当前设备' : '已关联其他设备 · 切换设备后可选') : '未关联设备 · 仅查看记录' }}</small></button>
-              <button v-if="!item.link" type="button" class="starter-delete" :disabled="saving" @click="starterPendingDelete = item">删除</button>
-            </div>
-            <button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button>
-            <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建并关联当前设备' }}</button></form>
-            <button v-if="starterId && !link && deviceId" class="menu-action" type="button" :disabled="saving || loading" @click="associateSelected">关联当前设备</button>
-          </div>
-        </details>
-      </section>
-
       <MConfirmDialog :open="!!starterPendingDelete" danger title="删除酵种" :message="`删除「${starterPendingDelete?.name || ''}」后，未关联设备的记录入口会消失。已关联设备的酵种不能在这里删除。`" confirm-label="删除" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
       <MConfirmDialog :open="confirmOpen" danger title="结束当前发酵？" message="结束后，本次发酵将停止记录。你可以开始下一次喂养。" :confirm-label="closing ? '正在结束…' : '确认结束'" cancel-label="继续发酵" @cancel="confirmOpen = false" @confirm="endRound(null)" />
 
@@ -448,7 +450,9 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
 <style scoped>
 .mobile-area .m-page.device-page{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 88px);gap:0}
-.device-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
+.device-head{position:relative;z-index:32;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
+.starter-anchor{position:relative;flex:none}
+.picker-backdrop{position:fixed;inset:0;z-index:31;border:0;background:transparent;cursor:default}
 .device-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em}
 .starter-switch{display:inline-flex;align-items:center;gap:6px;flex:none;width:100px;height:36px;padding:0 10px;border:0;border-radius:12px;background:var(--surface-card);box-shadow:0 3px 12px rgba(48,37,31,.07);color:var(--text-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .switch-jar{flex:none;width:16px;height:16px}
@@ -517,7 +521,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .cta-note .text-link{min-height:0;padding:0;color:var(--brand-action);font-size:12px;font-weight:500;text-decoration:none}
 .risk-banner{margin-top:16px;padding:12px;border-left:3px solid var(--danger-text);background:var(--danger-bg);color:var(--danger-text);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .risk-banner a{color:inherit;font-weight:600}
-.picker-row{display:grid;gap:8px;margin-top:16px;padding:12px;border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:0 4px 18px rgba(48,37,31,.07)}
+.picker-row{position:absolute;z-index:2;top:calc(100% + 8px);right:0;display:grid;gap:8px;width:min(280px,calc(100vw - 48px));max-height:min(420px,70vh);margin:0;padding:12px;overflow:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:0 8px 24px rgba(48,37,31,.14)}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sheet-head strong{font-size:16px;font-weight:500}
 .sheet-close{min-height:32px;padding:0 8px;border:0;background:none;color:var(--brand-action);font:inherit;font-size:13px;cursor:pointer}

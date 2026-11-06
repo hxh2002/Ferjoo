@@ -21,15 +21,14 @@ assert.match(source, /\.date-grid-shared \.date-cell\{[^}]*min-height:0;height:3
 assert.doesNotMatch(source, /\.date-cell\{[^}]*border-radius:\s*\d+%/);
 assert.match(source, /recentRecordDays\(\)/);
 assert.match(source, /展开日历/);
-assert.match(source, /starter-chip/);
-assert.match(source, /class="date-controls"[\s\S]*class="starter-picker"[\s\S]*class="date-calendar"/);
+assert.match(source, /class="month-row"[\s\S]*class="date-calendar"/);
 assert.match(source, /class="date-grid date-grid-shared"[\s\S]*v-for="item in dateCells"/);
 assert.match(source, /:key="item\.value" :data-date="item\.value"/);
 assert.match(source, /const firstRects = new Map[\s\S]*first\.left - last\.left[\s\S]*first\.top - last\.top/);
 assert.match(source, /cell\.animate\(\[\{ opacity: 0 \}, \{ opacity: 1 \}\]/);
 assert.match(source, /grid-template-rows:82px/);
 assert.match(source, /height:82px/);
-assert.match(source, /aria-label="上一周"/);
+assert.match(source, /shiftWeek/);
 assert.match(source, /aria-label="选择年月"/);
 assert.match(source, /MWheelPicker/);
 assert.doesNotMatch(source, /week-rows|weekLabel|compactWeek|blank-|repeat\(6,34px\)|auto-fit/);
@@ -37,17 +36,15 @@ assert.match(source, /weekday-row weekday-row-shared[\s\S]*v-for="item in weekda
 assert.match(source, /weekdayRects = new Map[\s\S]*weekdayRow\.children[\s\S]*duration: 360, easing/);
 assert.doesNotMatch(source, /<small>\{\{ item\.weekday \}\}<\/small>/);
 assert.match(source, /prefers-reduced-motion: reduce/);
-assert.match(source, /\.date-card \.starter-chip\{[^}]*min-height:32px/);
-assert.match(source, /\.date-card \.starter-chip\.active\{border-color:var\(--brand-action\);background:var\(--surface-selected\)/);
 assert.match(source, /selectStarter/);
 assert.doesNotMatch(source, /全部酵种|所有酵种|m-filters|类型筛选|对象<select|legend=/);
-// 顶部标题与医生咨询入口：沿用选中酵种进入轮次选择，不直接打开观察表单。
+// 日记标题留在页首；酵种医生跟着当天摘要，并沿用选中酵种进入轮次选择。
 assert.match(source, /class="diary-head"[\s\S]*<h1>日记<\/h1>/);
-assert.match(source, /class="doctor-cta"[\s\S]*path: '\/doctor\/rounds'/);
+assert.match(source, /class="doctor-link"[\s\S]*path: '\/doctor\/rounds'/);
 assert.match(source, /selectedStarterId \? \{ starter: selectedStarterId \}/);
-assert.match(source, /医生咨询/);
+assert.match(source, /酵种医生/);
 assert.match(source, /\.diary-head\{[^}]*min-height:36px/);
-assert.match(source, /\.doctor-cta\{[^}]*background:var\(--brand-light\)/);
+assert.match(source, /当天喂养/);
 // 观察/诊断页头部与步骤条。
 const checkinSource = await readFile(new URL('../src/views/mobile/MobileCheckin.vue', import.meta.url), 'utf8');
 assert.match(checkinSource, /class="checkin-head"[\s\S]*class="observe-index"/);
@@ -61,21 +58,22 @@ assert.match(source, /在线 \{\{ item\.online \}\}/);
 assert.match(source, /\{\{ item\.count \}\} 条采样/);
 assert.match(source, /name: rows\.length > 1 \? `\$\{selectedStarterName\.value \|\| '酵种'\}/, 'device summary is titled by the selected starter');
 assert.match(source, /class="m-list-row record-row device-row"/);
-assert.match(source, /发酵轮次/);
-// 轮次是当天的主线，单日设备摘要排在轮次之后。
+assert.match(source, /最高膨胀率/);
+assert.match(source, /平均温度/);
+assert.match(source, /平均湿度/);
+// 轮次卡片是当天的主线，单日设备摘要排在卡片之后。
 assert.ok(source.indexOf('record-group round-group') < source.indexOf('record-group chart-group'), 'rounds appear above the day summary');
-assert.match(source, /class="round-chart"/);
-assert.match(source, /:points="item\.chart\.height"/);
-assert.match(source, /chart: roundChart\(item\)/);
-// 标题结束时间必须用独立字段，否则会被同一对象里的路由目标 to 覆盖成地址对象。
+assert.match(source, /class="feed-card"/);
+assert.match(source, /metrics: roundMetrics\(item\)/);
+// 结束时间留在独立字段，标题和链接都不能误用路由对象 to。
 assert.match(source, /toLabel: closed \? range\.to : '现在'/);
-assert.match(source, /\{\{ item\.toLabel \}\}/);
+assert.match(source, /:to="item\.to"/);
+assert.doesNotMatch(source, /\{\{ item\.to \}\}/);
 assert.doesNotMatch(source, /to: closed \? range\.to : '现在'/);
-assert.match(source, /const ROUND_PAD_MS = 10 \* 60 \* 1000/);
 // 跨天偏移以所选日期为基准，而不是轮次内部首尾相比。
 assert.match(source, /function dayOffsetText[\s\S]*selectedDay\.value/);
 assert.doesNotMatch(source, /chartGroups|windowBands|dayStartIso|dayEndIso/);
-assert.match(source, /class="round-index"/);
+assert.match(source, /详情 ›/);
 assert.doesNotMatch(source, /deviceItem|device-metrics/);
 assert.match(trendSource, /设备状态/);
 assert.match(trendSource, /deviceStatus/);

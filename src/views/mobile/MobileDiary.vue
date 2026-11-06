@@ -7,8 +7,10 @@ import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } f
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
-import SeriesChart from '../../components/SeriesChart.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
+import doctorIcon from '../../assets/icons/diary-doctor.svg';
+import doctorChevron from '../../assets/icons/diary-chevron.svg';
+import calendarIcon from '../../assets/icons/diary-calendar.svg';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
@@ -48,11 +50,6 @@ function pad(value) {
 function formatClock(value) {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? `${pad(date.getHours())}:${pad(date.getMinutes())}` : '--';
-}
-function formatDayLabel(value) {
-  const date = new Date(`${value}T00:00:00`);
-  if (!Number.isFinite(date.getTime())) return value;
-  return `${date.getMonth() + 1} 月 ${date.getDate()} 日`;
 }
 function durationText(fromMs, toMs) {
   const minutes = Math.max(0, Math.round((toMs - fromMs) / 60000));
@@ -100,7 +97,11 @@ const selectedStarterId = computed(() => query.value.starter || '');
 const selectedStarterName = computed(() => starters.value.find((item) => item.id === selectedStarterId.value)?.name || '');
 const todayKey = computed(() => recentRecordDays().at(-1));
 const isToday = computed(() => selectedDay.value === todayKey.value);
-const dayLabel = computed(() => (isToday.value ? '今天' : formatDayLabel(selectedDay.value)));
+const dayHeading = computed(() => {
+  const date = new Date(`${selectedDay.value}T12:00:00`);
+  return Number.isFinite(date.getTime()) ? `${date.getMonth() + 1} 月 ${date.getDate()} 日` : '';
+});
+const feedingCaption = computed(() => `当天喂养 · ${model.value?.feedingCount || 0} 次`);
 const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 function shiftDate(value, amount) {
   const date = new Date(`${value}T12:00:00`);
@@ -182,6 +183,10 @@ function roundItem(row, carried, now) {
     titleTip: range.title,
     sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
     facts,
+    expansion: expansion != null && Number.isFinite(expansion) ? expansion : null,
+    meanTemp: summary.meanTempC == null || !Number.isFinite(Number(summary.meanTempC)) ? null : Number(summary.meanTempC),
+    ratioLabel: ratioText(row.ratio),
+    durationLabel: durationText(from, to),
     hint: roundHint(summary, row.linked, row.boundaryPending),
     state: state.label,
     tone: state.tone,
@@ -239,8 +244,7 @@ const deviceBlocks = computed(() => {
     };
   });
 });
-const sampleCount = computed(() => deviceBlocks.value.reduce((sum, row) => sum + row.count, 0));
-// 轮次曲线复用的就是单日数据那批采样，按设备归并后各自裁切窗口。
+// 轮次摘要复用单日采样，按设备归并后裁到本轮窗口。
 const deviceSamples = computed(() => {
   const map = new Map();
   for (const row of model.value?.devices || []) {
@@ -249,36 +253,28 @@ const deviceSamples = computed(() => {
   }
   return map;
 });
-// 起止各外扩十分钟，让曲线两端不至于贴边；阴影仍只覆盖真实轮次区间。
-const ROUND_PAD_MS = 10 * 60 * 1000;
-function roundChart(item) {
+function meanOf(values) {
+  const nums = values.filter((value) => Number.isFinite(value));
+  return nums.length ? nums.reduce((sum, value) => sum + value, 0) / nums.length : null;
+}
+function metricText(value, suffix) {
+  return value == null || !Number.isFinite(value) ? '—' : `${Math.round(value)}${suffix}`;
+}
+// 卡片上的三项来自本轮实测：最高膨胀率取窗口内最高高度，温度优先用采样均值。
+function roundMetrics(item) {
   const samples = item.deviceId ? deviceSamples.value.get(item.deviceId) || [] : [];
-  const from = item.at - ROUND_PAD_MS;
-  const to = item.atEnd + ROUND_PAD_MS;
   const rows = samples.filter((row) => {
     const at = Date.parse(row.recorded_at);
-    return Number.isFinite(at) && at >= from && at <= to;
+    return Number.isFinite(at) && at >= item.at && at <= item.atEnd;
   });
-  if (!rows.length) return null;
-  const points = (key) => rows.map((row) => ({ t: row.recorded_at, v: row[key] == null ? null : Number(row[key]) }));
-  return {
-    from: new Date(from).toISOString(),
-    to: new Date(to).toISOString(),
-    height: points('height_mm'), temperature: points('temperature_c'),
-    humidity: points('humidity_percent'), battery: points('battery_percent'),
-    baseline: item.baseline,
-    bands: [{ from: item.windowFrom, to: item.windowTo, active: item.tone === 'active' || item.tone === 'pending' }]
-  };
+  const heights = rows.map((row) => Number(row.height_mm)).filter((value) => value > 0);
+  let peak = item.expansion;
+  if (item.baseline > 0 && heights.length) peak = ((Math.max(...heights) - item.baseline) / item.baseline) * 100;
+  const temp = meanOf(rows.map((row) => Number(row.temperature_c))) ?? item.meanTemp;
+  const humidity = meanOf(rows.map((row) => Number(row.humidity_percent)));
+  return { peak: metricText(peak, '%'), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
 }
-const roundCards = computed(() => roundItems.value.map((item) => ({ ...item, chart: roundChart(item) })));
-const daySummary = computed(() => {
-  const value = model.value;
-  if (!value) return '';
-  const observations = value.events.filter((row) => row.kind === 'observation').length;
-  return [value.feedingCount ? `${value.feedingCount} 次喂养` : '', observations ? `${observations} 条观察` : '', sampleCount.value ? `${sampleCount.value} 条采样` : '']
-    .filter(Boolean).join(' · ');
-});
-const dayCaption = computed(() => [selectedStarterName.value, daySummary.value || '这一天没有记录'].filter(Boolean).join(' · '));
+const roundCards = computed(() => roundItems.value.map((item) => ({ ...item, metrics: roundMetrics(item) })));
 
 let generation = 0;
 let disposed = false;
@@ -492,27 +488,16 @@ onUnmounted(() => {
   <main class="m-page mobile-diary">
     <header class="diary-head">
       <h1>日记</h1>
-      <RouterLink class="doctor-cta" :to="{ path: '/doctor/rounds', query: selectedStarterId ? { starter: selectedStarterId } : {} }" aria-label="医生咨询">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>
-        <span>医生咨询</span>
-      </RouterLink>
     </header>
-    <section ref="datePanelRef" class="m-card date-card" :class="{ expanded: calendarOpen }">
-      <div class="date-head">
-        <button v-if="!calendarOpen" type="button" class="week-shift" aria-label="上一周" @click="shiftWeek(-1)">‹</button>
+    <section ref="datePanelRef" class="date-card date-board" :class="{ expanded: calendarOpen }">
+      <div class="month-row">
         <button v-if="calendarOpen" type="button" class="month-title" :aria-expanded="monthPicker" aria-label="选择年月" @click="monthPicker = !monthPicker">
           <strong>{{ calendarTitle }}</strong><small>{{ monthPicker ? '滚动选择年月' : '选择日期' }}</small>
         </button>
-        <div v-else><strong>{{ calendarTitle }}</strong><small>前后各三天</small></div>
-        <div class="date-controls">
-          <div v-if="starters.length" class="starter-picker" role="group" aria-label="选择酵种">
-            <button v-for="item in starters" :key="item.id" type="button" class="starter-chip" :class="{ active: item.id === selectedStarterId }" :aria-pressed="item.id === selectedStarterId" @click="selectStarter(item.id)">{{ item.name }}</button>
-          </div>
-          <button v-if="!calendarOpen" type="button" class="week-shift" aria-label="下一周" :disabled="selectedDay >= todayKey" @click="shiftWeek(1)">›</button>
-          <button type="button" class="date-calendar" :aria-expanded="calendarOpen" :aria-label="calendarOpen ? '收起日历' : '展开日历'" @click="toggleCalendar">
-            <span aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></svg></span>
-          </button>
-        </div>
+        <p v-else class="month-label">{{ calendarTitle }}</p>
+        <button type="button" class="date-calendar" :aria-expanded="calendarOpen" :aria-label="calendarOpen ? '收起日历' : '展开日历'" @click="toggleCalendar">
+          <img :src="calendarIcon" alt="" width="44" height="44" />
+        </button>
       </div>
       <div v-if="calendarOpen && monthPicker" class="month-wheels">
         <MWheelPicker :model-value="shownYear" :options="yearOptions" label="年份" @update:model-value="chooseCalendarMonth($event, shownMonth)" />
@@ -539,9 +524,17 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="m-card day-card">
-      <div class="day-head">
-        <div><strong>{{ dayLabel }}</strong><small>{{ dayCaption }}</small></div>
+    <section class="day-board">
+      <div class="day-summary">
+        <div>
+          <p class="day-title">{{ dayHeading }}</p>
+          <p class="day-count">{{ feedingCaption }}</p>
+        </div>
+        <RouterLink class="doctor-link" :to="{ path: '/doctor/rounds', query: selectedStarterId ? { starter: selectedStarterId } : {} }">
+          <img :src="doctorIcon" alt="" width="16" height="16" />
+          <span>酵种医生</span>
+          <img :src="doctorChevron" alt="" width="14" height="14" />
+        </RouterLink>
       </div>
       <div v-if="!auth.user.value" class="records-empty"><img class="jojo-mascot" src="/assets/jojo1.png" alt="Jojo 吉祥物" /><div><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></div></div>
       <template v-else>
@@ -550,35 +543,19 @@ onUnmounted(() => {
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
         <template v-if="!error && model">
           <section v-if="roundCards.length" class="record-group round-group">
-            <h2 class="record-group-title">
-              <span class="group-mark round-mark" aria-hidden="true"></span>发酵轮次
-              <small class="group-note">{{ roundCards.length }} 轮</small>
-            </h2>
-            <article v-for="item in roundCards" :key="item.id" class="round-card">
-              <RouterLink class="round-summary" :to="item.to">
-                <span class="round-head">
-                  <span class="round-index" :aria-label="`第 ${item.index} 轮`">{{ item.index }}</span>
-                  <strong class="record-title" :title="item.titleTip">{{ item.from }}<span v-if="item.fromOffset" class="day-offset">{{ item.fromOffset }}</span><span class="round-arrow" aria-hidden="true">→</span>{{ item.toLabel }}<span v-if="item.toOffset" class="day-offset">{{ item.toOffset }}</span></strong>
-                  <span v-if="item.state" class="record-state" :data-tone="item.tone">{{ item.state }}</span>
-                  <span class="record-go" aria-hidden="true">›</span>
-                </span>
-                <small class="record-sub">{{ item.sub }}</small>
-                <span v-if="item.facts.length" class="window-facts">
-                  <span v-for="fact in item.facts" :key="fact.text" class="window-fact" :data-tone="fact.tone">{{ fact.text }}</span>
-                </span>
-                <small v-if="item.hint" class="record-note">{{ item.hint }}</small>
-              </RouterLink>
-              <div v-if="item.chart" class="round-chart">
-                <div class="chart-grid">
-                  <SeriesChart label="高度" unit=" mm" color="var(--chart-height)" :points="item.chart.height" :baseline="item.chart.baseline" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                  <SeriesChart label="温度" unit="°C" color="var(--chart-temp)" :points="item.chart.temperature" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                  <SeriesChart label="湿度" unit="%" color="var(--chart-humidity)" :points="item.chart.humidity" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                  <SeriesChart label="电量" unit="%" color="var(--chart-battery)" :points="item.chart.battery" :from="item.chart.from" :to="item.chart.to" :bands="item.chart.bands" compact-time />
-                </div>
-              </div>
-              <p v-else class="round-chart-empty">本轮没有可绘制的设备读数。</p>
-            </article>
-            <p v-if="roundCards.some((item) => item.chart)" class="round-axis-note">曲线起止各外扩 10 分钟，阴影为本轮实际区间。</p>
+            <RouterLink v-for="item in roundCards" :key="item.id" class="feed-card" :to="item.to" :title="item.titleTip">
+              <span class="feed-card-head">
+                <strong>{{ item.from }} 喂养</strong>
+                <span v-if="item.state" class="feed-card-state">{{ item.state }}</span>
+                <span class="feed-card-detail">详情 ›</span>
+              </span>
+              <span class="feed-card-sub">喂养比例 {{ item.ratioLabel }} · 发酵 {{ item.durationLabel }}</span>
+              <span class="feed-metrics">
+                <span><strong>{{ item.metrics.peak }}</strong><small>最高膨胀率</small></span>
+                <span><strong>{{ item.metrics.temp }}</strong><small>平均温度</small></span>
+                <span><strong>{{ item.metrics.humidity }}</strong><small>平均湿度</small></span>
+              </span>
+            </RouterLink>
           </section>
           <section v-if="deviceBlocks.length" class="record-group chart-group">
             <h2 class="record-group-title">
@@ -618,42 +595,47 @@ onUnmounted(() => {
 <style scoped>
 .m-page{padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
 .mobile-area .m-page.mobile-diary{padding-top:calc(12px + env(safe-area-inset-top));gap:0}
-.mobile-area .mobile-main .m-page.mobile-diary > .date-card{margin-block:0 12px}
-.mobile-area .mobile-main .m-page.mobile-diary > .day-card{margin-block:0 12px}
-.diary-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 12px}
+.mobile-area .mobile-main .m-page.mobile-diary > .date-board{margin-block:0 28px;padding:0;border:0;background:transparent;box-shadow:none}
+.mobile-area .mobile-main .m-page.mobile-diary > .day-board{margin-block:0 12px}
+.diary-head{display:flex;align-items:center;min-height:36px;margin:0 0 8px}
 .diary-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
-.doctor-cta{display:inline-flex;align-items:center;gap:6px;flex:none;height:36px;padding:0 14px;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:13px;font-weight:500;text-decoration:none;box-shadow:0 3px 12px rgba(48,37,31,.07)}
-.doctor-cta svg{width:16px;height:16px;flex:none}
-.doctor-cta:active{background:var(--brand-accent)}
-.date-card{padding:.7rem .75rem;overflow:hidden}
-.date-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem}
+.month-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:0 0 12px}
+.month-label{margin:0;font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
 .month-title{min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .month-title strong,.month-title small{display:block}
+.month-title strong{font-size:16px;line-height:24px;font-weight:500}
+.month-title small{margin-top:2px;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .month-wheels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 4px}
-.week-shift{flex:none;width:44px;height:44px;border:0;background:transparent;color:var(--text-primary);font-size:var(--text-lg);line-height:1;cursor:pointer}
-.week-shift:disabled{opacity:.32;cursor:default}
-.date-head strong{display:block;font-size:var(--text-sm)}
-.date-head small{display:block;margin-top:2px;font-size:var(--text-xs);color:var(--text-secondary)}
-.date-controls{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;min-width:0}
-.date-calendar{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--brand-action);cursor:pointer}
-.date-calendar span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--m-icon-disc)}
-.date-calendar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.date-head strong{font-size:14px;font-weight:500;line-height:21px}
-.starter-picker{display:flex;align-items:center;gap:.25rem;max-width:min(54vw,15rem);overflow-x:auto;scrollbar-width:none}
-.starter-picker::-webkit-scrollbar{display:none}
-.date-card .starter-chip{flex:none;max-width:100%;min-height:32px;padding:4px 12px;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:transparent;color:var(--text-secondary);font:inherit;font-size:var(--text-xs);line-height:18px;font-weight:500;cursor:pointer}
-.date-card .starter-chip.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
+.date-calendar{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
+.date-calendar img{display:block;width:44px;height:44px}
+.day-summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 0 12px}
+.day-title{margin:0;font-size:18px;line-height:26px;font-weight:500}
+.day-count{margin:2px 0 0;font-size:14px;line-height:21px;color:var(--text-secondary)}
+.doctor-link{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:32px;color:var(--brand-action);font-size:13px;line-height:20px;font-weight:500;text-decoration:none}
+.doctor-link img{display:block;flex:none}
+.feed-card{display:grid;gap:8px;min-height:137px;padding:10px 14px 14px;border-radius:18px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.06);color:inherit;text-decoration:none}
+.feed-card-head{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;gap:8px}
+.feed-card-head strong{font-size:15px;line-height:22px;font-weight:500}
+.feed-card-state{font-size:11px;line-height:16px;color:var(--text-secondary)}
+.feed-card-detail{justify-self:end;font-size:12px;line-height:18px;font-weight:500;color:var(--brand-accent)}
+.feed-card-sub{font-size:11px;line-height:16px;color:var(--text-secondary)}
+.feed-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.feed-metrics > span{display:grid;align-content:center;gap:2px;min-height:57px;padding:8px 8px 8px 8px;border-radius:10px;background:color-mix(in srgb,var(--brand-light) 34%,var(--surface-card))}
+.feed-metrics strong{font-size:14px;line-height:20px;font-weight:500}
+.feed-metrics small{font-size:10px;line-height:14px;color:var(--text-secondary)}
 .date-view{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:18px auto;transform-origin:top center;overflow:hidden}
 .weekday-row-shared{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:2px;align-items:center;margin-bottom:2px;text-align:center;color:var(--text-secondary);font-size:var(--text-xs)}
 .date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem;row-gap:.1rem}
 .date-grid-shared{grid-column:1/-1;grid-row:2;grid-auto-rows:34px;overflow:visible}
+.date-view:not(.expanded){grid-template-rows:auto}
 .date-view:not(.expanded) .weekday-row-shared{display:none}
 .date-view:not(.expanded) .date-grid-shared{grid-template-rows:82px;grid-template-columns:repeat(7,42px);justify-content:space-between;column-gap:0}
 .date-grid-shared.expanded{grid-template-columns:repeat(7,minmax(0,1fr))}
 .date-grid-shared .date-cell{min-height:0;height:36px}
-.date-view:not(.expanded) .date-grid-shared .date-cell{height:82px;border-radius:20px}
-.cell-weekday{font-size:14px;line-height:21px;font-weight:400}
-.date-view:not(.expanded) .cell-day{font-size:18px;line-height:26px;font-weight:500}
+.date-view:not(.expanded) .date-grid-shared .date-cell{height:82px;border-radius:20px;background:var(--surface-card)}
+.date-view:not(.expanded) .date-grid-shared .date-cell.active{background:var(--brand-light)}
+.cell-weekday{font-size:12px;line-height:18px;font-weight:400}
+.date-view:not(.expanded) .cell-day{font-size:16px;line-height:24px;font-weight:500}
 .date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
 .date-cell.active{background:var(--brand-light);color:var(--text-primary);font-weight:500}
