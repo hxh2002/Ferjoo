@@ -549,7 +549,7 @@ const bandBadges = computed(() => {
 .series-now { position: absolute; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 16px; margin-left: 4px; color: var(--text-secondary); font-size: 9px; line-height: 16px; pointer-events: none; }
 .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: opacity 240ms linear; }
 .series-plot.is-releasing :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { opacity: 0; }
-.series-plot { min-height: 44px; }
+.series-plot { position: relative; min-height: 44px; }
 .series-plot:is(.is-sticky, .is-interactive):focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: none; }

@@ -114,7 +114,7 @@ watch([() => auth.user.value?.id, day, () => route.query.starter], () => { auth.
 </template>
 
 <style scoped>
-.doctor-head h1{margin:0;font-size:21px;line-height:31px;font-weight:500}
+.m-page.doctor-rounds .doctor-head h1{margin:0;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
 .doctor-head small{display:block;margin-top:6px;color:var(--text-secondary);font-size:14px;line-height:20px}
 .day-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:32px 0 12px}
 .day-row strong{font-size:14px;line-height:21px;font-weight:500}

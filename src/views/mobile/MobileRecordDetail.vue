@@ -253,7 +253,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
 .disc{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:50%;background:var(--m-icon-disc)}
 .disc img{display:block}
 .feed-label{font-size:14px;line-height:21px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.feed-value{font-size:16px;line-height:24px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed-value{font-size:16px;line-height:24px;font-weight:500}
 .metric-stack{display:grid;gap:12px}
 .metric-chart{padding:12px 16px 16px;border:0;border-radius:var(--radius-card);background:var(--m-chart-rise)}
 .metric-chart.is-temp{background:var(--m-chart-warm)}
