@@ -50,7 +50,7 @@ assert.match(source, /\.diary-head\{[^}]*min-height:36px/);
 assert.match(source, /\.doctor-cta\{[^}]*background:var\(--brand-light\)/);
 // 观察/诊断页头部与步骤条。
 const checkinSource = await readFile(new URL('../src/views/mobile/MobileCheckin.vue', import.meta.url), 'utf8');
-assert.match(checkinSource, /class="checkin-head"[\s\S]*医生咨询/);
+assert.match(checkinSource, /class="checkin-head"[\s\S]*class="observe-index"/);
 assert.match(checkinSource, /class="step-track"[\s\S]*stepMeta\.total/);
 assert.match(checkinSource, /\.step-track li\.active \.step-dot\{background:var\(--brand-action\)/);
 assert.match(checkinSource, /checkin-starter/);

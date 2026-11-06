@@ -207,7 +207,7 @@ onBeforeUnmount(() => { version++; document.removeEventListener('visibilitychang
 <style scoped>
 .mobile-area .m-page.mobile-trend{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
 .trend-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
-.trend-title h1{margin:0;font-size:24px;line-height:32px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
+.trend-title h1{margin:0;font-size:var(--text-xl);line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
 .trend-title p{margin:4px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .day-picker{flex:none;min-height:36px;padding:0 12px;border:1px solid var(--border-warm);border-radius:18px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:13px;cursor:pointer}
 .trend-calendar{margin:0 0 14px}

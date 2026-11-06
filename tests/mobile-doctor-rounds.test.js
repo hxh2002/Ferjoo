@@ -33,7 +33,7 @@ assert.match(read('src/router/index.js'), /doctor\/rounds/);
 
 const checkin = compile('src/views/mobile/MobileCheckin.vue');
 assert.match(checkin, /MRadioCard/);
-assert.match(checkin, /请勿品尝生酵种。设备不能判断颜色、气味或食品安全。/);
+assert.match(checkin, /请勿品尝生酵种。[\s\S]{0,80}设备不能判断颜色、气味或食品安全/);
 assert.match(checkin, /查看更多情况/);
 assert.match(checkin, /正常酸香/);
 assert.match(checkin, /彩色斑块 \/ 绒毛霉菌/);

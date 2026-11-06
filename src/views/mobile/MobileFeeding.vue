@@ -341,7 +341,7 @@ async function save() {
       </MRecordCard>
 
       <MRecordCard title="高度提醒" icon="alert" :summary="alertSummary" :open="openCard === 'alert'" :disabled="inputsLocked" content-id="feeding-alert" @toggle="toggleCard('alert')">
-        <MWheelPicker :model-value="String(draft.heightAlert)" :options="alertOptions" label="高度提醒" :disabled="inputsLocked" @update:model-value="chooseHeightAlert" />
+        <MWheelPicker class="alert-wheel" :model-value="String(draft.heightAlert)" :options="alertOptions" label="高度提醒" :disabled="inputsLocked" @update:model-value="chooseHeightAlert" />
         <p class="m-muted">{{ alertNotice || '留空表示不提醒。达到后每轮只推送一次。' }}</p>
         <RouterLink class="alert-settings" to="/me/notifications">高度预约的完整阈值在通知设置中管理</RouterLink>
       </MRecordCard>
@@ -378,19 +378,21 @@ async function save() {
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
 .feeding-section{margin:0 0 8px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
 .feeding-form{display:grid;gap:12px}
-.time-switch{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:8px}
-.time-switch button{min-height:48px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-variant-numeric:tabular-nums;cursor:pointer}
+.time-switch{display:grid;grid-template-columns:minmax(0,1.786fr) minmax(0,1fr);gap:8px;max-width:295px}
+.time-switch button{height:48px;min-height:48px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-variant-numeric:tabular-nums;cursor:pointer}
 .time-switch button[aria-expanded="true"]{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .time-fields,.custom-grid,.ratio-presets,.time-wheels{display:grid;gap:8px}
 .time-fields{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
-.time-wheels,.custom-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-.custom-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8px}
+.time-wheels{grid-template-columns:repeat(2,minmax(0,1fr));max-width:295px}
+.custom-grid{grid-template-columns:repeat(3,minmax(0,90px));justify-content:space-between;max-width:295px;margin-top:8px}
 .time-fields label,.custom-grid label{display:grid;gap:4px;color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
 .restore-time,.custom-ratio,.ratio-presets button,.more-ratios button{min-height:42px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit}
 .restore-time{width:124px;min-height:28px;margin:12px 0;border-radius:14px;font-size:var(--text-xs)}
-.ratio-presets{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:8px}
+.ratio-presets{grid-template-columns:repeat(3,minmax(0,94px));gap:6px;justify-content:space-between;max-width:295px;margin-bottom:8px}
+.ratio-presets button{width:100%;height:42px;min-height:42px;padding:0}
 .ratio-presets button.is-selected,.custom-ratio.is-selected,.more-ratios button.is-selected{border-color:var(--brand-action);background:var(--surface-selected)}
-.custom-ratio{display:flex;align-items:center;justify-content:space-between;width:100%;padding:0 12px}
+.custom-ratio{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:295px;height:42px;min-height:42px;padding:0 12px}
+.alert-wheel{max-width:295px}
 .more-ratios{margin-top:8px}
 .more-ratios summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
 .more-ratios button{width:100%;margin-bottom:8px}

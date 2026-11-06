@@ -204,26 +204,22 @@ onBeforeUnmount(() => { version += 1; });
         <button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button>
       </header>
       <section v-if="loading && !devices.length" class="m-skeleton" aria-busy="true" aria-label="正在读取设备"><span></span><span></span></section>
-      <section v-else-if="!devices.length" class="m-card empty-card">
-        <img class="empty-art" src="../../assets/device/jar-body.svg" alt="" width="120" height="160" />
-        <p>还没有绑定设备</p>
+      <section v-else-if="!devices.length" class="empty-state">
+        <span class="empty-disc" aria-hidden="true"><img src="../../assets/icons/nav-device-active.svg" alt="" width="44" height="29" /></span>
+        <h2>暂无设备</h2>
+        <p>添加设备，查看数据并关联酵种。</p>
         <RouterLink class="m-primary" to="/me/devices/add">添加设备</RouterLink>
       </section>
-      <section v-else-if="devices.length === 1" class="m-card overview-card">
-        <span class="device-disc large" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="24" height="24" /></span>
-        <div class="overview-copy">
-          <div class="overview-title"><strong>{{ devices[0].name || devices[0].device_id }}</strong><span class="status-pill" :data-offline="isOffline(devices[0].last_seen_at) || null">{{ isOffline(devices[0].last_seen_at) ? '离线' : '已连接' }}</span></div>
-          <small>{{ devices[0].device_id }}</small>
-          <small>最近同步 {{ formatSeen(devices[0].last_seen_at) }}</small>
-        </div>
-        <RouterLink class="data-chip" :to="`/me/devices/${encodeURIComponent(devices[0].device_id)}`">设备设置</RouterLink>
-      </section>
-      <section v-else class="m-card device-list">
-        <div class="section-heading"><h2>已绑定设备<span v-if="devices.length" class="count"> · {{ devices.length }} 台</span></h2><RouterLink class="m-text-action" to="/me/devices/add">添加设备</RouterLink></div>
-        <RouterLink v-for="item in devices" :key="item.device_id" :to="`/me/devices/${encodeURIComponent(item.device_id)}`" class="device-row">
-          <span class="device-disc" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="20" height="20" /></span>
-          <span class="row-main"><strong>{{ item.name || item.device_id }}</strong><small>{{ item.my_role === 'owner' ? '所有者' : '成员' }} · {{ item.quality }}</small>
-          <small>最近接收：{{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('zh-CN', { hour12: false }) : '从未接收' }}</small></span><span class="chevron" aria-hidden="true">›</span>
+      <section v-else class="device-stack">
+        <div class="section-heading"><h2>已绑定设备<span class="count"> · {{ devices.length }} 台</span></h2><RouterLink class="m-text-action" to="/me/devices/add">添加设备</RouterLink></div>
+        <RouterLink v-for="item in devices" :key="item.device_id" class="m-card overview-card" :to="`/me/devices/${encodeURIComponent(item.device_id)}`">
+          <span class="device-disc large" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="24" height="24" /></span>
+          <div class="overview-copy">
+            <div class="overview-title"><strong>{{ item.name || item.device_id }}</strong><span class="status-pill" :data-offline="isOffline(item.last_seen_at) || null">{{ isOffline(item.last_seen_at) ? '离线' : '已连接' }}</span></div>
+            <small>{{ item.device_id }}</small>
+            <small>最近同步 {{ formatSeen(item.last_seen_at) }}<template v-if="item.quality"> · {{ item.quality }}</template></small>
+          </div>
+          <span class="data-chip">设备设置</span>
         </RouterLink>
       </section>
       <section v-if="showBinding" id="device-binding" class="m-card"><h2>绑定设备</h2>
@@ -247,9 +243,12 @@ onBeforeUnmount(() => { version += 1; });
         </div>
         <a class="data-chip" href="#device-settings">设备设置</a>
       </section>
+      <p class="group-label">设备数据</p>
+      <section class="m-card settings-card">
+        <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">设备数据 <span aria-hidden="true">›</span></RouterLink>
+      </section>
       <p class="group-label">设备设置</p>
       <section id="device-settings" class="m-card settings-card">
-        <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">设备数据 <span aria-hidden="true">›</span></RouterLink>
         <RouterLink class="settings-row" :to="`/me/devices/${encodeURIComponent(deviceId)}/info`">设备信息 <span aria-hidden="true">›</span></RouterLink>
         <button v-if="manager" type="button" class="settings-row" @click="renameOpen = true">修改设备名称 <span aria-hidden="true">›</span></button>
         <button type="button" class="settings-row" @click="starterOpen = true">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small></button>
@@ -280,11 +279,14 @@ onBeforeUnmount(() => { version += 1; });
 .devices-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
 .devices-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
 .group-label{margin:18px 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
-.empty-card{display:grid;gap:12px;justify-items:center;text-align:center}
-.empty-art{width:120px;height:160px;object-fit:contain}
-.empty-card p{margin:0;font-size:16px;line-height:24px}
-.empty-card .m-primary{display:flex;align-items:center;justify-content:center;width:min(327px,100%);height:60px;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:16px;font-weight:500;text-decoration:none}
-.device-list,.settings-card{padding:8px 16px}
+.empty-state{display:grid;justify-items:center;gap:8px;padding:72px 0 0;text-align:center}
+.empty-disc{display:grid;place-items:center;width:80px;height:80px;margin-bottom:8px;border-radius:50%;background:var(--m-icon-disc)}
+.empty-disc img{width:44px;height:29px}
+.empty-state h2{margin:0;font-size:22px;line-height:30px;font-weight:500}
+.empty-state p{margin:0 0 20px;color:var(--text-secondary);font-size:14px;line-height:21px}
+.empty-state .m-primary{display:flex;align-items:center;justify-content:center;width:min(327px,100%);height:60px;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:16px;font-weight:500;text-decoration:none}
+.device-stack{display:grid;gap:12px}
+.settings-card{padding:8px 16px}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .section-heading h2{margin:0;font-size:16px;font-weight:500}
 .count{color:var(--text-secondary);font-size:13px;font-weight:400}
@@ -294,7 +296,7 @@ onBeforeUnmount(() => { version += 1; });
 .device-disc img{width:20px;height:20px}
 .device-disc.large{width:56px;height:56px}
 .device-disc.large img{width:24px;height:24px}
-.overview-card{display:flex;align-items:center;gap:12px;min-height:144px}
+.overview-card{display:flex;align-items:center;gap:12px;min-height:144px;color:inherit;text-decoration:none}
 .overview-copy{display:grid;gap:4px;min-width:0;flex:1}
 .overview-title{display:flex;align-items:center;gap:8px}
 .overview-card strong{font-size:16px;font-weight:500}

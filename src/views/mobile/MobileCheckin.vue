@@ -196,50 +196,52 @@ function applyPending(key) {
 <template>
   <main class="m-page mobile-checkin" :data-mode="diagnosisMode ? 'diagnosis' : 'observation'">
     <header class="checkin-head">
-      <h1>{{ diagnosisMode ? '医生咨询' : '观察记录' }}</h1>
+      <h1 v-if="!diagnosisMode">观察记录</h1>
       <span v-if="step === 1" class="observe-index">观察 {{ observePart }} / {{ skipsBackground ? 2 : 3 }}</span>
       <span v-if="draft.starterId" class="checkin-starter">{{ starterName }}</span>
     </header>
-    <ol class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
+    <ol v-if="!(diagnosisMode && step === 1)" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
       <li v-for="n in stepMeta.total" :key="n" :class="{ active: n === stepMeta.index, done: n < stepMeta.index }">
         <span class="step-dot" aria-hidden="true"></span>
         <span class="step-label">{{ n === 1 ? '观察' : n === 2 && stepMeta.total === 3 ? '本轮' : '核对' }}</span>
       </li>
     </ol>
-    <p class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
+    <p v-if="!(diagnosisMode && step === 1)" class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
-    <section v-if="diagnosisMode" class="m-card">
+    <section v-if="diagnosisMode && feedingEvidence" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
       <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p></template>
       <p v-if="notice" role="status">{{ notice }}</p>
     </section>
     <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，关闭页面可能丢失草稿。</p>
     <form ref="formElement" @submit.prevent="step === 3 ? generate() : next()">
-      <section v-show="step === 1" class="m-card">
-        <h2>{{ diagnosisMode ? '确认本轮安全与涨幅' : '先确认本次安全观察' }}</h2>
-        <p class="m-muted">不要品尝生酵种；无法判断请选“不确定”。</p>
-        <p class="safety-note">请勿品尝生酵种。设备不能判断颜色、气味或食品安全。</p>
+      <section v-show="step === 1" :class="diagnosisMode ? 'observe-step' : 'm-card'">
+        <template v-if="!diagnosisMode">
+          <h2>先确认本次安全观察</h2>
+          <p class="m-muted">不要品尝生酵种；无法判断请选“不确定”。</p>
+        </template>
         <div v-if="observePart === 1" :aria-invalid="!!errors.color" tabindex="-1">
           <h2>酵种表面看起来怎么样？</h2>
-          <MRadioCard :model-value="draft.color" :options="safetyOptions.color" label="颜色与霉斑" @update:model-value="selectSafety('color', $event)" />
           <span id="color-help" class="m-muted">看粉红、绿、蓝、黑斑块或绒毛。</span>
+          <MRadioCard :model-value="draft.color" :options="safetyOptions.color" label="颜色与霉斑" marker="end" @update:model-value="selectSafety('color', $event)" />
           <span v-if="errors.color" class="m-error">{{ errors.color }}</span>
         </div>
         <div v-else-if="observePart === 2" :aria-invalid="!!errors.smell" tabindex="-1">
           <h2>闻起来是什么气味？</h2>
-          <MRadioCard :model-value="draft.smell" :options="safetyOptions.smell" label="气味" @update:model-value="selectSafety('smell', $event)" />
           <span id="smell-help" class="m-muted">区分酸香、酒精味与腐败味。</span>
+          <MRadioCard :model-value="draft.smell" :options="safetyOptions.smell" label="气味" marker="end" @update:model-value="selectSafety('smell', $event)" />
           <span v-if="errors.smell" class="m-error">{{ errors.smell }}</span>
         </div>
         <div v-else :aria-invalid="!!errors.height" tabindex="-1">
           <h2>这次发酵的涨幅如何？</h2>
-          <MRadioCard :model-value="draft.height" :options="primaryHeights" :columns="2" label="主要涨幅表现" @update:model-value="selectHeight" />
+          <MRadioCard :model-value="draft.height" :options="primaryHeights" :columns="2" label="主要涨幅表现" marker="end" @update:model-value="selectHeight" />
           <button type="button" class="more-heights" :aria-expanded="showMoreHeights" @click="heightMoreOpen = !heightMoreOpen">{{ showMoreHeights ? '收起更多情况' : '查看更多情况' }}</button>
-          <MRadioCard v-if="showMoreHeights" :model-value="draft.height" :options="moreHeights" :columns="2" label="更多涨幅情况" @update:model-value="selectHeight" />
+          <MRadioCard v-if="showMoreHeights" :model-value="draft.height" :options="moreHeights" :columns="2" label="更多涨幅情况" marker="end" @update:model-value="selectHeight" />
           <span v-if="autoHeight" class="m-muted">自动：{{ autoHeight.ratio.toFixed(2) }} 倍（{{ autoHeight.baselineHeightMm.toFixed(1) }} → {{ autoHeight.currentHeightMm.toFixed(1) }} mm），落在 {{ autoHeight.range }} 区间。<button v-if="heightOverridden" type="button" class="link-button" @click="restoreAutoHeight">恢复自动值</button></span>
           <span v-else-if="diagnosisMode && feedingEvidence" class="m-muted">缺少有效起始高度或最新高度，无法自动计算，请手动选择。</span>
           <span v-if="errors.height" class="m-error">{{ errors.height }}</span>
         </div>
+        <p class="safety-note"><strong>请勿品尝生酵种。</strong><span>设备不能判断颜色、气味或食品安全，请逐项确认。</span></p>
         <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
@@ -273,10 +275,14 @@ function applyPending(key) {
 .mobile-area .m-page.mobile-checkin{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
 .checkin-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 12px}
 .checkin-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
-.observe-index{flex:none;color:var(--text-secondary);font-size:12px;line-height:18px}
+.observe-index{flex:none;color:var(--text-secondary);font-size:13px;line-height:19px}
 .checkin-starter{flex:none;display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:14px;background:var(--m-icon-disc);color:var(--brand-action);font-size:13px;font-weight:500;max-width:50vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sample-note{margin:0 0 8px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
-.safety-note{margin:0 0 12px;padding:10px 12px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:var(--text-sm);line-height:21px}
+.observe-step h2{margin:18px 0 8px;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
+.observe-step .m-muted{display:block;margin:0 0 16px;font-size:13px;line-height:19px}
+.safety-note{display:grid;gap:2px;margin:16px 0 0;padding:12px 14px;border-radius:15px;background:var(--m-icon-disc);color:var(--text-primary)}
+.safety-note strong{font-size:13px;line-height:19px;font-weight:500}
+.safety-note span{font-size:11px;line-height:16px;color:var(--text-secondary);font-weight:400}
 .more-heights{min-height:44px;margin:8px 0;padding:0;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);cursor:pointer}
 .step-track{display:flex;align-items:center;gap:0;list-style:none;margin:0 0 12px;padding:0}
 .step-track li{display:flex;align-items:center;gap:6px;flex:1;font-size:12px;color:var(--text-secondary)}
@@ -294,7 +300,7 @@ function applyPending(key) {
 .m-actions{position:sticky;bottom:0;z-index:5;display:flex;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
 .m-actions .m-primary{flex:1;display:flex;align-items:center;justify-content:center;min-height:60px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer}
 .m-actions .m-primary:active:not(:disabled){background:var(--brand-accent)}
-.m-actions .m-primary:disabled{opacity:.45;cursor:not-allowed}
+.m-actions .m-primary:disabled{background:color-mix(in srgb, var(--brand-light) 42%, var(--surface-page));color:var(--text-secondary);cursor:not-allowed}
 .m-actions .m-secondary{min-height:44px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px;font-weight:500;cursor:pointer}
 .note,dd,li{overflow-wrap:anywhere;white-space:pre-wrap}
 dt{font-weight:600;margin-top:.75rem}

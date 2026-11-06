@@ -9,7 +9,11 @@ const props = defineProps({
   points: { type: Array, default: () => [] },
   from: { type: String, default: '' },
   to: { type: String, default: '' },
-  height: { type: Number, default: 126 }
+  height: { type: Number, default: 126 },
+  interactive: { type: Boolean, default: true },
+  bubble: { type: Boolean, default: true },
+  highlight: { type: Boolean, default: true },
+  sticky: { type: Boolean, default: true }
 });
 const chartStyle = computed(() => ({ '--m-chart-height': `${props.height}px` }));
 
@@ -30,7 +34,10 @@ function elapsedCaption(point) {
 <template>
   <SeriesChart
     class="m-draggable-chart"
-    sticky
+    :interactive="interactive"
+    :bubble="bubble"
+    :highlight="highlight"
+    :sticky="sticky"
     :style="chartStyle"
     :label="label"
     :unit="unit"

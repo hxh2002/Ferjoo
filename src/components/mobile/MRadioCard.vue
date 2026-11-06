@@ -7,7 +7,8 @@ const props = defineProps({
   label: { type: String, required: true },
   columns: { type: Number, default: 1 },
   disabled: { type: Boolean, default: false },
-  name: { type: String, default: '' }
+  name: { type: String, default: '' },
+  marker: { type: String, default: 'start' }
 });
 const emit = defineEmits(['update:modelValue']);
 const fallbackName = useId();
@@ -19,7 +20,7 @@ function choose(value) {
 </script>
 
 <template>
-  <fieldset class="m-radio-card-group" :disabled="disabled">
+  <fieldset class="m-radio-card-group" :class="{ 'is-trailing': marker === 'end' }" :disabled="disabled">
     <legend class="m-radio-card-legend">{{ label }}</legend>
     <div class="m-radio-card-grid" :style="{ '--m-radio-columns': columns }">
       <label
@@ -62,4 +63,9 @@ function choose(value) {
 .m-radio-card-description { font-size: var(--text-xs); line-height: 18px; color: var(--text-secondary); }
 .m-radio-card:has(.m-radio-card-input:focus-visible) { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 .m-radio-card-group:disabled .m-radio-card { cursor: not-allowed; opacity: .55; }
+.is-trailing .m-radio-card-legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.is-trailing .m-radio-card { min-height: 58px; padding: 0 16px 0 18px; border: 0; border-radius: 16px; box-shadow: 0 3px 12px rgba(48, 37, 31, .05); }
+.is-trailing .m-radio-card.is-selected { border: 1px solid var(--brand-action); }
+.is-trailing .m-radio-card-dot { order: 1; width: 18px; height: 18px; margin-left: auto; }
+.is-trailing .m-radio-card-label { font-size: 15px; line-height: 22px; font-weight: 500; }
 </style>

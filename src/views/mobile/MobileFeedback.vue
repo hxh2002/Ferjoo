@@ -21,7 +21,8 @@ async function submit() {
   }
   busy.value = true;
   try {
-    await submitFeedback({ content: content.value.trim(), contact: contact.value.trim() });
+    const saved = await submitFeedback({ content: content.value.trim(), contact: contact.value.trim() });
+    if (!saved?.id) throw new Error('暂时无法提交，请稍后再试。');
     content.value = '';
     contact.value = '';
     tone.value = 'success';

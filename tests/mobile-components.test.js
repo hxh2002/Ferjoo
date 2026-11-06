@@ -69,12 +69,19 @@ assert.match(confirm, /border-radius: var\(--m-radius-confirm\)/);
 assert.match(confirm, /is-danger/);
 
 const chart = compile('src/components/mobile/MDraggableChart.vue');
-assert.match(chart, /sticky/);
+assert.match(chart, /interactive: \{ type: Boolean, default: true \}/);
+assert.match(chart, /bubble: \{ type: Boolean, default: true \}/);
+assert.match(chart, /highlight: \{ type: Boolean, default: true \}/);
+assert.match(chart, /:sticky="sticky"/);
 assert.match(chart, /width: 104px/);
 assert.match(chart, /11px/);
 const series = compile('src/components/SeriesChart.vue');
 assert.match(series, /series-value-label/);
-assert.match(series, /v-if="sticky && hoverPoint"/);
+assert.match(series, /interactive: \{ type: Boolean, default: false \}/);
+assert.match(series, /bubble: \{ type: Boolean, default: true \}/);
+assert.match(series, /highlight: \{ type: Boolean, default: false \}/);
+assert.match(series, /v-if="highlight && hoverPoint"/);
+assert.match(series, /v-if="bubble && hoverPoint"/);
 compile('src/components/mobile/MIconDisc.vue');
 compile('src/views/mobile/MobileFeeding.vue');
 

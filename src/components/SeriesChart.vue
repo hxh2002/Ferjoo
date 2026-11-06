@@ -28,9 +28,14 @@ const props = defineProps({
   minText: { type: String, default: '' },
   maxText: { type: String, default: '' },
   // 详情页拖动后保留选中点；普通图表仍在指针离开时清除。
-  sticky: { type: Boolean, default: false }
+  sticky: { type: Boolean, default: false },
+  // 三个开关独立于 sticky。sticky 只负责松手后停留再淡出；不传时保持原有悬停提示。
+  interactive: { type: Boolean, default: false },
+  bubble: { type: Boolean, default: true },
+  highlight: { type: Boolean, default: false }
 });
 const emit = defineEmits(['select']);
+const canInteract = computed(() => props.interactive || props.sticky);
 
 const W = 100;
 const H = 44;
@@ -230,7 +235,7 @@ function onPointerUp() {
 }
 onBeforeUnmount(cancelRelease);
 function onKey(e) {
-  if (!props.sticky || !coords.value.length) return;
+  if (!canInteract.value || !coords.value.length) return;
   const next = moveSampleIndex(hoverIdx.value, coords.value.length, e.key);
   if (next == null) return;
   e.preventDefault();
@@ -380,7 +385,7 @@ const bandBadges = computed(() => {
       </div>
     </div>
     <div v-if="series.length" class="series-body">
-      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-releasing': releasing }" :tabindex="sticky ? 0 : undefined" :aria-label="sticky ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="sticky ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
+      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-releasing': releasing }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="canInteract ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient :id="gid" x1="0" y1="0" x2="0" y2="1">
@@ -455,7 +460,7 @@ const bandBadges = computed(() => {
             :y2="H"
           />
           <line
-            v-if="sticky && hoverPoint"
+            v-if="highlight && hoverPoint"
             class="series-guide-y"
             :x1="PAD_X"
             :x2="hoverPoint.x"
@@ -492,22 +497,22 @@ const bandBadges = computed(() => {
           :style="{ left: `${(hoverPoint.x / W) * 100}%`, top: `${(hoverPoint.y / H) * 100}%`, background: color }"
         ></span>
         <span
-          v-if="sticky && hoverPoint"
+          v-if="highlight && hoverPoint"
           class="series-value-label"
           :style="{ top: `${(hoverPoint.y / H) * 100}%` }"
         >{{ fmt(hoverPoint.v) }}</span>
         <span
-          v-if="sticky && hoverPoint"
+          v-if="highlight && hoverPoint"
           class="series-time-label"
           :style="{ left: `${(hoverPoint.x / W) * 100}%` }"
         >{{ fmtTime(hoverPoint.t) }}</span>
         <span
-          v-if="sticky && coords.length"
+          v-if="highlight && coords.length"
           class="series-now"
           :style="{ left: `${(coords.at(-1).x / W) * 100}%`, top: `${(coords.at(-1).y / H) * 100}%` }"
         >当前</span>
         <div
-          v-if="hoverPoint"
+          v-if="bubble && hoverPoint"
           class="series-tip"
           :style="tipStyle"
         >
@@ -542,7 +547,7 @@ const bandBadges = computed(() => {
 .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: opacity 240ms linear; }
 .series-plot.is-releasing :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { opacity: 0; }
 .series-plot { min-height: 44px; }
-.series-plot.is-sticky:focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
+.series-plot:is(.is-sticky, .is-interactive):focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: none; }
 }

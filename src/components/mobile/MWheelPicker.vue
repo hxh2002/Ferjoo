@@ -1,14 +1,19 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
   options: { type: Array, required: true }, // [{ value, label }]；空值可作为“不设置”选项由调用方显式传入
   label: { type: String, required: true },
-  disabled: { type: Boolean, default: false }
+  disabled: { type: Boolean, default: false },
+  height: { type: Number, default: 210 }
 });
 const emit = defineEmits(['update:modelValue']);
 const ROW_HEIGHT = 42;
+const frameStyle = computed(() => {
+  const spacer = Math.max(0, (props.height - ROW_HEIGHT) / 2);
+  return { height: `${props.height}px`, '--m-wheel-spacer': `${spacer}px` };
+});
 const scroller = ref(null);
 let frame = 0;
 let settleTimer = 0;
@@ -63,7 +68,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); clearTimeout(settleTimer); 
 </script>
 
 <template>
-  <div class="m-wheel-picker" :class="{ 'is-disabled': disabled }">
+  <div class="m-wheel-picker" :class="{ 'is-disabled': disabled }" :style="frameStyle">
     <span class="m-wheel-selection" aria-hidden="true" />
     <span class="m-wheel-fade m-wheel-fade-top" aria-hidden="true" />
     <span class="m-wheel-fade m-wheel-fade-bottom" aria-hidden="true" />
@@ -92,14 +97,14 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); clearTimeout(settleTimer); 
 </template>
 
 <style scoped>
-.m-wheel-picker { position: relative; height: 210px; overflow: hidden; --m-wheel-row-height: 42px; }
+.m-wheel-picker { position: relative; height: 210px; overflow: hidden; --m-wheel-row-height: 42px; --m-wheel-spacer: 84px; }
 .m-wheel-scroller { position: relative; z-index: 1; height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y proximity; scrollbar-width: none; outline-offset: -2px; }
 .m-wheel-scroller::-webkit-scrollbar { display: none; }
-.m-wheel-spacer { height: 84px; }
+.m-wheel-spacer { height: var(--m-wheel-spacer, 84px); }
 .m-wheel-option { display: flex; align-items: center; justify-content: center; height: var(--m-wheel-row-height); scroll-snap-align: center; color: var(--text-secondary); font-size: var(--text-md); line-height: 24px; }
 .m-wheel-option.is-selected { color: var(--text-primary); font-weight: 500; }
-.m-wheel-selection { position: absolute; z-index: 0; top: 84px; left: 0; right: 0; height: var(--m-wheel-row-height); border-radius: var(--radius-control); background: var(--surface-selected); pointer-events: none; }
-.m-wheel-fade { position: absolute; z-index: 2; left: 0; right: 0; height: 84px; pointer-events: none; }
+.m-wheel-selection { position: absolute; z-index: 0; top: var(--m-wheel-spacer, 84px); left: 0; right: 0; height: var(--m-wheel-row-height); border-radius: var(--radius-control); background: var(--surface-selected); pointer-events: none; }
+.m-wheel-fade { position: absolute; z-index: 2; left: 0; right: 0; height: var(--m-wheel-spacer, 84px); pointer-events: none; }
 .m-wheel-fade-top { top: 0; background: linear-gradient(var(--surface-page), color-mix(in srgb, var(--surface-page) 0%, transparent)); }
 .m-wheel-fade-bottom { bottom: 0; background: linear-gradient(color-mix(in srgb, var(--surface-page) 0%, transparent), var(--surface-page)); }
 .is-disabled { opacity: .55; pointer-events: none; }

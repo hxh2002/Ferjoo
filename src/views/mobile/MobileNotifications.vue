@@ -118,12 +118,10 @@ onMounted(() => auth.init().then(load));
       <button type="button" class="m-switch" role="switch" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
     <div class="switch-row">
-      <span><strong>诊断提醒</strong><small>诊断结论保存在日记。这里不另存一条推送开关。</small></span>
-    </div>
-    <div class="switch-row">
       <span><strong>高度提醒</strong><small>可选 2×、2.5×、3×。每个阈值每轮喂养只提醒一次。</small></span>
     </div>
   </section>
+  <p class="hint">诊断结论保存在日记。这里不另存一条推送开关。</p>
   <p v-if="error" class="m-error" role="alert">{{ error }}</p>
   <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
 
