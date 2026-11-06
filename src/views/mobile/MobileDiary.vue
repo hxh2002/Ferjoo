@@ -178,7 +178,9 @@ function roundItem(row, carried, now) {
   if (expansion != null && Number.isFinite(expansion)) facts.push({ text: `${expansion >= 0 ? '+' : ''}${expansion.toFixed(0)}%`, tone: expansion >= 0 ? 'up' : 'down' });
   return {
     id: `round:${row.id}`, kind: 'round', at: from, atEnd: to,
-    from: range.from, toLabel: closed ? range.to : '现在',
+    from: range.from,
+    startedLabel: carried ? `${new Date(from).getMonth() + 1} 月 ${new Date(from).getDate()} 日 ${range.from}` : range.from,
+    toLabel: closed ? range.to : '现在',
     fromOffset: range.fromOffset, toOffset: closed ? range.toOffset : '',
     titleTip: range.title,
     sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
@@ -545,7 +547,7 @@ onUnmounted(() => {
           <section v-if="roundCards.length" class="record-group round-group">
             <RouterLink v-for="item in roundCards" :key="item.id" class="feed-card" :to="item.to" :title="item.titleTip">
               <span class="feed-card-head">
-                <strong>{{ item.from }} 喂养</strong>
+                <strong>{{ item.startedLabel }} 喂养</strong>
                 <span v-if="item.state" class="feed-card-state">{{ item.state }}</span>
                 <span class="feed-card-detail">详情 ›</span>
               </span>
@@ -600,7 +602,7 @@ onUnmounted(() => {
 .diary-head{display:flex;align-items:center;min-height:36px;margin:0 0 8px}
 .diary-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
 .month-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:0 0 12px}
-.month-label{margin:0;font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
+.month-label{margin:0;font-size:14px;line-height:21px;font-weight:500;color:var(--text-primary)}
 .month-title{min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .month-title strong,.month-title small{display:block}
 .month-title strong{font-size:16px;line-height:24px;font-weight:500}
@@ -609,13 +611,13 @@ onUnmounted(() => {
 .date-calendar{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
 .date-calendar img{display:block;width:44px;height:44px}
 .day-summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 0 12px}
-.day-title{margin:0;font-size:18px;line-height:26px;font-weight:500}
+.day-title{margin:0;font-size:var(--m-text-confirm);line-height:29px;font-weight:500}
 .day-count{margin:2px 0 0;font-size:14px;line-height:21px;color:var(--text-secondary)}
-.doctor-link{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:32px;color:var(--brand-action);font-size:13px;line-height:20px;font-weight:500;text-decoration:none}
+.doctor-link{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:32px;color:var(--brand-action);font-size:14px;line-height:21px;font-weight:500;text-decoration:none}
 .doctor-link img{display:block;flex:none}
-.feed-card{display:grid;gap:8px;min-height:137px;padding:10px 14px 14px;border-radius:18px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.06);color:inherit;text-decoration:none}
+.feed-card{display:grid;gap:8px;min-height:137px;padding:10px 14px 14px;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow);color:inherit;text-decoration:none}
 .feed-card-head{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;gap:8px}
-.feed-card-head strong{font-size:15px;line-height:22px;font-weight:500}
+.feed-card-head strong{font-size:16px;line-height:24px;font-weight:500}
 .feed-card-state{font-size:11px;line-height:16px;color:var(--text-secondary)}
 .feed-card-detail{justify-self:end;font-size:12px;line-height:18px;font-weight:500;color:var(--brand-accent)}
 .feed-card-sub{font-size:11px;line-height:16px;color:var(--text-secondary)}
@@ -634,8 +636,8 @@ onUnmounted(() => {
 .date-grid-shared .date-cell{min-height:0;height:36px}
 .date-view:not(.expanded) .date-grid-shared .date-cell{height:82px;border-radius:20px;background:var(--surface-card)}
 .date-view:not(.expanded) .date-grid-shared .date-cell.active{background:var(--brand-light)}
-.cell-weekday{font-size:12px;line-height:18px;font-weight:400}
-.date-view:not(.expanded) .cell-day{font-size:16px;line-height:24px;font-weight:500}
+.cell-weekday{font-size:14px;line-height:21px;font-weight:400;color:var(--text-secondary)}
+.date-view:not(.expanded) .cell-day{font-size:18px;line-height:26px;font-weight:500}
 .date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
 .date-cell.active{background:var(--brand-light);color:var(--text-primary);font-weight:500}

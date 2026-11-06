@@ -454,7 +454,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .starter-anchor{position:relative;flex:none}
 .picker-backdrop{position:fixed;inset:0;z-index:31;border:0;background:transparent;cursor:default}
 .device-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em}
-.starter-switch{display:inline-flex;align-items:center;gap:6px;flex:none;width:100px;height:36px;padding:0 10px;border:0;border-radius:12px;background:var(--surface-card);box-shadow:0 3px 12px rgba(48,37,31,.07);color:var(--text-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
+.starter-switch{display:inline-flex;align-items:center;gap:6px;flex:none;box-sizing:border-box;width:100px;height:36px;min-height:36px;padding:0 10px;border:0;border-radius:18px;background:var(--surface-card);box-shadow:0 3px 12px rgba(48,37,31,.07);color:var(--text-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .switch-jar{flex:none;width:16px;height:16px}
 .switch-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .switch-caret{flex:none;width:16px;height:16px;transition:transform var(--motion-fast) ease}

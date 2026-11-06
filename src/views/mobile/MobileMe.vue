@@ -74,7 +74,7 @@ onMounted(() => auth.init());
 .me-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
 .me-edit{flex:none;display:inline-flex;align-items:center;height:32px;padding:0 12px;border-radius:16px;background:var(--surface-card);color:var(--brand-action);font-size:13px;font-weight:500;text-decoration:none;box-shadow:0 3px 12px rgba(48,37,31,.06)}
 .mobile-area .mobile-main .m-page.mobile-me > .profile-card{padding:15px var(--m-card-space)}
-.mobile-area .mobile-main .m-page.mobile-me > .device-entry{padding:17px var(--m-card-space)}
+.mobile-area .mobile-main .m-page.mobile-me > .device-entry{box-sizing:border-box;height:76px;padding:0 var(--m-card-space)}
 .profile-row{display:flex;align-items:center;gap:14px}
 .avatar-disc{display:grid;place-items:center;flex:none;width:56px;height:56px;border-radius:50%;background:var(--m-icon-disc);color:var(--brand-action);font-size:22px;font-weight:600;overflow:hidden}
 .avatar-disc img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%}
