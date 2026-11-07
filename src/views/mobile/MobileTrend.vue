@@ -265,12 +265,23 @@ onBeforeUnmount(() => {
 .empty-mark{display:grid;place-items:center;width:64px;height:64px;border-radius:32px;background:var(--m-icon-disc)}
 .sample-empty h2{margin:24px 0 0;font-size:18px;line-height:26px;font-weight:500}
 .sample-empty p{margin:8px 0 0;color:var(--text-secondary);font-size:14px;line-height:21px}
+/* 空态实测：设备行 → 空图标 0（设计稿在这里留 72）、图标 → 「暂无数据」0（设计稿 24）。
+   前者被 `.m-page > *` 的 margin-block 归零吃掉，后者被全局 `.m-page h2` 的 `margin:0 0 12px`
+   以更高选择器权重压过 scoped 单类；两处都改用别名选择器写回。 */
+.mobile-area .mobile-main .m-page.mobile-trend > .device-row{margin-block:0 72px}
+.mobile-area .mobile-main .m-page.mobile-trend .sample-empty h2{margin-block:24px 0}
 .empty-refresh{width:100%;height:60px;margin-top:24px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px;font-weight:500;box-shadow:var(--m-shadow-button);cursor:pointer}
 .empty-refresh:disabled{opacity:.6;cursor:default}
 .trend-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
 .trend-head p{margin:0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .day-picker{flex:none;min-height:36px;padding:0 12px;border:1px solid var(--border-warm);border-radius:18px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:13px;cursor:pointer}
 .trend-calendar{margin:0 0 14px}
+/* 本页 gap 为 0，节奏靠 margin；`.m-page > *` 的 margin-block 归零会让页头 / 曲线组 / 明细卡
+   三段紧贴（实测 0），这里用高优先级别名把设计稿的 14 写回。 */
+.mobile-area .mobile-main .m-page.mobile-trend > .trend-head{margin-block:0 14px}
+.mobile-area .mobile-main .m-page.mobile-trend > .trend-calendar{margin-block:0 14px}
+.mobile-area .mobile-main .m-page.mobile-trend > .metric-stack{margin-block:0 14px}
+.mobile-area .mobile-main .m-page.mobile-trend > .table-card{margin-block:0 14px}
 .metric-stack{display:grid;gap:12px;margin:0 0 14px}
 .metric-chart{min-width:0;padding:12px 16px 16px;border:0;border-radius:var(--radius-card);background:var(--m-chart-rise)}
 .metric-chart.is-temp{background:var(--m-chart-warm)}

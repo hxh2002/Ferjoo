@@ -103,6 +103,8 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); clearTimeout(settleTimer); 
 
 <style scoped>
 .m-wheel-picker { position: relative; height: 210px; overflow: hidden; --m-wheel-row-height: 42px; --m-wheel-spacer: 84px; }
+/* 这里的 0/1/2 是滚轮内部的层序（选中底 / 滚动内容 / 上下渐隐），只在组件自己的定位上下文里比较，
+   与全局 --m-z-* 是两套坐标系；改成全局令牌反而会把渐隐抬到页面顶栏之上。 */
 .m-wheel-scroller { position: relative; z-index: 1; height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y proximity; scrollbar-width: none; outline-offset: -2px; }
 .m-wheel-scroller::-webkit-scrollbar { display: none; }
 .m-wheel-spacer { height: var(--m-wheel-spacer, 84px); }

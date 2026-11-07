@@ -320,6 +320,12 @@ function applyPending(key) {
 .mobile-area .m-page .review-step h2{margin:0 0 5px;font-size:21px;line-height:31px;font-weight:500}
 .review-step > .m-muted{display:block;margin:0 0 23px;font-size:13px;line-height:19px}
 .mobile-checkin[data-mode="diagnosis"] .review-step > .m-muted{margin:0 0 23px}
+/* 观察模式实测：页头 → 步骤条 → 上下文 → 首卡 连成 0 / 0 / 0，28px 标题直接压在步骤条上。
+   `.m-page > *` 的 margin-block 归零架空了上面三条 scoped 间距。诊断模式走画板锁定的
+   20 / 21 / 5 / 44（标题自身 margin-top），不能被这条规则波及，所以只写回 observation。 */
+.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .checkin-head{margin-block:0 12px}
+.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .step-track{margin-block:0 12px}
+.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .m-context{margin-block:0 12px}
 .review-card{padding:8px 16px 16px;border-radius:20px;background:var(--surface-card)}
 .review-card dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 12px;margin:12px 0 0;align-items:baseline}
 .review-card dt{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
@@ -334,6 +340,9 @@ function applyPending(key) {
 /* 370:17399 / 370:17432：题目底 182 → 说明 187（5）、说明底 206 → 首卡 250（44）。 */
 .observe-step h2 + .m-muted{margin:0 0 44px}
 .safety-note{display:grid;gap:4px;margin:52px 0 0;padding:12px 16px 14px;border-radius:15px;background:var(--m-safety-bg);color:var(--text-primary)}
+/* 安全提示块的底色一直贴到「一句话填写」的折叠行（观察模式下这里还不在 .observe-step 里，
+   两处都要覆盖）；上方 52 是画板锁定值，只在下沿补 16，让提示块成为独立的一段。 */
+.mobile-checkin :is(.m-card, .observe-step) > details{margin-top:16px}
 .safety-note strong{font-size:13px;line-height:19px;font-weight:500}
 .safety-note span{font-size:11px;line-height:16px;color:var(--text-secondary);font-weight:400}
 /* 370:17462：说明底 206 → 首格 230 是 24，比颜色 / 气味两步的 44 紧。 */
@@ -353,7 +362,7 @@ function applyPending(key) {
 .mobile-checkin .m-card{padding:var(--m-card-space);margin-bottom:12px}
 .m-context{margin:0 0 12px;overflow-wrap:anywhere;font-size:13px;line-height:19px}
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
-.m-actions{position:sticky;bottom:0;z-index:5;display:flex;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
+.m-actions{position:sticky;bottom:0;z-index:var(--m-z-raised);display:flex;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
 .m-actions .m-primary{flex:1;display:flex;align-items:center;justify-content:center;height:56px;min-height:56px;padding:0 16px;border:0;border-radius:28px;background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer}
 .m-actions .m-primary:active:not(:disabled){background:var(--brand-accent)}
 .m-actions .m-primary:disabled{background:var(--m-button-disabled);color:var(--text-secondary);opacity:1;cursor:not-allowed}

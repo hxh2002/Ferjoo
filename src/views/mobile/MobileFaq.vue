@@ -76,7 +76,7 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 .faq-icon svg,.faq-chevron{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .faq-icon svg{width:24px;height:24px}
 .faq-title{flex:1;min-width:0;font-size:16px;line-height:24px;font-weight:400}
-.faq-chevron{flex:none;width:20px;height:20px;color:var(--brand-action);transition:transform var(--motion-fast) ease}
+.faq-chevron{flex:none;width:20px;height:20px;color:var(--brand-action);transition:transform var(--motion-fast) var(--ease-standard)}
 .faq-chevron.is-open{transform:rotate(180deg)}
 .faq-answer{padding:0 16px 20px 68px}
 .faq-answer p{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px}

@@ -77,7 +77,16 @@ onMounted(() => auth.init());
 
 <style scoped>
 .mobile-area .m-page.mobile-me{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
-.mobile-area .mobile-main .m-page.mobile-me > .m-card{margin-block:0 12px}
+/* 本页 gap 为 0，间距全靠 margin；`.m-page > *` 的全局归零会把它们吃掉，
+   实测「我的」→「个人资料」、分组标题 → 卡片都是 0，故用高优先级别名写回。 */
+.mobile-area .mobile-main .m-page.mobile-me > .me-head{margin-block:0 14px}
+.mobile-area .mobile-main .m-page.mobile-me > .group-label{margin-block:24px 8px}
+.mobile-area .mobile-main .m-page.mobile-me > .me-head + .group-label{margin-top:0}
+.mobile-area .mobile-main .m-page.mobile-me > .desktop-entry{margin-block:14px 0}
+.mobile-area .mobile-main .m-page.mobile-me > .logout-btn{margin-top:14px}
+/* 卡片自己不留外边距，分区之间统一由 .group-label 的 24 控制，
+   避免「卡片 12 + 标签 18」凑出 30、而标签到自己卡片只有 8 的比例失衡。 */
+.mobile-area .mobile-main .m-page.mobile-me > .m-card{margin-block:0}
 .group-label{margin:18px 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
 .profile-card,.device-entry{display:flex;align-items:center;gap:12px;min-height:88px;color:inherit;text-decoration:none}
 .device-entry{min-height:76px}

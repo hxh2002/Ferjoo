@@ -82,7 +82,7 @@ onBeforeUnmount(() => {
 .m-confirm-cancel { border: 1px solid var(--border-warm); background: var(--surface-card); color: var(--text-primary); }
 .m-confirm-accept { border: 0; background: var(--brand-light); color: var(--text-primary); }
 .m-confirm-accept.is-danger { background: var(--danger-bg); color: var(--danger-text); }
-.m-confirm-enter-active, .m-confirm-leave-active { transition: opacity var(--motion-base) ease; }
+.m-confirm-enter-active, .m-confirm-leave-active { transition: opacity var(--motion-base) var(--ease-standard); }
 .m-confirm-enter-from, .m-confirm-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .m-confirm-enter-active, .m-confirm-leave-active { transition: none; }

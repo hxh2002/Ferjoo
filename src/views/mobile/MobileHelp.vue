@@ -57,6 +57,10 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 </template>
 <style scoped>
 .mobile-area .m-page.help-page{padding-top:12px;gap:0}
+/* `.m-page > *` 会把这些 margin 归零（全局 reset 的选择器层级高于 scoped 单类），
+   页头 → 分组标题 24、标题 → 卡片 12、卡片 → 下个标题 24 的层级因此全变成 0，文字紧贴。 */
+.mobile-area .mobile-main .m-page.help-page > .group-label{margin-block:24px 12px}
+.mobile-area .mobile-main .m-page.help-page > .footnote{margin-block:24px 0}
 .brand{display:grid;justify-items:center}
 .about-logo{width:112px;height:112px;object-fit:contain}
 .tagline{margin:12px 0 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px;text-align:center}

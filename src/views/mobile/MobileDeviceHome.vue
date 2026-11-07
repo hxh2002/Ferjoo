@@ -467,17 +467,27 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
 <style scoped>
 .mobile-area .m-page.device-page{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 88px);gap:0}
-.device-head{position:relative;z-index:32;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
+/* 本页 gap 为 0，节奏靠 margin，但 `.m-page > *` 的 margin-block 归零会把它们全部吃掉：
+   实测「我的设备」→ 状态行 → 罐体都是 0，状态行贴着标题、罐体帽檐（top:-9）反过来压住状态行。
+   这里用高优先级别名写回，并把罐体与状态行之间留 12，让帽檐不再侵入状态文字。 */
+.mobile-area .mobile-main .m-page.device-page > .jar-status{margin-block:8px 0}
+.mobile-area .mobile-main .m-page.device-page > .jar-stage{margin-block:12px 0}
+.mobile-area .mobile-main .m-page.device-page > .round-note,
+.mobile-area .mobile-main .m-page.device-page > .data-note{margin-block:8px 0}
+.mobile-area .mobile-main .m-page.device-page > .cta-note{margin-block:10px 0}
+.mobile-area .mobile-main .m-page.device-page > .risk-banner{margin-block:16px 0}
+.device-head{position:relative;z-index:calc(var(--m-z-header) + 2);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
 .starter-anchor{position:relative;flex:none}
-.picker-backdrop{position:fixed;inset:0;z-index:31;border:0;background:transparent;cursor:default}
+/* 选择浮层的遮罩要盖住 sticky 顶栏（--m-z-header）但低于弹层（--m-z-modal），
+   原先是手写的 31/32，跟令牌不成比例，顶栏层级再调整时会漏盖。 */
+.picker-backdrop{position:fixed;inset:0;z-index:calc(var(--m-z-header) + 1);border:0;background:transparent;cursor:default}
 .device-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em}
 .starter-switch{display:inline-flex;align-items:center;gap:6px;flex:none;box-sizing:border-box;width:100px;height:36px;min-height:36px;padding:0 10px;border:0;border-radius:18px;background:var(--surface-card);box-shadow:0 3px 12px rgba(48,37,31,.07);color:var(--text-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .switch-jar{flex:none;width:16px;height:16px}
 .switch-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-.switch-caret{flex:none;width:16px;height:16px;transition:transform var(--motion-fast) ease}
+.switch-caret{flex:none;width:16px;height:16px;transition:transform var(--motion-fast) var(--ease-standard)}
 .starter-switch[aria-expanded="true"] .switch-caret{transform:rotate(180deg)}
-.jar-status{display:flex;align-items:center;gap:6px;min-height:24px;margin:8px 0 0;font-size:14px;line-height:21px;font-weight:500;color:var(--brand-action)}
-.jar-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.jar-status{display:flex;align-items:center;gap:6px;min-height:24px;margin:8px 0 0;font-size:14px;line-height:21px;font-weight:500;color:var(--brand-action)}.jar-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .jar-status[data-tone="none"]{color:var(--text-secondary)}
 .jar-status[data-tone="warn"]{color:var(--warning-text)}
 .jar-status[data-tone="fault"]{color:var(--danger-text)}
@@ -538,7 +548,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .cta-note .text-link{min-height:0;padding:0;color:var(--brand-action);font-size:12px;font-weight:500;text-decoration:none}
 .risk-banner{margin-top:16px;padding:12px;border-left:3px solid var(--danger-text);background:var(--danger-bg);color:var(--danger-text);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .risk-banner a{color:inherit;font-weight:600}
-.picker-row{position:absolute;z-index:2;top:calc(100% + 8px);right:0;display:grid;gap:8px;width:min(280px,calc(100vw - 48px));max-height:min(420px,70vh);margin:0;padding:12px;overflow:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:0 8px 24px rgba(48,37,31,.14)}
+.picker-row{position:absolute;z-index:var(--m-z-raised);top:calc(100% + 8px);right:0;display:grid;gap:8px;width:min(280px,calc(100vw - 48px));max-height:min(420px,70vh);margin:0;padding:12px;overflow:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:0 8px 24px rgba(48,37,31,.14)}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sheet-head strong{font-size:16px;font-weight:500}
 .sheet-close{min-height:32px;padding:0 8px;border:0;background:none;color:var(--brand-action);font:inherit;font-size:13px;cursor:pointer}
@@ -561,7 +571,9 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .new-starter{display:grid;gap:8px;margin-top:4px}
 .new-starter input{min-height:44px;padding:8px 10px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:14px;background:var(--surface-input);color:var(--text-primary)}
 .new-starter .m-primary{width:100%;min-height:44px;font-size:14px}
-.saved-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 87px);z-index:var(--m-z-modal);display:flex;align-items:center;gap:12px;width:280px;max-width:calc(100vw - 48px);min-height:68px;padding:13px;border:1px solid var(--brand-light);border-radius:var(--m-radius-toast);background:var(--surface-card);box-shadow:0 5px 18px rgba(48,37,31,.14);transform:translateX(-50%);animation:toast-in 220ms ease-out}
+/* 原本写死 220ms + ease-out，与全局的 --motion-base / --ease-standard 各差一档；
+   同页的其它按压、弹层都走令牌，两条相邻动效会读出不同的「手感」。 */
+.saved-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 87px);z-index:var(--m-z-modal);display:flex;align-items:center;gap:12px;width:280px;max-width:calc(100vw - 48px);min-height:68px;padding:13px;border:1px solid var(--brand-light);border-radius:var(--m-radius-toast);background:var(--surface-card);box-shadow:0 5px 18px rgba(48,37,31,.14);transform:translateX(-50%);animation:toast-in var(--motion-base) var(--ease-standard)}
 .toast-disc{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:rgba(255,176,90,.16);color:var(--brand-action)}
 .toast-disc svg{width:20px;height:20px}
 .toast-copy{display:grid;gap:2px;min-width:0}

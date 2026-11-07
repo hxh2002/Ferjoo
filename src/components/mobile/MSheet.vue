@@ -89,8 +89,8 @@ onBeforeUnmount(() => {
 .m-sheet-header p { margin: 6px 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 21px; }
 .m-sheet-close { flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--m-icon-disc); color: var(--text-primary); font-size: 24px; line-height: 1; cursor: pointer; }
 .m-sheet-footer { margin-top: 20px; }
-.m-sheet-enter-active, .m-sheet-leave-active { transition: opacity var(--motion-base) ease; }
-.m-sheet-enter-active .m-sheet, .m-sheet-leave-active .m-sheet { transition: transform var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
+.m-sheet-enter-active, .m-sheet-leave-active { transition: opacity var(--motion-base) var(--ease-standard); }
+.m-sheet-enter-active .m-sheet, .m-sheet-leave-active .m-sheet { transition: transform var(--motion-expand) var(--ease-expand); }
 .m-sheet-enter-from, .m-sheet-leave-to { opacity: 0; }
 .m-sheet-enter-from .m-sheet, .m-sheet-leave-to .m-sheet { transform: translateY(24px); }
 @media (prefers-reduced-motion: reduce) {

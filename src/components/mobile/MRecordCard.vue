@@ -53,9 +53,10 @@ const paths = {
 .m-record-card-toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 14px 16px; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .m-record-card-title { flex: none; color: var(--text-primary); font-size: var(--text-md); font-weight: 400; line-height: 24px; }
 .m-record-card-summary { flex: none; min-width: 0; margin-left: 16px; color: var(--text-primary); font-size: var(--text-md); font-weight: 400; line-height: 24px; text-align: left; }
-.m-record-card-chevron { flex: none; width: 18px; height: 18px; margin-left: auto; fill: none; stroke: var(--text-primary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
+/* 展开面板与箭头：曲线走 --ease-expand，时长走 --motion-expand（与 MSheet 同一套「展开」语义）。 */
+.m-record-card-chevron { flex: none; width: 18px; height: 18px; margin-left: auto; fill: none; stroke: var(--text-primary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion-expand) var(--ease-expand); }
 .is-open .m-record-card-chevron { transform: rotate(180deg); }
-.m-record-card-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--motion-expand) cubic-bezier(.22,.8,.24,1); }
+.m-record-card-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--motion-expand) var(--ease-expand); }
 .m-record-card-panel.is-open { grid-template-rows: 1fr; }
 .m-record-card-body { overflow: hidden; min-height: 0; }
 .m-record-card-inner { padding: 0 16px 16px; border-top: 1px solid var(--border-warm); }

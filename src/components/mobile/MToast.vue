@@ -31,7 +31,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 .m-toast.is-success { background: var(--success-bg); color: var(--success-text); }
 .m-toast.is-error { background: var(--danger-bg); color: var(--danger-text); }
 .m-toast.is-neutral { background: var(--surface-card); color: var(--text-secondary); }
-.m-toast-enter-active, .m-toast-leave-active { transition: opacity var(--motion-base) ease, transform var(--motion-base) ease; }
+.m-toast-enter-active, .m-toast-leave-active { transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard); }
 .m-toast-enter-from, .m-toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
 .m-toast-enter-to, .m-toast-leave-from { transform: translateX(-50%); }
 @media (prefers-reduced-motion: reduce) {

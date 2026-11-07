@@ -197,13 +197,17 @@ onMounted(() => auth.init().then(load));
 .system-status{flex:none;color:var(--text-secondary);font-size:14px;line-height:21px}
 .chevron{flex:none;width:20px;height:20px;fill:none;stroke:var(--brand-action);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .group-label{margin:12px 0 0;color:var(--text-secondary);font-size:14px;line-height:21px}
+/* 本页 gap 统一 16，分组标签与上下内容等距（实测 16 / 16），标题读起来像夹在两张卡之间。
+   实测原 scoped 的 `margin:12px 0 0` 被 `.m-page > *` 归零，这里用高优先级别名把「上多下少」
+   的层级写回：标签上方 16+8=24、下方 16，与「我的」页分组节奏一致。 */
+.mobile-area .mobile-main .m-page.notify-page > .group-label{margin-block:8px 0}
 .switch-card{padding:0 16px;box-shadow:var(--m-shadow-button)}
 .switch-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:88px}
 .switch-copy{display:grid;gap:4px;min-width:0}
 .switch-copy strong{font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
 .switch-copy small{color:var(--text-secondary);font-size:12px;line-height:18px}
 .m-switch{position:relative;flex:none;width:48px;height:28px;min-height:28px;padding:0;border:0;border-radius:14px;background:var(--border-warm);cursor:pointer}
-.m-switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-fast) ease}
+.m-switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-base) var(--m-spring)}
 .m-switch[aria-checked="true"]{background:var(--brand-light)}
 .m-switch[aria-checked="true"] span{transform:translateX(20px)}
 .m-switch:disabled{opacity:.55;cursor:not-allowed}

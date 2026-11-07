@@ -392,6 +392,11 @@ async function save() {
 .m-context{margin:0 0 12px;font-size:13px;line-height:19px;overflow-wrap:anywhere}
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
 .feeding-section{margin:0 0 9px;color:var(--text-secondary);font-size:var(--text-sm);font-weight:500;line-height:21px}
+/* `.m-page > *` 的全局 margin 归零让上面两条 scoped 间距失效，实测「当前酵种」→「喂养措施」
+   与「喂养措施」→ 表单都是 0，标题压在第一张记录卡上；这里用高优先级别名把 12 / 9 写回。 */
+.mobile-area .mobile-main .m-page.mobile-feeding > .m-context{margin-block:0 12px}
+.mobile-area .mobile-main .m-page.mobile-feeding > .feeding-section{margin-block:0 9px}
+.mobile-area .mobile-main .m-page.mobile-feeding > .saved-banner{margin-block:0 14px}
 .alert-card :deep(.m-record-card-summary){font-size:14px;line-height:21px}
 .feeding-form{display:grid;gap:12px}
 .time-switch{display:grid;grid-template-columns:minmax(0,184fr) minmax(0,103fr);gap:8px;max-width:295px;margin:3px 0 6px}
@@ -437,7 +442,7 @@ async function save() {
 .baseline-details summary::-webkit-details-marker{display:none}
 .baseline-details .m-field{padding:0 0 12px}
 .m-status{margin:0;font-size:13px;line-height:19px;color:var(--success-text)}
-.m-actions{position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
+.m-actions{position:sticky;bottom:0;z-index:var(--m-z-raised);display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
 .feeding-submit{flex:1;display:flex;align-items:center;justify-content:center;width:100%;height:60px;min-height:60px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer;text-decoration:none}
 .feeding-submit:active:not(:disabled){background:var(--brand-accent)}
 .feeding-submit:disabled{opacity:.6;cursor:not-allowed}

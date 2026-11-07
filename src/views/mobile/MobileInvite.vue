@@ -56,6 +56,11 @@ async function copy() {
 <style scoped>
 .mobile-area .m-page.invite-page{padding-top:16px}
 .group-label{margin:0 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
+/* 本页 gap 16：分组标签被上下各 16 夹住，「专属邀请码」和卡片一视同仁，看不出谁是标题。
+   `.m-page > *` 的 margin-block 归零也吃掉了原来的 `0 0 8px`，这里写回上 24 / 下 16，
+   首条标签不计上边距，页面顶部仍保持 16。 */
+.mobile-area .mobile-main .m-page.invite-page > .group-label{margin-block:8px 0}
+.mobile-area .mobile-main .m-page.invite-page > .group-label:first-child{margin-block:0}
 .ticket{position:relative;display:flex;flex-direction:column;gap:12px;width:100%;min-height:140px;margin:0 0 24px;padding:16px 24px 15px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary);cursor:pointer;overflow:visible}
 .ticket::before,.ticket::after{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--surface-page);transform:translateY(-50%)}
 .ticket::before{left:-9px}

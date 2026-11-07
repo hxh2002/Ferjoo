@@ -617,10 +617,13 @@ onUnmounted(() => {
 <style scoped>
 .m-page{padding-bottom:calc(8rem + env(safe-area-inset-bottom))}
 .mobile-area .m-page.mobile-diary{padding-top:calc(12px + env(safe-area-inset-top));gap:0}
-.mobile-area .mobile-main .m-page.mobile-diary > .date-board{margin-block:0 28px;padding:0;border:0;background:transparent;box-shadow:none}
-.mobile-area .mobile-main .m-page.mobile-diary > .day-board{margin-block:0 12px}
 .diary-head{display:flex;align-items:center;min-height:36px;margin:0 0 8px}
 .diary-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
+/* `.m-page > *` 的全局归零架空了上面的 8px，实测「日记」标题底与日历卡顶正好贴合（0px）。
+   用高优先级别名写回：标题 → 日历卡 8、日历卡 → 当日记录 28（后者原已生效，这里一并锁住）。 */
+.mobile-area .mobile-main .m-page.mobile-diary > .diary-head{margin-block:0 8px}
+.mobile-area .mobile-main .m-page.mobile-diary > .date-board{margin-block:0 28px;padding:0;border:0;background:transparent;box-shadow:none}
+.mobile-area .mobile-main .m-page.mobile-diary > .day-board{margin-block:0 12px}
 .month-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:0 0 12px}
 /* 画板 370:8446：月份 16px / 400 / #30251f，比日期标题轻一档。 */
 .month-label{margin:0;font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}

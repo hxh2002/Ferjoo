@@ -49,6 +49,9 @@
   --motion-fast: 140ms;
   --motion-base: 240ms;
   --m-spring: cubic-bezier(.22, 1.35, .42, 1);
+  /* 展开 / 弹层的曲线原本在 MRecordCard、MSheet 各写一份 cubic-bezier(.22,.8,.24,1)，
+     两处一旦分叉，同一个「展开」手势就会快慢不一。抽成令牌后只保留这一处定义。 */
+  --ease-expand: cubic-bezier(.22, .8, .24, 1);
   --m-z-raised: 20;
   --m-z-header: 30;
   --m-z-nav: 40;
@@ -93,10 +96,10 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area :is(button, input, select, textarea) { font: inherit; color: inherit; }
 .mobile-area a { color: var(--brand-action); }
 .mobile-area :is(button, a) { -webkit-tap-highlight-color: transparent; white-space: normal; overflow-wrap: anywhere; }
-.mobile-area button:not(:disabled) { transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease; }
+.mobile-area button:not(:disabled) { transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
 .mobile-area button:not(:disabled):active { transform: scale(.97); }
 .mobile-area :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea, .m-primary, .m-secondary) { min-height: 44px; }
-.mobile-area :is(input, select, textarea) { min-width: 0; max-width: 100%; width: 100%; min-height: 48px; padding: 12px 14px; font-size: 16px; border: 1px solid var(--border-input); background: var(--m-surface); color: var(--text-primary); border-radius: var(--m-radius-input); box-shadow: inset 0 1px 2px rgba(86, 55, 33, .04); transition: border-color var(--motion-fast) ease, background-color var(--motion-fast) ease; }
+.mobile-area :is(input, select, textarea) { min-width: 0; max-width: 100%; width: 100%; min-height: 48px; padding: 12px 14px; font-size: 16px; border: 1px solid var(--border-input); background: var(--m-surface); color: var(--text-primary); border-radius: var(--m-radius-input); box-shadow: inset 0 1px 2px rgba(86, 55, 33, .04); transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard); }
 .mobile-area input:is([type="checkbox"], [type="radio"]) { width: 24px; min-height: 24px; height: 24px; flex-shrink: 0; padding: 0; margin: 10px 8px 10px 0; accent-color: var(--brand-action); }
 .mobile-area textarea { resize: vertical; }
 .mobile-area :is(button, input, select, textarea):disabled { opacity: .55; cursor: not-allowed; }
@@ -140,7 +143,7 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 .mobile-area .m-list-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0; border-top: 1px solid var(--border-default); color: inherit; text-decoration: none; }
 .mobile-area .m-list-row:first-of-type { border-top: 0; }
 .mobile-area .m-list-row small, .mobile-area .m-muted { color: var(--text-secondary); }
-.mobile-area :is(.m-primary, .m-secondary, .btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 18px; font: inherit; font-weight: 500; line-height: 1.5; text-decoration: none; cursor: pointer; border: 1px solid var(--border-input); border-radius: var(--m-radius-button); transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease; }
+.mobile-area :is(.m-primary, .m-secondary, .btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 18px; font: inherit; font-weight: 500; line-height: 1.5; text-decoration: none; cursor: pointer; border: 1px solid var(--border-input); border-radius: var(--m-radius-button); transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
 .mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary) { background: var(--brand-action); border-color: var(--brand-action); color: #fff; }
 .mobile-area :is(.m-secondary, .btn-secondary, .ghost-button) { background: var(--surface-card); color: var(--text-primary); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65); }
 .mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary):active:not(:disabled) { background: var(--orange-deep); border-color: var(--orange-deep); }
@@ -240,10 +243,10 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 .mobile-area .mobile-main .m-page :is(.section-heading h2, .record-group-title) { font-size: 18px; }
 .mobile-area .mobile-main .m-page :is(.m-context, header > .m-muted) { font-size: 13px; line-height: 1.7; }
 .mobile-area .mobile-main .m-page .m-actions { gap: 12px; margin-top: var(--m-section-gap); }
-.mobile-area .mobile-main .m-page details > summary { font-weight: 500; transition: color var(--motion-fast) ease; }
+.mobile-area .mobile-main .m-page details > summary { font-weight: 500; transition: color var(--motion-fast) var(--ease-standard); }
 .mobile-area .mobile-main .m-page details[open] > summary { color: var(--brand-action); }
 .mobile-area .mobile-main .m-page :is(input, select, textarea):not(:disabled):hover { border-color: var(--text-secondary); }
-.mobile-area .mobile-main .m-page .m-list-row { transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease; }
+.mobile-area .mobile-main .m-page .m-list-row { transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
 .mobile-area .mobile-main .m-page .m-list-row:active { color: var(--brand-action); }
 .mobile-area .mobile-main .m-page :is(.m-error, .form-error, .form-success, .config-warning) { border-color: transparent; }
 .mobile-area .mobile-main .today-page .round-section { gap: var(--m-module-gap); margin: 0; }
