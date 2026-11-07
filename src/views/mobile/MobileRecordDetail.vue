@@ -262,7 +262,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
 .metric-chart :deep(.series-label){font-size:14px;font-weight:500;letter-spacing:0;line-height:20px;color:var(--text-primary)}
 .metric-chart :deep(.series-value){font-size:16px;font-weight:500;line-height:23px;color:var(--text-primary)}
 .metric-chart :deep(.series-delta),.metric-chart :deep(.series-now){display:none}
-.metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px}
+.metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px;font-weight:500;box-shadow:none}
 .detail-more{border-top:1px solid var(--border-warm);border-bottom:1px solid var(--border-warm)}
 .detail-more summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-size:14px;font-weight:500}
 .m-card{margin:1rem 0;padding:1rem;border:1px solid var(--border-default);background:var(--surface-card)}

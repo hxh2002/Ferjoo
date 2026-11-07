@@ -27,8 +27,7 @@ onMounted(() => auth.init());
       </span>
       <span class="profile-meta">
         <strong>{{ name }}</strong>
-        <small v-if="auth.user.value">{{ auth.profile.value?.system_user_id || '查看并编辑资料' }}</small>
-        <small v-else>尚未登录</small>
+        <small v-if="!auth.user.value">尚未登录</small>
       </span>
       <svg v-if="auth.user.value" class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
     </component>
@@ -67,9 +66,9 @@ onMounted(() => auth.init());
 .group-label{margin:18px 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
 .profile-card,.device-entry{display:flex;align-items:center;gap:12px;min-height:88px;color:inherit;text-decoration:none}
 .device-entry{min-height:76px}
-.device-disc,.row-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--m-icon-disc);color:var(--brand-action)}
+.device-disc,.row-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:20px;background:var(--m-disc);color:var(--brand-action)}
+.device-disc img{width:28px;height:18.2px}
 .row-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.nav-card .m-list-row{min-height:68px}
 .me-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
 .me-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
 .me-edit{flex:none;display:inline-flex;align-items:center;height:32px;padding:0 12px;border-radius:16px;background:var(--surface-card);color:var(--brand-action);font-size:13px;font-weight:500;text-decoration:none;box-shadow:0 3px 12px rgba(48,37,31,.06)}
@@ -79,7 +78,7 @@ onMounted(() => auth.init());
 .avatar-disc{display:grid;place-items:center;flex:none;width:56px;height:56px;border-radius:50%;background:var(--m-icon-disc);color:var(--brand-action);font-size:22px;font-weight:600;overflow:hidden}
 .avatar-disc img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%}
 .profile-meta{display:grid;gap:2px;min-width:0;flex:1}
-.profile-meta strong{font-size:18px;line-height:26px;font-weight:500;color:var(--text-primary)}
+.profile-meta strong{font-size:16px;line-height:24px;font-weight:500;color:var(--text-primary)}
 .profile-meta small{color:var(--text-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .auth-links{display:grid;gap:10px;margin-top:14px}
 .auth-links .m-primary{display:flex;align-items:center;justify-content:center;min-height:48px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:15px;font-weight:500;text-decoration:none}
@@ -91,13 +90,14 @@ onMounted(() => auth.init());
 .row-main{display:grid;gap:2px;min-width:0;flex:1}
 .row-main strong{font-size:15px;line-height:22px;font-weight:500;color:var(--text-primary)}
 .row-main small{font-size:12px;line-height:18px;color:var(--text-secondary)}
-.chevron{flex:none;width:20px;height:20px;fill:none;stroke:var(--text-secondary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chevron{flex:none;width:20px;height:20px;fill:none;stroke:var(--brand-action);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .device-empty{display:flex;align-items:center;gap:12px;padding:8px 0}
 .device-empty img{width:64px;height:64px;object-fit:contain}
 .device-empty p{margin:0;color:var(--text-secondary);font-size:13px}
-.nav-card{padding:4px 18px}
-.nav-card .m-list-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 0;border-top:1px solid var(--border-subtle);text-decoration:none;color:inherit}
-.nav-card .m-list-row:first-child{border-top:0}
+.nav-card{padding:0 16px}
+.nav-card .m-list-row{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;padding:0;border-top:0;text-decoration:none;color:inherit}
+.row-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:20px;background:var(--m-disc);color:var(--brand-action)}
+.nav-card .m-list-row + .m-list-row::before{content:'';position:absolute;top:0;left:52px;right:0;height:1px;background:var(--m-row-divider)}
 .desktop-entry{margin:14px 0 0;text-align:center}
 .desktop-entry a{font-size:13px;color:var(--text-secondary);text-underline-offset:3px;text-decoration:none}
 .logout-btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;margin-top:14px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:var(--surface-card);color:var(--danger-text);font:inherit;font-size:15px;font-weight:500;cursor:pointer}

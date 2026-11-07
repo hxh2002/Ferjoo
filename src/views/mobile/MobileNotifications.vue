@@ -18,7 +18,7 @@ const supported = webPushAvailable();
 const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = Boolean(navigator.standalone) || Boolean(window.matchMedia?.('(display-mode: standalone)')?.matches);
 const permissionLabel = computed(() => ({ granted: '已允许', denied: '已拒绝', default: '未授权', unsupported: '浏览器不支持' })[permission.value] || '未知');
-const statusLabel = computed(() => subscribed.value ? '已开启' : '未开启');
+const systemLabel = computed(() => (permission.value === 'granted' ? '已开启' : permissionLabel.value));
 
 async function load() {
   const user = auth.user.value;
@@ -49,7 +49,18 @@ async function requestSystemAccess() {
     notice.value = '无法代开系统设置。请在系统或浏览器的站点设置里允许通知。';
     return;
   }
-  await enable();
+  if (permission.value === 'granted') {
+    notice.value = '系统通知已允许。声音与横幅样式请在手机系统设置中调整。';
+    return;
+  }
+  if (isIos && !standalone) { notice.value = 'iOS 请先在 Safari 分享菜单选择「添加到主屏幕」，再从主屏幕图标打开本页（iOS 16.4+）。'; return; }
+  notice.value = ''; error.value = '';
+  try {
+    permission.value = await enableSystemNotification();
+    notice.value = permission.value === 'granted' ? '系统通知已允许。' : (permission.value === 'denied' ? '浏览器已拒绝通知权限，请到站点设置中重新允许。' : '未获得通知权限。');
+  } catch (cause) {
+    error.value = cause?.message || '开启失败，请重试。';
+  }
 }
 
 async function enable() {
@@ -110,23 +121,31 @@ onMounted(() => auth.init().then(load));
 
 <template>
 <main class="m-page notify-page">
-  <p v-if="permission !== 'granted'" class="permission-banner" role="status">系统通知未开启。<button type="button" @click="requestSystemAccess">去系统设置开启</button></p>
+  <a class="m-card system-card" href="app-settings:" @click.prevent="requestSystemAccess">
+    <strong>系统通知</strong>
+    <span class="system-status">{{ systemLabel }}</span>
+    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+  </a>
+  <p class="hint">{{ permission === 'granted' ? '声音、横幅等展示方式在手机系统中设置。' : '请前往手机系统设置，允许 Ferjoo 发送通知。' }}</p>
   <p v-if="notice" class="hint" role="status">{{ notice }}</p>
-  <section class="m-card switch-card">
+
+  <p class="group-label">提醒类型</p>
+  <div class="m-card switch-card">
     <div class="switch-row">
-      <span><strong>系统通知</strong><small>权限 {{ permissionLabel }} · {{ statusLabel }}</small></span>
-      <button type="button" class="m-switch" role="switch" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
+      <span class="switch-copy">
+        <strong>高度提醒</strong>
+        <small>达到你设置的高度时提醒</small>
+      </span>
+      <button type="button" class="m-switch" role="switch" :aria-label="`高度提醒${subscribed ? '已开启' : '已关闭'}`" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
-    <div class="switch-row">
-      <span><strong>高度提醒</strong><small>可选 2×、2.5×、3×。每个阈值每轮喂养只提醒一次。</small></span>
-    </div>
-  </section>
+  </div>
+  <p class="hint">提醒设置即时生效，无需保存。每个阈值每轮喂养只提醒一次。</p>
   <p class="hint">诊断结论保存在日记。这里不另存一条推送开关。</p>
   <p v-if="error" class="m-error" role="alert">{{ error }}</p>
   <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
 
+  <p class="group-label">每个酵种的阈值</p>
   <section class="m-card">
-    <h2>高度提醒</h2>
     <div v-if="loading && !starters.length" class="m-skeleton" aria-busy="true" aria-label="正在读取通知"><span></span><span></span></div>
     <p v-else-if="!starters.length" class="m-muted">还没有酵种，请先到「今日」页新建。</p>
     <div v-for="row in starters" :key="row.id" class="starter-row">
@@ -140,8 +159,8 @@ onMounted(() => auth.init().then(load));
     </div>
   </section>
 
+  <p class="group-label">触发条件</p>
   <section class="m-card">
-    <h2>触发条件</h2>
     <ul class="rules">
       <li>酵种已关联正在上传数据的设备，并有喂养记录。</li>
       <li>喂养后、最近 40 分钟内仍有新数据时评估。</li>
@@ -149,8 +168,8 @@ onMounted(() => auth.init().then(load));
     </ul>
   </section>
 
-  <section class="m-card">
-    <h2>开启引导</h2>
+  <p class="group-label">开启引导</p>
+  <section class="m-card guide-card">
     <details class="guide">
       <summary>iPhone / iPad</summary>
       <p>Safari 打开本站 → 分享 → 「添加到主屏幕」→ 从主屏幕图标打开 → 回到本页开启。需 iOS 16.4 及以上。</p>
@@ -172,34 +191,38 @@ onMounted(() => auth.init().then(load));
 </template>
 
 <style scoped>
-.notify-page{padding-bottom:calc(2rem + env(safe-area-inset-bottom))}
-.switch-card{display:grid;padding:4px 16px}
-.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;border-top:1px solid var(--border-warm)}
-.switch-row:first-child{border-top:0}
-.switch-row > span{display:grid;gap:2px;min-width:0}
-.switch-row strong{font-size:var(--text-md);font-weight:500}
-.switch-row small{color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
-.m-switch{position:relative;flex:none;width:52px;height:32px;min-height:32px;padding:0;border:0;border-radius:16px;background:var(--border-warm);cursor:pointer}
-.m-switch span{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-fast) ease}
+.notify-page{padding-bottom:calc(2rem + env(safe-area-inset-bottom));gap:12px}
+.system-card{display:flex;align-items:center;gap:12px;min-height:68px;padding:0 16px;color:inherit;text-decoration:none;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow-button)}
+.system-card strong{flex:1;min-width:0;font-size:16px;line-height:24px;font-weight:500;color:var(--text-primary)}
+.system-status{flex:none;color:var(--text-secondary);font-size:14px;line-height:21px}
+.chevron{flex:none;width:20px;height:20px;fill:none;stroke:var(--brand-action);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.group-label{margin:12px 0 0;color:var(--text-secondary);font-size:14px;line-height:21px}
+.switch-card{padding:0 16px;box-shadow:var(--m-shadow-button)}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:88px}
+.switch-copy{display:grid;gap:4px;min-width:0}
+.switch-copy strong{font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
+.switch-copy small{color:var(--text-secondary);font-size:12px;line-height:18px}
+.m-switch{position:relative;flex:none;width:48px;height:28px;min-height:28px;padding:0;border:0;border-radius:14px;background:var(--border-warm);cursor:pointer}
+.m-switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-fast) ease}
 .m-switch[aria-checked="true"]{background:var(--brand-light)}
 .m-switch[aria-checked="true"] span{transform:translateX(20px)}
 .m-switch:disabled{opacity:.55;cursor:not-allowed}
-.hint{margin:0;font-size:var(--text-sm);line-height:21px;color:var(--text-secondary)}
+.hint{margin:0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .hint.warn{color:var(--danger-text)}
-.permission-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:12px 16px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:var(--text-sm)}
-.permission-banner button{min-height:32px;padding:0 12px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary)}
 .starter-row{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border-warm)}
-.starter-row:first-of-type{border-top:0}
+.starter-row:first-of-type{border-top:0;padding-top:0}
 .starter-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.starter-head small{font-size:var(--text-xs);color:var(--text-secondary)}
+.starter-head strong{font-size:16px;line-height:24px;font-weight:400}
+.starter-head small{font-size:12px;line-height:18px;color:var(--text-secondary)}
 .targets{display:flex;gap:6px}
-.target{flex:1;min-height:44px;padding:0 4px;border:1px solid var(--border-warm);border-radius:var(--m-radius-button);background:var(--surface-input);font:inherit;font-size:var(--text-sm);color:inherit;cursor:pointer}
+.target{flex:1;min-height:44px;padding:0 4px;border:1px solid var(--border-warm);border-radius:var(--m-radius-button);background:var(--surface-input);font:inherit;font-size:14px;color:inherit;cursor:pointer}
 .target.active{border-color:var(--brand-action);background:var(--brand-light);color:var(--text-primary);font-weight:500}
 .target:disabled{opacity:.55}
-.rules{margin:0;padding-left:18px;display:grid;gap:6px;font-size:var(--text-sm);line-height:21px;color:var(--text-secondary)}
+.rules{margin:0;padding-left:18px;display:grid;gap:8px;font-size:14px;line-height:21px;color:var(--text-secondary)}
+.guide-card{padding:0 16px;box-shadow:var(--m-shadow-button)}
 .guide{border-top:1px solid var(--border-warm);padding:8px 0}
-.guide:first-of-type{border-top:0}
-.guide summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:var(--text-md)}
-.guide p{margin:4px 0 0;font-size:var(--text-sm);line-height:21px;color:var(--text-secondary)}
-.guide code{font-size:var(--text-xs);overflow-wrap:anywhere}
+.guide:first-of-type{border-top:0;padding-top:0}
+.guide summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:16px;line-height:24px}
+.guide p{margin:4px 0 0;font-size:14px;line-height:21px;color:var(--text-secondary)}
+.guide code{font-size:12px;overflow-wrap:anywhere}
 </style>

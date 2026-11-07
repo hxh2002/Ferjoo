@@ -1,10 +1,11 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { inject, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { changePassword } from '../../services/auth.service.js';
 import MToast from '../../components/mobile/MToast.vue';
 
 const auth = useAuth();
+const headerTone = inject('mobileHeaderTone', null);
 const form = reactive({ oldPassword: '', newPassword: '', confirm: '' });
 const visible = reactive({ oldPassword: false, newPassword: false, confirm: false });
 const busy = ref(false);
@@ -15,7 +16,8 @@ const fields = [
   { key: 'newPassword', label: '新密码', placeholder: '请输入新密码', autocomplete: 'new-password' },
   { key: 'confirm', label: '确认新密码', placeholder: '请再次输入新密码', autocomplete: 'new-password' }
 ];
-onMounted(() => auth.init());
+onMounted(() => { if (headerTone) headerTone.value = 'settings'; auth.init(); });
+onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 async function submit() {
   if (busy.value) return;
   error.value = '';
@@ -37,7 +39,6 @@ async function submit() {
 
 <template>
   <main class="m-page account-page">
-    <h1>修改密码</h1>
     <p class="lead">为了账号安全，请先验证当前密码。</p>
     <form @submit.prevent="submit">
       <label v-for="field in fields" :key="field.key" class="m-field">{{ field.label }}
@@ -57,15 +58,15 @@ async function submit() {
 </template>
 
 <style scoped>
-.account-page{min-height:calc(100dvh - 120px);overflow-wrap:anywhere}
-h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
+.account-page{min-height:calc(100dvh - 128px);padding-top:16px;gap:20px;overflow-wrap:anywhere}
 .lead,.rule{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
 form{display:flex;flex:1;flex-direction:column;gap:20px}
 .account-page :deep(.m-field),form .m-field{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
-.secret{display:flex;align-items:center;gap:8px;min-height:64px;padding:0 8px 0 16px;border:1px solid var(--border-warm);border-radius:20px;background:var(--surface-card);box-shadow:0 4px 18px rgba(48,37,31,.07)}
-.secret input{flex:1;min-width:0;height:44px;padding:0;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:16px;line-height:24px}
+.secret{display:flex;align-items:center;gap:8px;min-height:64px;padding:0 12px 0 17px;border:0;border-radius:20px;background:var(--surface-card);box-shadow:var(--m-shadow-field)}
+.secret input{flex:1;min-width:0;height:24px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--text-primary);font:inherit;font-size:16px;line-height:24px}
 .secret input:focus{outline:none}
-.secret button{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--text-secondary);cursor:pointer}
-form .m-primary{margin-top:auto;min-height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;box-shadow:0 4px 16px rgba(48,37,31,.06);cursor:pointer}
+.secret input::placeholder{color:var(--text-secondary)}
+.secret button{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--text-secondary);cursor:pointer}
+form .m-primary{margin-top:auto;min-height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;box-shadow:var(--m-shadow-button);cursor:pointer}
 form .m-primary:disabled{cursor:not-allowed}
 </style>

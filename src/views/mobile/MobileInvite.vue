@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import MToast from '../../components/mobile/MToast.vue';
 
 const auth = useAuth();
+const headerTone = inject('mobileHeaderTone', null);
 const toast = ref('');
 const toastTone = ref('success');
 const invited = computed(() => Number(auth.profile.value?.invited_count) || 0);
@@ -13,7 +14,8 @@ const quota = computed(() => {
 });
 const remaining = computed(() => Math.max(0, quota.value - invited.value));
 const progress = computed(() => quota.value > 0 ? Math.min(100, (invited.value / quota.value) * 100) : 0);
-onMounted(() => auth.init());
+onMounted(() => { if (headerTone) headerTone.value = 'settings'; auth.init(); });
+onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 async function copy() {
   const code = auth.profile.value?.invite_code;
   if (!code) return;
@@ -30,7 +32,6 @@ async function copy() {
 
 <template>
   <main class="m-page invite-page">
-    <h1>我的邀请码</h1>
     <p class="group-label">专属邀请码</p>
     <button class="ticket" type="button" :disabled="!auth.profile.value?.invite_code" @click="copy">
       <span class="code">{{ auth.profile.value?.invite_code || '正在读取…' }}</span>
@@ -53,9 +54,12 @@ async function copy() {
 </template>
 
 <style scoped>
-h1{margin:0 0 20px;font-size:28px;line-height:36px;font-weight:500}
+.mobile-area .m-page.invite-page{padding-top:16px}
 .group-label{margin:0 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
-.ticket{display:flex;flex-direction:column;gap:12px;width:100%;min-height:140px;margin:0 0 24px;padding:16px 24px 15px;border:0;border-radius:20px;background:var(--brand-light);color:var(--text-primary);cursor:pointer}
+.ticket{position:relative;display:flex;flex-direction:column;gap:12px;width:100%;min-height:140px;margin:0 0 24px;padding:16px 24px 15px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary);cursor:pointer;overflow:visible}
+.ticket::before,.ticket::after{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--surface-page);transform:translateY(-50%)}
+.ticket::before{left:-9px}
+.ticket::after{right:-9px}
 .ticket:disabled{cursor:default}
 .code{font-size:36px;line-height:48px;font-weight:500;letter-spacing:2px;text-align:center;overflow-wrap:anywhere;user-select:all}
 .ticket-line{height:1px;background:repeating-linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 28%, transparent) 0 4px, transparent 4px 8px)}

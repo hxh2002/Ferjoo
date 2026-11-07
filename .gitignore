@@ -14,6 +14,9 @@ Ferjoo_PPT_HKTech300.pptx
 # 本地视频素材（不入库）
 酵种视频bgmm.mp4
 
+# Figma 量取用的临时截图与导出（不入库）
+.tmp-figma/
+
 # 系统与通用
 .DS_Store
 Thumbs.db

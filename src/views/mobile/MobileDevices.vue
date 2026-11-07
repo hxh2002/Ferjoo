@@ -212,14 +212,18 @@ onBeforeUnmount(() => { version += 1; });
       </section>
       <section v-else class="device-stack">
         <div class="section-heading"><h2>已绑定设备<span class="count"> · {{ devices.length }} 台</span></h2><RouterLink class="m-text-action" to="/me/devices/add">添加设备</RouterLink></div>
-        <RouterLink v-for="item in devices" :key="item.device_id" class="m-card overview-card" :to="`/me/devices/${encodeURIComponent(item.device_id)}`">
-          <span class="device-disc large" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="24" height="24" /></span>
-          <div class="overview-copy">
-            <div class="overview-title"><strong>{{ item.name || item.device_id }}</strong><span class="status-pill" :data-offline="isOffline(item.last_seen_at) || null">{{ isOffline(item.last_seen_at) ? '离线' : '已连接' }}</span></div>
-            <small>{{ item.device_id }}</small>
-            <small>最近同步 {{ formatSeen(item.last_seen_at) }}<template v-if="item.quality"> · {{ item.quality }}</template></small>
+        <RouterLink v-for="item in devices" :key="item.device_id" class="m-card overview-card overview-card-list" :to="`/me/devices/${encodeURIComponent(item.device_id)}`">
+          <div class="overview-head">
+            <span class="device-hat" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="44" height="29" /></span>
+            <div class="overview-copy">
+              <div class="overview-title"><strong>{{ item.name || item.device_id }}</strong><span class="status-pill" :data-offline="isOffline(item.last_seen_at) || null"><i aria-hidden="true"></i>{{ isOffline(item.last_seen_at) ? '离线' : '已连接' }}</span></div>
+              <small>设备编号 {{ item.device_id }}</small>
+            </div>
           </div>
-          <span class="data-chip">设备设置</span>
+          <div class="overview-foot">
+            <small>最近同步 {{ formatSeen(item.last_seen_at) }}<template v-if="item.quality"> · {{ item.quality }}</template></small>
+            <span class="data-chip">设备设置</span>
+          </div>
         </RouterLink>
       </section>
       <section v-if="showBinding" id="device-binding" class="m-card"><h2>绑定设备</h2>
@@ -233,26 +237,24 @@ onBeforeUnmount(() => { version += 1; });
     <section v-else-if="loading && !device" class="m-skeleton" aria-busy="true" aria-label="正在读取设备"><span></span><span></span></section>
     <template v-else-if="device">
       <p v-if="offline" class="offline-banner" role="status">设备离线<button type="button" :disabled="loading" @click="refreshDevice">刷新</button><span>上次同步 {{ lastSync }}</span></p>
+      <p v-if="offline" class="offline-note">请检查设备电源与网络，再刷新状态。</p>
       <header class="devices-head"><h1>{{ device.name || device.device_id }}</h1><button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button></header>
-      <section class="m-card overview-card">
-        <span class="device-disc large" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="24" height="24" /></span>
+      <section class="m-card overview-card detail-overview">
+        <span class="device-hat" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="44" height="29" /></span>
         <div class="overview-copy">
-          <div class="overview-title"><strong>{{ device.name || device.device_id }}</strong><span class="status-pill" :data-offline="offline || null">{{ offline ? '离线' : '已连接' }}</span></div>
-          <small>{{ device.device_id }}</small>
-          <small>最近同步 {{ lastSync }}</small>
+          <div class="overview-title"><strong>{{ device.name || device.device_id }}</strong><span class="status-pill" :data-offline="offline || null"><i aria-hidden="true"></i>{{ offline ? '离线' : '已连接' }}</span></div>
+          <small>设备编号 {{ device.device_id }}</small>
         </div>
-        <a class="data-chip" href="#device-settings">设备设置</a>
       </section>
-      <p class="group-label">设备数据</p>
-      <section class="m-card settings-card">
-        <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">设备数据 <span aria-hidden="true">›</span></RouterLink>
-      </section>
-      <p class="group-label">设备设置</p>
+      <p class="group-label">设备管理</p>
       <section id="device-settings" class="m-card settings-card">
+        <button v-if="manager" type="button" class="settings-row" @click="renameOpen = true">设备名称 <span aria-hidden="true">›</span></button>
+        <button type="button" class="settings-row" @click="starterOpen = true">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small><span aria-hidden="true">›</span></button>
         <RouterLink class="settings-row" :to="`/me/devices/${encodeURIComponent(deviceId)}/info`">设备信息 <span aria-hidden="true">›</span></RouterLink>
-        <button v-if="manager" type="button" class="settings-row" @click="renameOpen = true">修改设备名称 <span aria-hidden="true">›</span></button>
-        <button type="button" class="settings-row" @click="starterOpen = true">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small></button>
-        <button v-if="device.my_role === 'member'" type="button" class="settings-row danger" :disabled="saving || !mySystemId" @click="askRemove({ member_role: 'member', system_user_id: mySystemId }, true)">解除绑定</button>
+        <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备数据 <span aria-hidden="true">›</span></RouterLink>
+      </section>
+      <section class="unbind-card">
+        <button v-if="device.my_role === 'member'" type="button" class="unbind-row" :disabled="saving || !mySystemId" @click="askRemove({ member_role: 'member', system_user_id: mySystemId }, true)">解除绑定</button>
         <p v-else-if="device.my_role === 'owner'" class="settings-note">所有者不能解绑自己。</p>
       </section>
       <details v-if="manager" class="m-card m-disclosure">
@@ -297,11 +299,18 @@ onBeforeUnmount(() => { version += 1; });
 .device-disc.large{width:56px;height:56px}
 .device-disc.large img{width:24px;height:24px}
 .overview-card{display:flex;align-items:center;gap:12px;min-height:144px;color:inherit;text-decoration:none}
-.overview-copy{display:grid;gap:4px;min-width:0;flex:1}
+.overview-card-list{display:grid;gap:16px;padding:20px;align-content:space-between}
+.overview-head{display:flex;align-items:center;gap:12px;min-width:0}
+.overview-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.detail-overview{min-height:96px;padding:20px;gap:12px}
+.device-hat{display:grid;place-items:center;flex:none;width:56px;height:56px;border-radius:28px;background:var(--m-disc)}
+.device-hat img{width:44px;height:28.6px}
+.overview-copy{display:grid;gap:5px;min-width:0;flex:1}
 .overview-title{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;width:100%;min-width:0}
 .overview-title strong{flex:1 1 100%;min-width:0;font-size:16px;font-weight:500;line-height:22px}
 .overview-card small{color:var(--text-secondary);font-size:12px;line-height:18px}
-.status-pill{display:inline-flex;align-items:center;justify-content:center;flex:none;width:72px;height:26px;border-radius:13px;background:var(--success-bg);color:var(--success-text);font-size:12px;font-weight:500;white-space:nowrap}
+.status-pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;width:72px;height:26px;border-radius:13px;background:var(--m-disc);color:var(--brand-action);font-size:12px;font-weight:500;line-height:18px;white-space:nowrap}
+.status-pill i{flex:none;width:4px;height:4px;border-radius:50%;background:currentColor}
 .status-pill[data-offline]{background:var(--warning-bg);color:var(--warning-text)}
 .data-chip{display:inline-flex;align-items:center;justify-content:center;flex:none;width:94px;height:32px;border-radius:16px;background:var(--brand-light);color:var(--text-primary);font-size:13px;font-weight:500;text-decoration:none}
 .row-main{display:grid;gap:2px;min-width:0;flex:1;overflow-wrap:anywhere}
@@ -312,13 +321,17 @@ onBeforeUnmount(() => { version += 1; });
 .binding-confirm{grid-template-columns:auto minmax(0,1fr);align-items:start}
 .m-text-action.danger-action{color:var(--danger-text)}
 .unbind-action{margin-top:24px}
-.settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:68px;padding:0;border:0;border-top:1px solid var(--border-warm);background:transparent;color:inherit;font:inherit;font-size:var(--text-md);text-align:left;text-decoration:none}
+.settings-row{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:68px;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-size:16px;line-height:24px;font-weight:500;text-align:left;text-decoration:none}
+.settings-row + .settings-row::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--border-warm)}
+.settings-row small{margin-left:auto;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
+.settings-row > span{margin-left:auto;color:var(--brand-action);font-size:18px;line-height:1}
 .settings-row.danger{color:var(--danger-text)}
-.settings-note{margin:0;padding:12px 0;color:var(--text-secondary);font-size:var(--text-sm)}
-.settings-card .settings-row:first-child{border-top:0}
-.settings-row small{color:var(--text-secondary);font-size:var(--text-sm)}
-.offline-banner{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:12px 16px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:var(--text-sm)}
+.settings-note{margin:0;padding:12px 0;color:var(--text-secondary);font-size:14px;line-height:21px}
+.unbind-card{padding:0 16px;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow-button)}
+.unbind-row{display:flex;align-items:center;justify-content:center;width:100%;min-height:68px;padding:0;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:16px;line-height:24px;font-weight:500;cursor:pointer}
+.offline-banner{display:flex;align-items:center;gap:12px;margin:0;padding:12px 16px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:14px;line-height:21px}
 .offline-banner button{min-height:32px;padding:0 12px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary)}
+.offline-note{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px}
 .rename-form{display:grid;gap:16px;width:min(327px,100%)}
 .rename-field{display:grid;gap:8px;font-size:var(--text-sm);font-weight:500}
 .rename-field input{width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md)}

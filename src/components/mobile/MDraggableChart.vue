@@ -60,8 +60,8 @@ function elapsedCaption(point) {
 <style scoped>
 .m-draggable-chart { min-height: var(--m-chart-height, 126px); }
 .m-draggable-chart :deep(.series-body svg) { height: var(--m-chart-height, 126px); }
-.m-draggable-chart :deep(.series-tip) { width: 104px; min-height: 38px; padding: 4px 8px; border: 1px solid var(--border-warm); border-radius: var(--m-radius-bubble); background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow); white-space: normal; }
-.m-draggable-chart :deep(.series-tip span) { display: block; color: var(--text-secondary); font-size: var(--text-xs); line-height: 18px; opacity: 1; white-space: normal; }
-.m-draggable-chart :deep(.series-tip strong) { color: var(--text-primary); font-size: var(--text-md); font-weight: 500; line-height: 24px; white-space: normal; }
+.m-draggable-chart :deep(.series-tip) { width: 104px; min-height: 38px; padding: 2px 8px; border: 1px solid var(--m-chart-line); border-radius: var(--m-radius-bubble); background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow-tip); white-space: normal; }
+.m-draggable-chart :deep(.series-tip span) { display: block; color: var(--text-secondary); font-size: 10px; line-height: 14px; opacity: 1; white-space: normal; }
+.m-draggable-chart :deep(.series-tip strong) { color: var(--text-primary); font-size: 15px; font-weight: 500; line-height: 20px; white-space: normal; }
 .m-draggable-chart :deep(.series-hover-dot) { width: 11px; height: 11px; border: 0; border-radius: 50%; }
 </style>

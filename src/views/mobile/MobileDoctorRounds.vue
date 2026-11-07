@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords } from '../../services/care.service.js';
@@ -13,6 +13,7 @@ defineOptions({ name: 'MobileDoctorRounds' });
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
+const headerTone = inject('mobileHeaderTone', null);
 const rows = ref([]);
 const loading = ref(false);
 const error = ref('');
@@ -84,6 +85,8 @@ async function load() {
   }
 }
 watch([() => auth.user.value?.id, day, () => route.query.starter], () => { auth.init().then(load); }, { immediate: true });
+onMounted(() => { if (headerTone) headerTone.value = 'detail'; });
+onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 </script>
 
 <template>
@@ -108,23 +111,30 @@ watch([() => auth.user.value?.id, day, () => route.query.starter], () => { auth.
     <p v-else-if="!rounds.length" class="empty">该日期暂无喂养记录，请选择其他日期</p>
     <RouterLink v-for="round in rounds" :key="round.id" class="round-card" :to="{ path: '/checkin', query: { starter: round.starterId, feeding: round.id, mode: 'diagnosis', returnTo: route.fullPath } }">
       <span><strong>{{ round.title }}</strong><small>{{ round.detail }}</small></span>
-      <span aria-hidden="true">›</span>
+      <span class="round-chevron" aria-hidden="true">›</span>
     </RouterLink>
   </main>
 </template>
 
 <style scoped>
-.m-page.doctor-rounds .doctor-head h1{margin:0;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
-.doctor-head small{display:block;margin-top:6px;color:var(--text-secondary);font-size:14px;line-height:20px}
-.day-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:32px 0 12px}
-.day-row strong{font-size:14px;line-height:21px;font-weight:500}
+.mobile-area .m-page.doctor-rounds{padding-top:calc(41px + env(safe-area-inset-top));gap:0}
+/* 370:17647：顶栏「酵种医生」底 91 → 标题 132（41）；标题 31 高 → 说明 169（6）；说明 20 高 → 日期行顶 215（26）。 */
+.mobile-area .m-page.doctor-rounds .doctor-head h1{margin:0;font-size:22px;line-height:31px;font-weight:500;letter-spacing:0}
+.doctor-head small{display:block;margin:6px 0 0;color:var(--text-secondary);font-size:14px;line-height:20px}
+.mobile-area .m-page.doctor-rounds .day-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:26px 0 11px}
+.day-row strong{font-size:14px;line-height:21px;font-weight:400}
 .day-picker,.month-entry,.retry{min-height:34px;padding:0 12px;border:1px solid var(--border-warm);border-radius:17px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px}
-.day-picker{width:115px;height:34px;padding:0 10px}
+.day-picker{width:115px;height:34px;padding:0 10px;border:0;border-radius:17px;background:var(--m-date-capsule-bg);color:var(--m-date-capsule-text);font-size:13px}
 .month-entry{margin:8px 0 12px}
 .month-wheels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.empty{margin:24px 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
-.round-card{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:76px;margin-bottom:12px;padding:14px 16px;border:1px solid var(--border-warm);border-radius:var(--radius-card);background:var(--surface-card);color:inherit;text-decoration:none;box-shadow:var(--m-shadow)}
-.round-card span{display:grid;gap:4px;min-width:0}
-.round-card strong{font-size:var(--text-md);font-weight:500;line-height:24px}
-.round-card small{color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
+.empty{margin:14px 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+/* 370:17647：轮次卡 327×76、圆角 18、无边框无阴影，内边距 12 16；
+   标题 x=40（卡内 16）、16/22 起于 y=272，次行 12/17 起于 y=302（间距 8），chevron 20×31 居中。
+   内容顶端对齐，多出的 5px 留在卡底，才能同时命中标题与次行的 y。 */
+.mobile-area .m-page.doctor-rounds .round-card{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:76px;margin:0 0 14px;padding:12px 16px;border:0;border-radius:18px;background:var(--surface-card);color:inherit;text-decoration:none;box-shadow:none}
+.round-card span{display:grid;gap:8px;min-width:0}
+.round-card strong{font-size:var(--text-md);font-weight:500;line-height:22px}
+.round-card small{color:var(--text-secondary);font-size:var(--text-xs);line-height:17px}
+.round-chevron{align-self:center;display:grid;place-items:center;width:20px;height:31px;color:var(--brand-action);font-size:22px;line-height:1}
+.doctor-rounds .m-calendar{margin:0 0 11px}
 </style>

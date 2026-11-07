@@ -59,18 +59,18 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 .mobile-area .m-page.help-page{padding-top:12px;gap:0}
 .brand{display:grid;justify-items:center}
 .about-logo{width:112px;height:112px;object-fit:contain}
-.tagline{margin:12px 0 0;color:var(--text-primary);font-size:var(--text-sm);line-height:21px;text-align:center}
+.tagline{margin:12px 0 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px;text-align:center}
 .about-socials{display:flex;justify-content:center;gap:12px;margin-top:12px}
 .about-social{display:grid;justify-items:center;align-content:start;gap:6px;width:88px;min-height:80px;color:inherit;text-decoration:none;font-size:var(--text-xs);line-height:18px}
-.social-disc{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--m-icon-disc);color:var(--brand-action)}
+.social-disc{display:grid;place-items:center;width:56px;height:56px;border-radius:28px;background:var(--m-disc);color:var(--brand-action)}
 .social-disc svg{width:24px;height:24px;fill:currentColor}
 .group-label{margin:24px 0 12px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
-.help-links{display:grid;padding:0 16px}
+.mobile-area .m-page.help-page .help-links{display:grid;padding:0 16px;border:0;box-shadow:var(--m-shadow-button)}
 .help-links a{position:relative;display:flex;align-items:center;gap:12px;min-height:68px;color:inherit;text-decoration:none;font-size:var(--text-md);font-weight:500;line-height:24px}
 .help-links a + a::before{content:'';position:absolute;top:0;left:52px;right:0;height:1px;background:var(--border-warm)}
-.row-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--m-icon-disc);color:var(--brand-action)}
+.row-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:20px;background:var(--m-disc);color:var(--brand-action)}
 .row-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .help-links a span:nth-child(2){flex:1}
-.chevron{flex:none;width:20px;height:20px;fill:none;stroke:var(--text-secondary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.footnote{margin:24px 0 0;color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
+.chevron{flex:none;width:20px;height:20px;fill:none;stroke:var(--brand-action);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.footnote{margin:24px 0 0;color:var(--text-secondary);font-size:var(--text-xs);line-height:18px;text-align:center}
 </style>

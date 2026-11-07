@@ -248,7 +248,7 @@ onBeforeUnmount(() => {
 .empty-mark{display:grid;place-items:center;width:64px;height:64px;border-radius:32px;background:var(--m-icon-disc)}
 .sample-empty h2{margin:24px 0 0;font-size:18px;line-height:26px;font-weight:500}
 .sample-empty p{margin:8px 0 0;color:var(--text-secondary);font-size:14px;line-height:21px}
-.empty-refresh{width:100%;height:60px;margin-top:24px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px;font-weight:500;cursor:pointer}
+.empty-refresh{width:100%;height:60px;margin-top:24px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px;font-weight:500;box-shadow:var(--m-shadow-button);cursor:pointer}
 .empty-refresh:disabled{opacity:.6;cursor:default}
 .trend-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
 .trend-head p{margin:0;font-size:12px;line-height:18px;color:var(--text-secondary)}
@@ -277,7 +277,7 @@ onBeforeUnmount(() => {
 .metric-chart :deep(.series-headline){display:flex;align-items:baseline;gap:4px;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
 .metric-chart :deep(.series-label){font-size:14px;font-weight:500;letter-spacing:0;line-height:20px;color:var(--text-primary)}
 .metric-chart :deep(.series-delta){display:none}
-.metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px}
+.metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px;font-weight:500;box-shadow:none}
 .metric-chart :deep(.series-range){display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px;min-width:0}
 .metric-chart :deep(.series-time-range){white-space:nowrap}
 .table-card{margin:0 0 14px;padding:var(--m-card-space);border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow)}

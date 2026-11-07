@@ -110,9 +110,20 @@ function shiftDate(value, amount) {
 }
 // 收起态以所选日期为中心，前后各 3 天；切周时整窗移动 7 天。
 const compactDays = computed(() => Array.from({ length: 7 }, (_, index) => shiftDate(selectedDay.value, index - 3)));
-const calendarTitle = computed(() => {
-  const date = calendarOpen.value ? new Date(calendarMonth.value) : new Date(`${selectedDay.value}T12:00:00`);
+// 页首月份跟随所选日期；展开后卡片内的月份标题跟随正在浏览的月份。
+const monthLabel = computed(() => {
+  const date = new Date(`${selectedDay.value}T12:00:00`);
   return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
+});
+const calendarTitle = computed(() => {
+  const date = new Date(calendarMonth.value);
+  return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
+});
+// 展开态浏览的是整月，只有离开当前月份时才需要「回到今天」这种额外入口。
+const isCurrentMonth = computed(() => {
+  const date = new Date(calendarMonth.value);
+  const today = new Date(`${todayKey.value}T12:00:00`);
+  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
 });
 const dateCells = computed(() => {
   const today = recentRecordDays().at(-1);
@@ -493,36 +504,45 @@ onUnmounted(() => {
     </header>
     <section ref="datePanelRef" class="date-card date-board" :class="{ expanded: calendarOpen }">
       <div class="month-row">
-        <button v-if="calendarOpen" type="button" class="month-title" :aria-expanded="monthPicker" aria-label="选择年月" @click="monthPicker = !monthPicker">
-          <strong>{{ calendarTitle }}</strong><small>{{ monthPicker ? '滚动选择年月' : '选择日期' }}</small>
-        </button>
-        <p v-else class="month-label">{{ calendarTitle }}</p>
+        <p class="month-label">{{ monthLabel }}</p>
         <button type="button" class="date-calendar" :aria-expanded="calendarOpen" :aria-label="calendarOpen ? '收起日历' : '展开日历'" @click="toggleCalendar">
           <img :src="calendarIcon" alt="" width="44" height="44" />
         </button>
       </div>
-      <div v-if="calendarOpen && monthPicker" class="month-wheels">
-        <MWheelPicker :model-value="shownYear" :options="yearOptions" label="年份" @update:model-value="chooseCalendarMonth($event, shownMonth)" />
-        <MWheelPicker :model-value="shownMonth" :options="monthWheelOptions" label="月份" @update:model-value="chooseCalendarMonth(shownYear, $event)" />
-      </div>
       <div v-show="!(calendarOpen && monthPicker)" class="date-view" :class="{ expanded: calendarOpen }" @pointerdown="onWeekPointerDown" @pointerup="onWeekPointerUp">
-        <div ref="weekStripRef" class="weekday-row weekday-row-shared" aria-hidden="true">
-          <span v-for="item in weekdayColumns" :key="item.label" :data-weekday="item.label" :style="{ gridColumn: item.column }">{{ item.label }}</span>
+        <div class="month-card">
+          <header v-if="calendarOpen" class="month-card-head">
+            <button type="button" class="month-step month-step-prev" aria-label="上个月" @click="changeMonth(-1)">‹</button>
+            <button type="button" class="month-card-title" aria-label="选择年月" :aria-expanded="monthPicker" @click="monthPicker = true">{{ calendarTitle }}</button>
+            <button type="button" class="month-step month-step-next" aria-label="下个月" @click="changeMonth(1)">›</button>
+          </header>
+          <div ref="weekStripRef" class="weekday-row weekday-row-shared" aria-hidden="true">
+            <span v-for="item in weekdayColumns" :key="item.label" :data-weekday="item.label" :style="{ gridColumn: item.column }">{{ item.label }}</span>
+          </div>
+          <div ref="dateGridRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '七日日期'">
+            <button v-for="item in dateCells" :key="item.value" :data-date="item.value" type="button" class="date-cell"
+              :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
+              :style="calendarOpen ? { gridColumn: `${((new Date(`${item.value}T12:00:00`).getDay() + 6) % 7) + 1}` } : null"
+              :disabled="item.future" :aria-pressed="item.value === selectedDay" :aria-label="`${item.value} 周${item.weekday}`" @click="selectDay(item.value)">
+              <span v-if="!calendarOpen" class="cell-weekday">{{ item.weekday }}</span>
+              <span class="cell-day">{{ item.day }}</span>
+            </button>
+          </div>
         </div>
-        <div ref="dateGridRef" class="date-grid date-grid-shared" :class="{ expanded: calendarOpen }" role="group" :aria-label="calendarOpen ? '选择日期' : '七日日期'">
-          <button v-for="item in dateCells" :key="item.value" :data-date="item.value" type="button" class="date-cell"
-            :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
-            :style="calendarOpen ? { gridColumn: `${((new Date(`${item.value}T12:00:00`).getDay() + 6) % 7) + 1}` } : null"
-            :disabled="item.future" :aria-pressed="item.value === selectedDay" :aria-label="`${item.value} 周${item.weekday}`" @click="selectDay(item.value)">
-            <span v-if="!calendarOpen" class="cell-weekday">{{ item.weekday }}</span>
-            <span class="cell-day">{{ item.day }}</span>
-          </button>
+        <div v-if="calendarOpen && !isCurrentMonth" class="calendar-nav">
+          <button type="button" class="calendar-today" @click="changeMonth(0); toToday()">回到今天</button>
         </div>
-        <div v-if="calendarOpen" class="calendar-nav">
-          <button type="button" aria-label="上个月" @click="changeMonth(-1)">‹</button>
-          <button type="button" class="calendar-today" @click="changeMonth(0); toToday()">今天</button>
-          <button type="button" aria-label="下个月" @click="changeMonth(1)">›</button>
+      </div>
+      <div v-if="calendarOpen && monthPicker" class="month-wheels">
+        <div class="month-wheel">
+          <span class="month-wheel-caption">年份</span>
+          <MWheelPicker :model-value="shownYear" :options="yearOptions" label="年份" :row-height="30" :height="140" @update:model-value="chooseCalendarMonth($event, shownMonth)" />
         </div>
+        <div class="month-wheel">
+          <span class="month-wheel-caption">月份</span>
+          <MWheelPicker :model-value="shownMonth" :options="monthWheelOptions" label="月份" :row-height="30" :height="140" @update:model-value="chooseCalendarMonth(shownYear, $event)" />
+        </div>
+        <button type="button" class="month-wheel-done" @click="monthPicker = false">完成</button>
       </div>
     </section>
 
@@ -602,42 +622,60 @@ onUnmounted(() => {
 .diary-head{display:flex;align-items:center;min-height:36px;margin:0 0 8px}
 .diary-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
 .month-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:0 0 12px}
-.month-label{margin:0;font-size:14px;line-height:21px;font-weight:500;color:var(--text-primary)}
-.month-title{min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.month-title strong,.month-title small{display:block}
-.month-title strong{font-size:16px;line-height:24px;font-weight:500}
-.month-title small{margin-top:2px;font-size:12px;line-height:18px;color:var(--text-secondary)}
-.month-wheels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 4px}
+/* 画板 370:8446：月份 16px / 400 / #30251f，比日期标题轻一档。 */
+.month-label{margin:0;font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
+/* 画板 370:10344：295×178 白卡，圆角 14，阴影 0 3 12 rgba(77,46,26,.12)，选中区 263×38、var(--m-wheel-selected)。 */
+.month-wheels{position:relative;display:grid;grid-template-columns:1fr 1fr;column-gap:35px;margin:0 0 12px;padding:8px 16px 26px;border-radius:14px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.12)}
+.month-wheel{display:grid;gap:0;min-width:0}
+.month-wheel-caption{display:block;height:20px;font-size:12px;line-height:20px;font-weight:400;color:var(--text-secondary);text-align:center}
+.month-wheel :deep(.m-wheel-picker){height:140px}
+.month-wheel-done{position:absolute;right:16px;bottom:3px;min-width:64px;height:26px;padding:0;border:0;background:transparent;color:var(--m-text-link);font:inherit;font-size:13px;line-height:26px;font-weight:500;text-align:center;cursor:pointer}
 .date-calendar{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
 .date-calendar img{display:block;width:44px;height:44px}
 .day-summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 0 12px}
-.day-title{margin:0;font-size:var(--m-text-confirm);line-height:29px;font-weight:500}
-.day-count{margin:2px 0 0;font-size:14px;line-height:21px;color:var(--text-secondary)}
-.doctor-link{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:32px;color:var(--brand-action);font-size:14px;line-height:21px;font-weight:500;text-decoration:none}
+.day-title{margin:0;font-size:18px;line-height:25px;font-weight:500}
+.day-count{margin:2px 0 0;font-size:14px;line-height:20px;font-weight:500;color:var(--text-secondary)}
+.doctor-link{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:32px;color:var(--m-text-doctor);font-size:13px;line-height:20px;font-weight:500;text-decoration:none}
 .doctor-link img{display:block;flex:none}
-.feed-card{display:grid;gap:8px;min-height:137px;padding:10px 14px 14px;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow);color:inherit;text-decoration:none}
+/* 画板 370:8502：327×137，圆角 18，阴影 0 3 12 rgba(77,46,26,.06)，内边距 10/14/14。 */
+.feed-card{display:grid;gap:8px;min-height:137px;padding:10px 14px 14px;border-radius:18px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.06);color:inherit;text-decoration:none}
 .feed-card-head{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;gap:8px}
-.feed-card-head strong{font-size:16px;line-height:24px;font-weight:500}
-.feed-card-state{font-size:11px;line-height:16px;color:var(--text-secondary)}
-.feed-card-detail{justify-self:end;font-size:12px;line-height:18px;font-weight:500;color:var(--brand-accent)}
+.feed-card-head strong{font-size:15px;line-height:20px;font-weight:500}
+.feed-card-state{font-size:11px;line-height:20px;font-weight:400;color:var(--text-secondary)}
+.feed-card-detail{justify-self:end;font-size:12px;line-height:20px;font-weight:500;color:var(--m-text-link)}
 .feed-card-sub{font-size:11px;line-height:16px;color:var(--text-secondary)}
 .feed-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.feed-metrics > span{display:grid;align-content:center;gap:2px;min-height:57px;padding:8px 8px 8px 8px;border-radius:10px;background:color-mix(in srgb,var(--brand-light) 34%,var(--surface-card))}
+.feed-metrics > span{display:grid;align-content:start;gap:5px;min-height:57px;padding:6px 8px;border-radius:10px;background:var(--m-disc)}
 .feed-metrics strong{font-size:14px;line-height:20px;font-weight:500}
-.feed-metrics small{font-size:10px;line-height:14px;color:var(--text-secondary)}
-.date-view{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:18px auto;transform-origin:top center;overflow:hidden}
-.weekday-row-shared{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:2px;align-items:center;margin-bottom:2px;text-align:center;color:var(--text-secondary);font-size:var(--text-xs)}
-.date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:.18rem;row-gap:.1rem}
-.date-grid-shared{grid-column:1/-1;grid-row:2;grid-auto-rows:34px;overflow:visible}
+.feed-metrics small{font-size:10px;line-height:20px;color:var(--text-secondary)}
+.date-view{display:grid;gap:0;transform-origin:top center;overflow:hidden}
+/* 展开态是 327×247 的白卡：5+35 表头 + 24 星期 + 5 + 5 行×30 + 3 行距 + 16 底。 */
+.month-card{display:grid;gap:0}
+.month-card-head{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;align-items:center;height:35px}
+.month-card-title{min-width:0;height:24px;min-height:24px;padding:0;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:14px;line-height:24px;font-weight:400;text-align:center;cursor:pointer}
+.month-step{display:grid;place-items:center;width:48px;height:32px;min-height:32px;padding:0;border:0;background:transparent;color:var(--m-month-step);font:inherit;font-size:13px;line-height:24px;cursor:pointer}
+.weekday-row-shared{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:4px;align-items:center;height:24px;margin-bottom:5px;text-align:center;color:var(--text-secondary);font-size:12px;line-height:24px}
+.date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));column-gap:4px;row-gap:3px}
+.date-grid-shared{overflow:visible}
 .date-view:not(.expanded){grid-template-rows:auto}
+.date-view:not(.expanded) .month-card-head{display:none}
 .date-view:not(.expanded) .weekday-row-shared{display:none}
 .date-view:not(.expanded) .date-grid-shared{grid-template-rows:82px;grid-template-columns:repeat(7,42px);justify-content:space-between;column-gap:0}
-.date-grid-shared.expanded{grid-template-columns:repeat(7,minmax(0,1fr))}
+.date-view.expanded .month-card{padding:5px 9px 16px;border-radius:18px;background:var(--surface-card)}
+.date-grid-shared.expanded{grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:30px;row-gap:3px}
 .date-grid-shared .date-cell{min-height:0;height:36px}
+.date-grid-shared.expanded .date-cell{height:30px}
 .date-view:not(.expanded) .date-grid-shared .date-cell{height:82px;border-radius:20px;background:var(--surface-card)}
 .date-view:not(.expanded) .date-grid-shared .date-cell.active{background:var(--brand-light)}
-.cell-weekday{font-size:14px;line-height:21px;font-weight:400;color:var(--text-secondary)}
-.date-view:not(.expanded) .cell-day{font-size:18px;line-height:26px;font-weight:500}
+/* 收起态：星期 12 / 24 行 + 8 间隙 + 日期 16 / 24 行，合计 56，居中于 82 高格。 */
+.date-view:not(.expanded) .date-cell{display:grid;align-content:center;justify-items:center;gap:8px}
+.cell-weekday{font-size:12px;line-height:24px;font-weight:400;color:var(--text-secondary)}
+.date-view:not(.expanded) .cell-day{font-size:16px;line-height:24px;font-weight:500}
+/* 展开态：12px 数字居中在 25×25 圆点里，选中与「有记录」都只占圆点。 */
+.date-view.expanded .cell-day{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;font-size:12px;line-height:1;font-weight:400}
+.date-view.expanded .date-cell.marked:not(.active) .cell-day{background:var(--m-date-mark)}
+.date-view.expanded .date-cell.active{background:transparent}
+.date-view.expanded .date-cell.active .cell-day{background:var(--brand-light);font-weight:500}
 .date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
 .date-cell:active{transform:scale(.96)}
 .date-cell.active{background:var(--brand-light);color:var(--text-primary);font-weight:500}
@@ -645,9 +683,9 @@ onUnmounted(() => {
 .date-cell.today:not(.active){font-weight:500}
 .date-cell.off{opacity:.36}
 .date-cell.future{opacity:.32;cursor:default}
-.calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-top:.25rem;border-top:1px solid var(--border-warm)}
-.calendar-nav button{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-lg);cursor:pointer}
-.calendar-nav .calendar-today{font-size:var(--text-xs);font-weight:500}
+.date-view.expanded .date-cell.marked:not(.active){background:transparent}
+.calendar-nav{display:flex;justify-content:center;margin-top:8px}
+.calendar-nav button{min-height:36px;padding:0 12px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:transparent;color:var(--m-text-link);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .day-card{padding:var(--m-card-space)}
 .day-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
 .day-head strong{display:block;font-size:var(--m-text-confirm);line-height:28px;font-weight:500}

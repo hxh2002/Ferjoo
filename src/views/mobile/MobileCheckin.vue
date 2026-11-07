@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onScopeDispose, ref, watch } from 'vue';
+import { computed, inject, nextTick, onScopeDispose, ref, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
@@ -9,6 +9,7 @@ import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
 import MRadioCard from '../../components/mobile/MRadioCard.vue';
 
+const headerTone = inject('mobileHeaderTone', null);
 const route = useRoute();
 const router = useRouter();
 const { user } = useAuth();
@@ -34,8 +35,12 @@ const safetyOptions = {
   color: [{ value: 'normal', label: '未见异常' }, { value: 'suspicious', label: '彩色斑块 / 绒毛霉菌' }, { value: 'unknown', label: '不确定' }],
   smell: [{ value: 'normal', label: '未见异常' }, { value: 'suspicious', label: '明显腐败 / 恶臭' }, { value: 'unknown', label: '不确定' }]
 };
-const primaryHeights = computed(() => mobileOptions.height.filter((item) => ['none', 'slight', 'near', 'double'].includes(item.value)));
-const moreHeights = computed(() => [...mobileOptions.height.filter((item) => !['none', 'slight', 'near', 'double'].includes(item.value)), { value: 'unknown', label: '不确定' }]);
+const visibleHeightValues = ['none', 'slight', 'double', 'fallen'];
+const primaryHeights = computed(() => [
+  ...visibleHeightValues.map((value) => mobileOptions.height.find((item) => item.value === value)).filter(Boolean),
+  { value: 'unknown', label: '不确定' }
+]);
+const moreHeights = computed(() => mobileOptions.height.filter((item) => !visibleHeightValues.includes(item.value)));
 const showMoreHeights = computed(() => heightMoreOpen.value || moreHeights.value.some((item) => item.value === draft.value.height));
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
@@ -111,7 +116,8 @@ watch([accountId, () => draft.value.starterId, () => route.query.feeding, () => 
     }
   } catch { if (token === contextGeneration) notice.value = '预填信息暂不可用，可继续手工填写。'; }
 }, { immediate: true });
-onScopeDispose(() => { contextGeneration++; });
+watch(diagnosisMode, (value) => { if (headerTone) headerTone.value = value ? 'detail' : ''; }, { immediate: true });
+onScopeDispose(() => { contextGeneration++; if (headerTone) headerTone.value = ''; });
 function markManual(key) {
   draft.value.sources[key] = draft.value.sources[key] ? '手工修改（原自动预填 / 确认值已修改）' : '本次手工确认';
 }
@@ -205,15 +211,15 @@ function applyPending(key) {
     <header class="checkin-head">
       <h1 v-if="!diagnosisMode">观察记录</h1>
       <span v-if="step === 1" class="observe-index">观察 {{ observePart }} / {{ skipsBackground ? 2 : 3 }}</span>
-      <span v-if="draft.starterId" class="checkin-starter">{{ starterName }}</span>
+      <span v-if="draft.starterId && !(diagnosisMode && step === 3)" class="checkin-starter">{{ starterName }}</span>
     </header>
-    <ol v-if="!(diagnosisMode && (step === 1 || step === 3))" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
+    <ol v-if="!diagnosisMode" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
       <li v-for="n in stepMeta.total" :key="n" :class="{ active: n === stepMeta.index, done: n < stepMeta.index }">
         <span class="step-dot" aria-hidden="true"></span>
         <span class="step-label">{{ n === 1 ? '观察' : n === 2 && stepMeta.total === 3 ? '本轮' : '核对' }}</span>
       </li>
     </ol>
-    <p v-if="!(diagnosisMode && (step === 1 || step === 3))" class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
+    <p v-if="!diagnosisMode" class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
     <section v-if="diagnosisMode && feedingEvidence" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
@@ -242,9 +248,9 @@ function applyPending(key) {
         <div v-else :aria-invalid="!!errors.height" tabindex="-1">
           <h2>这次发酵的涨幅如何？</h2>
           <p class="height-note">设备数据可供参考，也可以手动修改。</p>
-          <MRadioCard :model-value="draft.height" :options="primaryHeights" :columns="2" label="主要涨幅表现" marker="end" @update:model-value="selectHeight" />
+          <MRadioCard :model-value="draft.height" :options="primaryHeights" :columns="2" label="主要涨幅表现" marker="plain" @update:model-value="selectHeight" />
           <button type="button" class="more-heights" :aria-expanded="showMoreHeights" @click="heightMoreOpen = !heightMoreOpen">{{ showMoreHeights ? '收起更多情况' : '查看更多情况' }}</button>
-          <MRadioCard v-if="showMoreHeights" :model-value="draft.height" :options="moreHeights" :columns="2" label="更多涨幅情况" marker="end" @update:model-value="selectHeight" />
+          <MRadioCard v-if="showMoreHeights" :model-value="draft.height" :options="moreHeights" :columns="2" label="更多涨幅情况" marker="plain" @update:model-value="selectHeight" />
           <span v-if="autoHeight" class="m-muted">自动：{{ autoHeight.ratio.toFixed(2) }} 倍（{{ autoHeight.baselineHeightMm.toFixed(1) }} → {{ autoHeight.currentHeightMm.toFixed(1) }} mm），落在 {{ autoHeight.range }} 区间。<button v-if="heightOverridden" type="button" class="link-button" @click="restoreAutoHeight">恢复自动值</button></span>
           <span v-else-if="diagnosisMode && feedingEvidence" class="m-muted">缺少有效起始高度或最新高度，无法自动计算，请手动选择。</span>
           <span v-if="errors.height" class="m-error">{{ errors.height }}</span>
@@ -284,25 +290,38 @@ function applyPending(key) {
 </template>
 
 <style scoped>
-.mobile-area .m-page.mobile-checkin{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
+.mobile-area .m-page.mobile-checkin{padding-top:calc(20px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
 .checkin-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 12px}
 .checkin-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
-.observe-index{flex:none;color:var(--text-secondary);font-size:13px;line-height:19px}
-.checkin-starter{flex:none;display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:14px;background:var(--m-icon-disc);color:var(--brand-action);font-size:13px;font-weight:500;max-width:50vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.review-step h2{margin:8px 0;font-size:21px;line-height:31px;font-weight:500}
-.review-step > .m-muted{display:block;margin:0 0 16px;font-size:13px;line-height:19px}
+.observe-index{flex:none;color:var(--text-secondary);font-size:13px;line-height:19px;font-weight:500}
+.checkin-starter{flex:none;display:inline-flex;align-items:center;min-height:19px;padding:0 10px;border-radius:10px;background:var(--m-icon-disc);color:var(--brand-action);font-size:11px;font-weight:500;line-height:19px;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 370:17399：顶栏「酵种医生」底 91 → 「观察 1 / 3」111（20）→ 题目 151（21）→ 说明 187（5）→ 首卡 250（44）。
+   诊断模式没有页内 h1，21px 的空档交给题目自身的 margin-top，避免和 header 的下边距叠加。 */
+.mobile-checkin[data-mode="diagnosis"] .checkin-head{align-items:flex-start;min-height:19px;margin:0}
+.review-step .observe-index{margin:0 0 21px}
+.mobile-area .m-page .review-step h2{margin:0 0 5px;font-size:21px;line-height:31px;font-weight:500}
+.review-step > .m-muted{display:block;margin:0 0 23px;font-size:13px;line-height:19px}
+.mobile-checkin[data-mode="diagnosis"] .review-step > .m-muted{margin:0 0 23px}
 .review-card{padding:8px 16px 16px;border-radius:20px;background:var(--surface-card)}
 .review-card dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 12px;margin:12px 0 0;align-items:baseline}
 .review-card dt{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
 .review-card dd{margin:0;font-size:14px;line-height:21px;font-weight:500;text-align:right}
-.sample-note{margin:12px 0 8px;color:var(--text-secondary);font-size:12px;line-height:18px}
-.observe-step h2{margin:18px 0 8px;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
-.observe-step .m-muted{display:block;margin:0 0 16px;font-size:13px;line-height:19px}
-.safety-note{display:grid;gap:2px;margin:16px 0 0;padding:12px 14px;border-radius:15px;background:var(--m-icon-disc);color:var(--text-primary)}
+/* 370:17509 核对卡：327×300、圆角 20、无分隔线；标签卡内 x=16（页内 40）、值列卡内 168（页内 192），行距 53。 */
+.mobile-checkin[data-mode="diagnosis"] .review-card{min-height:300px;padding:20px 16px 0}
+.mobile-checkin[data-mode="diagnosis"] .review-card dl{grid-template-columns:152px minmax(0,1fr);gap:32px 0;margin:0;align-items:start}
+.mobile-checkin[data-mode="diagnosis"] .review-card dd{text-align:left}
+.sample-note{margin:19px 0 8px;color:var(--text-secondary);font-size:12px;line-height:18px}
+.mobile-area .m-page .observe-step h2{margin:21px 0 5px;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
+.observe-step .m-muted{display:block;font-size:13px;line-height:19px}
+/* 370:17399 / 370:17432：题目底 182 → 说明 187（5）、说明底 206 → 首卡 250（44）。 */
+.observe-step h2 + .m-muted{margin:0 0 44px}
+.safety-note{display:grid;gap:4px;margin:52px 0 0;padding:12px 16px 14px;border-radius:15px;background:var(--m-safety-bg);color:var(--text-primary)}
 .safety-note strong{font-size:13px;line-height:19px;font-weight:500}
 .safety-note span{font-size:11px;line-height:16px;color:var(--text-secondary);font-weight:400}
-.height-note{display:block;margin:0 0 16px;color:var(--text-secondary);font-size:13px;line-height:19px}
-.more-heights{min-height:44px;margin:8px 0;padding:0;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);cursor:pointer}
+/* 370:17462：说明底 206 → 首格 230 是 24，比颜色 / 气味两步的 44 紧。 */
+.height-note{display:block;margin:0 0 24px;color:var(--text-secondary);font-size:13px;line-height:19px}
+.more-heights{display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;margin:16px 0;padding:0;border:0;background:transparent;color:var(--m-text-link);font:inherit;font-size:14px;font-weight:400;cursor:pointer}
+.observe-step details summary{color:var(--text-secondary);font-size:14px;font-weight:400}
 .step-track{display:flex;align-items:center;gap:0;list-style:none;margin:0 0 12px;padding:0}
 .step-track li{display:flex;align-items:center;gap:6px;flex:1;font-size:12px;color:var(--text-secondary)}
 .step-track li:last-child{flex:0 0 auto}
@@ -317,9 +336,9 @@ function applyPending(key) {
 .m-context{margin:0 0 12px;overflow-wrap:anywhere;font-size:13px;line-height:19px}
 .m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
 .m-actions{position:sticky;bottom:0;z-index:5;display:flex;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
-.m-actions .m-primary{flex:1;display:flex;align-items:center;justify-content:center;min-height:60px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer}
+.m-actions .m-primary{flex:1;display:flex;align-items:center;justify-content:center;height:56px;min-height:56px;padding:0 16px;border:0;border-radius:28px;background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer}
 .m-actions .m-primary:active:not(:disabled){background:var(--brand-accent)}
-.m-actions .m-primary:disabled{background:color-mix(in srgb, var(--brand-light) 42%, var(--surface-page));color:var(--text-secondary);cursor:not-allowed}
+.m-actions .m-primary:disabled{background:var(--m-button-disabled);color:var(--text-secondary);opacity:1;cursor:not-allowed}
 .m-actions .m-secondary{min-height:44px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px;font-weight:500;cursor:pointer}
 .note,dd,li{overflow-wrap:anywhere;white-space:pre-wrap}
 dt{font-weight:600;margin-top:.75rem}

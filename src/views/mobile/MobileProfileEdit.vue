@@ -34,6 +34,7 @@ const dayOptions = computed(() => {
   return Array.from({ length: count }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: `${index + 1} 日` }));
 });
 const birthLabel = computed(() => `${birth.value.year}-${birth.value.month}-${birth.value.day}`);
+const birthValue = ref(false);
 
 onMounted(async () => {
   await auth.init();
@@ -42,7 +43,7 @@ onMounted(async () => {
   gender.value = profile.gender || '';
   identity.value = profile.profile_identity || '';
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(profile.birth_date || '');
-  if (match) birth.value = { year: match[1], month: match[2], day: match[3] };
+  if (match) { birth.value = { year: match[1], month: match[2], day: match[3] }; birthValue.value = true; }
 });
 
 async function save() {
@@ -50,7 +51,7 @@ async function save() {
   busy.value = true;
   error.value = '';
   try {
-    await updateProfile(auth.user.value.id, { displayName: name.value, gender: gender.value, birthDate: birthLabel.value, identity: identity.value });
+    await updateProfile(auth.user.value.id, { displayName: name.value, gender: gender.value, birthDate: birthValue.value ? birthLabel.value : '', identity: identity.value });
     await auth.refreshProfile();
     toast.value = '资料已保存';
   } catch (cause) {
@@ -118,16 +119,30 @@ async function confirmRemove() {
 <template>
   <main class="m-page profile-edit">
     <h1>编辑资料</h1>
-    <section class="m-card">
-      <button type="button" class="avatar-button" aria-label="更换头像" @click="avatarOpen = true">更换头像</button>
+    <section class="edit-form">
+      <button type="button" class="avatar-card" aria-label="更换头像" @click="avatarOpen = true">
+        <span class="avatar" aria-hidden="true">
+          <img v-if="auth.profile.value?.avatar_url" :src="auth.profile.value.avatar_url" alt="" width="56" height="56" />
+          <span v-else>{{ (name || '我').slice(0, 1) }}</span>
+        </span>
+        <span class="avatar-action">更换头像</span>
+      </button>
       <input ref="cameraInput" class="file" type="file" accept="image/*" capture="environment" aria-label="拍照" @change="onFile" />
       <input ref="fileInput" class="file" type="file" accept="image/*" aria-label="从相册选择" @change="onFile" />
-      <label>用户名<input v-model="name" maxlength="40" /></label>
-      <button type="button" class="choice" @click="sheet = 'gender'">性别 <strong>{{ GENDER_OPTIONS.find((item) => item.value === gender)?.label || '未设置' }}</strong></button>
-      <button type="button" class="choice" @click="sheet = 'birth'">出生日期 <strong>{{ birthLabel }}</strong></button>
-      <MRadioCard :model-value="identity" :options="IDENTITY_OPTIONS" label="身份" @update:model-value="identity = $event" />
+      <label class="field">用户名
+        <input v-model="name" maxlength="40" placeholder="请输入用户名" />
+      </label>
+      <div class="field">
+        <span>性别</span>
+        <button type="button" class="select" @click="sheet = 'gender'"><span :class="{ placeholder: !gender }">{{ GENDER_OPTIONS.find((item) => item.value === gender)?.label || '请选择性别' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
+      </div>
+      <div class="field">
+        <span>出生日期</span>
+        <button type="button" class="select" @click="sheet = 'birth'"><span :class="{ placeholder: !birthValue }">{{ birthValue ? birthLabel : '请选择日期' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
+      </div>
+      <p class="note">账号 ID 和注册时间由系统生成，不可修改。</p>
       <p v-if="error" class="m-error" role="alert">{{ error }}</p>
-      <button type="button" class="m-primary" :disabled="busy" @click="save">{{ busy ? '保存中…' : '保存' }}</button>
+      <button type="button" class="m-primary" :disabled="busy" @click="save">{{ busy ? '保存中…' : '保存资料' }}</button>
     </section>
     <MActionSheet :open="avatarOpen" title="更换头像" :actions="[{ value: 'camera', label: '拍照' }, { value: 'library', label: '从相册选择' }, { value: 'remove', label: '移除', danger: true }]" @close="avatarOpen = false" @select="(value) => value === 'remove' ? (avatarOpen = false, removeOpen = true) : pickAvatar(value === 'camera')" />
     <MConfirmDialog :open="removeOpen" danger title="移除头像" message="移除后资料页会显示名字首字。" confirm-label="移除" @cancel="removeOpen = false" @confirm="confirmRemove" />
@@ -146,10 +161,21 @@ async function confirmRemove() {
 </template>
 
 <style scoped>
+.profile-edit{padding-top:16px;gap:24px}
 h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
-label,.choice{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;font-size:var(--text-sm)}
-.choice{width:100%;padding:0;border:0;border-top:1px solid var(--border-warm);background:transparent;color:inherit;text-align:left}
-.avatar-button,.m-primary{min-height:44px}
+.edit-form{display:flex;flex:1;flex-direction:column;gap:16px}
+.avatar-card{display:flex;align-items:center;gap:12px;width:100%;min-height:88px;padding:0 16px;border:0;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow-button);cursor:pointer}
+.avatar{display:grid;place-items:center;flex:none;width:56px;height:56px;overflow:hidden;border-radius:50%;background:var(--m-disc);color:var(--brand-action);font-size:28px;line-height:36px;font-weight:500}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.avatar-action{color:var(--brand-action);font-size:16px;line-height:24px;font-weight:500}
+.field{display:grid;gap:8px;margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
+.field input,.select{display:flex;align-items:center;gap:8px;width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow-field);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px}
+.field input::placeholder,.select .placeholder{color:var(--text-secondary)}
+.select{font:inherit;font-size:16px;line-height:24px;text-align:left;cursor:pointer}
+.select span{flex:1;min-width:0;overflow-wrap:anywhere}
+.select svg{flex:none;width:20px;height:20px;fill:none;stroke:var(--text-secondary);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.note{margin:0;color:var(--text-secondary);font-size:12px;line-height:18px}
 .file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.m-primary{width:100%;height:60px;min-height:60px;margin-top:auto;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px;font-weight:500;box-shadow:var(--m-shadow-button);cursor:pointer}
 .wheels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 </style>

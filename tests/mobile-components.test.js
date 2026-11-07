@@ -27,6 +27,9 @@ assert.match(radio, /min-height: 56px/);
 assert.match(radio, /var\(--brand-action\)/);
 assert.match(radio, /var\(--surface-selected\)/);
 assert.match(radio, /type="radio"/);
+// 370:17399 / 370:17432：三张 327×58 卡纵向间距 12；圆点 18×18 距右 20。
+assert.match(radio, /\.is-trailing \.m-radio-card-grid \{ gap: 12px; \}/);
+assert.match(radio, /\.is-trailing \.m-radio-card \{ min-height: 58px; padding: 0 20px 0 18px/);
 
 const sheet = compile('src/components/mobile/MSheet.vue');
 assert.match(sheet, /border-radius: var\(--m-radius-sheet\) var\(--m-radius-sheet\) 0 0/);
@@ -48,7 +51,11 @@ assert.match(wheel, /role="listbox"/);
 assert.match(wheel, /ArrowDown/);
 
 const calendar = compile('src/components/mobile/MCalendar.vue');
-assert.match(calendar, /height: 36px/);
+assert.match(calendar, /--m-cal-row: 25px/);
+assert.match(calendar, /--m-cal-col: 36px/);
+assert.match(calendar, /--m-cal-col-gap: 5px/);
+assert.match(calendar, /--m-cal-min: 209px/);
+assert.match(calendar, /--m-cal-min: 247px/);
 assert.match(calendar, /var\(--brand-light\)/);
 assert.match(calendar, /aria-pressed/);
 
@@ -94,7 +101,7 @@ assert.match(mobile, /--border-default: var\(--border-warm\)/);
 assert.match(mobile, /--m-radius-sheet: 24px/);
 assert.match(mobile, /--m-radius-confirm: 22px/);
 assert.match(mobile, /--m-radius-toast: 18px/);
-assert.match(mobile, /--m-radius-bubble: 8px/);
+assert.match(mobile, /--m-radius-bubble: 9px/);
 assert.match(mobile, /--m-text-confirm: 20px/);
 assert.match(mobile, /font-weight: 500/);
 assert.doesNotMatch(mobile, /#285DA8|#84310B/);

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onBeforeUnmount, provide, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, onBeforeUnmount, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
@@ -51,6 +51,12 @@ function settleSlider() {
 const cachedTabs = ['MobileDeviceHome', 'MobileDiary', 'MobileMe'];
 const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
+// 登录 / 注册的标题由页面自身提供（28 / 500 / 36），顶栏只留返回键，避免同一屏出现两个标题。
+const isAuthPage = computed(() => ['mobile-login', 'mobile-register'].includes(route.name));
+// App.vue 会把共享账号页再包一层 MobileShell；这些页现在也挂在 MobileShell 路由下，
+// 内层实例检测到祖先时只转发路由出口，避免同一屏出现两套顶栏与底栏。
+const shellNested = inject('mobileShellNested', false);
+provide('mobileShellNested', true);
 const headerAside = ref('');
 const headerTitle = ref('');
 const headerTone = ref('');
@@ -71,11 +77,17 @@ const title = computed(() => {
 });
 const navTone = computed(() => {
   if (headerTone.value) return headerTone.value;
+  if (isAuthPage.value) return 'auth';
   if (route.path === '/feeding') return 'feeding';
   if (route.path.startsWith('/diary/records/') || route.path.startsWith('/devices/') || route.path.startsWith('/reports/')) return 'detail';
   return '';
 });
 const backTarget = computed(() => {
+  if (isAuthPage.value) {
+    // 登录 / 注册的 redirect 多数指向受保护页，回到那里只会再次被守卫送回本页。
+    const redirect = safeRedirect(route.query.redirect, router);
+    return redirect && !router.resolve(redirect).meta.requiresAuth ? redirect : '/device';
+  }
   const returnTo = safeRedirect(route.query.returnTo, router);
   if (returnTo && router.resolve(returnTo).path === '/diary') return returnTo;
   if (route.path === '/claim') return '/me/devices';
@@ -95,7 +107,8 @@ const backTarget = computed(() => {
 });
 function goBack() {
   // 优先回到真实进入前页面；直接打开/刷新时才使用安全的逻辑上级页面。
-  if (window.history.state?.back) router.back();
+  // 登录 / 注册不走历史回退：进入前的页面通常就是触发守卫的受保护页，会立刻弹回本页。
+  if (!isAuthPage.value && window.history.state?.back) router.back();
   else router.replace(backTarget.value);
 }
 const scrollPositions = new Map();
@@ -130,12 +143,13 @@ function go(path) {
 </script>
 
 <template>
-  <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
+  <RouterView v-if="shellNested" />
+  <div v-else class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
     <header v-if="!showTabs" class="mobile-topbar mobile-subbar" :class="navTone ? `is-${navTone}` : ''">
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span v-if="!navTone">返回</span>
       </button>
-      <h1>{{ title }}</h1>
+      <h1 v-if="!isAuthPage">{{ title }}</h1>
       <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
     </header>
     <main class="mobile-main">
@@ -162,6 +176,7 @@ function go(path) {
 <style scoped>
 .mobile-subbar.is-feeding,
 .mobile-subbar.is-detail,
+.mobile-subbar.is-auth,
 .mobile-subbar.is-settings { border-bottom: 0; background: transparent; box-shadow: none; }
 .mobile-subbar.is-feeding h1 { font-size: 24px; font-weight: 500; line-height: 35px; letter-spacing: 0; }
 .mobile-subbar.is-detail h1 { font-size: 20px; font-weight: 500; line-height: 29px; letter-spacing: 0; }

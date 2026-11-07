@@ -6,13 +6,18 @@ const props = defineProps({
   options: { type: Array, required: true }, // [{ value, label }]；空值可作为“不设置”选项由调用方显式传入
   label: { type: String, required: true },
   disabled: { type: Boolean, default: false },
-  height: { type: Number, default: 210 }
+  height: { type: Number, default: 210 },
+  // 年月选择按画板是 30 行高；未传入时沿用 42 的默认时间滚轮。
+  rowHeight: { type: Number, default: 42 }
 });
 const emit = defineEmits(['update:modelValue']);
-const ROW_HEIGHT = 42;
 const frameStyle = computed(() => {
-  const spacer = Math.max(0, (props.height - ROW_HEIGHT) / 2);
-  return { height: `${props.height}px`, '--m-wheel-spacer': `${spacer}px` };
+  const spacer = Math.max(0, (props.height - props.rowHeight) / 2);
+  return {
+    height: `${props.height}px`,
+    '--m-wheel-row-height': `${props.rowHeight}px`,
+    '--m-wheel-spacer': `${spacer}px`
+  };
 });
 const scroller = ref(null);
 let frame = 0;
@@ -26,7 +31,7 @@ function scrollToValue(behavior = 'instant') {
   if (!scroller.value) return;
   const index = Math.max(0, props.options.findIndex((item) => item.value === props.modelValue));
   syncing = true;
-  scroller.value.scrollTo({ top: index * ROW_HEIGHT, behavior });
+  scroller.value.scrollTo({ top: index * props.rowHeight, behavior });
   if (behavior === 'instant') requestAnimationFrame(() => { syncing = false; });
   else setTimeout(() => { syncing = false; }, 260);
 }
@@ -34,16 +39,16 @@ function onScroll() {
   if (syncing || props.disabled) return;
   cancelAnimationFrame(frame);
   frame = requestAnimationFrame(() => {
-    const index = clampIndex(Math.round(scroller.value.scrollTop / ROW_HEIGHT));
+    const index = clampIndex(Math.round(scroller.value.scrollTop / props.rowHeight));
     const item = props.options[index];
     if (item && item.value !== props.modelValue) emit('update:modelValue', item.value);
   });
   clearTimeout(settleTimer);
   settleTimer = setTimeout(() => {
     if (!scroller.value || syncing) return;
-    const index = clampIndex(Math.round(scroller.value.scrollTop / ROW_HEIGHT));
+    const index = clampIndex(Math.round(scroller.value.scrollTop / props.rowHeight));
     syncing = true;
-    scroller.value.scrollTo({ top: index * ROW_HEIGHT, behavior: 'smooth' });
+    scroller.value.scrollTo({ top: index * props.rowHeight, behavior: 'smooth' });
     setTimeout(() => { syncing = false; }, 260);
   }, 90);
 }
@@ -68,7 +73,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); clearTimeout(settleTimer); 
 </script>
 
 <template>
-  <div class="m-wheel-picker" :class="{ 'is-disabled': disabled }" :style="frameStyle">
+  <div class="m-wheel-picker" :class="{ 'is-disabled': disabled, 'is-compact': rowHeight < 42 }" :style="frameStyle">
     <span class="m-wheel-selection" aria-hidden="true" />
     <span class="m-wheel-fade m-wheel-fade-top" aria-hidden="true" />
     <span class="m-wheel-fade m-wheel-fade-bottom" aria-hidden="true" />
@@ -103,6 +108,10 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); clearTimeout(settleTimer); 
 .m-wheel-spacer { height: var(--m-wheel-spacer, 84px); }
 .m-wheel-option { display: flex; align-items: center; justify-content: center; height: var(--m-wheel-row-height); scroll-snap-align: center; color: var(--text-secondary); font-size: var(--text-md); line-height: 24px; }
 .m-wheel-option.is-selected { color: var(--text-primary); font-weight: 500; }
+/* 年月滚轮（画板 370:10344）行高 30：未选 13px / 选中 15px Medium，选中底色 var(--m-wheel-selected)。 */
+.m-wheel-picker.is-compact .m-wheel-option { font-size: 13px; line-height: 1; }
+.m-wheel-picker.is-compact .m-wheel-option.is-selected { font-size: 15px; }
+.m-wheel-picker.is-compact .m-wheel-selection { background: var(--m-wheel-selected); border-radius: 10px; }
 .m-wheel-selection { position: absolute; z-index: 0; top: var(--m-wheel-spacer, 84px); left: 0; right: 0; height: var(--m-wheel-row-height); border-radius: var(--radius-control); background: var(--surface-selected); pointer-events: none; }
 .m-wheel-fade { position: absolute; z-index: 2; left: 0; right: 0; height: var(--m-wheel-spacer, 84px); pointer-events: none; }
 .m-wheel-fade-top { top: 0; background: linear-gradient(var(--surface-page), color-mix(in srgb, var(--surface-page) 0%, transparent)); }

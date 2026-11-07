@@ -20,7 +20,7 @@ function choose(value) {
 </script>
 
 <template>
-  <fieldset class="m-radio-card-group" :class="{ 'is-trailing': marker === 'end' }" :disabled="disabled">
+  <fieldset class="m-radio-card-group" :class="{ 'is-trailing': marker === 'end', 'is-plain': marker === 'plain' }" :disabled="disabled">
     <legend class="m-radio-card-legend">{{ label }}</legend>
     <div class="m-radio-card-grid" :style="{ '--m-radio-columns': columns }">
       <label
@@ -64,8 +64,16 @@ function choose(value) {
 .m-radio-card:has(.m-radio-card-input:focus-visible) { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 .m-radio-card-group:disabled .m-radio-card { cursor: not-allowed; opacity: .55; }
 .is-trailing .m-radio-card-legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-.is-trailing .m-radio-card { min-height: 58px; padding: 0 16px 0 18px; border: 0; border-radius: 16px; box-shadow: 0 3px 12px rgba(48, 37, 31, .05); }
+.is-trailing .m-radio-card-grid { gap: 12px; }
+.is-trailing .m-radio-card { min-height: 58px; padding: 0 20px 0 18px; border: 0; border-radius: 16px; box-shadow: 0 3px 12px rgba(48, 37, 31, .05); }
 .is-trailing .m-radio-card.is-selected { border: 1px solid var(--brand-action); }
 .is-trailing .m-radio-card-dot { order: 1; width: 18px; height: 18px; margin-left: auto; }
 .is-trailing .m-radio-card-label { font-size: 15px; line-height: 22px; font-weight: 500; }
+.is-plain .m-radio-card-legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.is-plain .m-radio-card-grid { gap: 12px 9px; }
+.is-plain .m-radio-card { justify-content: center; min-height: 50px; padding: 0 8px; border: 0; border-radius: 14px; box-shadow: none; }
+.is-plain .m-radio-card.is-selected { border: 1px solid var(--brand-action); background: var(--surface-selected); }
+.is-plain .m-radio-card-dot { display: none; }
+.is-plain .m-radio-card-copy { align-items: center; }
+.is-plain .m-radio-card-label { font-size: 13px; line-height: 19px; font-weight: 400; text-align: center; }
 </style>

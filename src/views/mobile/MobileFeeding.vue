@@ -306,17 +306,17 @@ async function save() {
 
     <p class="feeding-section">喂养措施</p>
     <form class="feeding-form" @submit.prevent="save">
-      <MRecordCard title="时间" icon="clock" :summary="timeSummary" :open="openCard === 'time'" :disabled="inputsLocked" content-id="feeding-time" @toggle="toggleCard('time')">
+      <MRecordCard class="time-record" title="时间" icon="clock" :summary="timeSummary" :open="openCard === 'time'" :disabled="inputsLocked" content-id="feeding-time" @toggle="toggleCard('time')">
         <div class="time-switch">
           <button type="button" :aria-expanded="timePicker === 'date'" :disabled="inputsLocked" @click="toggleTimePicker('date')">{{ occurredDate }}</button>
           <button type="button" :aria-expanded="timePicker === 'time'" :disabled="inputsLocked" @click="toggleTimePicker('time')">{{ occurredHour }}:{{ occurredMinute }}</button>
         </div>
-        <button type="button" class="restore-time" :disabled="inputsLocked" @click="restoreNow">恢复当前时间</button>
-        <MCalendar v-if="timePicker === 'date'" :model-value="occurredDate" :min="earliestDay" :max="today" :disabled="inputsLocked" @update:model-value="setOccurred($event)" />
+        <MCalendar v-if="timePicker === 'date'" size="compact" :model-value="occurredDate" :min="earliestDay" :max="today" :disabled="inputsLocked" @update:model-value="setOccurred($event)" />
         <div v-if="timePicker === 'time'" class="time-wheels">
-          <MWheelPicker :model-value="occurredHour" :options="hourOptions" label="小时" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, $event, occurredMinute)" />
-          <MWheelPicker :model-value="occurredMinute" :options="minuteOptions" label="分钟" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, occurredHour, $event)" />
+          <MWheelPicker :model-value="occurredHour" :options="hourOptions" label="小时" :height="130" :row-height="36" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, $event, occurredMinute)" />
+          <MWheelPicker :model-value="occurredMinute" :options="minuteOptions" label="分钟" :height="130" :row-height="36" :disabled="inputsLocked" @update:model-value="setOccurred(occurredDate, occurredHour, $event)" />
         </div>
+        <button type="button" class="restore-time" :disabled="inputsLocked" @click="restoreNow">恢复当前时间</button>
       </MRecordCard>
 
       <MRecordCard title="比例" icon="scales" :summary="ratioSummary" :open="openCard === 'ratio'" :disabled="inputsLocked" content-id="feeding-ratio" @toggle="toggleCard('ratio')">
@@ -377,16 +377,25 @@ async function save() {
 .feeding-section{margin:0 0 9px;color:var(--text-secondary);font-size:var(--text-sm);font-weight:500;line-height:21px}
 .alert-card :deep(.m-record-card-summary){font-size:14px;line-height:21px}
 .feeding-form{display:grid;gap:12px}
-.time-switch{display:grid;grid-template-columns:minmax(0,1.786fr) minmax(0,1fr);gap:8px;max-width:295px}
-.time-switch button{height:48px;min-height:48px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-variant-numeric:tabular-nums;cursor:pointer}
+.time-switch{display:grid;grid-template-columns:minmax(0,184fr) minmax(0,103fr);gap:8px;max-width:295px;margin:3px 0 6px}
+.time-switch button{height:48px;min-height:48px;padding:0 12px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;text-align:left;cursor:pointer}
 .time-switch button[aria-expanded="true"]{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .time-fields,.custom-grid,.ratio-presets,.time-wheels{display:grid;gap:8px}
 .time-fields{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
-.time-wheels{grid-template-columns:repeat(2,minmax(0,1fr));max-width:295px}
+.time-wheels{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:295px}
 .custom-grid{grid-template-columns:repeat(3,minmax(0,90px));justify-content:space-between;max-width:295px;margin-top:8px}
 .time-fields label,.custom-grid label{display:grid;gap:4px;color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
+/* 370:16276 / 370:16790 / 370:16892：按钮 124×28，收起态距输入 6、日历形态距日历 11、滚轮形态距滚轮 20。 */
 .restore-time,.custom-ratio,.ratio-presets button,.more-ratios button{min-height:42px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit}
-.restore-time{width:124px;min-height:28px;margin:12px 0;border-radius:14px;font-size:var(--text-xs)}
+/* 370:16276 / 370:16790 / 370:16892 的卡片内坐标：输入 68–116；「恢复当前时间」分别落在 122 / 342 / 272，
+   卡底再留 10，三种展开高度因此是 160 / 380 / 310。
+   日历框标注 295×209，实际内容到 341（6 行 × 28 节距），「恢复当前时间」紧随其后 1px，故按内容高度 219 排。 */
+.time-record :deep(.m-record-card-inner){padding:0 16px 10px}
+.restore-time{display:block;width:124px;min-height:28px;margin:6px auto 0;border-radius:14px;font-size:var(--text-xs)}
+.time-record :deep(.m-calendar){margin-top:6px}
+.time-record :deep(.time-wheels){margin-top:6px}
+.time-record :deep(.m-calendar) + .restore-time{margin-top:1px}
+.time-record :deep(.time-wheels) + .restore-time{margin-top:20px}
 .ratio-presets{grid-template-columns:repeat(3,minmax(0,94px));gap:6px;justify-content:space-between;max-width:295px;margin-bottom:8px}
 .ratio-presets button{width:100%;height:42px;min-height:42px;padding:0}
 .ratio-presets button.is-selected,.custom-ratio.is-selected,.more-ratios button.is-selected{border-color:var(--brand-action);background:var(--surface-selected)}

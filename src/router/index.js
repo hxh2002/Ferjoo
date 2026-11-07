@@ -1,15 +1,28 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { isMobileBrowser } from '../lib/device.js';
-import { safeRedirect } from '../lib/accountNavigation.js';
+import { safeRedirect, usesMobileAccountLayout } from '../lib/accountNavigation.js';
 
 // 旧地址保留 redirect，书签、推送与已安装的 PWA 都能落到新信息架构。
 const legacy = (path) => (to) => ({ path, query: to.query, hash: to.hash, replace: true });
 
+// /login 与 /register 仍是桌面入口；移动端或被重定向到移动页时，按名称切到 MobileShell 内的子路由。
+// 子路由 path 与顶层同址，vue-router 命中顶层记录，所以分流放在 beforeEnter，桌面行为保持不变。
+// 判定复用 usesMobileAccountLayout，保证与 App.vue / main.js 的布局与样式切换同源。
+// 另加窄视口兜底：桌面浏览器缩到手机宽度（以及只设 device metrics、不改 UA 的模拟）也走移动表单。
+// 目标路由名是 mobile-*，usesMobileAccountLayout 对它恒为 true，所以 mobile-mode 与布局不会与 App.vue 脱节。
+function isPhoneViewport() {
+  return typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth <= 640;
+}
+
+const mobileAuth = (name) => (to) => (isMobileBrowser() || isPhoneViewport() || usesMobileAccountLayout(to, router)
+  ? { name, query: to.query, hash: to.hash, replace: true }
+  : true);
+
 const routes = [
   { path: '/', name: 'doctor', component: () => import('../views/DoctorView.vue') },
-  { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
-  { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue') },
+  { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), beforeEnter: mobileAuth('mobile-login') },
+  { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue'), beforeEnter: mobileAuth('mobile-register') },
   { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue'), meta: { requiresAuth: true } },
   { path: '/profile', name: 'profile', component: () => import('../views/ProfileView.vue'), meta: { requiresAuth: true } },
   { path: '/claim', name: 'claim', component: () => import('../views/ClaimView.vue'), meta: { requiresAuth: true } },
@@ -24,6 +37,8 @@ const routes = [
       { path: 'records', redirect: legacy('/diary') },
       { path: 'records/:id', redirect: (to) => ({ path: `/diary/records/${encodeURIComponent(to.params.id)}`, query: to.query, hash: to.hash, replace: true }) },
       { path: 'me', name: 'mobile-me', component: () => import('../views/mobile/MobileMe.vue') },
+      { path: 'login', name: 'mobile-login', component: () => import('../views/mobile/MobileLogin.vue') },
+      { path: 'register', name: 'mobile-register', component: () => import('../views/mobile/MobileRegister.vue') },
       { path: 'doctor/rounds', name: 'doctor-rounds', component: () => import('../views/mobile/MobileDoctorRounds.vue'), meta: { requiresAuth: true, title: '酵种医生' } },
       { path: 'checkin', name: 'mobile-checkin', component: () => import('../views/mobile/MobileCheckin.vue'), meta: { title: '酵种医生' }, beforeEnter: (to) => (to.query.feeding || to.query.edit === 'session' ? true : { path: '/doctor/rounds', query: to.query, replace: true }) },
       { path: 'feeding', name: 'mobile-feeding', component: () => import('../views/mobile/MobileFeeding.vue'), meta: { requiresAuth: true } },
@@ -65,7 +80,10 @@ router.beforeEach(async (to) => {
   await auth.init();
   if (!auth.user.value) {
     const redirect = safeRedirect(to.fullPath, router);
-    return { name: 'login', query: redirect ? { redirect } : {} };
+    const query = redirect ? { redirect } : {};
+    // 移动端直接进 MobileShell 内的登录页；桌面仍回 /login。
+    const name = usesMobileAccountLayout({ name: 'login', query }, router) ? 'mobile-login' : 'login';
+    return { name, query };
   }
   return true;
 });
