@@ -298,6 +298,8 @@ function applyPending(key) {
 /* 370:17399：顶栏「酵种医生」底 91 → 「观察 1 / 3」111（20）→ 题目 151（21）→ 说明 187（5）→ 首卡 250（44）。
    诊断模式没有页内 h1，21px 的空档交给题目自身的 margin-top，避免和 header 的下边距叠加。 */
 .mobile-checkin[data-mode="diagnosis"] .checkin-head{align-items:flex-start;min-height:19px;margin:0}
+/* 核对步在诊断模式下页头没有子节点（h1 / 观察序号都不渲染），空的 19px 会把「最后一步」推到 122。 */
+.mobile-checkin[data-mode="diagnosis"] .checkin-head:empty{display:none}
 .review-step .observe-index{margin:0 0 21px}
 .mobile-area .m-page .review-step h2{margin:0 0 5px;font-size:21px;line-height:31px;font-weight:500}
 .review-step > .m-muted{display:block;margin:0 0 23px;font-size:13px;line-height:19px}
