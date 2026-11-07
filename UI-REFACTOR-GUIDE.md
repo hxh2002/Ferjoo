@@ -217,10 +217,15 @@ Figma 文件共 5 个页面：
 | `--m-text-link` | `#b84f14` | 「详情 ›」「完成」等文字链 |
 | `--m-text-doctor` | `#8c4721` | 日记「酵种医生」入口 |
 | `--m-chart-line` | `#f0c7a6` | 曲线气泡描边 |
+| `--m-wheel-selected` | `#ffedda` | 年月滚轮选中区底（`MWheelPicker.is-compact`、日记年月） |
+| `--m-row-divider` | `#f1eae4` | 设置组行分隔线（`MobileMe`） |
+| `--m-button-disabled` | `#f3d9c4` | 诊断主按钮禁用底色 |
+| `--m-month-step` | `#d94f0d` | 日记整月 `‹` / `›` |
+| `--m-placeholder` | `#a19185` | 移动端输入占位符 |
 | `--m-shadow-button` | `0 4px 16px rgba(48,37,31,.06)` | 设置组 / 个人资料卡等 68–88 高卡 |
 | `--m-shadow-tip` | `0 2px 8px rgba(77,51,36,.1)` | 曲线提示气泡 |
 
-> **注意**：`tokens.css` 定义 `--radius-card: 18px`，但 `mobile.css` 在同层覆盖为 `20px`。设计稿中数据色块为 20px、确认弹层为 24px，因此移动端实际渲染 20px 与设计稿一致；**桌面端仍为 18px**，改造时不要误改 `tokens.css` 的基础值。上表后十个变量只加在 `mobile.css` 的 `.mobile-mode` 里。
+> **注意**：`tokens.css` 定义 `--radius-card: 18px`，但 `mobile.css` 在同层覆盖为 `20px`。设计稿中数据色块为 20px、确认弹层为 24px，因此移动端实际渲染 20px 与设计稿一致；**桌面端仍为 18px**，改造时不要误改 `tokens.css` 的基础值。表尾的移动端专属变量只加在 `mobile.css` 的 `:root.mobile-mode` 里。
 
 > **单卡阴影分级**：`--m-shadow`（`0 4px 18px rgba(48,37,31,.07)`）用于页面级大卡；`--m-shadow-button` 用于设置 / 资料类中等卡；`--m-shadow-field` 用于 64 高输入框。日记喂养卡与展开月历另用画板专属值 `0 3 12 rgba(77,46,26,.06/.12)`，不要混用。
 
@@ -241,16 +246,18 @@ Figma 文件共 5 个页面：
 - 我的：三分区、14/21 标签、40×40 圆角 20 `--m-disc` 图标块、20px `--brand-action` chevron；资料 / 编辑 / 头像动作面板 / 设备 / 帮助 / FAQ / 反馈 / 隐私均已按画板重排
 - 趋势与记录详情使用 `MDraggableChart`；气泡按 104×38 锁定，松手 1.2s 后淡出；`series-value-label` / `series-time-label` 统一 500 字重与无阴影
 - 顶栏语义色：`MobileShell` 提供 `mobileHeaderTone`，页面注入后写 `detail` / `feeding` / `settings`，分别对应 20/29、24/35、28/36 三种标题档
+- 移动端登录 / 注册：`MobileLogin.vue`、`MobileRegister.vue` 挂在 `MobileShell` 子树内，与桌面 `/login`、`/register` 分开；移动端与窄视口按第 5.4 章规则分流
+- 移动端令牌闭环：视图内已无硬编码 hex（`MobileDiary.vue` 只剩一条注释里的 `#30251f`），`#ffedda` / `#f1eae4` / `#f3d9c4` / `#d94f0d` / `#a19185` 全部收进 `mobile.css`
 
-### 3.2 仍待核对
+### 3.2 差距与处理状态
 
-| 严重度 | 差距 | 影响 |
+| 严重度 | 差距 | 状态 / 说明 |
 | --- | --- | --- |
 | P2 | 酵种罐四种表情未做 | 第 9 章未确认上涨 / Peak / 回落阈值，不得自行实现 |
 | P2 | 第 7.3 章逐画板 ≤2px 比对未做 | 登录后已在 375 视口点过喂养 `370:16248`、数据详情 `370:15961`、设备数据空态 `182:1123`、记录详情 `370:11372`、轮次 `370:17647`、添加设备 `182:988`、意见反馈 `182:1386`、邀请码、修改密码和设备信息。`182:1196` 是帮助折叠组。本轮已按 2026-11-07 保存的 Figma 截图与 PIL 逐元素量取（见第 12 章），仍未做整页叠图 diff |
-| P0 | 移动端登录 / 注册页缺失 | `/login`、`/register` 是移动路由树的**兄弟节点**（`router/index.js` 第 11–12 行），渲染在 `MobileShell` 之外并使用桌面 `AuthCard`。未登录用户被 `requiresAuth` 重定向后，第一眼看到的是桌面表单塞进 375 视口。Figma 无对应画板（已核对 `0:1` / `67:3909` / `176:568` / `112:552` / `143:552`），需按第 2 章令牌体系推导 |
-| P1 | 5 处硬编码色值未纳入令牌 | `#ffedda`（`MWheelPicker.vue`、`MobileDiary.vue`）、`#d94f0d`（`MobileDiary.vue` 月份切换）、`#f1eae4`（`MobileMe.vue` 分隔线）、`#f3d9c4`（`MobileCheckin.vue` 禁用主按钮）、`#a19185`（`MobileFeedback.vue` 占位符）。违反第 0 章强制约定 1 |
-| P2 | `MobileMe.vue` 两条 CSS 规则完整重复 | `.nav-card .m-list-row` 与 `.nav-card .m-list-row + .m-list-row::before` 在第 73 与 102 行各出现一次，后出现者覆盖前者 |
+| P0 | ~~移动端登录 / 注册页缺失~~ | ✅ 已完成（v1.21）：新增 `MobileLogin.vue`、`MobileRegister.vue`，挂在 `MobileShell` 内。28 / 36 标题、64 高输入框（圆角 20、`--m-shadow-field`）、60 高主按钮；注册含 8 位邀请码校验、两次密码一致校验和显示 / 隐藏密码。Dr. Ferjoo 本产品无登录 / 注册画板（`67:3909` / `176:568` / `112:552` / `143:552` 均已核对）；`0:1`「ui参考」页有 `Sign Up` `67:1791`、`Register` `67:1846`、`Login/Sign up` `67:1913`、`Reset Password` `67:1878`、`Create new password` `67:1890`、`Splash` `67:1923`，但该页属 DeliverEat 外卖 UI kit（`#FB9400` 橙、Poppins、48 高胶囊输入框、FB / Google / Apple 社交登录），实现它会引入另一产品的设计语言并违反「禁 `border-radius: 999px`」，故不实现，改按第 2 章令牌体系推导 |
+| P1 | ~~5 处硬编码色值未纳入令牌~~ | ✅ 已完成（v1.21）：`#ffedda` → `--m-wheel-selected`、`#f1eae4` → `--m-row-divider`、`#f3d9c4` → `--m-button-disabled`、`#d94f0d` → `--m-month-step`、`#a19185` → `--m-placeholder`。`src/views/mobile`、`src/components/mobile`、`MobileShell.vue` 已无硬编码 hex |
+| P2 | ~~`MobileMe.vue` 两条 CSS 规则完整重复~~ | ✅ 已完成（v1.21）：第 73 行的 `.nav-card .m-list-row` 重复定义已删除，只保留第 98 行的完整版；`.m-list-row + .m-list-row::before` 只剩一条，分隔线走 `--m-row-divider` |
 | P3 | 桌面端 `--text-lg` / `--text-md` 仍是 22px / 17px | 只覆盖移动端，不改 `tokens.css` 基础值。结果页与数据页标题已改为 `--text-xl`（28px / 36） |
 | P3 | 日记展开态在 320px 窄屏是否仍为 5 行 × 30 | 375 下为 5 行；窄屏会按周自动换行到 6 行，高度随内容增长，未单独测量 |
 
@@ -265,11 +272,11 @@ Figma 文件共 5 个页面：
 | 组件 | 规格 | 替换目标 |
 | --- | --- | --- |
 | `MRecordCard.vue` | 327×64，图标底 36，标题与收起值同为 16 / 24 / 400，chevron 18 `--text-primary`，展开动画 260ms | 喂养页三张折叠卡；诊断页选项卡 |
-| `MRadioCard.vue` | 默认高 56、圆角 12、选中描边 `--brand-action` + 浅橙底、左侧 20 单选圆；`marker="end"` 把 18px 圆点放右侧；`marker="plain"` 隐藏图例与圆点，50 高、圆角 14、13/19 居中，仅选中时描边 + `--surface-selected` | 诊断页颜色 / 气味 / 涨幅 |
+| `MRadioCard.vue` | 默认高 56、圆角 12、选中描边 `--brand-action` + 浅橙底、左侧 20 单选圆；`marker="end"` 把 18px 圆点放右侧，卡片 58 高、圆角 16、组间距 12；`marker="plain"` 隐藏图例与圆点，50 高、圆角 14、13/19 居中，仅选中时描边 + `--surface-selected` | 诊断页颜色 / 气味 / 涨幅 |
 | `MSheet.vue` | 底部弹出，圆角 24 顶部，拖拽条 36×4，遮罩 `rgba(48,37,31,.25)` | 关联酵种、性别选择、更换头像 |
 | `MActionSheet.vue` | 基于 `MSheet`，列表项 56 高，危险项红色 | 更换头像方式 |
 | `MWheelPicker.vue` | 5 行可见，默认 `height` 210、`rowHeight` 42，选中区高 = `rowHeight`，上下渐变遮罩，惯性滚动；`rowHeight < 42` 自动加 `.is-compact`：字 13 / 选中 15、底色 `#ffedda`、圆角 10 | 时间、膨胀率提醒、出生日期、日记年月 |
-| `MCalendar.vue` | 7 列表头 + 6 行日期；单元格高 36、行高 25、圆角 `--radius-control`，选中填充品牌橙 | 喂养时间、日记、诊断日期 |
+| `MCalendar.vue` | `size` prop 两档：`compact`（295×209，格 36×25、列距 41、行距 28）与 `large`（默认，327×247，格 40×30、列距 44、行距 33，日期为 25×25 圆点）；表头 `compact` 20 / `large` 35 | 喂养时间（compact）、日记整月 / 轮次日期 / 趋势（large） |
 | `MToast.vue` | 280 宽，圆角 18，上浮出现 / 停留 2.6s / 淡出，含成功/失败两态 | 全站反馈 |
 | `MConfirmDialog.vue` | 327 宽，圆角 24，标题 20，正文 14，主按钮 44 高圆角 22 | 结束发酵、解除绑定 |
 | `MDraggableChart.vue` | 封装 `SeriesChart`，支持 touch 拖动、十字参考线、提示气泡 | 数据详情、趋势页 |
@@ -393,7 +400,7 @@ S0 已落地：10 个组件、日历状态模型、采样点吸附，以及移�
 | --- | --- |
 | 卡片 | 295 × 178，圆角 14，白底，内边距 `8 16 26`，阴影 `0 3 12 rgba(77,46,26,.12)` |
 | 布局 | 两列，`column-gap: 35`，各列顶部 12 / 20 说明「年份」「月份」居中 |
-| 滚轮 | 高度 140、行高 30（`rowHeight < 42` 触发 `.is-compact`）；选区 263 × 38 视觉高度 30、底色 `#ffedda`、圆角 10；未选 13px，选中 15px Medium |
+| 滚轮 | 高度 140、行高 30（`rowHeight < 42` 触发 `.is-compact`）；选区 263 × 38 视觉高度 30、底色 `--m-wheel-selected`（`#ffedda`）、圆角 10；未选 13px，选中 15px Medium |
 | 完成 | 绝对定位右下（`right 16 / bottom 3`），13 / 26 / 500 `--m-text-link`，无边框无底色 |
 | 互斥 | 打开滚轮时整月网格 `v-show` 隐藏；关闭滚轮回到整月，不改变已选日期 |
 
@@ -681,6 +688,8 @@ S0 已落地：10 个组件、日历状态模型、采样点吸附，以及移�
 
 同时注意：`/profile`（桌面 `ProfileView.vue`）与新增 `me/profile` 不同路径，不冲突；不要复用 `/profile`。
 
+登录 / 注册不在模块 A 的组件清单里，它们是 v1.21 新增的账号页 + 路由分流，落点规则见 5.4。
+
 ### 5.2 兼容重定向
 
 ```js
@@ -710,10 +719,47 @@ S0 已落地：10 个组件、日历状态模型、采样点吸附，以及移�
 | --- | --- | --- |
 | `detail` | 20 / 500 / 29，返回按钮收成 24 宽、无「返回」二字 | 数据详情、记录详情、轮次选择、观察表单（诊断模式） |
 | `feeding` | 24 / 500 / 35 | 记录喂养 |
+| `auth` | 无标题：登录 / 注册页标题由页面自己给（28 / 500 / 36），顶栏只留返回键 | 移动端登录、注册 |
 | `settings` | 28 / 500 / 36，返回热区 44 × 44，允许换行 | 设备信息、添加设备、邀请码、修改密码、通知、FAQ、反馈、隐私 |
 | 默认 | 16 / 500，带文字「返回」 | 其余二级页 |
 
 > 页面内**不要再写第二个 `<h1>`**：`is-settings` / `is-detail` 页面的标题已由顶栏提供，正文直接从第一个分区标签开始。v1.18 已从 `MobileInvite`、`MobileAccount`、`MobileDeviceAdd`、`MobileDeviceInfo`、`MobileFeedback`、`MobileFaq`、`MobilePrivacy` 移除重复标题。
+
+### 5.4 移动端鉴权路由落点（v1.21）
+
+`/login`、`/register` 仍是**顶层桌面路由**，另有 `mobile-login`、`mobile-register` 两个子路由挂在 `MobileShell` 子树下，路径同为 `/login`、`/register`。vue-router 会命中先注册的顶层记录，所以分流只能放在 `beforeEnter`，不能用同名 path 覆盖。
+
+**三重判定**（`src/router/index.js` 的 `mobileAuth`）
+
+| 判定 | 实现 | 目的 |
+| --- | --- | --- |
+| 移动浏览器 | `isMobileBrowser()`，来自 `src/lib/device.js` | 真机 UA 命中，和布局切换同源 |
+| 窄视口 | `isPhoneViewport()`，`window.innerWidth > 0 && window.innerWidth <= 640` | UA 不变但可视宽度已是手机的兜底 |
+| 布局判定 | `usesMobileAccountLayout(to, router)`，来自 `src/lib/accountNavigation.js` | 被重定向回手机页的账号页，按 `redirect` 落点判布局 |
+
+任一命中 → `{ name: 'mobile-login' / 'mobile-register', query, hash, replace: true }`；都不命中 → 返回 `true`，桌面 `LoginView` / `RegisterView` 行为完全不变。
+
+**为什么需要窄视口兜底**
+
+只设 device metrics、不改 UA 的模拟场景（DevTools 设备模式、部分内嵌 WebView、部分 PWA 调试壳）不会让 `isMobileBrowser()` 为真；`usesMobileAccountLayout` 在没有 `redirect` 时也只看 UA。此时纯 UA 判定会把手机宽度的视口判成桌面，渲染出桌面 `AuthCard`。补上 `isPhoneViewport()` 后，宽度本身就是证据，不必依赖 UA 字符串。
+
+**未登录守卫**
+
+全局 `beforeEach` 里 `requiresAuth` 命中且无会话时：
+
+```js
+const name = usesMobileAccountLayout({ name: 'login', query }, router) ? 'mobile-login' : 'login';
+return { name, query };
+```
+
+即移动端直接落到 `MobileShell` 内的登录页，桌面仍回 `/login`；`redirect` 与 `query` 原样带过去，登录成功后由 `accountDestination(route, router)` 决定回跳。
+
+**桌面兼容与配套改动**
+
+- `safeRedirect` 的黑名单扩到 `mobile-login` / `mobile-register`，登录成功后不会把 `redirect` 指回登录页自身。
+- `usesMobileAccountLayout` 对 `mobile-*` 恒返回 `true`，保证 `App.vue` / `main.js` 的 `mobile-mode` 类与 `MobileShell` 布局判断不会与路由脱节。
+- `MobileShell` 新增 `is-auth` 档位：登录 / 注册页标题由页面自己提供（28 / 500 / 36），顶栏只留返回键，不再渲染第二层 `<h1>`；返回键不走 `history.back()`，避免被守卫再次带回本页。
+- 共享账号页现在也在 `MobileShell` 子树内，内层 Shell 用 `shellNested` 只转发 `<RouterView>`，不会出现双顶栏 / 双底栏。
 
 ---
 
@@ -739,6 +785,9 @@ S0 已落地：10 个组件、日历状态模型、采样点吸附，以及移�
 | 起始高度 | > 0，可留空 | 起始高度需为大于 0 的毫米数，未测量可留空。 |
 | 设备编号 | 非空、格式正确 | 请输入设备编号。 |
 | 反馈内容 | 非空 | 请填写反馈内容。 |
+| 登录 | 邮箱格式、密码非空 | 登录失败，请检查邮箱与密码。（`m-error` + `role="alert"`） |
+| 注册邀请码 | 8 位数字 | 请输入 8 位数字邀请码。 |
+| 注册密码 | 至少 6 位、两次一致 | 密码至少需要 6 位。/ 两次输入的密码不一致。 |
 
 ### 6.3 危险操作
 
@@ -843,6 +892,8 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 
 **2026-11-07**：按 `370:8290` / `370:8530` / `370:9319` / `370:9951` / `370:10344` / `370:8502` 与 `182:567…182:1501` 重新量取并落地了一轮视觉收敛（详见第 12 章）。日记、我的、资料、设备、设置类页面已按画板重排；`npm test` 21 个文件全绿。剩余：整页叠图 diff、四种表情、常见问题之后的正式文案。
 
+**2026-11-07（v1.21）**：补齐移动端登录 / 注册页与鉴权分流，诊断三页纵向节奏落地，`MCalendar` 补 `compact` / `large` 两档几何，移动端视图硬编码色清零（见第 3 章、5.4、12.8–12.10）。诊断核对步的空页头下推 19px 的缺陷已在 `7bf78fa` 修掉并推送。
+
 ---
 
 ## 9. 待确认（不应由实现决定）
@@ -891,6 +942,8 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 | 2026-11-07 | v1.18.1 | 轮次页标题 21→22、日期胶囊改 `#ffebd9`/`#bf4a0f`、卡片去边框阴影、chevron 改品牌橙；涨幅首屏改为 4 项 +「不确定」的 plain 卡；诊断主按钮 56/圆角 28、禁用用实色 `#f3d9c4`；安全分支卡改 `--m-chart-pale`；曲线气泡与轴标签统一 10/14 + 15/20 + 500 字重 |
 | 2026-11-07 | v1.19 | 文档与代码全量复核后同步：第 7.1 测试矩阵补齐 `package.json` 链条上全部 21 个文件（原先只列 11 个，且把未入链的 `tests/diagnosis-algorithms.test.js` 混在诊断行）；模块 A 的 `MRecordCard` / `MWheelPicker` / `MCalendar` 规格改回代码实际值（标题与收起值同为 16 / 24 / 400、选中区高 = `rowHeight`、日历格高 36）；2.3 记录卡补 `--m-shadow-field` 与 260ms 展开方式；E1 分区示意图改为「两行 × 68」并标注 `left 52` 分隔线；诊断步骤指示改为 13 / 19 / 500，并补题目 21 / 31 / 500；补记 `--brand-action` 桌面 / 移动两档值。顺带修掉日记页首月份标签误用 `calendarTitle` 导致的收起态月份滞后（改回 `monthLabel`），`npm test` 21 文件仍全绿 |
 | 2026-11-07 | v1.20 | 用恢复可用的 Figma MCP 重新量取并落地：`MRadioCard` 的 `is-trailing` 变体补 12px 组间距（`370:17399` 三张卡 y=250/320/390）；`MCalendar` 拆出 `size="compact"`（295×209，喂养时间卡 `370:16808`）与 `"large"`（327×247，日记整月 / 轮次日期）两档，格 36×25、列距 41、行距 28；喂养时间卡改为三态 `timePicker`（`''` / `'date'` / `'time'`），展开默认只显示日期与时间行，点日期才出 295×209 日历、点时间才出 130 高双滚轮，与 `370:16276`（327×160，无选择器）、`370:16790`（380）、`370:16892`（310）三张画板一致。新增第 3.2 章三项待处理：移动端登录/注册页缺失（P0）、5 处硬编码色未纳入令牌（P1）、`MobileMe.vue` 重复 CSS（P2） |
+| 2026-11-07 | v1.21 | 补齐移动端登录 / 注册：新增 `MobileLogin.vue`、`MobileRegister.vue`，28 / 36 标题、64 高输入框（圆角 20、`--m-shadow-field`）、60 高主按钮、显示 / 隐藏密码，注册含 8 位邀请码与两次密码校验。`/login`、`/register` 加 `beforeEnter` 三重判定分流（`isMobileBrowser()` / `isPhoneViewport()` 640px / `usesMobileAccountLayout`），未登录守卫按同一判定落到 `mobile-login` 或 `login`，桌面行为不变（第 5.4 章）；`MobileShell` 补 `is-auth` 顶栏档位与 `shellNested` 转发，避免双顶栏。诊断三页纵向节奏落地：`MobileCheckin` 序号→题目 21、题目→说明 5、说明→首卡 44、核对卡 327×300 / 行距 53；`MobileReport` 三分支页留白 21、标题 0 / 31、卡片 33 上边距、卡高 165 / 160 / 150；`MobileDoctorRounds` 页留白 41、说明 6、日期行 26、卡间距 14、卡内左内缩 16（页内 40）。`MCalendar` 的 `size` 档补全变量：`compact` 295×209 格 36×25，`large` 327×247 格 40×30、日期 25×25 圆形。新增 5 个令牌 `--m-wheel-selected` / `--m-row-divider` / `--m-button-disabled` / `--m-month-step` / `--m-placeholder`，移动端视图硬编码 hex 清零；`MobileMe.vue` 重复 CSS 删除；`.tmp-figma/` 加入 `.gitignore`（`a4b1632`，34 文件 +1295 / −449） |
+| 2026-11-07 | v1.21.1 | 修复诊断核对步的空页头：`MobileCheckin` 在诊断模式第 3 步 `checkin-head` 无子节点仍占 `min-height: 19px`，把「最后一步」从 111 推到 122；新增 `:empty { display: none }`，空头不再参与布局（`7bf78fa`，已推送） |
 
 ---
 
@@ -931,6 +984,11 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 | `--m-text-link` | `#b84f14` | 文字链（详情 / 完成 / 回到今天） |
 | `--m-text-doctor` | `#8c4721` | 日记「酵种医生」 |
 | `--m-chart-line` | `#f0c7a6` | 曲线气泡描边 |
+| `--m-wheel-selected` | `#ffedda` | 年月滚轮选中区底（`MWheelPicker.is-compact`、日记年月） |
+| `--m-row-divider` | `#f1eae4` | 设置组行分隔线 |
+| `--m-button-disabled` | `#f3d9c4` | 诊断主按钮禁用底 |
+| `--m-month-step` | `#d94f0d` | 日记整月 `‹` / `›` |
+| `--m-placeholder` | `#a19185` | 移动端输入占位符 |
 | `--m-radius-sheet` | `24px` | 仅移动端 |
 | `--m-radius-confirm` | `22px` | 仅移动端 |
 | `--m-radius-toast` | `18px` | 仅移动端 |
@@ -1101,6 +1159,73 @@ Figma 额度恢复，本轮用 `get_metadata` 重新取了三页画板的逐层 
 
 159 宽卡位于 x=24 / 192 → 水平间距 **9px**；行 y=230 / 292 → 垂直间距 **12px**。与 `.is-plain .m-radio-card-grid { gap: 12px 9px }` 一致，无需改动。
 
-### 12.8 本轮未能完成
+### 12.8 诊断三页纵向节奏（v1.21 已落地）
 
-被中断的部分：`MobileCheckin` 的观察步骤纵向节奏（索引→题目 21、题目→说明 5、说明→首卡 44）、核对页 53px 行距与 327×300 摘要卡、`MobileReport` 三分支卡高 165 / 160 / 150、`MobileDoctorRounds` 的 14px 卡间距与 40px 内缩，均只做了量取、未改代码。下一轮应先补这些，再谈整页叠图 diff。
+上一轮只量取未改代码的部分已经全部落地，下面数值取自当前 CSS，可直接作为回归对照。
+
+**观察 / 核对（`370:17399` / `370:17432` / `370:17462` / `370:17509`）**
+
+| 元素 | 节点 | 值 | 实现 |
+| --- | --- | --- | --- |
+| 顶栏底 → 「观察 1 / 3」 | `370:17399` | 20 | 页面 `padding-top: calc(20px + env(safe-area-inset-top))`；`.checkin-head` `min-height: 19px`、`margin: 0` |
+| 观察序号 → 题目 | `370:17399` | 21 | `.observe-step h2` 的 `margin-top: 21px` |
+| 题目 → 说明 | `370:17399` / `370:17432` | 5 | 题目 `margin: 21px 0 5px`，21 / 31 / 500 |
+| 说明 → 首卡 | `370:17399` / `370:17432` | 44 | `.observe-step h2 + .m-muted { margin: 0 0 44px }` |
+| 说明 → 首格（涨幅） | `370:17462` | 24 | `.height-note { margin: 0 0 24px }`，比其他两步紧一档 |
+| 选项卡组间距 | `370:17399` / `370:17432` | 12 | `.is-trailing .m-radio-card-grid { gap: 12px }` |
+| 核对：序号 → 标题 | `370:17509` | 21 | `.review-step .observe-index { margin: 0 0 21px }` |
+| 核对：标题 → 说明 | `370:17509` | 5 | `.review-step h2 { margin: 0 0 5px }` |
+| 核对：说明 → 卡 | `370:17509` | 23 | `.review-step > .m-muted { margin: 0 0 23px }` |
+| 核对卡 | `370:17509` | 327 × 300，圆角 20 | `min-height: 300px`、`padding: 20px 16px 0` |
+| 核对行距 | `370:17509` | 53（21 行高 + 32 行距） | `dl { grid-template-columns: 152px minmax(0,1fr); gap: 32px 0 }` |
+| 诊断主按钮 | `370:17509` | 56 高、圆角 28，禁用底 `--m-button-disabled` | `.m-actions .m-primary:disabled` |
+| 空页头 | — | `display: none` | `.mobile-checkin[data-mode="diagnosis"] .checkin-head:empty`，见 12.10 |
+
+**诊断结果（`370:17531` / `370:17543` / `370:17554`）**
+
+| 分支 | 页内标题 | 标题上边距 | 卡片高度 | 卡上边距 |
+| --- | --- | --- | --- | --- |
+| 正常建议 | `result-title` 22 / 32 | 0（页面留白 21） | 165 | 33 |
+| 安全分支 | `branch-title` 20 / 29 | 31 | 160 | 33 |
+| 信息不足 | `insufficient-title` 20 / 29 | 31 | 150 | 33 |
+
+页面 `padding-top: calc(21px + env(safe-area-inset-top))` 且 `gap: 0`；「结果内容由算法返回」紧随标题 6px。三种卡都是圆角 20、`padding: 20px 18px`、无边框；安全分支底色 `--m-chart-pale`。
+
+**轮次选择（`370:17647`）**
+
+| 元素 | 值 |
+| --- | --- |
+| 页面留白 | `padding-top: calc(41px + env(safe-area-inset-top))` |
+| 页内标题 | 22 / 31 / 500 |
+| 标题 → 说明 | 6 |
+| 说明 → 日期行 | 26 |
+| 日期行 → 首卡 | 11 |
+| 轮次卡 | 327 × 76、圆角 18、无边框无阴影、`padding: 12px 16px`、`margin: 0 0 14px` |
+| 卡内左内缩 | 16（页内合计 40，与画板 x=40 一致） |
+| 标题 / 次行 | 16 / 22 / 500、12 / 17，间距 8 |
+| chevron | 20 × 31，`--brand-action`，22px |
+
+### 12.9 日历两档尺寸（v1.21）
+
+`MCalendar` 的 `size` prop 只影响几何变量，不改 DOM 结构：
+
+| 变量 | `compact` | `large`（默认值） |
+| --- | --- | --- |
+| 整体 | 295 × 209，`padding: 8px 0 0` | 327 × 247，`padding: 5px 0 0` |
+| 表头高 | 20 | 35 |
+| 月份标题 | 14 / 20 / 400 | 14 / 24 / 400 |
+| 星期行 | 15 高、11px | 24 高、12px |
+| 日期格 | 36 × 25 | 40 × 30 |
+| 列距 / 行距 | 5 / 3（节距 41 × 28） | 4 / 3（节距 44 × 33） |
+| 日期填充 | 36 × 25、圆角 10 | 25 × 25、圆形 |
+| 字色 / 选中 | `--text-primary`；有记录 `--m-icon-disc`，选中 `--brand-light` | 同 |
+
+使用方：`MobileFeeding.vue` 显式传 `size="compact"`；`MobileDoctorRounds.vue`、`MobileTrend.vue` 与日记整月都走默认 `large`（日记整月仍是自己的 `.month-card` 网格，不直接挂 `MCalendar`）。
+
+### 12.10 空页头 19px 缺陷（已修复并推送）
+
+| 位置 | 缺陷 | 修复 | 状态 |
+| --- | --- | --- | --- |
+| `src/views/mobile/MobileCheckin.vue` | 诊断模式第 3 步「核对」时 `<header class="checkin-head">` 没有任何子节点（页内 `h1` 与观察序号都不渲染），但 `[data-mode="diagnosis"] .checkin-head` 仍有 `min-height: 19px`，空页头把「最后一步」从 111 推到 122，整段下移 19px | 新增 `.mobile-checkin[data-mode="diagnosis"] .checkin-head:empty { display: none }` | ✅ 已修复，提交 `7bf78fa`，已推送（v1.21.1） |
+
+修复后核对步的纵向节奏与 `370:17509` 对齐：顶栏 → 20 →「最后一步」→ 21 →标题 → 5 →说明 → 23 →核对卡。
