@@ -88,3 +88,55 @@ compile('src/views/mobile/MobileDeviceInfo.vue');
 compile('src/views/mobile/MobileHelp.vue');
 
 console.log('mobile me: sections, empty profile, toasts, danger confirm and device id passed');
+
+// --- 游客态：统一空态组件 + redirect 回跳保留 ---
+const { authPhase, isGuest, isAuthPending, guestRedirectPath, guestLoginTarget, guestRegisterTarget } = await import('../src/lib/mobile-guest.js');
+const pending = { user: { value: null }, ready: { value: false } };
+const member = { user: { value: { id: 'u1' } }, ready: { value: true } };
+const visitor = { user: { value: null }, ready: { value: true } };
+// ready 未就绪时既不是游客也不是成员：页面必须出骨架屏，不能先闪一下「去登录」。
+assert.equal(authPhase(pending), 'pending');
+assert.equal(isAuthPending(pending), true);
+assert.equal(isGuest(pending), false);
+assert.equal(authPhase(member), 'member');
+assert.equal(authPhase(visitor), 'guest');
+// 只注入 user 的旧调用方按已就绪处理。
+assert.equal(isGuest({ user: { value: null } }), true);
+
+assert.equal(guestRedirectPath({ path: '/diary', query: { from: '2026-11-08', to: '2026-11-08', page: '2', scroll: '640', starter: 's1' } }), '/diary?from=2026-11-08&to=2026-11-08&page=2&starter=s1');
+assert.equal(guestRedirectPath({ path: '/diary' }), '/diary');
+assert.equal(guestRedirectPath({ path: '/device', query: { from: ['a', ''] } }), '/device?from=a');
+assert.equal(guestRedirectPath(undefined), '/device');
+assert.deepEqual(guestLoginTarget({ path: '/me' }), { name: 'mobile-login', query: { redirect: '/me' } });
+assert.deepEqual(guestRegisterTarget({ path: '/me' }), { name: 'mobile-register', query: { redirect: '/me' } });
+// 登录页自身不能成为回跳目标，否则登录成功会原地打转。
+assert.equal(guestRedirectPath({ path: '/login', query: {} }), '/login');
+
+const guestNotice = compile('src/components/mobile/MGuestNotice.vue');
+assert.match(guestNotice, /data-testid="guest-notice"/);
+assert.match(guestNotice, /loginTo: \{ type: Object, required: true \}/);
+assert.match(guestNotice, /is-compact|is-hero/);
+assert.doesNotMatch(guestNotice, /border-radius:\s*999px|#[0-9a-f]{3,8}\b/i, 'guest notice must use color tokens');
+
+// 每个游客可达页面都必须复用同一个空态组件，并带上 redirect 目标。
+for (const file of [
+  'src/views/mobile/MobileDeviceHome.vue',
+  'src/views/mobile/MobileDiary.vue',
+  'src/views/mobile/MobileTrend.vue',
+  'src/views/mobile/MobileMe.vue',
+  'src/views/mobile/MobileDoctorRounds.vue',
+  'src/views/mobile/MobileCheckin.vue',
+  'src/views/mobile/MobileFeeding.vue'
+]) {
+  const page = compile(file);
+  assert.match(page, /MGuestNotice/, `${file} reuses the shared guest notice`);
+  assert.match(page, /isAuthPending|isGuest/, `${file} distinguishes a pending session from a guest`);
+}
+// 云端观察记录只对登录用户开放：游客只看到登录引导。
+assert.match(read('src/views/mobile/MobileReport.vue'), /MGuestNotice[\s\S]*guestLoginTarget/);
+// 游客不应再写死桌面登录地址，否则会跳出 MobileShell。
+for (const file of ['MobileDeviceHome', 'MobileDiary', 'MobileTrend', 'MobileMe', 'MobileDoctorRounds', 'MobileCheckin', 'MobileFeeding', 'MobileReport']) {
+  const page = read(`src/views/mobile/${file}.vue`);
+  assert.doesNotMatch(page, /path: '\/login'|to="\/login/, `${file} links to the mobile login route`);
+}
+console.log('mobile guest: phase detection, redirect preservation, shared notice and per-page wiring passed');

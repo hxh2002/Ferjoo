@@ -8,6 +8,8 @@ import { listStarterDeviceLinks } from '../../services/starter-device.service.js
 import { READ_TTL, cachedRead, invalidateReadCache, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 import deviceHat from '../../assets/icons/nav-device-active.svg';
 import emptyChart from '../../assets/device/icon-chart-up.svg';
 
@@ -35,6 +37,9 @@ const device = ref(null); const rows = ref([]);
 const loading = ref(false); const refreshing = ref(false); const error = ref(''); const completeness = ref(''); const calendarOpen = ref(false);
 const headerTitle = inject('mobileHeaderTitle', null);
 const headerTone = inject('mobileHeaderTone', null);
+// 游客不读云端：直接出统一的登录引导，也不把「无可绘制数据」误报成设备空态。
+const guest = computed(() => isGuest(auth));
+const authPending = computed(() => isAuthPending(auth));
 let version = 0; let hidden = false;
 
 const isToday = computed(() => day.value === todayValue.value);
@@ -167,7 +172,16 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="m-page mobile-trend" :class="{ 'is-empty': showEmpty }">
-    <header v-if="showEmpty" class="device-row">
+    <!-- 游客态：不请求云端，也不显示任何他人的采样；登录后按 redirect 回到同一设备同一天。 -->
+    <MGuestNotice
+      v-if="guest || authPending"
+      :title="guest ? '登录后查看设备数据' : '正在恢复登录状态'"
+      :description="guest ? '采样按账号隔离，登录后才会读取。' : '稍候即可读取本账号的设备采样。'"
+      :login-to="guestLoginTarget(route)"
+      :register-to="guestRegisterTarget(route)"
+      :register="guest && !authPending"
+    />
+    <header v-else-if="showEmpty" class="device-row">
       <span class="device-disc" aria-hidden="true"><img :src="deviceHat" alt="" width="32" height="21" /></span>
       <div>
         <strong>{{ device.name || '设备' }}</strong>
@@ -179,6 +193,8 @@ onBeforeUnmount(() => {
       <p class="m-muted">{{ device?.name || '设备' }} · {{ summaryText }}</p>
       <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="calendarOpen = !calendarOpen">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
     </header>
+    <!-- 游客 / 会话恢复中不渲染任何图表与明细，避免把「没有数据」显示成设备空态。 -->
+    <template v-if="!guest && !authPending">
     <MCalendar v-if="calendarOpen" class="trend-calendar" :model-value="day" :max="todayValue" @update:model-value="changeDay" />
     <p v-if="completeness" class="m-error">{{ completeness }}</p>
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
@@ -232,6 +248,7 @@ onBeforeUnmount(() => {
         <p class="table-note">休眠、传感器故障或模式异常的采样仍保留在明细中，但不参与膨胀率计算。</p>
       </details>
     </section>
+    </template>
   </main>
 </template>
 

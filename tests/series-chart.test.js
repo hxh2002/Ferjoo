@@ -59,3 +59,59 @@ assert.equal(moveSampleIndex(0, samples.length, 'ArrowLeft'), 0);
 assert.equal(moveSampleIndex(2, samples.length, 'ArrowRight'), 2);
 
 console.log('series chart: segments, snap, keyboard and 1.2s release passed');
+
+// --- 边界回归：空数据 / 单点 / 平线 / 重复时间戳 / 极短跨度都不能产出 NaN 坐标 ---
+import * as Vue from 'vue';
+import { renderToString } from '@vue/server-renderer';
+const setupCode = script.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/g, (_, bindings, path) => {
+  if (bindings.trim().startsWith('{')) return `const ${bindings.replace(/\bas\b/g, ': ')} = modules[${JSON.stringify(path)}];`;
+  return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
+}).replace('export default', 'return');
+const renderCode = template.code.replace(/import \{([^}]+)\} from "vue"/, (_, bindings) => `const { ${bindings.replace(/ as /g, ': ')} } = Vue;`).replace('export function render', 'function render');
+const render = new Function('Vue', `${renderCode}; return render;`)(Vue);
+const component = new Function('modules', setupCode)({
+  vue: { ...Vue, useId: () => 'gradient-1' },
+  '../lib/chart-selection.js': { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex }
+});
+const at = (minute, v) => ({ t: new Date(Date.UTC(2026, 10, 7, 1, minute)).toISOString(), v });
+async function draw(points, extra = {}) {
+  const app = Vue.createSSRApp({ setup: () => component.setup({ label: '高度', unit: 'mm', points, interactive: true, highlight: true, sticky: true, ...extra }, { expose() {} }), render });
+  const html = await renderToString(app);
+  const paths = [...html.matchAll(/<path[^>]*class="series-(line|area)"[^>]*d="([^"]*)"/g)];
+  return {
+    html,
+    paths: paths.map((match) => match[2]),
+    linePaths: paths.filter((match) => match[1] === 'line').map((match) => match[2])
+  };
+}
+// 平线：max === min 时 span 为 0，必须落在画布中线而不是除零。
+const flat = await draw([at(0, 30), at(10, 30), at(20, 30)]);
+assert.equal(flat.linePaths.length, 1, 'a flat series still draws a line');
+assert.equal(flat.paths.length, 2, 'the flat series also keeps its area fill');
+assert.deepEqual([...new Set(flat.linePaths[0].match(/[\d.]+/g).filter((_, i) => i % 2 === 1))], ['22'], 'a flat line sits on the vertical centre');
+// 单点：无法连成线，必须补一个散点，不能让整段消失。
+const single = await draw([at(0, 30)]);
+assert.equal(single.paths.length, 0, 'a single sample has no line');
+assert.match(single.html, /series-dot/, 'a single sample is rendered as an isolated dot');
+assert.doesNotMatch(single.html, /series-empty/, 'one valid sample is not an empty chart');
+// 重复时间戳：同一 recorded_at 只保留一条，不能连出竖直尖峰。
+const duplicated = await draw([at(0, 30), at(0, 31), at(0, null), at(10, 35)]);
+assert.equal(duplicated.linePaths.length, 1, 'duplicate timestamps collapse into one point per x');
+assert.match(duplicated.linePaths[0], /^M5,/, 'the first point starts at the left padding');
+// 极短跨度：10ms 内的两点也要铺满横轴，而不是挤成一个点。
+const tight = await draw([{ t: '2026-11-07T01:00:00.000Z', v: 30 }, { t: '2026-11-07T01:00:00.010Z', v: 31 }]);
+assert.match(tight.linePaths[0], /^M5,[\d.]+ L95,[\d.]+$/, 'a sub-second span still uses the full width');
+// 乱序输入：先排序再画，横坐标必须单调递增。
+const unordered = await draw([at(20, 32), at(0, 30), at(10, 31)]);
+const xs = unordered.linePaths[0].match(/[\d.]+/g).filter((_, i) => i % 2 === 0).map(Number);
+assert.deepEqual(xs, [...xs].sort((a, b) => a - b), 'unordered samples are sorted before drawing');
+// 空数据 / 全是空值 / 非法时间戳：走空态文案，不能产出 NaN 路径。
+for (const points of [[], [at(0, null)], [{ t: 'nope', v: 1 }, { t: null, v: 2 }]]) {
+  const empty = await draw(points);
+  assert.equal(empty.paths.length, 0);
+  assert.match(empty.html, /暂无可绘制的数据/);
+}
+for (const points of [flat, single, duplicated, tight, unordered]) {
+  assert.ok(points.paths.every((d) => !/NaN|Infinity|undefined/.test(d)), 'chart geometry never emits NaN');
+}
+console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');

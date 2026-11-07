@@ -1,10 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
-const auth = useAuth(); const router = useRouter(); const devices = ref([]); const error = ref(''); const logoutOpen = ref(false);
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
+const auth = useAuth(); const route = useRoute(); const router = useRouter(); const devices = ref([]); const error = ref(''); const logoutOpen = ref(false);
+// 会话恢复中不要先渲染「尚未登录」，否则登录用户会看到一瞬间的游客态。
+const guest = computed(() => isGuest(auth));
+const authPending = computed(() => isAuthPending(auth));
 const name = computed(() => auth.profile.value?.display_name || auth.profile.value?.system_user_id || auth.user.value?.email || '我的');
 const initial = computed(() => name.value.trim().slice(0, 1).toUpperCase() || '我');
 watch(() => auth.user.value?.id, async (id) => { devices.value = []; if (!id) return; try { const service = await mobileDeviceService(); const rows = await service.listDevices(id); if (id === auth.user.value?.id) devices.value = rows; } catch { error.value = '设备暂时无法读取，请到我的设备重试。'; } }, { immediate: true });
@@ -19,43 +24,53 @@ onMounted(() => auth.init());
     </header>
     <p v-if="error" class="m-error" role="alert">{{ error }}</p>
 
-    <p class="group-label">个人资料</p>
-    <component :is="auth.user.value ? 'RouterLink' : 'section'" class="m-card profile-card" :to="auth.user.value ? '/me/profile' : undefined">
-      <span class="avatar-disc" aria-hidden="true">
-        <img v-if="auth.profile.value?.avatar_url" :src="auth.profile.value.avatar_url" alt="" width="56" height="56" />
-        <span v-else>{{ initial }}</span>
-      </span>
-      <span class="profile-meta">
-        <strong>{{ name }}</strong>
-        <small v-if="!auth.user.value">尚未登录</small>
-      </span>
-      <svg v-if="auth.user.value" class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-    </component>
-    <div v-if="!auth.user.value" class="auth-links">
-      <RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/me' } }">登录</RouterLink>
-      <RouterLink class="m-secondary" :to="{ path: '/register', query: { redirect: '/me' } }">邀请码注册</RouterLink>
-    </div>
-
-    <template v-if="auth.user.value">
-      <p class="group-label">我的设备</p>
-      <RouterLink class="m-card device-entry" to="/me/devices">
-        <span class="device-disc" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="20" height="20" /></span>
-        <span class="profile-meta">
-          <strong>设备绑定</strong>
-          <small>管理已绑定的设备</small>
+    <!-- 会话恢复中先给骨架屏：此时 user 还是 null，直接画「尚未登录」会让登录用户闪一下游客态。 -->
+    <div v-if="authPending" class="m-skeleton" role="status" aria-label="正在恢复登录状态"><span></span><span></span></div>
+    <template v-else>
+      <p class="group-label">个人资料</p>
+      <component :is="auth.user.value ? 'RouterLink' : 'section'" class="m-card profile-card" :to="auth.user.value ? '/me/profile' : undefined">
+        <span class="avatar-disc" aria-hidden="true">
+          <img v-if="auth.profile.value?.avatar_url" :src="auth.profile.value.avatar_url" alt="" width="56" height="56" />
+          <span v-else>{{ initial }}</span>
         </span>
-        <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-      </RouterLink>
+        <span class="profile-meta">
+          <strong>{{ name }}</strong>
+          <small v-if="!auth.user.value">尚未登录</small>
+        </span>
+        <svg v-if="auth.user.value" class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+      </component>
+      <!-- 未登录时统一用游客提示承载登录 / 注册入口，跳转带上 redirect=/me（mobile-login 是 MobileShell 子路由）。 -->
+      <MGuestNotice
+        v-if="guest"
+        title="登录后同步你的设备与记录"
+        description="游客可以浏览帮助与说明；个人资料、设备与通知设置需要登录。"
+        action="登录"
+        :login-to="guestLoginTarget(route)"
+        :register-to="guestRegisterTarget(route)"
+        register
+      />
+
+      <template v-if="auth.user.value">
+        <p class="group-label">我的设备</p>
+        <RouterLink class="m-card device-entry" to="/me/devices">
+          <span class="device-disc" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="20" height="20" /></span>
+          <span class="profile-meta">
+            <strong>设备绑定</strong>
+            <small>管理已绑定的设备</small>
+          </span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        </RouterLink>
+      </template>
+
+      <p class="group-label">设置</p>
+      <nav class="m-card nav-card" aria-label="设置">
+        <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/notifications"><span class="row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" /><path d="M10 20a2 2 0 0 0 4 0" /></svg></span><span class="row-main"><strong>通知设置</strong></span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></RouterLink>
+        <RouterLink class="m-list-row" to="/me/help"><span class="row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.5 1-1.5 1.9V14" /><path d="M12 17h.01" /></svg></span><span class="row-main"><strong>关于与帮助</strong></span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></RouterLink>
+      </nav>
+
+      <p class="desktop-entry"><RouterLink :to="{ path: '/', query: { view: 'desktop' } }">访问电脑端</RouterLink></p>
+      <button v-if="auth.user.value" type="button" class="logout-btn" @click="logoutOpen = true">退出登录</button>
     </template>
-
-    <p class="group-label">设置</p>
-    <nav class="m-card nav-card" aria-label="设置">
-      <RouterLink v-if="auth.user.value" class="m-list-row" to="/me/notifications"><span class="row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" /><path d="M10 20a2 2 0 0 0 4 0" /></svg></span><span class="row-main"><strong>通知设置</strong></span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></RouterLink>
-      <RouterLink class="m-list-row" to="/me/help"><span class="row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.5 1-1.5 1.9V14" /><path d="M12 17h.01" /></svg></span><span class="row-main"><strong>关于与帮助</strong></span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></RouterLink>
-    </nav>
-
-    <p class="desktop-entry"><RouterLink :to="{ path: '/', query: { view: 'desktop' } }">访问电脑端</RouterLink></p>
-    <button v-if="auth.user.value" type="button" class="logout-btn" @click="logoutOpen = true">退出登录</button>
     <MConfirmDialog :open="logoutOpen" danger title="确认退出登录？" message="尚未同步的观察和喂养草稿会保留在本机当前账号下，不会自动上传。" confirm-label="退出登录" cancel-label="取消" @cancel="logoutOpen = false" @confirm="logout" />
   </main>
 </template>
@@ -80,9 +95,6 @@ onMounted(() => auth.init());
 .profile-meta{display:grid;gap:2px;min-width:0;flex:1}
 .profile-meta strong{font-size:16px;line-height:24px;font-weight:500;color:var(--text-primary)}
 .profile-meta small{color:var(--text-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
-.auth-links{display:grid;gap:10px;margin-top:14px}
-.auth-links .m-primary{display:flex;align-items:center;justify-content:center;min-height:48px;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font-size:15px;font-weight:500;text-decoration:none}
-.auth-links .m-secondary{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font-size:14px;font-weight:500;text-decoration:none}
 .devices-card .section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .section-heading h2{margin:0;font-size:16px;line-height:24px;font-weight:500;color:var(--text-primary)}
 .device-actions{display:flex;align-items:center;gap:12px}

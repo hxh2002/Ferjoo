@@ -6,14 +6,19 @@ import { listCareRecords } from '../../services/care.service.js';
 import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { formatDoctorRound, localDayKey, recordDayRange, validLocalDay } from '../../lib/mobile-records.js';
 import { isUuid } from '../../lib/uuid.js';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 import MCalendar from '../../components/mobile/MCalendar.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 
 defineOptions({ name: 'MobileDoctorRounds' });
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
 const headerTone = inject('mobileHeaderTone', null);
+// 路由 meta.requiresAuth 已把游客挡在门外，这里再兜一层：直接渲染组件（或会话过期）时也不能请求云端。
+const guest = computed(() => isGuest(auth));
+const authPending = computed(() => isAuthPending(auth));
 const rows = ref([]);
 const loading = ref(false);
 const error = ref('');
@@ -107,7 +112,21 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
     </div>
     <div v-if="loading" class="m-skeleton" role="status" aria-label="正在读取喂养记录"><span></span><span></span><span></span></div>
     <p v-else-if="error" class="m-error" role="alert">{{ error }} <button type="button" class="retry" @click="load">重试</button></p>
-    <p v-else-if="!auth.user.value" class="m-muted">登录后可以选择发酵轮次。<RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></p>
+    <MGuestNotice
+      v-else-if="authPending"
+      compact
+      title="正在恢复登录状态"
+      description="稍候即可读取本账号的发酵轮次。"
+      :login-to="guestLoginTarget(route)"
+    />
+    <MGuestNotice
+      v-else-if="guest"
+      title="登录后可以选择发酵轮次"
+      description="诊断只读取你本人酵种的喂养与采样记录。"
+      :login-to="guestLoginTarget(route)"
+      :register-to="guestRegisterTarget(route)"
+      register
+    />
     <p v-else-if="!rounds.length" class="empty">该日期暂无喂养记录，请选择其他日期</p>
     <RouterLink v-for="round in rounds" :key="round.id" class="round-card" :to="{ path: '/checkin', query: { starter: round.starterId, feeding: round.id, mode: 'diagnosis', returnTo: route.fullPath } }">
       <span><strong>{{ round.title }}</strong><small>{{ round.detail }}</small></span>

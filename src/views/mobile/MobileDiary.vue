@@ -8,6 +8,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 import doctorIcon from '../../assets/icons/diary-doctor.svg';
 import doctorChevron from '../../assets/icons/diary-chevron.svg';
 import calendarIcon from '../../assets/icons/diary-calendar.svg';
@@ -21,6 +22,7 @@ import {
 } from '../../lib/mobile-records.js';
 import { readSelectedStarter, rememberSelectedStarter } from '../../lib/mobile-selection.js';
 import { readRevision } from '../../lib/read-cache.js';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -42,6 +44,9 @@ const monthPicker = ref(false);
 
 const loader = createRecordsLoader({ listCareRecords, listStarterDeviceLinks, loadWindowClosures, mobileDeviceService });
 const accountId = computed(() => auth.user.value?.id || '');
+// 游客 / 会话恢复中分开处理：ready=false 时既不请求云端，也不急着弹「去登录」，只出骨架屏。
+const guest = computed(() => isGuest(auth));
+const authPending = computed(() => isAuthPending(auth));
 const queryText = (key) => typeof route.query[key] === 'string' ? route.query[key] : '';
 
 function pad(value) {
@@ -56,19 +61,14 @@ function durationText(fromMs, toMs) {
   const hours = Math.floor(minutes / 60);
   return hours ? `${hours} 小时 ${minutes % 60} 分钟` : `${minutes} 分钟`;
 }
-// 跨天偏移以所选日期为基准：同一轮的两端各自标 +/- 天，避免只看轮次内部差值。
-function dayOffsetText(ms) {
-  const date = new Date(ms);
-  const base = new Date(`${selectedDay.value}T00:00:00`);
-  const offset = Math.round((new Date(date.getFullYear(), date.getMonth(), date.getDate()) - base) / 86400000);
-  return offset ? `${offset > 0 ? '+' : '−'}${Math.abs(offset)}` : '';
-}
+// 跨天的轮次在标题上补日期前缀（见 roundItem.startedLabel），不再额外标 +/- 天，
+// 一级卡片只回答「几点到几点」，跨日信息由日期前缀说明。
 function rangeText(fromMs, toMs) {
   const fromDate = new Date(fromMs);
   const toDate = new Date(toMs);
   return {
-    from: formatClock(fromMs), to: formatClock(toMs),
-    fromOffset: dayOffsetText(fromMs), toOffset: dayOffsetText(toMs),
+    from: formatClock(fromMs),
+    to: formatClock(toMs),
     title: `${fromDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${toDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
   };
 }
@@ -82,9 +82,6 @@ function ratioText(value) {
 }
 function starterName(id) {
   return starters.value.find((item) => item.id === id)?.name || '名称不可用';
-}
-function metric(value) {
-  return Number(value).toFixed(1);
 }
 
 // 旧链接里的 type/starter/page 等参数由规范化统一收敛，避免空白页。
@@ -183,19 +180,13 @@ function roundItem(row, carried, now) {
   const baseline = Number(summary.baselineHeightMm);
   const current = Number(summary.currentHeightMm);
   const expansion = summary.expansionPercent == null ? null : Number(summary.expansionPercent);
-  const facts = [];
-  if (baseline > 0) facts.push({ text: `基线 ${metric(baseline)} mm`, tone: 'base' });
-  if (current > 0) facts.push({ text: `${closed ? '结束' : '当前'} ${metric(current)} mm`, tone: 'value' });
-  if (expansion != null && Number.isFinite(expansion)) facts.push({ text: `${expansion >= 0 ? '+' : ''}${expansion.toFixed(0)}%`, tone: expansion >= 0 ? 'up' : 'down' });
   return {
     id: `round:${row.id}`, kind: 'round', at: from, atEnd: to,
     from: range.from,
     startedLabel: carried ? `${new Date(from).getMonth() + 1} 月 ${new Date(from).getDate()} 日 ${range.from}` : range.from,
     toLabel: closed ? range.to : '现在',
-    fromOffset: range.fromOffset, toOffset: closed ? range.toOffset : '',
     titleTip: range.title,
     sub: [carried ? '跨日' : '', `比例 ${ratioText(row.ratio)}`, `${closed ? '历时' : '发酵'} ${durationText(from, to)}`].filter(Boolean).join(' · '),
-    facts,
     expansion: expansion != null && Number.isFinite(expansion) ? expansion : null,
     meanTemp: summary.meanTempC == null || !Number.isFinite(Number(summary.meanTempC)) ? null : Number(summary.meanTempC),
     ratioLabel: ratioText(row.ratio),
@@ -558,7 +549,16 @@ onUnmounted(() => {
           <img :src="doctorChevron" alt="" width="14" height="14" />
         </RouterLink>
       </div>
-      <div v-if="!auth.user.value" class="records-empty"><img class="jojo-mascot" src="/assets/jojo1.png" alt="Jojo 吉祥物" /><div><p>登录后读取你的喂养与观察记录。</p><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink></div></div>
+      <!-- 游客态：不请求云端，也不渲染日期圆点里的记录标记；登录回跳保留当前日期与页码。 -->
+      <MGuestNotice
+        v-if="guest"
+        title="登录后读取你的喂养与观察记录"
+        description="游客可以查看设备首页的引导；日记内容按账号隔离，登录后才会读取。"
+        :login-to="guestLoginTarget(route)"
+        :register-to="guestRegisterTarget(route)"
+        register
+      />
+      <div v-else-if="authPending" class="m-skeleton" role="status" aria-label="正在恢复登录状态"><span></span><span></span></div>
       <template v-else>
         <div v-if="loading && !model" class="m-skeleton" role="status" aria-label="正在读取记录"><span></span><span></span></div>
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
@@ -686,70 +686,19 @@ onUnmounted(() => {
 .date-view.expanded .date-cell.marked:not(.active){background:transparent}
 .calendar-nav{display:flex;justify-content:center;margin-top:8px}
 .calendar-nav button{min-height:36px;padding:0 12px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:transparent;color:var(--m-text-link);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
-.day-card{padding:var(--m-card-space)}
-.day-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
-.day-head strong{display:block;font-size:var(--m-text-confirm);line-height:28px;font-weight:500}
-.day-head small{display:block;margin-top:2px;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
-.day-today{padding:2px 8px;border-radius:var(--radius-badge);background:var(--success-bg);color:var(--success-text);font-size:var(--text-xs);font-weight:500;white-space:nowrap}
 .record-group{display:grid;gap:8px;margin-top:16px;min-width:0}
 .record-group-title{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--text-sm);line-height:21px;font-weight:500;color:var(--text-secondary)}
 .group-mark{width:3px;height:12px;border-radius:2px;background:var(--brand-action);flex:none}
 .chart-mark{background:var(--chart-height)}.observation-mark{background:var(--chart-humidity)}
 .group-note{margin-left:auto;font-size:var(--text-xs);line-height:18px;font-weight:500;color:var(--text-secondary);font-variant-numeric:tabular-nums}
-/* 每轮一张卡片：上方是可点的轮次摘要，下方复用单日数据同一套曲线。 */
-.round-card{display:grid;gap:.55rem;padding:.7rem;border:1px solid color-mix(in srgb,var(--chart-height) 16%,var(--border-warm));border-radius:var(--radius-card);background:color-mix(in srgb,var(--chart-height) 3%,var(--surface-card))}
-.round-summary{display:grid;gap:.25rem;min-width:0;color:inherit;text-decoration:none}
-.round-head{display:flex;align-items:center;gap:.3rem;min-width:0}
-.round-head .record-title{display:inline-flex;align-items:center;gap:2px;font-size:var(--text-md);line-height:24px;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
-.round-head .record-state{margin-left:auto}
-.round-arrow{font-size:var(--text-md);color:var(--text-secondary)}
-@media(max-width:360px){.round-head{flex-wrap:wrap}.round-head .record-state{margin-left:0}}
-.round-summary .record-sub,.round-summary .record-note{display:block;min-width:0;line-height:18px}
-.round-summary .record-sub{font-size:var(--text-xs);color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.round-summary .record-note{font-size:var(--text-xs);color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
-.round-chart{display:grid;gap:.4rem;padding-top:.55rem;border-top:1px solid color-mix(in srgb,var(--chart-height) 12%,var(--border-warm))}
-.round-axis-note{margin:0;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
-.round-chart-empty{margin:0;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
-.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
-.chart-grid :deep(.series-chart){min-width:0;--series-stroke:1.5px}
-.chart-grid :deep(.series-plot){position:relative;height:88px}
-.chart-grid :deep(svg){display:block;width:100%;height:88px}
-.chart-grid :deep(.series-line){fill:none;stroke-width:1.5}
-.chart-grid :deep(.series-grid){stroke:var(--border-warm);stroke-width:.3;stroke-dasharray:2 2}
-.chart-grid :deep(.series-dot),.chart-grid :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
-.chart-grid :deep(.series-dot){border-radius:0}
-.chart-grid :deep(.series-hover-dot){width:6px;height:6px;border-radius:50%}
-.chart-grid :deep(.series-guide){stroke:var(--text-secondary);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
-.chart-grid :deep(.series-tip){position:absolute;z-index:2;transform:translate(-50%,-115%);background:var(--surface-card);border:1px solid var(--border-warm);padding:4px 6px;pointer-events:none;font-size:var(--text-xs);box-shadow:var(--m-shadow)}
-.chart-grid :deep(.series-tip span){display:block;color:var(--text-secondary)}
-.chart-grid :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:var(--text-xs);color:var(--text-secondary);background:var(--surface-card)}
-.chart-grid :deep(.series-value){font-size:var(--text-md);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.chart-grid :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:.35rem;margin-bottom:.25rem}
-.chart-grid :deep(.series-headline){display:flex;align-items:baseline;gap:.2rem;flex-wrap:nowrap;min-width:0;justify-content:flex-end}
-.chart-grid :deep(.series-label){font-size:var(--text-xs);font-weight:500}
-.chart-grid :deep(.series-delta){display:none}
-.chart-grid :deep(.series-range){display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:.2rem;min-width:0}
-.chart-grid :deep(.series-time-range){white-space:nowrap}
-.day-card .record-row{align-items:center;gap:.6rem;min-width:0;padding:.75rem;border:1px solid var(--border-warm);border-radius:var(--radius-card);background:var(--surface-card);text-decoration:none}
-.window-facts{display:flex;flex-wrap:wrap;gap:.3rem .4rem;margin-top:.15rem}
-.window-fact{padding:2px 6px;border-radius:var(--radius-badge);background:var(--surface-warm);font-size:var(--text-xs);font-weight:500;line-height:18px;font-variant-numeric:tabular-nums;color:var(--text-primary)}
-.window-fact[data-tone="base"]{background:var(--info-bg);color:var(--info-text)}
-.window-fact[data-tone="up"]{background:var(--success-bg);color:var(--success-text)}
-.window-fact[data-tone="down"]{background:var(--danger-bg);color:var(--danger-text)}
+/* 日记一级页按 370:8290 / 370:8502 只有轮次摘要卡，曲线在详情页；这里不再保留图表容器样式。 */
 .record-main{display:grid;gap:.25rem;min-width:0;flex:1}
-.day-card .record-note{white-space:normal;overflow-wrap:anywhere}
-.day-card .record-sub{white-space:normal;overflow-wrap:anywhere}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
-.round-index{display:inline-grid;place-items:center;flex:none;min-width:18px;height:18px;padding:0 4px;border-radius:50%;background:var(--brand-action);color:var(--surface-card);font-size:var(--text-xs);font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
 .record-row .record-title{font-size:var(--text-md);font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
 .record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px}
 .record-row .record-sub{font-size:var(--text-xs);color:var(--text-secondary)}
 .record-row .record-note{font-size:var(--text-xs);color:var(--text-secondary);font-variant-numeric:tabular-nums}
-.day-offset{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:var(--radius-badge);background:var(--danger-bg);color:var(--danger-text);font-size:var(--text-xs);line-height:1;font-weight:500}
 .record-side{display:flex;align-items:center;gap:.3rem;flex:none}
-.record-state{padding:2px 8px;border-radius:var(--radius-badge);font-size:var(--text-xs);font-weight:500;background:var(--info-bg);color:var(--info-text);white-space:nowrap}
-.record-state[data-tone="closed"]{background:var(--success-bg);color:var(--success-text)}
-.record-state[data-tone="pending"]{background:var(--warning-bg);color:var(--warning-text)}
 .record-go{font-size:var(--text-md);line-height:1;color:var(--text-muted)}
 .more-row{width:100%;min-height:44px;margin-top:8px;border:1px solid var(--border-warm);border-radius:var(--m-radius-bubble);background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);font-weight:500;cursor:pointer}
 .records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}

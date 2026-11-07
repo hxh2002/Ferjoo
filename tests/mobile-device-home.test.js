@@ -5,6 +5,7 @@ import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
 import { CLOSE_REASON_LABELS, roundState } from '../src/lib/mobile-records.js';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 
 const file = new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
@@ -76,7 +77,18 @@ function harness() {
   };
   const modules = {
     vue: { ...Vue, onMounted: () => {}, onActivated: () => {}, onDeactivated: () => {}, onScopeDispose: () => {} },
+    'vue-router': { useRoute: () => ({ path: '/device', query: {} }) },
     '../../composables/useAuth.js': { useAuth: () => ({ user, init() {} }) },
+    '../../lib/mobile-guest.js': { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest },
+    // 游客引导组件只负责结构，测试里用最小桩渲染标题与登录入口。
+    '../../components/mobile/MGuestNotice.vue': {
+      props: ['title', 'description', 'action', 'loginTo', 'registerTo', 'register', 'hero', 'compact', 'eyebrow'],
+      setup: (props) => () => Vue.h('section', { 'data-testid': 'guest-notice' }, [
+        Vue.h('strong', props.title),
+        Vue.h('p', props.description),
+        Vue.h('a', { href: props.loginTo?.name || '/login' }, props.action || '去登录')
+      ])
+    },
     '../../composables/useVisiblePolling.js': { useVisiblePolling() {} },
     '../../services/care.service.js': api,
     '../../services/device.service.js': { listMeasurementsRange: async () => state.rows },
@@ -110,6 +122,7 @@ function harness() {
   async function html() {
     const app = Vue.createSSRApp({ setup: () => ({ ...bindings }), render });
     app.component('RouterLink', { props: ['to'], setup: ({ to }, { slots }) => () => Vue.h('a', { href: typeof to === 'string' ? to : to.path }, slots.default?.()) });
+    app.component('MGuestNotice', { props: ['title', 'description', 'action', 'loginTo', 'registerTo', 'register', 'hero', 'compact', 'eyebrow'], setup: (props) => () => Vue.h('section', { 'data-testid': 'guest-notice' }, [Vue.h('strong', props.title), Vue.h('p', props.description), Vue.h('a', { href: '/login' }, props.action || '去登录')]) });
     app.component('MConfirmDialog', { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', { class: props.danger ? 'is-danger' : '' }, props.confirmLabel)]) : null; } });
     return renderToString(app);
   }

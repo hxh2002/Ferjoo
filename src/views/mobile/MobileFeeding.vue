@@ -13,10 +13,16 @@ import { loadHeightTargets, saveHeightTargets } from '../../services/web-push.se
 import MRecordCard from '../../components/mobile/MRecordCard.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 
 const route = useRoute();
-const { user } = useAuth();
+const auth = useAuth();
+const { user } = auth;
 const accountId = computed(() => user.value?.id || 'guest');
+// 记录喂养是 meta.requiresAuth 页面，但会话过期时组件仍可能渲染：游客只保留本机草稿，不落云端。
+const guest = computed(() => isGuest(auth));
+const authPending = computed(() => isAuthPending(auth));
 const { draft, storageAvailable, persist, replace } = useCheckinDraft(accountId, {
   kind: 'feeding',
   defaults: () => ({
@@ -285,6 +291,17 @@ async function save() {
 <template>
   <main class="m-page mobile-feeding" :data-phase="phase">
     <p v-if="phase !== 'editing'" class="phase-chip" :data-phase="phase">{{ phaseLabel }}</p>
+
+    <!-- 会话过期时仍停在表单：草稿按账号分开保存在本机，但保存到云端必须重新登录。 -->
+    <MGuestNotice
+      v-if="guest || authPending"
+      compact
+      :title="guest ? '登录后才能保存这次喂养' : '正在恢复登录状态'"
+      :description="guest ? '填写内容会保留在本机草稿，登录后即可提交。' : '稍候即可继续填写。'"
+      :login-to="guestLoginTarget(route)"
+      :register-to="guestRegisterTarget(route)"
+      :register="guest && !authPending"
+    />
 
     <p class="m-context m-muted">
       <span v-if="draft.starterId">当前酵种：{{ starterName }}</span>

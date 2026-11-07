@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useVisiblePolling } from '../../composables/useVisiblePolling.js';
 import { createStarter, deleteStarter, listCareRecords, listStarters } from '../../services/care.service.js';
@@ -13,6 +14,9 @@ import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.js';
+
+import { guestLoginTarget, guestRegisterTarget, isAuthPending } from '../../lib/mobile-guest.js';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 
 import iconThermometer from '../../assets/device/icon-thermometer.svg';
 import iconDrop from '../../assets/device/icon-drop.svg';
@@ -29,6 +33,7 @@ import jarFaceSmall from '../../assets/device/jar-face-small.svg';
 
 defineOptions({ name: 'MobileDeviceHome' });
 const auth = useAuth();
+const route = useRoute();
 const accountId = computed(() => auth.user.value?.id || '');
 const devices = ref([]); const starters = ref([]); const measurements = ref([]);
 const deviceId = ref(''); const starterId = ref(''); const records = ref([]); const link = ref(null); const previousFeeding = ref(null);
@@ -333,8 +338,20 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
 <template>
   <main class="m-page device-page">
-    <template v-if="!accountId">
-      <section class="m-card intro-card"><img class="jojo-mascot jojo-login" src="/assets/jojo1.png" alt="Jojo 吉祥物"><p class="eyebrow">设备</p><h1>连接设备，开始记录</h1><RouterLink class="m-primary" :to="{ path: '/login', query: { redirect: '/device' } }">登录后开始</RouterLink></section>
+    <!-- 会话恢复期间先给骨架屏：此时既无账号也没有游客身份，直接出「登录后开始」会闪一下再跳走。 -->
+    <div v-if="!accountId && isAuthPending(auth)" class="m-skeleton" role="status" aria-label="正在恢复登录状态"><span></span><span></span></div>
+    <template v-else-if="!accountId">
+      <!-- 游客可以看首页的引导，但不读取任何设备数据；登录回跳保留到设备页（mobile-login 是 MobileShell 子路由）。 -->
+      <MGuestNotice
+        hero
+        eyebrow="设备"
+        title="连接设备，开始记录"
+        description="登录后可查看酵种罐的实时温度、湿度与膨胀率。"
+        action="登录后开始"
+        :login-to="guestLoginTarget(route)"
+        :register-to="guestRegisterTarget(route)"
+        register
+      />
     </template>
     <template v-else>
       <button v-if="contextOpen" type="button" class="picker-backdrop" aria-label="关闭酵种选择" @click="contextOpen = false"></button>
@@ -551,10 +568,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .toast-copy strong{font-size:16px;line-height:20px;font-weight:500;color:var(--text-primary)}
 .toast-copy small{font-size:12px;line-height:18px;color:var(--text-secondary)}
 @keyframes toast-in{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
-.intro-card{text-align:center}
-.intro-card .m-primary{width:100%;margin-top:12px}
-.jojo-login{width:min(52vw,190px);height:auto;margin:.2rem auto .85rem}
-.eyebrow{margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--brand-action)}
+/* 游客引导整块交给 MGuestNotice 的 hero 形态，这里不再保留一份重复的插画与按钮样式。 */
 @media (prefers-reduced-motion:reduce){.jar-rise,.jar-face{animation:none}.saved-toast{animation:none}}
 @media (max-width:360px){.metric{padding:10px}.metric strong{font-size:16px}.feed-cell{padding:0 12px}}
 </style>

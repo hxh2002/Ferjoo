@@ -6,6 +6,7 @@ import { useCheckinDraft } from '../src/composables/useCheckinDraft.js';
 import { localDateTimeValue, parseLocalDateTime } from '../src/lib/localDateTime.js';
 import { computeWeights, ratioParts, weightFields } from '../src/lib/feeding-weights.js';
 import { randomUuid, isUuid } from '../src/lib/uuid.js';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 
 // 已确认的喂养留在 saved，直到用户点「开始下一条」。待确认草稿仍保持锁定。
 const file = new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url);
@@ -48,6 +49,7 @@ const modules = {
   '../../services/care.service.js': { saveFeeding: async () => ({ id: 'saved-id' }) },
   '../../composables/useStarterName.js': { useStarterName: () => ({ starterName: Vue.ref('一号') }) },
   '../../lib/uuid.js': { randomUuid, isUuid },
+  '../../lib/mobile-guest.js': { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest },
   '../../lib/localDateTime.js': { localDateTimeValue, parseLocalDateTime },
   '../../lib/feeding-weights.js': { computeWeights, ratioParts, weightFields },
   '../../services/height-alert.service.js': { HEIGHT_ALERT_TARGETS: [2, 2.5, 3] },

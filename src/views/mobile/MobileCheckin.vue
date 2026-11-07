@@ -7,13 +7,19 @@ import { mobileOptions, fieldLabels, describeField, describeSource, parsePending
 import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
+import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 import MRadioCard from '../../components/mobile/MRadioCard.vue';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 
 const headerTone = inject('mobileHeaderTone', null);
 const route = useRoute();
 const router = useRouter();
-const { user } = useAuth();
+const auth = useAuth();
+const { user } = auth;
 const accountId = computed(() => user.value?.id || 'guest');
+// /checkin?edit=session 不在 requiresAuth 里，游客也能进；此时不能预填云端证据，只能本地记录。
+const guest = computed(() => isGuest(auth));
+const authPending = computed(() => isAuthPending(auth));
 const diagnosisMode = computed(() => route.query.mode === 'diagnosis');
 const observationDraft = useCheckinDraft(accountId);
 const diagnosisDraft = useCheckinDraft(accountId, { kind: 'diagnosis' });
@@ -221,6 +227,16 @@ function applyPending(key) {
     </ol>
     <p v-if="!diagnosisMode" class="m-context m-muted"><span v-if="diagnosisMode" class="mode-tag">本轮诊断</span>{{ stepMeta.label }} · 第 {{ stepMeta.index }} / {{ stepMeta.total }} 步<span v-if="!draft.starterId"> · 尚未选择酵种，<RouterLink to="/device">去设备页选择</RouterLink></span></p>
     <p v-if="fatal" class="m-error" role="alert">{{ fatal }}</p>
+    <!-- 游客可以走完整观察流程并生成本地建议，但无法读取云端证据或保存；这里只提示，不打断填写。 -->
+    <MGuestNotice
+      v-if="guest || authPending"
+      compact
+      :title="guest ? '登录后可读取设备证据并保存' : '正在恢复登录状态'"
+      :description="guest ? '当前填写与生成的建议只保留在本机，不会上传。' : '稍候即可读取本账号的设备数据。'"
+      :login-to="guestLoginTarget(route)"
+      :register-to="guestRegisterTarget(route)"
+      :register="guest && !authPending"
+    />
     <section v-if="diagnosisMode && feedingEvidence" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
       <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p></template>

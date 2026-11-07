@@ -70,8 +70,9 @@ assert.match(source, /toLabel: closed \? range\.to : '现在'/);
 assert.match(source, /:to="item\.to"/);
 assert.doesNotMatch(source, /\{\{ item\.to \}\}/);
 assert.doesNotMatch(source, /to: closed \? range\.to : '现在'/);
-// 跨天偏移以所选日期为基准，而不是轮次内部首尾相比。
-assert.match(source, /function dayOffsetText[\s\S]*selectedDay\.value/);
+// 跨日不再用 +/- 天圆标：轮次标题直接补日期前缀（startedLabel），一级卡片只回答「几点到几点」。
+assert.match(source, /startedLabel: carried \? `\$\{new Date\(from\)\.getMonth\(\) \+ 1\} 月 \$\{new Date\(from\)\.getDate\(\)\} 日 \$\{range\.from\}`/);
+assert.doesNotMatch(source, /dayOffsetText|fromOffset|toOffset|day-offset/);
 assert.doesNotMatch(source, /chartGroups|windowBands|dayStartIso|dayEndIso/);
 assert.match(source, /详情 ›/);
 assert.doesNotMatch(source, /deviceItem|device-metrics/);

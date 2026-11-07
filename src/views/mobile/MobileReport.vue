@@ -3,13 +3,18 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { useAuth } from '../../composables/useAuth.js';
+import { guestLoginTarget, guestRegisterTarget, isGuest } from '../../lib/mobile-guest.js';
+import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 import { getCareRecord, listStarters, saveObservation } from '../../services/care.service.js';
 import { loadSessionReport, storeSessionReport, snapshot, reportText, fieldLabels, describeField, describeSource } from '../../services/mobile-diagnosis.service.js';
 
 const route = useRoute();
-const { user } = useAuth();
+const auth = useAuth();
+const { user } = auth;
 const accountId = computed(() => user.value?.id || 'guest');
 const router = useRouter();
+// 游客态：不读取云端记录（避免无权查询报错），也不回显上一个账号残留的结果。
+const guest = computed(() => isGuest(auth));
 const { replace: replaceDraft } = useCheckinDraft(accountId);
 const { replace: replaceDiagnosis } = useCheckinDraft(accountId, { kind: 'diagnosis' });
 const risk = computed(() => report.value?.result?.status === 'discard' || [report.value?.input?.color, report.value?.input?.smell].includes('suspicious'));
@@ -131,8 +136,17 @@ onUnmounted(() => { disposed = true; generation++; });
 <template>
   <main class="m-page mobile-report">
     <header v-if="!report || cloud || report.kind === 'feeding'"><h1>{{ report?.kind === 'feeding' ? '喂养记录（只读）' : cloud ? '观察记录（只读）' : '本次建议' }}</h1></header>
-    <div v-if="loading" class="m-skeleton" role="status" aria-label="正在加载云端记录"><span></span><span></span></div><p v-if="error" class="m-error" role="alert">{{ error }}</p>
-    <section v-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录不存在、读取失败，或当前账号没有访问权限。' : '本机会话已结束或已切换账号。' }}</p><RouterLink v-if="cloud && !user" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录后查看</RouterLink><RouterLink v-else to="/checkin">继续或重新记录观察</RouterLink></section>
+    <div v-if="loading" class="m-skeleton" role="status" aria-label="正在加载云端记录"><span></span><span></span></div><p v-if="error && !guest" class="m-error" role="alert">{{ error }}</p>
+    <!-- 游客打开云端观察记录：不请求云端、不显示他人数据，只给登录引导并保留当前记录地址回跳。 -->
+    <MGuestNotice
+      v-if="cloud && guest && !loading"
+      title="登录后查看这条观察记录"
+      description="云端记录按账号隔离，登录后会回到当前这条记录。"
+      :login-to="guestLoginTarget(route)"
+      :register-to="guestRegisterTarget(route)"
+      register
+    />
+    <section v-else-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录不存在、读取失败，或当前账号没有访问权限。' : '本机会话已结束或已切换账号。' }}</p><RouterLink to="/checkin">继续或重新记录观察</RouterLink></section>
     <template v-if="report && report.kind === 'feeding'">
       <section class="m-card"><p role="status">已云端保存的事实记录</p><p class="m-muted">喂养时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ starterName }}</p><h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ report.ratio === 'deep_reset' ? '大比例刷新' : report.ratio || '未记录' }}</p><h2>起始高度</h2><p>{{ report.input?.baseline_height_mm == null ? '未记录' : `${report.input.baseline_height_mm} mm` }}<span v-if="report.input?.baseline_height_mm != null">（{{ report.input.baseline_source === 'device' ? '设备读取' : report.input.baseline_source === 'manual' ? '手工记录' : '来源未记录' }}）</span></p><RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: report.starterId, feeding: report.savedId } }">基于这次喂养记录观察</RouterLink></section>
       <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId }}<br>酵种编号：{{ report.starterId || '未记录' }}</p></details>
@@ -178,7 +192,7 @@ onUnmounted(() => { disposed = true; generation++; });
       <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId || '尚未云端保存' }}<br>酵种编号：{{ report.starterId || '未选择' }}<br>算法版本：{{ report.algorithmVersion || report.input?.algorithmVersion || '历史快照（版本未记录）' }}</p></details>
       <button v-if="cloud" type="button" class="m-secondary" @click="regenerate">基于这次输入重新生成（创建新记录）</button>
       <p v-if="!cloud && !report.starterId" class="m-muted">未选择酵种，不能云端保存。<RouterLink to="/device">去今天选择</RouterLink>后再重新生成。</p>
-      <p v-if="!cloud && !user" class="m-muted">登录后才能云端保存。<RouterLink to="/login?redirect=/reports/session">前往登录</RouterLink></p>
+      <p v-if="!cloud && !user" class="m-muted">登录后才能云端保存。<RouterLink :to="guestLoginTarget(route)">前往登录</RouterLink></p>
       <button type="button" class="m-secondary" @click="copy">复制建议</button><p role="status">{{ copyStatus }}</p>
       <label v-if="readable" class="m-field">可选择的建议文本<textarea :value="text" readonly rows="12" /></label>
       <div v-if="insufficient || (risk && !cloud)" class="m-actions"><button type="button" class="m-primary review-return" @click="backToReview">返回核对</button></div>
