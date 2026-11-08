@@ -569,7 +569,8 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .picker-menu small{font-size:11px;color:var(--text-secondary)}
 .menu-action{color:var(--brand-action)!important}
 .new-starter{display:grid;gap:8px;margin-top:4px}
-.new-starter input{min-height:44px;padding:8px 10px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:14px;background:var(--surface-input);color:var(--text-primary)}
+/* 同理：iOS 对 <16px 的输入框 focus 会放大视口，这处新建酵种输入框必须保持 16px。 */
+.new-starter input{min-height:44px;padding:8px 10px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:16px;background:var(--surface-input);color:var(--text-primary)}
 .new-starter .m-primary{width:100%;min-height:44px;font-size:14px}
 /* 原本写死 220ms + ease-out，与全局的 --motion-base / --ease-standard 各差一档；
    同页的其它按压、弹层都走令牌，两条相邻动效会读出不同的「手感」。 */

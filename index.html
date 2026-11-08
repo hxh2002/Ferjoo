@@ -2,7 +2,9 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover 是 env(safe-area-inset-*) 生效的前提：缺了它，iOS 上所有安全区取值为 0，
+         底部 tabbar 会被 Home 指示条压住、顶栏会被灵动岛遮挡。页面里已有 33 处安全区留白依赖它。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#ff7c2d" />
     <meta name="description" content="Dr. Ferjoo 酵种诊断工具 — 经典 UI 恢复版" />
     <link rel="manifest" href="/manifest.webmanifest" />

@@ -60,8 +60,9 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 form{display:flex;flex:1;flex-direction:column;gap:24px}
 label{display:grid;gap:8px;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
 .mobile-area .feedback-page textarea,.mobile-area .feedback-page input{border:0;border-radius:20px;background:var(--surface-card);box-shadow:var(--m-shadow-field);color:var(--text-primary)}
-.mobile-area .feedback-page textarea{height:180px;min-height:180px;padding:16px;font-size:14px;line-height:21px;resize:none}
-.mobile-area .feedback-page input{height:64px;min-height:64px;padding:0 16px;font-size:14px;line-height:21px}
+.mobile-area .feedback-page textarea{height:180px;min-height:180px;padding:16px;font-size:16px;line-height:21px;resize:none}
+/* 输入框字号必须 ≥16px：iOS Safari 对 <16px 的输入框在 focus 时会自动放大页面，且不会自动缩回。 */
+.mobile-area .feedback-page input{height:64px;min-height:64px;padding:0 16px;font-size:16px;line-height:21px}
 .feedback-page :is(textarea,input)::placeholder{color:var(--m-placeholder)}
 .count,.privacy-note{color:var(--text-secondary);font-size:12px;line-height:18px;font-weight:400}
 .count{text-align:right}

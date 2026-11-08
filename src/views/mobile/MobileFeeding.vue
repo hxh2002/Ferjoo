@@ -428,13 +428,15 @@ async function save() {
 .more-ratios button{width:100%;margin-bottom:8px}
 .alert-settings{display:inline-flex;align-items:center;min-height:44px;color:var(--brand-action);font-size:var(--text-sm);font-weight:500;text-decoration:none}
 .field-label{display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
-.feeding-form input,.feeding-form select{width:100%;min-height:44px;padding:10px 12px;box-sizing:border-box;border:1px solid var(--border-input);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:15px}
+/* 输入控件统一 16px：iOS Safari 对 <16px 的输入框 focus 时会放大页面且不缩回。 */
+.feeding-form input,.feeding-form select{width:100%;min-height:44px;padding:10px 12px;box-sizing:border-box;border:1px solid var(--border-input);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:16px}
 .feeding-form input:disabled,.feeding-form select:disabled{opacity:.7;cursor:not-allowed}
 .weight-fields{min-width:0;margin:0;padding:12px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-warm)}
 .weight-fields legend{padding:0 6px;font-size:12px;color:var(--text-secondary)}
 .weight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0}
 .weight-item{display:grid;gap:4px;min-width:0;font-size:12px;color:var(--text-secondary)}
-.weight-item input{width:100%;min-height:44px;box-sizing:border-box;padding:8px 6px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:15px;font-variant-numeric:tabular-nums;background:var(--surface-input);color:var(--text-primary)}
+/* 同理：iOS 对 <16px 的输入框 focus 会放大视口，配比输入框必须保持 16px。 */
+.weight-item input{width:100%;min-height:44px;box-sizing:border-box;padding:8px 6px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:16px;font-variant-numeric:tabular-nums;background:var(--surface-input);color:var(--text-primary)}
 .weight-item:last-child{font-weight:600;color:var(--brand-action)}
 .weight-fields .m-muted{font-size:12px;line-height:18px;margin:0}
 .baseline-details{border-top:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);padding:0}
