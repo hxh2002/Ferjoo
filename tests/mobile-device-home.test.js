@@ -33,6 +33,12 @@ assert.match(source, /\/me\/devices\?bind=1/);
 assert.match(source, /mode: 'diagnosis'/);
 assert.match(source, /linkStarterDevice/);
 assert.doesNotMatch(source, /SeriesChart/, 'charts move to the detail page, not the device home');
+// 酵种弹层只有 280px：.starter-choice 既是 grid 子项又是 flex 容器，两层都要 min-width:0
+// 才能让长酵种名收缩换行；删除键还要压过 .picker-menu button 的 width:100%（0,1,1），
+// 否则会占满整行、把名字挤成一字一行的竖排。
+assert.match(source, /\.starter-choice\{[^}]*min-width:0/, '.starter-choice must shrink inside the grid popover');
+assert.match(source, /\.starter-choice > button:first-child\{[^}]*min-width:0/, 'starter name button must shrink inside the flex row');
+assert.match(source, /\.starter-choice \.starter-delete\{[^}]*flex:none;width:auto/, 'delete button keeps its intrinsic width despite .picker-menu button{width:100%}');
 assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
 const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'device-home-test' });
 assert.deepEqual(template.errors, []);

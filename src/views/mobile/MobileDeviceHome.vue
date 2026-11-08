@@ -563,12 +563,15 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .picker-menu button,.picker-menu a{display:grid;gap:2px;width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface-input);color:inherit;font:inherit;font-size:14px;text-align:left;text-decoration:none;cursor:pointer}
 .picker-menu button.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .picker-menu button:disabled{opacity:.55;cursor:not-allowed}
-.starter-choice{display:flex;align-items:center;gap:8px}
 /* 弹层只有 280 宽，左侧按钮必须能收缩：flex 子项默认 min-width 是内容宽度，
-   长酵种名加长注解会把文字挤成一字一行竖排。 */
-.starter-choice > button:first-child{flex:1;min-width:0}
+   长酵种名加长注解会把文字挤成一字一行竖排。.starter-choice 自身是 .picker-menu
+   的 grid 子项，同样要吃 min-width:0，否则整行按内容宽度撑开、往外横向溢出。 */
+.starter-choice{display:flex;align-items:center;gap:8px;min-width:0}
+.starter-choice > button:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
 .starter-choice small{display:block;margin-top:2px;overflow-wrap:anywhere}
-.starter-delete{flex:none;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
+/* 上面 .picker-menu button 的 width:100% 也会命中删除键（0,1,1 压过 0,1,0 的 flex:none），
+   删除键会占满整行、把名字顶成 22px 竖排。这里提权并还原成内容宽度。 */
+.starter-choice .starter-delete{flex:none;width:auto;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
 .picker-menu small{font-size:11px;color:var(--text-secondary)}
 .menu-action{color:var(--brand-action)!important}
 .new-starter{display:grid;gap:8px;margin-top:4px}
