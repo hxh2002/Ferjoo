@@ -60,10 +60,13 @@ function resolveGradientColor() {
 }
 onMounted(() => {
   resolveGradientColor();
-  // 主题既可能跟随系统，也可能改根节点属性或类名；两者变化都重算，不让渐变停在旧色。
+  // 主题既可能跟随系统，也可能改根节点属性/类名或替换样式表；三者变化都重算。
   if (typeof MutationObserver !== 'undefined') {
     themeObserver = new MutationObserver(resolveGradientColor);
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+    themeObserver.observe(document.documentElement, {
+      attributes: true, attributeFilter: ['class', 'style', 'data-theme'],
+      childList: true, subtree: true, characterData: true
+    });
   }
   const colorScheme = window.matchMedia?.('(prefers-color-scheme: dark)');
   if (colorScheme?.addEventListener) colorScheme.addEventListener('change', resolveGradientColor);
@@ -580,6 +583,10 @@ const bandBadges = computed(() => {
 
 <style scoped>
 .series-color-probe { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+/* 折线本身是开放路径，SVG 默认 fill 是黑色：不显式置 none 会把折线自动闭合后填成
+   黑色楔形，陡峭段尤其明显。移动端不加载 main.css，所以关键呈现必须由组件自己兜住。 */
+.series-line { fill: none; stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.series-area { stroke: none; }
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .series-guide-y { stroke: var(--brand-action); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .series-value-label { position: absolute; left: 0; z-index: 2; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 20px; padding: 0 4px; border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: var(--m-shadow); }

@@ -88,7 +88,7 @@ const chartFrom = computed(() => {
   return new Date(Math.min(Date.parse(base), earliest - 10 * 60000)).toISOString();
 });
 const chartTo = computed(() => to.value);
-const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(0)}%` : '—');
+const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '—');
 const jarLevel = computed(() => {
   const base = Number(summary.value?.baselineHeightMm);
   const current = Number(summary.value?.currentHeightMm);

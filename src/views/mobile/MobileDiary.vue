@@ -261,8 +261,10 @@ function meanOf(values) {
   const nums = values.filter((value) => Number.isFinite(value));
   return nums.length ? nums.reduce((sum, value) => sum + value, 0) / nums.length : null;
 }
-function metricText(value, suffix) {
-  return value == null || !Number.isFinite(value) ? '—' : `${Math.round(value)}${suffix}`;
+function metricText(value, suffix, digits = 0) {
+  if (value == null || !Number.isFinite(value)) return '—';
+  // 膨胀率/发酵倍速统一保留一位小数，温度和湿度按原设计取整。
+  return `${digits ? Number(value).toFixed(digits) : Math.round(value)}${suffix}`;
 }
 // 卡片上的三项来自本轮实测：最高膨胀率取窗口内最高高度，温度优先用采样均值。
 function roundMetrics(item) {
@@ -276,7 +278,7 @@ function roundMetrics(item) {
   if (item.baseline > 0 && heights.length) peak = ((Math.max(...heights) - item.baseline) / item.baseline) * 100;
   const temp = meanOf(rows.map((row) => Number(row.temperature_c))) ?? item.meanTemp;
   const humidity = meanOf(rows.map((row) => Number(row.humidity_percent)));
-  return { peak: metricText(peak, '%'), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
+  return { peak: metricText(peak, '%', 1), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
 }
 const roundCards = computed(() => roundItems.value.map((item) => ({ ...item, metrics: roundMetrics(item) })));
 

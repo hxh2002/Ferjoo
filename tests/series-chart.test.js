@@ -124,4 +124,9 @@ for (const points of [flat, single, duplicated, tight, unordered]) {
 const gradient = await draw([at(0, 30), at(10, 35)], { color: 'var(--brand-primary)' });
 assert.doesNotMatch(gradient.html, /stop-color="var\(|stop-color:\s*var\(/, 'gradient stops never receive unresolved CSS variables');
 assert.match(gradient.html, /class="series-area"/, 'the area keeps its own segment closure');
+
+// 折线是开放路径：没有 fill:none 时 SVG 会用默认黑色填充，陡峭段直接被填成黑楔形。
+// 移动端不加载 main.css，所以这条必须由组件自己的样式保证。
+assert.match(source, /\.series-line \{[^}]*fill:\s*none/, 'the polyline must opt out of SVG default black fill');
+assert.match(source, /\.series-area \{[^}]*stroke:\s*none/, 'the area fill must not inherit a stroke');
 console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');

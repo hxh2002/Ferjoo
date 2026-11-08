@@ -291,3 +291,20 @@ remembered.stop(); restored.stop(); otherAccount.stop();
 delete globalThis.localStorage;
 
 console.log('mobile device home: layout contracts plus real script-setup state tests passed (account isolation, serialized refresh, create/link outcomes, default device, explicit empty selection, API failures, stale evidence, confirm/end flow and toast)');
+
+// 膨胀率/发酵倍速统一一位小数：曾出现过 108.20189274447944% 这种原始浮点，
+// 以及 .toFixed(0) 把 310.9% 显示成 311% 的不一致。
+{
+  const fs = await import('node:fs');
+  const read = (p) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
+  const home = read('../src/views/mobile/MobileDeviceHome.vue');
+  const detail = read('../src/views/mobile/MobileRecordDetail.vue');
+  const diary = read('../src/views/mobile/MobileDiary.vue');
+  const draggable = read('../src/components/mobile/MDraggableChart.vue');
+  assert.match(home, /expansionPercent\.toFixed\(1\)/, 'device home shows expansion with one decimal');
+  assert.match(detail, /Math\.max\(\.\.\.values\)\.toFixed\(1\)/, 'record detail peak keeps one decimal');
+  assert.match(diary, /metricText\(peak, '%', 1\)/, 'diary peak keeps one decimal');
+  assert.match(draggable, /toFixed\(1\)/, 'the chart tooltip rounds to one decimal');
+  assert.doesNotMatch(draggable, /<strong>\{\{ point\.v \}\}/, 'the tooltip never prints the raw sample value');
+}
+console.log('expansion percent: one decimal everywhere');

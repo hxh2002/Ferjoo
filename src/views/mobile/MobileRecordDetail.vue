@@ -124,7 +124,7 @@ const roundCharts = computed(() => {
 });
 const peakExpansion = computed(() => {
   const values = (roundCharts.value?.expansion || []).map((point) => point.v).filter((value) => Number.isFinite(value));
-  return values.length ? Math.max(...values).toFixed(0) : '';
+  return values.length ? Math.max(...values).toFixed(1) : '';
 });
 const evidenceText = computed(() => {
   const value = summary.value;
