@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computed, ref, watch } from 'vue';
 import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
+import { concreteColor, readConcreteColor } from '../src/lib/chart-color.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -37,8 +38,8 @@ for (const fn of ['getStarterDeviceLink', 'listStarterDeviceLinks', 'linkStarter
 assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
 const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/gm, '').replace("const emit = defineEmits(['select']);", 'const emit = () => {};');
-const renderChartRaw = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', 'onBeforeUnmount', 'CHART_RELEASE_MS', 'chartSegments', 'moveSampleIndex', 'nearestSampleIndex', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
-const renderChart = (defineProps) => renderChartRaw(defineProps, computed, ref, watch, () => 'test', () => {}, CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex);
+const renderChartRaw = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', 'onBeforeUnmount', 'onMounted', 'nextTick', 'concreteColor', 'readConcreteColor', 'CHART_RELEASE_MS', 'chartSegments', 'moveSampleIndex', 'nearestSampleIndex', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
+const renderChart = (defineProps) => renderChartRaw(defineProps, computed, ref, watch, () => 'test', () => {}, () => {}, (fn) => fn(), concreteColor, readConcreteColor, CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex);
 const chartGeometry = (label, unit, values, baseline = null) => renderChart(() => ({ label, unit, points: values.map((v, index) => ({ t: `2026-01-01T00:${String(index * 10).padStart(2, '0')}:00Z`, v })), baseline }), computed, ref, watch, () => 'test');
 const points = [
   { t: '2026-01-01T00:00:00Z', v: 1 },

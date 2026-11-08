@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
+import { concreteColor, readConcreteColor } from '../src/lib/chart-color.js';
 
 const source = readFileSync(new URL('../src/components/SeriesChart.vue', import.meta.url), 'utf8');
 const { descriptor, errors } = parse(source);
@@ -71,7 +72,8 @@ const renderCode = template.code.replace(/import \{([^}]+)\} from "vue"/, (_, bi
 const render = new Function('Vue', `${renderCode}; return render;`)(Vue);
 const component = new Function('modules', setupCode)({
   vue: { ...Vue, useId: () => 'gradient-1' },
-  '../lib/chart-selection.js': { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex }
+  '../lib/chart-selection.js': { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex },
+  '../lib/chart-color.js': { concreteColor, readConcreteColor }
 });
 const at = (minute, v) => ({ t: new Date(Date.UTC(2026, 10, 7, 1, minute)).toISOString(), v });
 // 用真实组件 + 真实 props 解析来渲染：直接调 setup() 会绕过 props 声明，color 永远是 undefined，
@@ -120,6 +122,6 @@ for (const points of [flat, single, duplicated, tight, unordered]) {
 // 面积渐变必须走 style 而不是 SVG 表现属性：stop-color 是表现属性，不解析 var()，
 // 传 var(--brand-primary) 会被当成无效颜色而回退成黑色，曲线下方就出现一块黑。
 const gradient = await draw([at(0, 30), at(10, 35)], { color: 'var(--brand-primary)' });
-assert.doesNotMatch(gradient.html, /stop-color="var\(/, 'stop-color must not be an attribute holding var()');
-assert.match(gradient.html, /stop-color:\s*var\(--brand-primary\)/, 'stop color is applied through inline style so var() resolves');
+assert.doesNotMatch(gradient.html, /stop-color="var\(|stop-color:\s*var\(/, 'gradient stops never receive unresolved CSS variables');
+assert.match(gradient.html, /class="series-area"/, 'the area keeps its own segment closure');
 console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');

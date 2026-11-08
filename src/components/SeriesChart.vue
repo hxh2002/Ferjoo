@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../lib/chart-selection.js';
+import { concreteColor, readConcreteColor } from '../lib/chart-color.js';
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -47,6 +48,39 @@ const PAD_Y = 6;
 // 更短的空白说明中间仍有采集，直接直线连上即可。
 const gid = useId();
 const gridYs = [H * 0.25, H * 0.5, H * 0.75];
+const colorProbe = ref(null);
+// iOS 的旧 WebKit 在 <stop> 上解析 var() 会失败，失败后 stop-color 回退成黑色，
+// 面积填充就是那块黑。所以渐变只接收具体色值，绝不把 var() 写进 <stop>。
+const gradientColor = ref(concreteColor('', props.color));
+let themeObserver;
+
+function resolveGradientColor() {
+  const resolved = readConcreteColor(colorProbe.value);
+  if (resolved) gradientColor.value = resolved;
+}
+onMounted(() => {
+  resolveGradientColor();
+  // 主题既可能跟随系统，也可能改根节点属性或类名；两者变化都重算，不让渐变停在旧色。
+  if (typeof MutationObserver !== 'undefined') {
+    themeObserver = new MutationObserver(resolveGradientColor);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+  }
+  const colorScheme = window.matchMedia?.('(prefers-color-scheme: dark)');
+  if (colorScheme?.addEventListener) colorScheme.addEventListener('change', resolveGradientColor);
+  else colorScheme?.addListener?.(resolveGradientColor);
+});
+watch(() => props.color, async () => {
+  gradientColor.value = concreteColor('', props.color);
+  // 等 Vue 把 probe 的 color 更新后再读，不能读到上一个主题的缓存色。
+  await nextTick();
+  resolveGradientColor();
+});
+onBeforeUnmount(() => {
+  themeObserver?.disconnect();
+  const colorScheme = window.matchMedia?.('(prefers-color-scheme: dark)');
+  if (colorScheme?.removeEventListener) colorScheme.removeEventListener('change', resolveGradientColor);
+  else colorScheme?.removeListener?.(resolveGradientColor);
+});
 
 const samples = computed(() => {
   const sorted = (props.points || [])
@@ -378,6 +412,8 @@ const bandBadges = computed(() => {
 
 <template>
   <div class="series-chart">
+    <!-- 只用来把 color 解析成具体色值，不参与布局，也不暴露给读屏。 -->
+    <span ref="colorProbe" class="series-color-probe" :style="{ color }" aria-hidden="true"></span>
     <div class="series-head">
       <span class="series-label"><slot name="label">{{ label }}</slot></span>
       <div class="series-headline">
@@ -391,11 +427,10 @@ const bandBadges = computed(() => {
       <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-releasing': releasing }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="canInteract ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
-            <!-- stop-color 是 SVG 表现属性，不解析 var()：直接绑 color="var(--brand-primary)" 会回退成黑色，
-                 面积填充就变成黑块。改用内联 style 走 CSS 属性，变量才能解析。 -->
+            <!-- iOS 对渐变里的 CSS 变量 / 内部 url(#id) 可能回退成黑色；stop 只接收计算后的具体颜色。 -->
             <linearGradient :id="gid" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" :style="`stop-color: ${color}; stop-opacity: 0.2`" />
-              <stop offset="100%" :style="`stop-color: ${color}; stop-opacity: 0`" />
+              <stop offset="0%" :stop-color="gradientColor" stop-opacity="0.2" />
+              <stop offset="100%" :stop-color="gradientColor" stop-opacity="0" />
             </linearGradient>
           </defs>
           <g v-for="band in bandRects" :key="`band-${band.key}`">
@@ -447,7 +482,7 @@ const bandBadges = computed(() => {
             :key="`area-${index}`"
             class="series-area"
             :d="d"
-            :fill="`url(#${gid})`"
+            :style="{ fill: gradientColor ? `url(#${gid})` : color }"
           />
           <path
             v-for="(d, index) in linePaths"
@@ -544,6 +579,7 @@ const bandBadges = computed(() => {
 </template>
 
 <style scoped>
+.series-color-probe { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .series-guide-y { stroke: var(--brand-action); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .series-value-label { position: absolute; left: 0; z-index: 2; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 20px; padding: 0 4px; border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: var(--m-shadow); }
