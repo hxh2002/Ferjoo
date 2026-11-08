@@ -564,7 +564,10 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .picker-menu button.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .picker-menu button:disabled{opacity:.55;cursor:not-allowed}
 .starter-choice{display:flex;align-items:center;gap:8px}
-.starter-choice > button:first-child{flex:1}
+/* 弹层只有 280 宽，左侧按钮必须能收缩：flex 子项默认 min-width 是内容宽度，
+   长酵种名加长注解会把文字挤成一字一行竖排。 */
+.starter-choice > button:first-child{flex:1;min-width:0}
+.starter-choice small{display:block;margin-top:2px;overflow-wrap:anywhere}
 .starter-delete{flex:none;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
 .picker-menu small{font-size:11px;color:var(--text-secondary)}
 .menu-action{color:var(--brand-action)!important}

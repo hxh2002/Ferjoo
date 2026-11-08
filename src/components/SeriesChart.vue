@@ -391,9 +391,11 @@ const bandBadges = computed(() => {
       <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-releasing': releasing }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="canInteract ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
+            <!-- stop-color 是 SVG 表现属性，不解析 var()：直接绑 color="var(--brand-primary)" 会回退成黑色，
+                 面积填充就变成黑块。改用内联 style 走 CSS 属性，变量才能解析。 -->
             <linearGradient :id="gid" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" :stop-color="color" stop-opacity=".20" />
-              <stop offset="100%" :stop-color="color" stop-opacity="0" />
+              <stop offset="0%" :style="`stop-color: ${color}; stop-opacity: 0.2`" />
+              <stop offset="100%" :style="`stop-color: ${color}; stop-opacity: 0`" />
             </linearGradient>
           </defs>
           <g v-for="band in bandRects" :key="`band-${band.key}`">

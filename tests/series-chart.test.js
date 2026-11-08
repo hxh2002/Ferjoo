@@ -74,8 +74,11 @@ const component = new Function('modules', setupCode)({
   '../lib/chart-selection.js': { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex }
 });
 const at = (minute, v) => ({ t: new Date(Date.UTC(2026, 10, 7, 1, minute)).toISOString(), v });
+// 用真实组件 + 真实 props 解析来渲染：直接调 setup() 会绕过 props 声明，color 永远是 undefined，
+// 渐变颜色相关的断言就失去了意义。
+const chartComponent = { ...component, render };
 async function draw(points, extra = {}) {
-  const app = Vue.createSSRApp({ setup: () => component.setup({ label: '高度', unit: 'mm', points, interactive: true, highlight: true, sticky: true, ...extra }, { expose() {} }), render });
+  const app = Vue.createSSRApp({ render: () => Vue.h(chartComponent, { label: '高度', unit: 'mm', points, interactive: true, highlight: true, sticky: true, ...extra }) });
   const html = await renderToString(app);
   const paths = [...html.matchAll(/<path[^>]*class="series-(line|area)"[^>]*d="([^"]*)"/g)];
   return {
@@ -114,4 +117,9 @@ for (const points of [[], [at(0, null)], [{ t: 'nope', v: 1 }, { t: null, v: 2 }
 for (const points of [flat, single, duplicated, tight, unordered]) {
   assert.ok(points.paths.every((d) => !/NaN|Infinity|undefined/.test(d)), 'chart geometry never emits NaN');
 }
+// 面积渐变必须走 style 而不是 SVG 表现属性：stop-color 是表现属性，不解析 var()，
+// 传 var(--brand-primary) 会被当成无效颜色而回退成黑色，曲线下方就出现一块黑。
+const gradient = await draw([at(0, 30), at(10, 35)], { color: 'var(--brand-primary)' });
+assert.doesNotMatch(gradient.html, /stop-color="var\(/, 'stop-color must not be an attribute holding var()');
+assert.match(gradient.html, /stop-color:\s*var\(--brand-primary\)/, 'stop color is applied through inline style so var() resolves');
 console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');
