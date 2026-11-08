@@ -50,24 +50,170 @@ const rows = computed(() => [
 </template>
 
 <style scoped>
-.mobile-area .m-page.profile-view{gap:24px}
-h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
-.identity-card{display:grid;gap:20px;padding:20px;background:var(--surface-card);border-radius:var(--radius-card);box-shadow:var(--m-shadow-button)}
-.identity-row{display:flex;align-items:center;gap:16px}
-.avatar{display:grid;place-items:center;flex:none;width:64px;height:64px;overflow:hidden;border-radius:50%;background:var(--m-disc);color:var(--brand-action);font-size:28px;line-height:36px;font-weight:500}
-.avatar img{width:100%;height:100%;object-fit:cover}
-.identity-row strong{flex:1;min-width:0;font-size:18px;line-height:26px;font-weight:500;color:var(--text-primary);overflow-wrap:anywhere}
-.edit-link{flex:none;display:inline-flex;align-items:center;justify-content:center;width:76px;height:44px;border-radius:22px;background:var(--m-disc);color:var(--brand-action);text-decoration:none;font-size:14px;line-height:21px;font-weight:500}
-.identity-card dl{display:grid;gap:8px;width:100%;margin:0;padding-top:20px;border-top:1px solid var(--border-warm)}
-.identity-card dl div{display:flex;align-items:center;gap:12px;min-height:40px}
-dt{display:flex;align-items:center;gap:12px;flex:none;width:116px;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
-.field-icon{display:grid;place-items:center;flex:none;width:32px;height:32px;color:var(--brand-action)}
-.field-icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-dd{margin:0;flex:1;min-width:0;font-size:14px;line-height:21px;color:var(--text-primary);text-align:right;overflow-wrap:anywhere}
-.link-card{display:grid;padding:0 16px;background:var(--surface-card);border-radius:var(--radius-card);box-shadow:var(--m-shadow-button)}
-.link-card a{position:relative;display:flex;align-items:center;gap:12px;min-height:68px;color:inherit;text-decoration:none;font-size:16px;line-height:24px;font-weight:500}
-.link-card a + a::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--border-warm)}
-.link-card span{flex:1;min-width:0}
-.link-card small{display:block;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
-.link-card svg{flex:none;width:20px;height:20px;fill:none;stroke:var(--brand-action);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mobile-area .m-page.profile-view {
+  gap: 24px
+}
+h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 500
+}
+.identity-card {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+  background: var(--surface-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--m-shadow-button)
+}
+.identity-row {
+  display: flex;
+  align-items: center;
+  gap: 16px
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--m-disc);
+  color: var(--brand-action);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 500
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover
+}
+.identity-row strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere
+}
+.edit-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--m-disc);
+  color: var(--brand-action);
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 500
+}
+.identity-card dl {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-warm)
+}
+.identity-card dl div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px
+}
+dt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  width: 116px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400
+}
+.field-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  color: var(--brand-action)
+}
+.field-icon svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round
+}
+dd {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--text-primary);
+  text-align: right;
+  overflow-wrap: anywhere
+}
+.link-card {
+  display: grid;
+  padding: 0 16px;
+  background: var(--surface-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--m-shadow-button)
+}
+.link-card a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500
+}
+.link-card a + a::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-warm)
+}
+.link-card span {
+  flex: 1;
+  min-width: 0
+}
+.link-card small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400
+}
+.link-card svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--brand-action);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round
+}
 </style>

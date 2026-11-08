@@ -306,74 +306,368 @@ function applyPending(key) {
 </template>
 
 <style scoped>
-.mobile-area .m-page.mobile-checkin{padding-top:calc(20px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
-.checkin-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 12px}
-.checkin-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.02em;color:var(--text-primary)}
-.observe-index{flex:none;color:var(--text-secondary);font-size:13px;line-height:19px;font-weight:500}
-.checkin-starter{flex:none;display:inline-flex;align-items:center;min-height:19px;padding:0 10px;border-radius:10px;background:var(--m-icon-disc);color:var(--brand-action);font-size:11px;font-weight:500;line-height:19px;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mobile-area .m-page.mobile-checkin {
+  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);
+  gap: 0
+}
+.checkin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  margin: 0 0 12px
+}
+.checkin-head h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 500;
+  letter-spacing: -.02em;
+  color: var(--text-primary)
+}
+.observe-index {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 500
+}
+.checkin-starter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--m-icon-disc);
+  color: var(--brand-action);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 19px;
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
 /* 370:17399：顶栏「酵种医生」底 91 → 「观察 1 / 3」111（20）→ 题目 151（21）→ 说明 187（5）→ 首卡 250（44）。
    诊断模式没有页内 h1，21px 的空档交给题目自身的 margin-top，避免和 header 的下边距叠加。 */
-.mobile-checkin[data-mode="diagnosis"] .checkin-head{align-items:flex-start;min-height:19px;margin:0}
+.mobile-checkin[data-mode="diagnosis"] .checkin-head {
+  align-items: flex-start;
+  min-height: 19px;
+  margin: 0
+}
 /* 核对步在诊断模式下页头没有子节点（h1 / 观察序号都不渲染），空的 19px 会把「最后一步」推到 122。 */
-.mobile-checkin[data-mode="diagnosis"] .checkin-head:empty{display:none}
-.review-step .observe-index{margin:0 0 21px}
-.mobile-area .m-page .review-step h2{margin:0 0 5px;font-size:21px;line-height:31px;font-weight:500}
-.review-step > .m-muted{display:block;margin:0 0 23px;font-size:13px;line-height:19px}
-.mobile-checkin[data-mode="diagnosis"] .review-step > .m-muted{margin:0 0 23px}
+.mobile-checkin[data-mode="diagnosis"] .checkin-head:empty {
+  display: none
+}
+.review-step .observe-index {
+  margin: 0 0 21px
+}
+.mobile-area .m-page .review-step h2 {
+  margin: 0 0 5px;
+  font-size: 21px;
+  line-height: 31px;
+  font-weight: 500
+}
+.review-step > .m-muted {
+  display: block;
+  margin: 0 0 23px;
+  font-size: 13px;
+  line-height: 19px
+}
+.mobile-checkin[data-mode="diagnosis"] .review-step > .m-muted {
+  margin: 0 0 23px
+}
 /* 观察模式实测：页头 → 步骤条 → 上下文 → 首卡 连成 0 / 0 / 0，28px 标题直接压在步骤条上。
    `.m-page > *` 的 margin-block 归零架空了上面三条 scoped 间距。诊断模式走画板锁定的
    20 / 21 / 5 / 44（标题自身 margin-top），不能被这条规则波及，所以只写回 observation。 */
-.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .checkin-head{margin-block:0 12px}
-.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .step-track{margin-block:0 12px}
-.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .m-context{margin-block:0 12px}
-.review-card{padding:8px 16px 16px;border-radius:20px;background:var(--surface-card)}
-.review-card dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 12px;margin:12px 0 0;align-items:baseline}
-.review-card dt{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px;font-weight:400}
-.review-card dd{margin:0;font-size:14px;line-height:21px;font-weight:500;text-align:right}
+.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .checkin-head {
+  margin-block: 0 12px
+}
+.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .step-track {
+  margin-block: 0 12px
+}
+.mobile-area .mobile-main .m-page.mobile-checkin[data-mode="observation"] > .m-context {
+  margin-block: 0 12px
+}
+.review-card {
+  padding: 8px 16px 16px;
+  border-radius: 20px;
+  background: var(--surface-card)
+}
+.review-card dl {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 20px 12px;
+  margin: 12px 0 0;
+  align-items: baseline
+}
+.review-card dt {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400
+}
+.review-card dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 500;
+  text-align: right
+}
 /* 370:17509 核对卡：327×300、圆角 20、无分隔线；标签卡内 x=16（页内 40）、值列卡内 168（页内 192），行距 53。 */
-.mobile-checkin[data-mode="diagnosis"] .review-card{min-height:300px;padding:20px 16px 0}
-.mobile-checkin[data-mode="diagnosis"] .review-card dl{grid-template-columns:152px minmax(0,1fr);gap:32px 0;margin:0;align-items:start}
-.mobile-checkin[data-mode="diagnosis"] .review-card dd{text-align:left}
-.sample-note{margin:19px 0 8px;color:var(--text-secondary);font-size:12px;line-height:18px}
-.mobile-area .m-page .observe-step h2{margin:21px 0 5px;font-size:21px;line-height:31px;font-weight:500;letter-spacing:0}
-.observe-step .m-muted{display:block;font-size:13px;line-height:19px}
+.mobile-checkin[data-mode="diagnosis"] .review-card {
+  min-height: 300px;
+  padding: 20px 16px 0
+}
+.mobile-checkin[data-mode="diagnosis"] .review-card dl {
+  grid-template-columns: 152px minmax(0,1fr);
+  gap: 32px 0;
+  margin: 0;
+  align-items: start
+}
+.mobile-checkin[data-mode="diagnosis"] .review-card dd {
+  text-align: left
+}
+.sample-note {
+  margin: 19px 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px
+}
+.mobile-area .m-page .observe-step h2 {
+  margin: 21px 0 5px;
+  font-size: 21px;
+  line-height: 31px;
+  font-weight: 500;
+  letter-spacing: 0
+}
+.observe-step .m-muted {
+  display: block;
+  font-size: 13px;
+  line-height: 19px
+}
 /* 370:17399 / 370:17432：题目底 182 → 说明 187（5）、说明底 206 → 首卡 250（44）。 */
-.observe-step h2 + .m-muted{margin:0 0 44px}
-.safety-note{display:grid;gap:4px;margin:52px 0 0;padding:12px 16px 14px;border-radius:15px;background:var(--m-safety-bg);color:var(--text-primary)}
+.observe-step h2 + .m-muted {
+  margin: 0 0 44px
+}
+.safety-note {
+  display: grid;
+  gap: 4px;
+  margin: 52px 0 0;
+  padding: 12px 16px 14px;
+  border-radius: 15px;
+  background: var(--m-safety-bg);
+  color: var(--text-primary)
+}
 /* 安全提示块的底色一直贴到「一句话填写」的折叠行（观察模式下这里还不在 .observe-step 里，
    两处都要覆盖）；上方 52 是画板锁定值，只在下沿补 16，让提示块成为独立的一段。 */
-.mobile-checkin :is(.m-card, .observe-step) > details{margin-top:16px}
-.safety-note strong{font-size:13px;line-height:19px;font-weight:500}
-.safety-note span{font-size:11px;line-height:16px;color:var(--text-secondary);font-weight:400}
+.mobile-checkin :is(.m-card, .observe-step) > details {
+  margin-top: 16px
+}
+.safety-note strong {
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 500
+}
+.safety-note span {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-secondary);
+  font-weight: 400
+}
 /* 370:17462：说明底 206 → 首格 230 是 24，比颜色 / 气味两步的 44 紧。 */
-.height-note{display:block;margin:0 0 24px;color:var(--text-secondary);font-size:13px;line-height:19px}
-.more-heights{display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;margin:16px 0;padding:0;border:0;background:transparent;color:var(--m-text-link);font:inherit;font-size:14px;font-weight:400;cursor:pointer}
-.observe-step details summary{color:var(--text-secondary);font-size:14px;font-weight:400}
-.step-track{display:flex;align-items:center;gap:0;list-style:none;margin:0 0 12px;padding:0}
-.step-track li{display:flex;align-items:center;gap:6px;flex:1;font-size:12px;color:var(--text-secondary)}
-.step-track li:last-child{flex:0 0 auto}
-.step-track li:not(:last-child)::after{content:'';flex:1;height:2px;margin:0 8px;background:var(--border-subtle);border-radius:1px}
-.step-track li.done:not(:last-child)::after{background:var(--brand-action)}
-.step-dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--border-subtle)}
-.step-track li.active .step-dot{background:var(--brand-action);box-shadow:0 0 0 4px var(--m-icon-disc)}
-.step-track li.done .step-dot{background:var(--brand-action)}
-.step-track li.active{color:var(--brand-action);font-weight:500}
-.step-label{white-space:nowrap}
-.mobile-checkin .m-card{padding:var(--m-card-space);margin-bottom:12px}
-.m-context{margin:0 0 12px;overflow-wrap:anywhere;font-size:13px;line-height:19px}
-.m-context a{color:var(--brand-action);text-decoration:none;font-weight:500}
-.m-actions{position:sticky;bottom:0;z-index:var(--m-z-raised);display:flex;gap:12px;margin-top:16px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--surface-page)}
-.m-actions .m-primary{flex:1;display:flex;align-items:center;justify-content:center;height:56px;min-height:56px;padding:0 16px;border:0;border-radius:28px;background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;cursor:pointer}
-.m-actions .m-primary:active:not(:disabled){background:var(--brand-accent)}
-.m-actions .m-primary:disabled{background:var(--m-button-disabled);color:var(--text-secondary);opacity:1;cursor:not-allowed}
-.m-actions .m-secondary{min-height:44px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px;font-weight:500;cursor:pointer}
-.note,dd,li{overflow-wrap:anywhere;white-space:pre-wrap}
-dt{font-weight:600;margin-top:.75rem}
-dd{margin-left:0}
-summary{min-height:44px;padding:.65rem 0;box-sizing:border-box;cursor:pointer}
-li{margin:.75rem 0}
-[aria-invalid=true]{outline:2px solid var(--danger-text)}
-.link-button{padding:0;border:0;background:none;font:inherit;color:var(--brand-action);text-decoration:underline;cursor:pointer}
-.mode-tag{display:inline-block;margin-right:.35rem;padding:.05rem .4rem;border-radius:var(--radius-badge);background:var(--m-icon-disc);color:var(--brand-action);font-size:.68rem;font-weight:700}
-.skip-note{margin:.35rem 0 0;font-size:.72rem;line-height:1.5;color:var(--warning-text)}
+.height-note {
+  display: block;
+  margin: 0 0 24px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 19px
+}
+.more-heights {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin: 16px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--m-text-link);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer
+}
+.observe-step details summary {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400
+}
+.step-track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0
+}
+.step-track li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary)
+}
+.step-track li:last-child {
+  flex: 0 0 auto
+}
+.step-track li:not(:last-child)::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  margin: 0 8px;
+  background: var(--border-subtle);
+  border-radius: 1px
+}
+.step-track li.done:not(:last-child)::after {
+  background: var(--brand-action)
+}
+.step-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-subtle)
+}
+.step-track li.active .step-dot {
+  background: var(--brand-action);
+  box-shadow: 0 0 0 4px var(--m-icon-disc)
+}
+.step-track li.done .step-dot {
+  background: var(--brand-action)
+}
+.step-track li.active {
+  color: var(--brand-action);
+  font-weight: 500
+}
+.step-label {
+  white-space: nowrap
+}
+.mobile-checkin .m-card {
+  padding: var(--m-card-space);
+  margin-bottom: 12px
+}
+.m-context {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 19px
+}
+.m-context a {
+  color: var(--brand-action);
+  text-decoration: none;
+  font-weight: 500
+}
+.m-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--m-z-raised);
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface-page)
+}
+.m-actions .m-primary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--brand-light);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer
+}
+.m-actions .m-primary:active:not(:disabled) {
+  background: var(--brand-accent)
+}
+.m-actions .m-primary:disabled {
+  background: var(--m-button-disabled);
+  color: var(--text-secondary);
+  opacity: 1;
+  cursor: not-allowed
+}
+.m-actions .m-secondary {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer
+}
+.note,dd,li {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap
+}
+dt {
+  font-weight: 600;
+  margin-top: .75rem
+}
+dd {
+  margin-left: 0
+}
+summary {
+  min-height: 44px;
+  padding: .65rem 0;
+  box-sizing: border-box;
+  cursor: pointer
+}
+li {
+  margin: .75rem 0
+}
+[aria-invalid=true] {
+  outline: 2px solid var(--danger-text)
+}
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--brand-action);
+  text-decoration: underline;
+  cursor: pointer
+}
+.mode-tag {
+  display: inline-block;
+  margin-right: .35rem;
+  padding: .05rem .4rem;
+  border-radius: var(--radius-badge);
+  background: var(--m-icon-disc);
+  color: var(--brand-action);
+  font-size: .68rem;
+  font-weight: 700
+}
+.skip-note {
+  margin: .35rem 0 0;
+  font-size: .72rem;
+  line-height: 1.5;
+  color: var(--warning-text)
+}
 </style>

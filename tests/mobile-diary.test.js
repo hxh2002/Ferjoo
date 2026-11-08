@@ -49,7 +49,7 @@ assert.match(source, /当天喂养/);
 const checkinSource = await readFile(new URL('../src/views/mobile/MobileCheckin.vue', import.meta.url), 'utf8');
 assert.match(checkinSource, /class="checkin-head"[\s\S]*class="observe-index"/);
 assert.match(checkinSource, /class="step-track"[\s\S]*stepMeta\.total/);
-assert.match(checkinSource, /\.step-track li\.active \.step-dot\{background:var\(--brand-action\)/);
+assert.match(checkinSource, /\.step-track li\.active \.step-dot\s*\{\s*background:\s*var\(--brand-action\)/);
 assert.match(checkinSource, /checkin-starter/);
 // 一级页面只保留设备在线时间与采样数，曲线下放到各轮次，采样明细仍走设备二级页。
 assert.match(source, /deviceBlocks/);
