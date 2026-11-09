@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { calendarGrid, calendarMonth, calendarTitle, calendarWeek, shiftCalendarMonth } from '../src/lib/mobile-calendar.js';
 import { nearestSampleIndex } from '../src/lib/chart-selection.js';
+import { JAR_MOODS, JAR_MOOD_LABELS, nextJarMood, starterJarGeometry } from '../src/components/mobile/MStarterJar.js';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 function compile(file) {
@@ -95,6 +96,41 @@ assert.match(series, /v-if="highlight && hoverPoint"/);
 assert.match(series, /v-if="bubble && hoverPoint"/);
 compile('src/components/mobile/MIconDisc.vue');
 compile('src/views/mobile/MobileFeeding.vue');
+
+const starterJar = compile('src/components/mobile/MStarterJar.vue');
+assert.deepEqual(JAR_MOODS, ['idle', 'eating', 'peak', 'hungry']);
+assert.equal(nextJarMood('idle'), 'eating');
+assert.equal(nextJarMood('hungry'), 'idle');
+assert.equal(nextJarMood('unknown'), 'idle');
+assert.equal(JAR_MOOD_LABELS.idle, '正常待机');
+for (const [mood, riseTop, riseHeight, faceTop, riseNode, faceNode] of [
+  ['idle', 136, 34, 146, '370:16102', '370:16112'],
+  ['eating', 119, 51, 137, '370:16145', '370:16155'],
+  ['peak', 96, 74, 125.5, '370:16187', '370:16197'],
+  ['hungry', 127, 43, 141, '370:16229', '370:16239']
+]) {
+  const geometry = starterJarGeometry(mood);
+  assert.deepEqual(geometry, { riseTop, riseHeight, faceTop, riseNode, faceNode, measured: false });
+  assert.match(starterJar, new RegExp(`jar-rise-${mood}\\.svg`));
+  assert.match(starterJar, new RegExp(`jar-face-${mood}\\.svg`));
+  const face = readFileSync(new URL(`../src/assets/device/jar-face-${mood}.svg`, import.meta.url), 'utf8');
+  const rise = readFileSync(new URL(`../src/assets/device/jar-rise-${mood}.svg`, import.meta.url), 'utf8');
+  assert.match(face, /^<svg[^>]*width="30" height="15"/, `${mood} uses the 30x15 face, not a liquid asset`);
+  assert.match(rise, new RegExp(`^<svg[^>]*width="78" height="${riseHeight}"`));
+}
+assert.deepEqual(starterJarGeometry('idle', 0), { ...starterJarGeometry('idle'), measured: true, riseTop: 162, riseHeight: 8, faceTop: 172 });
+assert.deepEqual(starterJarGeometry('peak', 1), { ...starterJarGeometry('peak'), measured: true, riseTop: 118, riseHeight: 52, faceTop: 147.5 });
+assert.deepEqual(starterJarGeometry('idle', 9), starterJarGeometry('idle', 1), 'height keeps its existing clamped data mapping');
+assert.equal(starterJarGeometry('hungry', null).measured, false, 'a missing level never invents a fermentation mood');
+assert.match(starterJar, /width="78" height="6" data-figma-node="370:16242"/);
+assert.match(starterJar, /v-if="mood === 'hungry'"/);
+assert.match(starterJar, /left:18px;top:-9px;width:147px;height:98px/);
+assert.match(starterJar, /left:26px;top:20px;width:128px;height:170px/);
+assert.match(starterJar, /@keyframes jar-rise\{from\{transform:translateY\(9\.1px\) scaleY\(\.65\)\}to\{transform:translateY\(-6\.5px\) scaleY\(1\.25\)\}\}/);
+assert.match(starterJar, /@keyframes jar-face\{from\{transform:translateY\(0\)\}to\{transform:translateY\(-18px\)\}\}/);
+assert.equal((starterJar.match(/animation:jar-face 2s ease-in-out infinite alternate/g) || []).length, 1);
+assert.match(starterJar, /@media \(prefers-reduced-motion:reduce\)\{[^}]*transition:none\}\.jar-rise\.animated,\.jar-face-motion\.animated\{animation:none\}/);
+assert.doesNotMatch(starterJar, /https:\/\/www\.figma\.com/);
 
 const tokens = read('src/assets/tokens.css');
 const mobile = read('src/assets/mobile.css');

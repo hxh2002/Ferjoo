@@ -6,6 +6,7 @@ import { renderToString } from '@vue/server-renderer';
 import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
 import { CLOSE_REASON_LABELS, roundState } from '../src/lib/mobile-records.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
+import * as starterJar from '../src/components/mobile/MStarterJar.js';
 
 const file = new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
@@ -40,7 +41,7 @@ assert.match(source, /\.starter-choice\{[^}]*min-width:0/, '.starter-choice must
 assert.match(source, /\.starter-choice > button:first-child\{[^}]*min-width:0/, 'starter name button must shrink inside the flex row');
 assert.match(source, /\.starter-choice \.starter-delete\{[^}]*flex:none;width:auto/, 'delete button keeps its intrinsic width despite .picker-menu button{width:100%}');
 assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
-const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'device-home-test' });
+const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'device-home-test', compilerOptions: { bindingMetadata: compiled.bindings } });
 assert.deepEqual(template.errors, []);
 
 const now = Date.now();
@@ -87,6 +88,12 @@ function harness() {
     '../../composables/useAuth.js': { useAuth: () => ({ user, init() {} }) },
     '../../lib/mobile-guest.js': { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest },
     // 游客引导组件只负责结构，测试里用最小桩渲染标题与登录入口。
+    '../../components/mobile/MStarterJar.js': starterJar,
+    '../../components/mobile/MStarterJar.vue': {
+      inheritAttrs: false,
+      props: ['mood', 'level', 'animate'],
+      setup: (props) => () => Vue.h('span', { class: 'starter-jar', 'data-mood': props.mood, 'data-level': props.level }, props.mood)
+    },
     '../../components/mobile/MGuestNotice.vue': {
       props: ['title', 'description', 'action', 'loginTo', 'registerTo', 'register', 'hero', 'compact', 'eyebrow'],
       setup: (props) => () => Vue.h('section', { 'data-testid': 'guest-notice' }, [
@@ -94,6 +101,10 @@ function harness() {
         Vue.h('p', props.description),
         Vue.h('a', { href: props.loginTo?.name || '/login' }, props.action || '去登录')
       ])
+    },
+    '../../components/mobile/MConfirmDialog.vue': {
+      props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'],
+      setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', props.confirmLabel)]) : null; }
     },
     '../../composables/useVisiblePolling.js': { useVisiblePolling() {} },
     '../../services/care.service.js': api,
@@ -119,7 +130,7 @@ function harness() {
     '../../lib/read-cache.js': { invalidateReadCache: () => {}, cachedRead: (key, loader) => loader(), READ_TTL: { records: 0 } }
   };
   // 图标与插画是构建期资源，测试里用空串占位，断言只关心结构与文案。
-  for (const asset of ['icon-thermometer', 'icon-drop', 'icon-chart-up', 'icon-scales', 'icon-timer', 'icon-chevron-down', 'icon-jar', 'jar-body', 'jar-face.png', 'jar-hat.png', 'jar-rise', 'jar-face-small']) {
+  for (const asset of ['icon-thermometer', 'icon-drop', 'icon-chart-up', 'icon-scales', 'icon-timer', 'icon-chevron-down', 'icon-jar']) {
     modules[`../../assets/device/${asset}`] = `asset:${asset}`;
   }
   const component = new Function('modules', setupCode)(modules);
@@ -128,6 +139,7 @@ function harness() {
   async function html() {
     const app = Vue.createSSRApp({ setup: () => ({ ...bindings }), render });
     app.component('RouterLink', { props: ['to'], setup: ({ to }, { slots }) => () => Vue.h('a', { href: typeof to === 'string' ? to : to.path }, slots.default?.()) });
+    app.component('MStarterJar', modules['../../components/mobile/MStarterJar.vue']);
     app.component('MGuestNotice', { props: ['title', 'description', 'action', 'loginTo', 'registerTo', 'register', 'hero', 'compact', 'eyebrow'], setup: (props) => () => Vue.h('section', { 'data-testid': 'guest-notice' }, [Vue.h('strong', props.title), Vue.h('p', props.description), Vue.h('a', { href: '/login' }, props.action || '去登录')]) });
     app.component('MConfirmDialog', { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', { class: props.danger ? 'is-danger' : '' }, props.confirmLabel)]) : null; } });
     return renderToString(app);
@@ -147,6 +159,13 @@ assert.match(home, /当前数据/);
 assert.match(home, /1 : 2 : 2/, 'feed summary restates the ratio');
 assert.match(home, /结束当前发酵/, 'an active round can be ended straight from the home page');
 assert.doesNotMatch(home, /诊断本轮|诊断需 3 步/);
+assert.match(home, /切换酵种心情预览，当前：正常待机/, 'mood is explicitly an interactive preview');
+assert.match(home, /心情预览 · 正常待机/, 'the preview caption cannot be mistaken for a diagnosis');
+assert.match(home, /data-mood="idle" data-level="0\.19999999999999996"/, 'measurement height stays independent from preview mood');
+assert.match(source, /:level="jarLevel"/);
+assert.match(source, /previewMood\.value = nextJarMood\(previewMood\.value\)/);
+assert.match(source, /function clearSelected\(\) \{[^}]*previewMood\.value = 'idle'/, 'changing selection resets the preview');
+assert.doesNotMatch(source, /summary\.value[^\n]*previewMood|previewMood[^\n]*summary\.value/, 'mood is never inferred from feeding measurements');
 assert.match(home, /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(home, /传感器异常/, 'the latest sensor-error sample is surfaced as an explicit jar state');
 assert.doesNotMatch(home, /未计入膨胀率|段超过 40 分钟无采样/, 'technical sample-quality details stay off the home page');
@@ -173,6 +192,13 @@ const pickerHtml = await h.html();
 assert.match(pickerHtml, /仅查看设备数据/, 'not choosing a starter is described by its actual effect');
 assert.match(pickerHtml, /已关联其他设备/, 'starters linked to another device stay visible with an explanation');
 h.vm.contextOpen = false;
+const statusBeforePreview = h.vm.jarStatus;
+for (const [expected, label] of [['eating', '吃饭'], ['peak', 'Peak'], ['hungry', '饿了'], ['idle', '正常待机']]) {
+  h.vm.cyclePreviewMood();
+  assert.equal(h.vm.previewMood, expected);
+  assert.match(await h.html(), new RegExp(`心情预览 · ${label}`));
+  assert.deepEqual(h.vm.jarStatus, statusBeforePreview, 'preview never changes the live device status');
+}
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
 assert.deepEqual(h.state.selection.at(-1), ['a', 's1'], 'the resolved starter is remembered so the diary page opens on the same jar');
@@ -188,7 +214,8 @@ for (const fail of ['starter', 'device', 'link']) {
 h.state.fail = '';
 h.vm.selectStarter(''); await settle(); await h.vm.refresh();
 assert.equal(h.vm.starterId, '', 'explicit empty starter survives polling');
-h.vm.selectDevice('d2'); await settle();
+h.vm.previewMood = 'hungry'; h.vm.selectDevice('d2'); await settle();
+assert.equal(h.vm.previewMood, 'idle', 'changing device resets the preview');
 h.vm.selectDevice('d1'); await settle();
 assert.equal(h.vm.starterId, '', 'explicit empty choice survives device switching');
 h.vm.selectStarter('s1'); await settle(); await drain();

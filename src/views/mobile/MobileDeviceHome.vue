@@ -17,6 +17,8 @@ import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.
 
 import { guestLoginTarget, guestRegisterTarget, isAuthPending } from '../../lib/mobile-guest.js';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
+import MStarterJar from '../../components/mobile/MStarterJar.vue';
+import { JAR_MOOD_LABELS, nextJarMood } from '../../components/mobile/MStarterJar.js';
 
 import iconThermometer from '../../assets/device/icon-thermometer.svg';
 import iconDrop from '../../assets/device/icon-drop.svg';
@@ -25,11 +27,6 @@ import iconScales from '../../assets/device/icon-scales.svg';
 import iconTimer from '../../assets/device/icon-timer.svg';
 import iconChevron from '../../assets/device/icon-chevron-down.svg';
 import iconJar from '../../assets/device/icon-jar.svg';
-import jarBody from '../../assets/device/jar-body.svg';
-import jarFace from '../../assets/device/jar-face.png';
-import jarHat from '../../assets/device/jar-hat.png';
-import jarRise from '../../assets/device/jar-rise.svg';
-import jarFaceSmall from '../../assets/device/jar-face-small.svg';
 
 defineOptions({ name: 'MobileDeviceHome' });
 const auth = useAuth();
@@ -95,7 +92,10 @@ const jarLevel = computed(() => {
   if (!(base > 0) || !(current > 0)) return null;
   return Math.min(1, Math.max(0, current / base - 1));
 });
-const jarStyle = computed(() => (jarLevel.value == null ? null : { '--jar-level': String(jarLevel.value) }));
+// 点击只预览设计表情；jarStatus、膨胀率与喂养阶段仍只来自真实设备数据。
+const previewMood = ref('idle');
+const previewMoodLabel = computed(() => JAR_MOOD_LABELS[previewMood.value]);
+function cyclePreviewMood() { previewMood.value = nextJarMood(previewMood.value); }
 // 指标只取最近一条有效样本：休眠与传感器故障的读数不能当作当前环境展示。
 const latest = computed(() => chartRows.value.filter((row) => !row.sensor_error && (!row.mode || row.mode === 'fer')).at(-1) || null);
 function metricText(key, unit) {
@@ -153,7 +153,7 @@ function relative(value) {
   return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : `${Math.floor(minutes / 60)} 小时前`;
 }
 function current(token, owner) { return !disposed && token === generation && owner === accountId.value; }
-function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; }
+function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; previewMood.value = 'idle'; }
 function selectDevice(id) {
   if (saving.value || id === deviceId.value) return;
   generation++; deviceId.value = id; rememberDevice(accountId.value, id);
@@ -380,13 +380,12 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
       </p>
       <p v-if="error || mutationError || deviceError" class="m-error" role="alert">{{ error || mutationError || deviceError }}</p>
 
-      <section class="jar-stage" aria-label="酵种罐示意">
-        <img class="jar-photo" :src="jarFace" alt="" width="128" height="170" />
-        <img class="jar-ticks" :src="jarBody" alt="" width="180" height="180" />
-        <span class="jar-window"><span class="jar-rise" :class="{ measured: jarLevel != null }" :style="jarStyle"><img :src="jarRise" alt="" width="78" height="52" /></span></span>
-        <span class="jar-face"><img :src="jarFaceSmall" alt="" width="30" height="15" /></span>
-        <img class="jar-hat" :src="jarHat" alt="" width="147" height="98" />
-      </section>
+      <div class="jar-preview">
+        <button type="button" class="jar-preview-button" :aria-label="`切换酵种心情预览，当前：${previewMoodLabel}`" @click="cyclePreviewMood">
+          <MStarterJar class="jar-stage jar-rise-preview" :class="{ measured: jarLevel != null }" :mood="previewMood" :level="jarLevel" />
+        </button>
+        <p class="jar-mood-preview"><span aria-hidden="true">轻点切换 · </span>心情预览 · {{ previewMoodLabel }}</p>
+      </div>
 
       <p class="section-label">本次喂养</p>
       <RouterLink v-if="feeding" class="feed-summary" :to="{ path: `/diary/records/${feeding.id}`, query: { returnTo: '/device' } }">
@@ -450,7 +449,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
    实测「我的设备」→ 状态行 → 罐体都是 0，状态行贴着标题、罐体帽檐（top:-9）反过来压住状态行。
    这里用高优先级别名写回，并把罐体与状态行之间留 12，让帽檐不再侵入状态文字。 */
 .mobile-area .mobile-main .m-page.device-page > .jar-status{margin-block:8px 0}
-.mobile-area .mobile-main .m-page.device-page > .jar-stage{margin-block:12px 0}
+.mobile-area .mobile-main .m-page.device-page > .jar-preview{margin-block:12px 0}
 .mobile-area .mobile-main .m-page.device-page > .cta-note{margin-block:10px 0}
 .mobile-area .mobile-main .m-page.device-page > .risk-banner{margin-block:16px 0}
 .device-head{position:relative;z-index:calc(var(--m-z-header) + 2);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
@@ -473,18 +472,11 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .jar-refresh svg{width:16px;height:16px;min-height:0}
 .jar-refresh.spinning svg{animation:device-spin .9s linear infinite}
 @keyframes device-spin{to{transform:rotate(360deg)}}
-.jar-stage{position:relative;width:180px;height:180px;margin:0 auto}
-.jar-photo{position:absolute;left:26px;top:20px;width:128px;height:170px;object-fit:cover;pointer-events:none}
-.jar-ticks{position:absolute;inset:0;width:180px;height:180px}
-.jar-window{position:absolute;left:51px;top:118px;width:78px;height:52px;overflow:hidden}
-.jar-rise{position:absolute;left:0;bottom:0;width:78px;height:52px;transform-origin:50% 100%;animation:jar-rise 2s ease-in-out infinite}
-.jar-rise.measured{height:calc(8px + var(--jar-level, 0) * 44px);animation:none}
-.jar-rise img{display:block;width:100%;height:100%;object-fit:cover;object-position:bottom}
-.jar-face{position:absolute;left:75px;top:140px;width:30px;height:15px;animation:jar-face 2s ease-in-out infinite}
-.jar-face img{display:block;width:100%;height:100%}
-.jar-hat{position:absolute;left:18px;top:-9px;width:147px;height:98px;object-fit:contain;pointer-events:none}
-@keyframes jar-rise{0%,100%{transform:translateY(9px) scaleY(.65)}50%{transform:translateY(-6px) scaleY(1.25)}}
-@keyframes jar-face{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}
+.jar-preview{position:relative}
+.jar-preview-button{display:block;width:180px;min-height:0;height:180px;margin:0 auto;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.jar-preview-button:focus-visible{outline:2px solid var(--brand-action);outline-offset:8px;border-radius:24px}
+.jar-preview-button:active .jar-stage{scale:.97}
+.jar-mood-preview{position:absolute;top:188px;left:0;right:0;margin:0;text-align:center;font-size:11px;line-height:16px;color:var(--text-secondary);pointer-events:none}
 .section-label{margin:28px 0 9px;font-size:14px;line-height:21px;font-weight:500;color:var(--text-secondary)}
 .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:14px 0 3px}
 .section-head .section-label{margin:0}
@@ -563,6 +555,6 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .toast-copy small{font-size:12px;line-height:18px;color:var(--text-secondary)}
 @keyframes toast-in{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 /* 游客引导整块交给 MGuestNotice 的 hero 形态，这里不再保留一份重复的插画与按钮样式。 */
-@media (prefers-reduced-motion:reduce){.jar-rise,.jar-face{animation:none}.saved-toast{animation:none}}
+@media (prefers-reduced-motion:reduce){.saved-toast{animation:none}}
 @media (max-width:360px){.metric{padding:10px}.metric strong{font-size:16px}.feed-cell{padding:0 12px}}
 </style>
