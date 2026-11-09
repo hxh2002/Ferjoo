@@ -93,9 +93,16 @@ const jarLevel = computed(() => {
   return Math.min(1, Math.max(0, current / base - 1));
 });
 // 点击只预览设计表情；jarStatus、膨胀率与喂养阶段仍只来自真实设备数据。
+// 用户没切表情时跟随真实液位；一旦主动预览就切到该表情自带的设计几何，
+// 否则会出现「Peak 的表情配待机的液面」这种明显错位。
 const previewMood = ref('idle');
+const previewTouched = ref(false);
+const previewLevel = computed(() => (previewTouched.value ? null : jarLevel.value));
 const previewMoodLabel = computed(() => JAR_MOOD_LABELS[previewMood.value]);
-function cyclePreviewMood() { previewMood.value = nextJarMood(previewMood.value); }
+function cyclePreviewMood() {
+  previewMood.value = nextJarMood(previewMood.value);
+  previewTouched.value = true;
+}
 // 指标只取最近一条有效样本：休眠与传感器故障的读数不能当作当前环境展示。
 const latest = computed(() => chartRows.value.filter((row) => !row.sensor_error && (!row.mode || row.mode === 'fer')).at(-1) || null);
 function metricText(key, unit) {
@@ -153,7 +160,7 @@ function relative(value) {
   return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : `${Math.floor(minutes / 60)} 小时前`;
 }
 function current(token, owner) { return !disposed && token === generation && owner === accountId.value; }
-function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; previewMood.value = 'idle'; }
+function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; previewMood.value = 'idle'; previewTouched.value = false; }
 function selectDevice(id) {
   if (saving.value || id === deviceId.value) return;
   generation++; deviceId.value = id; rememberDevice(accountId.value, id);
@@ -382,7 +389,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
       <div class="jar-preview">
         <button type="button" class="jar-preview-button" :aria-label="`切换酵种心情预览，当前：${previewMoodLabel}`" @click="cyclePreviewMood">
-          <MStarterJar class="jar-stage jar-rise-preview" :class="{ measured: jarLevel != null }" :mood="previewMood" :level="jarLevel" />
+          <MStarterJar class="jar-stage jar-rise-preview" :mood="previewMood" :level="previewLevel" />
         </button>
         <p class="jar-mood-preview"><span aria-hidden="true">轻点切换 · </span>心情预览 · {{ previewMoodLabel }}</p>
       </div>

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { calendarGrid, calendarMonth, calendarTitle, calendarWeek, shiftCalendarMonth } from '../src/lib/mobile-calendar.js';
 import { nearestSampleIndex } from '../src/lib/chart-selection.js';
-import { JAR_MOODS, JAR_MOOD_LABELS, nextJarMood, starterJarGeometry } from '../src/components/mobile/MStarterJar.js';
+import { JAR_FACE_BOB, JAR_MOODS, JAR_MOOD_LABELS, JAR_RISE_SCALE, jarFaceFloat, nextJarMood, starterJarGeometry } from '../src/components/mobile/MStarterJar.js';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 function compile(file) {
@@ -118,7 +118,9 @@ for (const [mood, riseTop, riseHeight, faceTop, riseNode, faceNode] of [
   assert.match(face, /^<svg[^>]*width="30" height="15"/, `${mood} uses the 30x15 face, not a liquid asset`);
   assert.match(rise, new RegExp(`^<svg[^>]*width="78" height="${riseHeight}"`));
 }
-assert.deepEqual(starterJarGeometry('idle', 0), { ...starterJarGeometry('idle'), measured: true, riseTop: 162, riseHeight: 8, faceTop: 172 });
+// level=0 时液面顶到 162，按设计偏移算出的 172 会让五官底边越过罐体（y=170），必须夹到 155。
+assert.deepEqual(starterJarGeometry('idle', 0), { ...starterJarGeometry('idle'), measured: true, riseTop: 162, riseHeight: 8, faceTop: 155 });
+assert.ok(starterJarGeometry('idle', 0).faceTop + 15 <= 170, 'face never drops below the jar opening');
 assert.deepEqual(starterJarGeometry('peak', 1), { ...starterJarGeometry('peak'), measured: true, riseTop: 118, riseHeight: 52, faceTop: 147.5 });
 assert.deepEqual(starterJarGeometry('idle', 9), starterJarGeometry('idle', 1), 'height keeps its existing clamped data mapping');
 assert.equal(starterJarGeometry('hungry', null).measured, false, 'a missing level never invents a fermentation mood');
@@ -127,7 +129,17 @@ assert.match(starterJar, /v-if="mood === 'hungry'"/);
 assert.match(starterJar, /left:18px;top:-9px;width:147px;height:98px/);
 assert.match(starterJar, /left:26px;top:20px;width:128px;height:170px/);
 assert.match(starterJar, /@keyframes jar-rise\{from\{transform:translateY\(9\.1px\) scaleY\(\.65\)\}to\{transform:translateY\(-6\.5px\) scaleY\(1\.25\)\}\}/);
-assert.match(starterJar, /@keyframes jar-face\{from\{transform:translateY\(0\)\}to\{transform:translateY\(-18px\)\}\}/);
+// 五官浮动的端点必须由各状态液面高度反推：写死 -18px 会让待机态露出液面。
+assert.match(starterJar, /@keyframes jar-face\{from\{transform:translateY\(var\(--jar-face-from,0px\)\)\}to\{transform:translateY\(var\(--jar-face-to,-18px\)\)\}\}/);
+assert.match(starterJar, /:style="faceMotionStyle"/);
+for (const [mood, riseHeight] of [['idle', 34], ['eating', 51], ['peak', 74], ['hungry', 43]]) {
+  const float = jarFaceFloat(mood);
+  const drop = Number(((riseHeight * (1 - JAR_RISE_SCALE.from)) / 2).toFixed(2));
+  assert.deepEqual(float, { from: drop, to: Number((drop - JAR_FACE_BOB).toFixed(2)) }, `${mood} face bobs with the liquid`);
+  // 最低那一帧五官顶部必须仍在液面顶部之下，否则就是「飘出液面」的错位。
+  assert.ok(float.from >= 0, `${mood} face never floats above the liquid at the low keyframe`);
+}
+assert.equal(JAR_FACE_BOB, 18, 'the designed 18px amplitude is preserved');
 assert.equal((starterJar.match(/animation:jar-face 2s ease-in-out infinite alternate/g) || []).length, 1);
 assert.match(starterJar, /@media \(prefers-reduced-motion:reduce\)\{[^}]*transition:none\}\.jar-rise\.animated,\.jar-face-motion\.animated\{animation:none\}/);
 assert.doesNotMatch(starterJar, /https:\/\/www\.figma\.com/);
