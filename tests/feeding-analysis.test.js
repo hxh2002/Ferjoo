@@ -151,7 +151,8 @@ globalThis.__feedingEvidenceMocks = {
     }
   },
 };
-const mockSource = (bandSource + source.replace("import { heightBand } from '../lib/height-band.js';", ''))
+const mockSource = (bandSource + source.replace("import { heightBand } from '../lib/height-band.js';", '')
+  .replace("'../lib/rise-phase.js'", JSON.stringify(new URL('../src/lib/rise-phase.js', import.meta.url).href)))
   .replace("import('./care.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.care)')
   .replace("import('./starter-device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.links)')
   .replace("import('./device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.device)')

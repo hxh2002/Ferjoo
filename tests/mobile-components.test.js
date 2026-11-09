@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { calendarGrid, calendarMonth, calendarTitle, calendarWeek, shiftCalendarMonth } from '../src/lib/mobile-calendar.js';
 import { nearestSampleIndex } from '../src/lib/chart-selection.js';
-import { JAR_FACE_BOB, JAR_MOODS, JAR_MOOD_LABELS, JAR_RISE_SCALE, jarFaceFloat, nextJarMood, starterJarGeometry } from '../src/components/mobile/MStarterJar.js';
+import { JAR_FACE_BOB, JAR_MEASURED_BOB, JAR_MOODS, JAR_MOOD_LABELS, JAR_RISE_SCALE, JAR_LEVEL_CURVE, jarFaceFloat, jarLevel, jarMoodFor, jarPeakTraceTop, nextJarMood, starterJarGeometry } from '../src/components/mobile/MStarterJar.js';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 function compile(file) {
@@ -118,14 +118,46 @@ for (const [mood, riseTop, riseHeight, faceTop, riseNode, faceNode] of [
   assert.match(face, /^<svg[^>]*width="30" height="15"/, `${mood} uses the 30x15 face, not a liquid asset`);
   assert.match(rise, new RegExp(`^<svg[^>]*width="78" height="${riseHeight}"`));
 }
-// level=0 时液面顶到 162，按设计偏移算出的 172 会让五官底边越过罐体（y=170），必须夹到 155。
-assert.deepEqual(starterJarGeometry('idle', 0), { ...starterJarGeometry('idle'), measured: true, riseTop: 162, riseHeight: 8, faceTop: 155 });
-assert.ok(starterJarGeometry('idle', 0).faceTop + 15 <= 170, 'face never drops below the jar opening');
-assert.deepEqual(starterJarGeometry('peak', 1), { ...starterJarGeometry('peak'), measured: true, riseTop: 118, riseHeight: 52, faceTop: 147.5 });
-assert.deepEqual(starterJarGeometry('idle', 9), starterJarGeometry('idle', 1), 'height keeps its existing clamped data mapping');
+// 实测液面：起点 = 待机设计高度（34），满刻度 = Peak 设计高度（74）。
+assert.deepEqual(starterJarGeometry('idle', 0), { ...starterJarGeometry('idle'), measured: true });
+assert.deepEqual(starterJarGeometry('peak', 1), { ...starterJarGeometry('peak'), measured: true });
+// Peak 表情配起点液面时，按设计偏移五官会落到 165.5，必须夹到 155 不越过罐口。
+assert.equal(starterJarGeometry('peak', 0).faceTop, 155);
+for (const mood of JAR_MOODS) for (const level of [0, 0.3, 0.7, 1]) {
+  const geometry = starterJarGeometry(mood, level);
+  assert.ok(geometry.faceTop + 15 <= 170, `${mood}@${level} face never drops below the jar opening`);
+  assert.ok(geometry.faceTop - JAR_MEASURED_BOB >= geometry.riseTop, `${mood}@${level} face stays inside the liquid while bobbing`);
+}
+assert.deepEqual(starterJarGeometry('idle', 9), starterJarGeometry('idle', 1), 'level is clamped to the jar');
 assert.equal(starterJarGeometry('hungry', null).measured, false, 'a missing level never invents a fermentation mood');
+assert.deepEqual(jarFaceFloat('eating', true), { from: 0, to: -JAR_MEASURED_BOB });
+// 对数衰减液位：起点为 0，2 倍约 70%，越高涨得越慢，3.5 倍封顶不溢出。
+assert.equal(jarLevel(20, 20), 0);
+assert.equal(jarLevel(15, 20), 0, 'below baseline still reads as baseline');
+assert.equal(jarLevel(null, 20), null);
+assert.ok(Math.abs(jarLevel(40, 20) - 0.7) < 0.02, '2x sits near 70%');
+assert.ok(jarLevel(48, 20) < 0.9, 'a typical Peak (2.4x) still leaves headroom');
+const ratios = [1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, JAR_LEVEL_CURVE.fullRatio];
+const levels = ratios.map((ratio) => jarLevel(ratio * 20, 20));
+levels.slice(1).forEach((level, index) => assert.ok(level > levels[index], `level rises from x${ratios[index]} to x${ratios[index + 1]}`));
+levels.slice(2).forEach((level, index) => assert.ok(level - levels[index + 1] < levels[index + 1] - levels[index], 'each equal step adds less than the one before'));
+assert.equal(levels.at(-1), 1);
+assert.equal(jarLevel(200, 20), 1, 'far above the cap never overflows');
+assert.ok(jarLevel(40, 20) > jarLevel(30, 20) && jarLevel(40, 20) > jarLevel(36, 20) + 0.04, 'x1.8 to x2 is still a visible step');
+const px = (level) => starterJarGeometry('eating', level).riseHeight;
+assert.ok(px(jarLevel(42, 20)) - px(jarLevel(36, 20)) >= 3, 'x1.8 falling back from x2.1 drops the liquid by at least 3px');
+// 峰值痕迹贴着峰值液面，且至少高出当前液面 6px。
+assert.equal(jarPeakTraceTop(null, 0.5), null);
+assert.equal(jarPeakTraceTop(1, 0), 94, 'a full peak sits where the design trace was drawn');
+assert.ok(jarPeakTraceTop(0.51, 0.5) <= starterJarGeometry('hungry', 0.5).riseTop - 6, 'a tiny fall is still visible');
+assert.equal(jarMoodFor({ active: false, phase: 'peak' }), 'idle', 'no running round rests');
+assert.equal(jarMoodFor({ active: true, phase: null }), 'eating', 'just fed without data is eating');
+assert.equal(jarMoodFor({ active: true, phase: 'rising' }), 'eating');
+assert.equal(jarMoodFor({ active: true, phase: 'pre-peak' }), 'eating', 'pre-peak stays within the four moods');
+assert.equal(jarMoodFor({ active: true, phase: 'peak' }), 'peak');
+assert.equal(jarMoodFor({ active: true, phase: 'fallen' }), 'hungry');
 assert.match(starterJar, /width="78" height="6" data-figma-node="370:16242"/);
-assert.match(starterJar, /v-if="mood === 'hungry'"/);
+assert.match(starterJar, /v-if="traceTop != null"/);
 assert.match(starterJar, /left:18px;top:-9px;width:147px;height:98px/);
 assert.match(starterJar, /left:26px;top:20px;width:128px;height:170px/);
 assert.match(starterJar, /@keyframes jar-rise\{from\{transform:translateY\(9\.1px\) scaleY\(\.65\)\}to\{transform:translateY\(-6\.5px\) scaleY\(1\.25\)\}\}/);

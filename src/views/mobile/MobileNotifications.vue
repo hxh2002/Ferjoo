@@ -144,12 +144,10 @@ onMounted(() => auth.init().then(load));
       <button type="button" class="m-switch" role="switch" :aria-label="`高度提醒${subscribed ? '已开启' : '已关闭'}`" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
   </div>
-  <p class="hint">提醒设置即时生效，无需保存。</p>
   <p v-if="error" class="m-error" role="alert">{{ error }}</p>
   <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
 
-  <p class="group-label">每个酵种的提醒倍数</p>
-  <p class="hint">以喂养后的起始高度为 1×；例如选 2×，高度长到约 2 倍时提醒。可多选，每轮每个倍数只提醒一次。</p>
+  <p class="group-label">提醒倍数 <span class="label-sub">以喂养后高度为 1×，可多选</span></p>
   <section class="m-card">
     <div v-if="loading && !starters.length" class="m-skeleton" aria-busy="true" aria-label="正在读取通知"><span></span><span></span></div>
     <p v-else-if="!starters.length" class="m-muted">还没有酵种，请先到「今日」页新建。</p>
@@ -168,9 +166,8 @@ onMounted(() => auth.init().then(load));
   <p class="group-label">触发条件</p>
   <section class="m-card">
     <ul class="rules">
-      <li>酵种已关联正在上传数据的设备，并有喂养记录。</li>
-      <li>喂养后、最近 40 分钟内仍有新数据时评估。</li>
-      <li>达到所选倍数推送一次，下一轮喂养后重新计数。</li>
+      <li>酵种已关联在线设备，且有喂养记录。</li>
+      <li>每轮每个倍数只提醒一次，下次喂养后重新计数。</li>
     </ul>
   </section>
 
@@ -217,6 +214,7 @@ onMounted(() => auth.init().then(load));
 .m-switch[aria-checked="true"]{background:var(--brand-light)}
 .m-switch[aria-checked="true"] span{transform:translateX(20px)}
 .m-switch:disabled{opacity:.55;cursor:not-allowed}
+.label-sub{margin-left:6px;font-size:12px;color:var(--text-tertiary, var(--text-secondary));opacity:.85}
 .hint{margin:0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .hint.warn{color:var(--danger-text)}
 .starter-row{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border-warm)}

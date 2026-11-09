@@ -161,7 +161,11 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 .mobile-area .m-error, .mobile-area .form-error { color: var(--danger-text); background: var(--danger-bg); }
 .mobile-area .form-success { color: var(--success-text); background: var(--success-bg); }
 .mobile-area .config-warning { color: var(--warning-text); background: var(--warning-bg); }
-.mobile-area .mobile-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--m-z-nav); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; height: calc(var(--m-tab-height) + env(safe-area-inset-bottom)); padding: 0 0 env(safe-area-inset-bottom); border: 0; border-top: 1px solid var(--border-subtle); border-radius: 0; background: #FFFFFF; box-shadow: 0 -1px 12px rgba(48, 37, 31, .04); isolation: isolate; }
+.mobile-area .mobile-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--m-z-nav); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; height: calc(var(--m-tab-height) + env(safe-area-inset-bottom)); padding: 0 0 env(safe-area-inset-bottom); border: 0; border-top: 1px solid var(--border-subtle); border-radius: 0; background: rgba(255, 255, 255, .92); box-shadow: 0 -1px 12px rgba(48, 37, 31, .04); isolation: isolate; }
+/* 磨砂半透明玻璃：只有支持 backdrop-filter 时才降低不透明度，否则保持近似纯白，避免内容透出后文字难读。 */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .mobile-area .mobile-tabbar { background: rgba(255, 255, 255, .62); border-top-color: rgba(255, 255, 255, .7); box-shadow: 0 -1px 12px rgba(48, 37, 31, .04), inset 0 1px 0 rgba(255, 255, 255, .6); -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8); }
+}
 .mobile-area .mobile-tab-slider { position: absolute; z-index: 0; top: 10px; left: 0; width: calc(100% / 3); height: 60px; pointer-events: none; transform: translateX(calc(var(--slider-position) * 100%)); }
 .mobile-area .mobile-tab-slider::before { content: ''; position: absolute; left: 50%; top: 0; width: 60px; height: 60px; border-radius: 50%; background: rgba(255, 176, 90, .18); transform: translateX(-50%); }
 .mobile-area .mobile-tabbar button { position: relative; z-index: 1; height: 60px; min-height: 60px; margin-top: 10px; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }

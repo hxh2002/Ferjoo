@@ -1,12 +1,15 @@
 <script setup>
 import { inject, onBeforeUnmount, onMounted } from 'vue';
-import { classicAssets } from '../../constants/classicAssets.js';
+import aboutLogo from '../../assets/about/brand-logo-circle.png';
+import socialFacebook from '../../assets/about/social-facebook.svg';
+import socialInstagram from '../../assets/about/social-instagram.svg';
+import socialXiaohongshu from '../../assets/about/social-xiaohongshu.svg';
 
 const headerTone = inject('mobileHeaderTone', null);
 const socials = [
-  { name: 'Facebook', href: 'https://www.facebook.com/share/18v7fhWTYX/?mibextid=wwXIfr', icon: 'facebook' },
-  { name: 'Instagram', href: 'https://www.instagram.com/ferjoooooo/', icon: 'instagram' },
-  { name: '小红书', href: 'https://xhslink.cn/o/71W7wzdhmIV', icon: 'xiaohongshu' }
+  { name: 'Facebook', href: 'https://www.facebook.com/share/18v7fhWTYX/?mibextid=wwXIfr', icon: socialFacebook },
+  { name: 'Instagram', href: 'https://www.instagram.com/ferjoooooo/', icon: socialInstagram },
+  { name: '小红书', href: 'https://xhslink.cn/o/71W7wzdhmIV', icon: socialXiaohongshu }
 ];
 const support = [
   { to: '/me/help/faq', label: '常见问题', icon: 'question' },
@@ -18,14 +21,12 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 <template>
 <main class="m-page help-page">
   <section class="brand">
-    <img class="about-logo" :src="classicAssets.logoBrand" alt="Ferjoo" width="112" height="112" />
+    <img class="about-logo" :src="aboutLogo" alt="Ferjoo" width="112" height="112" />
     <p class="tagline">Ferment with joy.</p>
     <div class="about-socials" aria-label="关注 Ferjoo">
       <a v-for="social in socials" :key="social.name" class="about-social" :href="social.href" target="_blank" rel="noopener noreferrer">
         <span class="social-disc" aria-hidden="true">
-          <svg v-if="social.icon === 'facebook'" viewBox="0 0 24 24"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3V10H7.5v3h2.8v8h3.4Z"/></svg>
-          <svg v-else-if="social.icon === 'instagram'" viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" ry="5.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.4" cy="6.8" r="1.1"/></svg>
-          <svg v-else viewBox="0 0 24 24"><path d="M5.2 4.2h13.6A2.2 2.2 0 0 1 21 6.4v11.2a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 17.6V6.4a2.2 2.2 0 0 1 2.2-2.2Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 8h3.5v2H9.4v5.8H7V8Zm4.5 0h2.3l1.2 2.2L16.2 8h2.3l-2.3 3.7 2.5 4.1h-2.4L15 13.3l-1.4 2.5h-2.4l2.6-4.1L11.5 8Z"/></svg>
+          <img :src="social.icon" alt="" width="24" height="24" />
         </span>
         <span>{{ social.name }}</span>
       </a>
@@ -62,12 +63,12 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 .mobile-area .mobile-main .m-page.help-page > .group-label{margin-block:24px 12px}
 .mobile-area .mobile-main .m-page.help-page > .footnote{margin-block:24px 0}
 .brand{display:grid;justify-items:center}
-.about-logo{width:112px;height:112px;object-fit:contain}
+.about-logo{width:112px;height:112px;border-radius:56px;object-fit:cover}
 .tagline{margin:12px 0 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px;text-align:center}
 .about-socials{display:flex;justify-content:center;gap:12px;margin-top:12px}
 .about-social{display:grid;justify-items:center;align-content:start;gap:6px;width:88px;min-height:80px;color:inherit;text-decoration:none;font-size:var(--text-xs);line-height:18px}
 .social-disc{display:grid;place-items:center;width:56px;height:56px;border-radius:28px;background:var(--m-disc);color:var(--brand-action)}
-.social-disc svg{width:24px;height:24px;fill:currentColor}
+.social-disc img{display:block;width:24px;height:24px}
 .group-label{margin:24px 0 12px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
 .mobile-area .m-page.help-page .help-links{display:grid;padding:0 16px;border:0;box-shadow:var(--m-shadow-button)}
 .help-links a{position:relative;display:flex;align-items:center;gap:12px;min-height:68px;color:inherit;text-decoration:none;font-size:var(--text-md);font-weight:500;line-height:24px}

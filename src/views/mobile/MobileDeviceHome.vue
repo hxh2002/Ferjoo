@@ -18,7 +18,7 @@ import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.
 import { guestLoginTarget, guestRegisterTarget, isAuthPending } from '../../lib/mobile-guest.js';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 import MStarterJar from '../../components/mobile/MStarterJar.vue';
-import { JAR_MOOD_LABELS, nextJarMood } from '../../components/mobile/MStarterJar.js';
+import { JAR_MOOD_LABELS, jarLevel as levelFor, jarMoodFor } from '../../components/mobile/MStarterJar.js';
 
 import iconThermometer from '../../assets/device/icon-thermometer.svg';
 import iconDrop from '../../assets/device/icon-drop.svg';
@@ -86,23 +86,24 @@ const chartFrom = computed(() => {
 });
 const chartTo = computed(() => to.value);
 const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '—');
-const jarLevel = computed(() => {
-  const base = Number(summary.value?.baselineHeightMm);
-  const current = Number(summary.value?.currentHeightMm);
-  if (!(base > 0) || !(current > 0)) return null;
-  return Math.min(1, Math.max(0, current / base - 1));
+// 罐子只做定性展示：液面跟平滑后的实测高度走，表情跟本轮的上涨/到顶/回落阶段走，
+// 回落后在峰值处留一道痕迹。具体数值仍看下方膨胀率与详情曲线。
+const jarLevel = computed(() => levelFor(summary.value?.trendHeightMm, summary.value?.baselineHeightMm));
+const jarPeakLevel = computed(() => (summary.value?.risePhase === 'fallen' ? levelFor(summary.value.peakHeightMm, summary.value.baselineHeightMm) : null));
+const jarMood = computed(() => jarMoodFor({ active: !!summary.value?.windowActive, phase: summary.value?.risePhase }));
+const jarCaption = computed(() => {
+  const s = summary.value;
+  if (!starterId.value) return '未选择酵种';
+  if (!feeding.value) return '还没开始新一轮';
+  if (!s?.windowActive) return '本轮已结束';
+  if (s.baselineHeightMm == null) return s.baselinePending ? '刚喂完，正在记录起始高度' : '暂无高度数据';
+  if (s.risePhase === 'fallen') return '已过 Peak 回落，虚线是峰值高度';
+  if (s.risePhase === 'peak') return '到达 Peak，开始回落';
+  if (s.risePhase === 'pre-peak') return '涨到 2 倍（+100%），接近高点';
+  if (s.trendHeightMm / s.baselineHeightMm < 1.1) return '刚喂完，等待起发';
+  return s.trendHeightMm < s.highHeightMm ? '涨势放缓' : '正在上涨';
 });
-// 点击只预览设计表情；jarStatus、膨胀率与喂养阶段仍只来自真实设备数据。
-// 用户没切表情时跟随真实液位；一旦主动预览就切到该表情自带的设计几何，
-// 否则会出现「Peak 的表情配待机的液面」这种明显错位。
-const previewMood = ref('idle');
-const previewTouched = ref(false);
-const previewLevel = computed(() => (previewTouched.value ? null : jarLevel.value));
-const previewMoodLabel = computed(() => JAR_MOOD_LABELS[previewMood.value]);
-function cyclePreviewMood() {
-  previewMood.value = nextJarMood(previewMood.value);
-  previewTouched.value = true;
-}
+const jarMoodLabel = computed(() => `${JAR_MOOD_LABELS[jarMood.value]} · ${jarCaption.value}`);
 // 指标只取最近一条有效样本：休眠与传感器故障的读数不能当作当前环境展示。
 const latest = computed(() => chartRows.value.filter((row) => !row.sensor_error && (!row.mode || row.mode === 'fer')).at(-1) || null);
 function metricText(key, unit) {
@@ -160,7 +161,7 @@ function relative(value) {
   return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : `${Math.floor(minutes / 60)} 小时前`;
 }
 function current(token, owner) { return !disposed && token === generation && owner === accountId.value; }
-function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; previewMood.value = 'idle'; previewTouched.value = false; }
+function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; }
 function selectDevice(id) {
   if (saving.value || id === deviceId.value) return;
   generation++; deviceId.value = id; rememberDevice(accountId.value, id);
@@ -329,6 +330,8 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
 <template>
   <main class="m-page device-page">
+    <!-- 日记 / 我的在游客与恢复态也保留一级标题，设备页对齐：没有账号时只画标题，选择酵种的入口留给登录后的 device-head。 -->
+    <header v-if="!accountId" class="device-head"><h1>我的设备</h1></header>
     <!-- 会话恢复期间先给骨架屏：此时既无账号也没有游客身份，直接出「登录后开始」会闪一下再跳走。 -->
     <div v-if="!accountId && isAuthPending(auth)" class="m-skeleton" role="status" aria-label="正在恢复登录状态"><span></span><span></span></div>
     <template v-else-if="!accountId">
@@ -388,10 +391,10 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
       <p v-if="error || mutationError || deviceError" class="m-error" role="alert">{{ error || mutationError || deviceError }}</p>
 
       <div class="jar-preview">
-        <button type="button" class="jar-preview-button" :aria-label="`切换酵种心情预览，当前：${previewMoodLabel}`" @click="cyclePreviewMood">
-          <MStarterJar class="jar-stage jar-rise-preview" :mood="previewMood" :level="previewLevel" />
-        </button>
-        <p class="jar-mood-preview"><span aria-hidden="true">轻点切换 · </span>心情预览 · {{ previewMoodLabel }}</p>
+        <div class="jar-figure" role="img" :aria-label="`酵种状态：${jarMoodLabel}`">
+          <MStarterJar class="jar-stage" :mood="jarMood" :level="jarLevel" :peak-level="jarPeakLevel" />
+        </div>
+        <p class="jar-caption" aria-hidden="true">{{ jarMoodLabel }}</p>
       </div>
 
       <p class="section-label">本次喂养</p>
@@ -459,6 +462,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .mobile-area .mobile-main .m-page.device-page > .jar-preview{margin-block:12px 0}
 .mobile-area .mobile-main .m-page.device-page > .cta-note{margin-block:10px 0}
 .mobile-area .mobile-main .m-page.device-page > .risk-banner{margin-block:16px 0}
+.mobile-area .mobile-main .m-page.device-page > :is(.m-guest-notice,.m-skeleton){margin-block:16px 0}
 .device-head{position:relative;z-index:calc(var(--m-z-header) + 2);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
 .starter-anchor{position:relative;flex:none}
 /* 选择浮层的遮罩要盖住 sticky 顶栏（--m-z-header）但低于弹层（--m-z-modal），
@@ -480,10 +484,8 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .jar-refresh.spinning svg{animation:device-spin .9s linear infinite}
 @keyframes device-spin{to{transform:rotate(360deg)}}
 .jar-preview{position:relative}
-.jar-preview-button{display:block;width:180px;min-height:0;height:180px;margin:0 auto;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.jar-preview-button:focus-visible{outline:2px solid var(--brand-action);outline-offset:8px;border-radius:24px}
-.jar-preview-button:active .jar-stage{scale:.97}
-.jar-mood-preview{position:absolute;top:188px;left:0;right:0;margin:0;text-align:center;font-size:11px;line-height:16px;color:var(--text-secondary);pointer-events:none}
+.jar-figure{display:block;width:180px;height:180px;margin:0 auto}
+.jar-caption{position:absolute;top:188px;left:0;right:0;margin:0;text-align:center;font-size:11px;line-height:16px;color:var(--text-secondary);pointer-events:none}
 .section-label{margin:28px 0 9px;font-size:14px;line-height:21px;font-weight:500;color:var(--text-secondary)}
 .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:14px 0 3px}
 .section-head .section-label{margin:0}

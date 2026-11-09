@@ -25,7 +25,7 @@ assert.match(source, /device-cta/);
 assert.match(source, /listMeasurementsRange/);
 assert.match(source, /summarizeFeedingMeasurements/);
 assert.match(source, /jarLevel/);
-assert.match(source, /:level="previewLevel"/);
+assert.match(source, /:level="jarLevel"/);
 assert.match(source, /fermentation-window\.service\.js/);
 assert.match(source, /结束当前发酵/);
 assert.match(source, /确认结束/);
@@ -159,15 +159,13 @@ assert.match(home, /当前数据/);
 assert.match(home, /1 : 2 : 2/, 'feed summary restates the ratio');
 assert.match(home, /结束当前发酵/, 'an active round can be ended straight from the home page');
 assert.doesNotMatch(home, /诊断本轮|诊断需 3 步/);
-assert.match(home, /切换酵种心情预览，当前：正常待机/, 'mood is explicitly an interactive preview');
-assert.match(home, /心情预览 · 正常待机/, 'the preview caption cannot be mistaken for a diagnosis');
-assert.match(home, /data-mood="idle" data-level="0\.19999999999999996"/, 'measurement height stays independent from preview mood');
-assert.match(source, /:level="previewLevel"/);
-assert.match(source, /previewLevel = computed\(\(\) => \(previewTouched\.value \? null : jarLevel\.value\)\)/, 'live level only applies until the user previews a mood');
-assert.match(source, /previewMood\.value = nextJarMood\(previewMood\.value\)/);
-assert.match(source, /previewTouched\.value = true/, 'previewing a mood stops mixing in the measured level');
-assert.match(source, /function clearSelected\(\) \{[^}]*previewMood\.value = 'idle'/, 'changing selection resets the preview');
-assert.doesNotMatch(source, /summary\.value[^\n]*previewMood|previewMood[^\n]*summary\.value/, 'mood is never inferred from feeding measurements');
+// 心情与液面都来自本轮实测：起点 25mm、最新有效读数 30mm（+20%），一轮进行中 = 吃饭。
+assert.match(home, /酵种状态：吃饭 · 正在上涨/, 'the jar describes the live round, not a preview');
+assert.match(home, /data-mood="eating" data-level="0\.266/, 'the liquid follows the latest valid height');
+assert.doesNotMatch(home, /心情预览|轻点切换/, 'the tap-to-preview mood is gone');
+assert.match(source, /:level="jarLevel" :peak-level="jarPeakLevel"/);
+assert.match(source, /jarMoodFor\(\{ active: !!summary\.value\?\.windowActive, phase: summary\.value\?\.risePhase \}\)/, 'mood follows the measured rise phase');
+assert.match(source, /risePhase === 'fallen' \? levelFor\(summary\.value\.peakHeightMm/, 'the peak trace only appears after a real fall');
 assert.match(home, /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(home, /传感器异常/, 'the latest sensor-error sample is surfaced as an explicit jar state');
 assert.doesNotMatch(home, /未计入膨胀率|段超过 40 分钟无采样/, 'technical sample-quality details stay off the home page');
@@ -196,12 +194,25 @@ const pickerHtml = await h.html();
 assert.match(pickerHtml, /仅查看设备数据/, 'not choosing a starter is described by its actual effect');
 assert.match(pickerHtml, /已关联其他设备/, 'starters linked to another device stay visible with an explanation');
 h.vm.contextOpen = false;
-const statusBeforePreview = h.vm.jarStatus;
-for (const [expected, label] of [['eating', '吃饭'], ['peak', 'Peak'], ['hungry', '饿了'], ['idle', '正常待机']]) {
-  h.vm.cyclePreviewMood();
-  assert.equal(h.vm.previewMood, expected);
-  assert.match(await h.html(), new RegExp(`心情预览 · ${label}`));
-  assert.deepEqual(h.vm.jarStatus, statusBeforePreview, 'preview never changes the live device status');
+{
+  // 同一轮继续采样：上涨 → 停涨在高位 → 回落，罐子依次变成吃饭 / Peak / 饿了，并在回落后留下峰值痕迹。
+  const saved = h.state.rows;
+  const track = (heights) => heights.map((height, index) => ({ id: `r${index}`, recorded_at: iso(68 - index * 3), mode: 'fer', sensor_error: false, height_mm: height, temperature_c: 25, humidity_percent: 66 }));
+  const base = [20, 20, 20, 20, 20];
+  h.state.rows = track([...base, 26, 32, 38]); await h.vm.refresh(); await drain();
+  assert.equal(h.vm.jarMood, 'eating'); assert.match(h.vm.jarMoodLabel, /正在上涨/); assert.equal(h.vm.jarPeakLevel, null);
+  const risingLevel = h.vm.jarLevel;
+  // 起点 20mm，涨到 2 倍（40mm，膨胀率 +100%）才进入 pre-peak，仍是「吃饭」。
+  h.state.rows = track([...base, 26, 32, 38, 40]); await h.vm.refresh(); await drain();
+  assert.equal(h.vm.summary.risePhase, 'pre-peak'); assert.equal(h.vm.jarMood, 'eating'); assert.match(h.vm.jarMoodLabel, /接近高点/);
+  h.state.rows = track([...base, 26, 32, 38, 42, 46, 45, 44]); await h.vm.refresh(); await drain();
+  assert.equal(h.vm.jarMood, 'peak'); assert.match(h.vm.jarMoodLabel, /^Peak · /); assert.equal(h.vm.jarPeakLevel, null);
+  assert.ok(h.vm.jarLevel > risingLevel, 'a higher starter fills more of the jar');
+  h.state.rows = track([...base, 26, 32, 38, 42, 46, 45, 44, 42, 40]); await h.vm.refresh(); await drain();
+  assert.equal(h.vm.jarMood, 'hungry'); assert.match(h.vm.jarMoodLabel, /饿了 · 已过 Peak 回落/);
+  assert.equal(h.vm.jarPeakLevel, starterJar.jarLevel(46, 20), 'the trace marks the locked last-peak');
+  assert.ok(h.vm.jarLevel < h.vm.jarPeakLevel, 'the fallen level sits below the trace');
+  h.state.rows = saved; await h.vm.refresh(); await drain();
 }
 assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
@@ -218,8 +229,8 @@ for (const fail of ['starter', 'device', 'link']) {
 h.state.fail = '';
 h.vm.selectStarter(''); await settle(); await h.vm.refresh();
 assert.equal(h.vm.starterId, '', 'explicit empty starter survives polling');
-h.vm.previewMood = 'hungry'; h.vm.selectDevice('d2'); await settle();
-assert.equal(h.vm.previewMood, 'idle', 'changing device resets the preview');
+h.vm.selectDevice('d2'); await settle();
+assert.equal(h.vm.jarMood, 'idle', 'without a selected starter round the jar rests');
 h.vm.selectDevice('d1'); await settle();
 assert.equal(h.vm.starterId, '', 'explicit empty choice survives device switching');
 h.vm.selectStarter('s1'); await settle(); await drain();

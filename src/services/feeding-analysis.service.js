@@ -1,4 +1,5 @@
 import { heightBand } from '../lib/height-band.js';
+import { risePhase } from '../lib/rise-phase.js';
 
 // 起始基线取本轮最早的 5 个采样点：首个有效高度即可用，收满 5 个点后用 MAD 剔除离群值再冻结。
 const BASELINE_POINTS = 5;
@@ -94,6 +95,8 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const expansionPercent = expansionPercentFrom(currentHeightMm, baselineHeightMm);
   // 只映射实测涨幅；峰值、回落或液层需要用户确认。
   const height = heightBand(baselineHeightMm, currentHeightMm)?.value || '';
+  // 上涨/到顶/回落只给设备页做定性展示，不回填诊断里需要用户确认的「回落」。
+  const rise = risePhase(heights.map((row) => ({ t: time(row.recorded_at), v: number(row.height_mm) })), baselineHeightMm);
   const temperatureRows = rows.filter((row) => number(row.temperature_c) != null);
   const temperatures = temperatureRows.map((row) => number(row.temperature_c));
   const latestTemperature = temperatureRows.at(-1);
@@ -130,6 +133,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     windowClosedAt: windowClosed ? new Date(closedAt).toISOString() : null,
     windowEndReason, nextFeedingAt: Number.isFinite(scheduledEnd) ? new Date(scheduledEnd).toISOString() : null,
     baselineStatus, dataQuality, baselineIncomplete,
+    risePhase: rise.phase, trendHeightMm: rise.trendHeightMm, highHeightMm: rise.highHeightMm, peakHeightMm: rise.peakHeightMm, peakAt: rise.peakAt,
   };
 }
 

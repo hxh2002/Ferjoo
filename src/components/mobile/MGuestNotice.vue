@@ -24,7 +24,9 @@ defineProps({
     <p v-if="eyebrow" class="guest-eyebrow">{{ eyebrow }}</p>
     <img v-if="mascot && !compact" class="guest-mascot" :src="mascot" alt="Jojo 吉祥物" width="76" height="76" />
     <div class="guest-copy">
-      <component :is="hero ? 'h1' : 'strong'" class="guest-title">{{ title }}</component>
+      <!-- hero 所在页面已有自己的一级标题（我的设备），这里降为二级 heading，避免同屏两个 h1。
+           不用 h2 元素：全局 `.m-page h2`（20px / 600）会盖过本组件的 28px 标题样式。 -->
+      <component :is="hero ? 'div' : 'strong'" class="guest-title" :role="hero ? 'heading' : undefined" :aria-level="hero ? 2 : undefined">{{ title }}</component>
       <p v-if="description">{{ description }}</p>
     </div>
     <div class="guest-actions">
@@ -43,7 +45,7 @@ defineProps({
 .is-hero .guest-mascot{width:min(52vw,190px);height:auto;margin:.2rem auto .85rem}
 .guest-copy{display:grid;gap:4px;min-width:0}
 .guest-title{margin:0;font-size:15px;line-height:22px;font-weight:500;color:var(--text-primary)}
-.is-hero .guest-title{font-size:28px;line-height:36px;letter-spacing:-.02em}
+.is-hero .guest-title{font-size:28px;line-height:36px;letter-spacing:-.02em;margin-bottom:8px}
 .guest-copy p{margin:0;font-size:13px;line-height:19px;color:var(--text-secondary)}
 .is-hero .guest-copy p{margin-top:6px}
 .is-compact .guest-title{font-size:13px;line-height:19px}
