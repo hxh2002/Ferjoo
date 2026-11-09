@@ -17,7 +17,7 @@ import { listStarterDeviceLinks } from '../../services/starter-device.service.js
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { loadWindowClosures } from '../../services/fermentation-window.service.js';
 import {
-  createRecordsLoader, normalizeRecordsQuery, recentRecordDays, recordsDayModel,
+  createRecordsLoader, normalizeRecordsQuery, recentRecordDays, recordDayRange, recordsDayModel,
   recordsDetailTarget, roundState, validLocalDay
 } from '../../lib/mobile-records.js';
 import { readSelectedStarter, rememberSelectedStarter } from '../../lib/mobile-selection.js';
@@ -138,6 +138,11 @@ const dateCells = computed(() => {
       off: calendarOpen.value && date.getMonth() !== new Date(calendarMonth.value).getMonth(),
       today: value === today, future: value > today };
   });
+});
+const visibleMarkRange = computed(() => {
+  const days = dateCells.value.map(item => item.value).filter(validLocalDay).sort();
+  if (!days.length || days[0] > todayKey.value) return null;
+  return { from: recordDayRange(days[0]).from, to: recordDayRange(days.at(-1)).to };
 });
 const weekdayColumns = computed(() => {
   if (!calendarOpen.value) {
@@ -333,13 +338,18 @@ async function load() {
   }
 }
 let marksLoadedAt = 0;
+let marksRequest = 0;
 async function loadMarks() {
-  if (!onRecordsPage()) return;
+  const token = ++marksRequest;
+  if (!onRecordsPage()) { marks.value = {}; return; }
   const owner = accountId.value;
   const starterId = selectedStarterId.value;
-  if (!owner || !starterId) { marks.value = {}; return; }
-  const result = await loader.marks(owner, new Date(), starterId, () => !disposed && owner === accountId.value && starterId === selectedStarterId.value).catch(() => null);
-  if (result) { marks.value = result; marksLoadedAt = Date.now(); }
+  const range = visibleMarkRange.value;
+  const current = () => !disposed && token === marksRequest && owner === accountId.value
+    && starterId === selectedStarterId.value && range === visibleMarkRange.value && onRecordsPage();
+  if (!owner || !starterId || !range) { marks.value = {}; return; }
+  const result = await loader.marks(owner, range, starterId, current).catch(() => null);
+  if (result && current()) { marks.value = result; marksLoadedAt = Date.now(); }
 }
 
 function selectDay(value) {
@@ -455,10 +465,9 @@ function trackScroll() {
 
 watch(accountId, (owner, previous) => {
   if (previous) { listPositions.clear(); loader.clear(); }
-  if (owner) loadMarks();
 }, { immediate: true, flush: 'sync' });
 watch([accountId, selectedDay, page, selectedStarterId], load, { immediate: true });
-watch(selectedStarterId, () => { void loadMarks(); });
+watch([accountId, selectedStarterId, visibleMarkRange], () => { void loadMarks(); }, { immediate: true });
 // 旧链接（type/starter/from-to 范围）在进入时规范化，页面不会读到过期筛选。
 // 只在记录页生效：离开本页时 query 会变，否则会把详情页或今日页直接顶回列表。
 watch(query, (value) => {
@@ -480,7 +489,7 @@ onActivated(() => {
   const changed = readRevision() !== loadedRevision;
   if (changed) loader.clear();
   load();
-  // 日期圆点只是近两周索引，写入或超过五分钟才需要重读。
+  // 当前可见日期的正式采样索引在写入后或超过五分钟时重读。
   if (changed || Date.now() - marksLoadedAt > 5 * 60_000) loadMarks();
 });
 onUnmounted(() => {
@@ -516,7 +525,7 @@ onUnmounted(() => {
             <button v-for="item in dateCells" :key="item.value" :data-date="item.value" type="button" class="date-cell"
               :class="{ active: item.value === selectedDay, today: item.today, off: item.off, future: item.future, marked: marks[item.value] }"
               :style="calendarOpen ? { gridColumn: `${((new Date(`${item.value}T12:00:00`).getDay() + 6) % 7) + 1}` } : null"
-              :disabled="item.future" :aria-pressed="item.value === selectedDay" :aria-label="`${item.value} 周${item.weekday}`" @click="selectDay(item.value)">
+              :disabled="item.future" :aria-pressed="item.value === selectedDay" :aria-label="`${item.value} 周${item.weekday}${marks[item.value] ? '，有正式数据' : ''}`" @click="selectDay(item.value)">
               <span v-if="!calendarOpen" class="cell-weekday">{{ item.weekday }}</span>
               <span class="cell-day">{{ item.day }}</span>
             </button>
@@ -551,7 +560,7 @@ onUnmounted(() => {
           <img :src="doctorChevron" alt="" width="14" height="14" />
         </RouterLink>
       </div>
-      <!-- 游客态：不请求云端，也不渲染日期圆点里的记录标记；登录回跳保留当前日期与页码。 -->
+      <!-- 游客态：不请求云端，也不渲染日期圆形背景里的数据标记；登录回跳保留当前日期与页码。 -->
       <MGuestNotice
         v-if="guest"
         title="登录后读取你的喂养与观察记录"
@@ -671,13 +680,14 @@ onUnmounted(() => {
 .date-grid-shared .date-cell{min-height:0;height:36px}
 .date-grid-shared.expanded .date-cell{height:30px}
 .date-view:not(.expanded) .date-grid-shared .date-cell{height:82px;border-radius:20px;background:var(--surface-card)}
+.date-view:not(.expanded) .date-grid-shared .date-cell.marked:not(.active){background:var(--m-icon-disc)}
 .date-view:not(.expanded) .date-grid-shared .date-cell.active{background:var(--brand-light)}
 /* 收起态：星期 12 / 24 行 + 8 间隙 + 日期 16 / 24 行，合计 56，居中于 82 高格。 */
 .date-view:not(.expanded) .date-cell{display:grid;align-content:center;justify-items:center;gap:8px}
 .cell-weekday{font-size:12px;line-height:24px;font-weight:400;color:var(--text-secondary)}
 .date-view:not(.expanded) .cell-day{font-size:16px;line-height:24px;font-weight:500}
-/* 展开态：12px 数字居中在 25×25 圆点里，选中与「有记录」都只占圆点。 */
-.date-view.expanded .cell-day{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;font-size:12px;line-height:1;font-weight:400}
+/* 展开态：12px 数字居中在 25×25 圆点里，选中与「有正式数据」都只占圆点。 */
+.date-view.expanded .cell-day{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;font-size:12px;line-height:1;font-weight:400;transition:background-color var(--motion-fast) var(--ease-standard)}
 .date-view.expanded .date-cell.marked:not(.active) .cell-day{background:var(--m-date-mark)}
 .date-view.expanded .date-cell.active{background:transparent}
 .date-view.expanded .date-cell.active .cell-day{background:var(--brand-light);font-weight:500}
@@ -709,5 +719,5 @@ onUnmounted(() => {
 .records-empty{display:flex;align-items:center;gap:.75rem;padding:.5rem 0}
 .records-empty p{margin:.1rem 0 .35rem}
 .jojo-mascot{width:76px;height:76px;object-fit:contain;flex:none}
-@media(prefers-reduced-motion:reduce){.date-cell{transition:none}.date-cell:active{transform:none}}
+@media(prefers-reduced-motion:reduce){.date-cell,.date-view.expanded .cell-day{transition:none}.date-cell:active{transform:none}}
 </style>

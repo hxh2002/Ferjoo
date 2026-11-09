@@ -1,6 +1,6 @@
 import { localDateTimeValue } from './localDateTime.js';
 import { summarizeFeedingMeasurements } from '../services/feeding-analysis.service.js';
-import { METRICS, metricValue, qualityLabel } from '../services/mobile-device.service.js';
+import { BUCKET_MS, METRICS, metricValue, qualityLabel } from '../services/mobile-device.service.js';
 import { readCacheKey, readRevision } from './read-cache.js';
 
 // 轮次证据读取较重：同一次修订内跨页面复用，写入后修订号变化自然换键。
@@ -69,15 +69,45 @@ export function roundState(summary = {}) {
 
 // 每个页面实例持有此缓存；重新进入或切换账号即丢弃，补录/手动关闭后不复用旧边界。
 // 缓存与读取都按酵种分键，切换酵种不会串到另一罐的轮次。
+// 采样与事实分页独立：正式数据标记只来自酵种关联设备的有效发酵采样。
+export function formalMeasurementDays(rows = [], links = [], range = {}) {
+  const from = Date.parse(range.from);
+  const to = Date.parse(range.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return {};
+  const validLinks = links.filter(link => {
+    const start = Date.parse(link.active_from);
+    const end = link.active_to == null ? Infinity : Date.parse(link.active_to);
+    return link.device_id && Number.isFinite(start) && (end === Infinity || Number.isFinite(end)) && end > start;
+  });
+  const result = {};
+  for (const row of rows) {
+    const at = Date.parse(row.recorded_at);
+    if (!Number.isFinite(at) || at < from || at >= to || row.mode !== 'fer' || row.sensor_error) continue;
+    if (!validLinks.some(link => (!row.device_id || row.device_id === link.device_id)
+      && at >= Date.parse(link.active_from) && (link.active_to == null || at < Date.parse(link.active_to)))) continue;
+    result[localDayKey(at)] = true;
+  }
+  return result;
+}
+
+// 采样服务的有效范围至少为十分钟，早于这个范围不发起无效请求。
+export function markReadRange(from, to) {
+  const start = Date.parse(from);
+  const end = Math.min(Date.parse(to), Date.now());
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end - start < BUCKET_MS) return null;
+  return { from: new Date(start).toISOString(), to: new Date(end).toISOString() };
+}
+
 export function createRecordsLoader(api) {
   const days = new Map();
+  const marks = new Map();
   function entry(day, starterId = '') {
     const key = `${day}:${starterId}`;
     if (!days.has(key)) days.set(key, { facts: [], exhausted: false, context: null, devices: null });
     return days.get(key);
   }
   return {
-    clear() { days.clear(); },
+    clear() { days.clear(); marks.clear(); },
     async facts(userId, day, page, starterId = '', current = () => true) {
       const state = entry(day, starterId); const needed = page * RECORD_PAGE_SIZE + 1;
       const range = recordDayRange(day);
@@ -89,17 +119,47 @@ export function createRecordsLoader(api) {
       }
       return { rows: state.facts.slice(0, page * RECORD_PAGE_SIZE), hasMore: state.facts.length > page * RECORD_PAGE_SIZE };
     },
-    async marks(userId, now = new Date(), starterId = '', current = () => true) {
-      const today = localDayKey(now); const start = new Date(`${today}T00:00:00`); start.setDate(start.getDate() - 13);
-      const range = { from: start.toISOString(), to: recordDayRange(today).to };
-      const result = {};
-      for (let offset = 0; current(); offset += 200) {
-        const batch = await api.listCareRecords({ userId, ...range, ...(starterId ? { starterId } : {}), offset, limit: 200 });
-        if (!current()) return null;
-        for (const row of batch) result[localDayKey(row.occurred_at)] = true;
-        if (batch.length < 200) break;
+    async marks(userId, visibleRange = {}, starterId = '', current = () => true) {
+      const range = markReadRange(visibleRange.from, visibleRange.to);
+      if (!range || !current()) return {};
+      const key = JSON.stringify([starterId, range.from, range.to]);
+      if (!marks.has(key)) {
+        const pending = (async () => {
+          const links = await api.listStarterDeviceLinks({ userId, starterId });
+          const windows = new Map();
+          for (const link of links) {
+            const activeFrom = Date.parse(link.active_from);
+            const activeTo = link.active_to == null ? Infinity : Date.parse(link.active_to);
+            if (!link.device_id || !Number.isFinite(activeFrom) || !(activeTo > activeFrom)) continue;
+            const from = Math.max(Date.parse(range.from), activeFrom);
+            const to = Math.min(Date.parse(range.to), activeTo);
+            // 只查询该设备与当前酵种的有效关联时段，休眠/故障采样在下方统一排除。
+            if (!(to - from >= BUCKET_MS)) continue;
+            const previous = windows.get(link.device_id);
+            windows.set(link.device_id, {
+              from: previous ? Math.min(previous.from, from) : from,
+              to: previous ? Math.max(previous.to, to) : to,
+              links: [...(previous?.links || []), link]
+            });
+          }
+          if (!windows.size) return {};
+          const service = await api.mobileDeviceService();
+          const result = {};
+          await Promise.all([...windows].map(async ([deviceId, window]) => {
+            try {
+              const data = await service.range(deviceId, { from: new Date(window.from).toISOString(), to: new Date(window.to).toISOString() });
+              if (!current()) return;
+              Object.assign(result, formalMeasurementDays(data.rows, window.links, range));
+            } catch {
+              // 单个设备失败不清空其他设备的日期标记，下次进入可按原读取约定重试。
+            }
+          }));
+          return current() ? result : null;
+        })();
+        marks.set(key, pending);
+        pending.catch(() => { if (marks.get(key) === pending) marks.delete(key); });
       }
-      return result;
+      return marks.get(key);
     },
     context(userId, day, starterId = '', current = () => true) {
       const state = entry(day, starterId);

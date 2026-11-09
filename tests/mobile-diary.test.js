@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
-import { recentRecordDays, validLocalDay, recordDayRange, normalizeRecordsQuery, recordsDetailTarget, recordsDayModel, recordDeviceMetrics, roundState, createRecordsLoader } from '../src/lib/mobile-records.js';
+import { recentRecordDays, validLocalDay, recordDayRange, normalizeRecordsQuery, recordsDetailTarget, recordsDayModel, recordDeviceMetrics, roundState, createRecordsLoader, formalMeasurementDays, markReadRange } from '../src/lib/mobile-records.js';
 
 const source = await readFile(new URL('../src/views/mobile/MobileDiary.vue', import.meta.url), 'utf8');
 const trendSource = await readFile(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8');
@@ -159,4 +159,52 @@ const partial = await failingLoader.devices('u1',deviceDay,['ok','broken']);
 assert.equal(partial.summaries.length,1,'one device failure does not prevent the working linked device summary');
 assert.ok(partial.notices.some(value => value.includes('设备数据读取失败')));
 assert.equal(partial.samples[0].device_id,'ok','only linked device sample is used');
-console.log('mobile records: local dates, two-week/history URLs, feeding rounds, cross-day continuation, closures, missing/failed devices, returnTo and cache contracts passed');
+
+// 日期圆形背景只代表当前酵种关联时段内的正式采样，休眠、故障及其他设备不算。
+assert.doesNotMatch(source, /cell-data-dot|name="date-mark"/);
+assert.match(source, /\.date-view:not\(\.expanded\) \.date-grid-shared \.date-cell\.marked:not\(\.active\)\{background:var\(--m-icon-disc\)\}/);
+assert.match(source, /\.date-view\.expanded \.date-cell\.marked:not\(\.active\) \.cell-day\{background:var\(--m-date-mark\)\}/);
+assert.match(source, /\.date-view\.expanded \.date-cell\.active \.cell-day\{background:var\(--brand-light\);font-weight:500\}/, 'selected dates keep the stronger highlight');
+assert.match(source, /\.date-cell\.today:not\(\.active\)\{font-weight:500\}/, 'today remains distinct from data marks');
+assert.match(source, /watch\(\[accountId, selectedStarterId, visibleMarkRange\]/);
+assert.match(source, /有正式数据/);
+const formalRange = { from: recordDayRange('2026-10-19').from, to: recordDayRange('2026-10-22').from };
+const formalLinks = [{ device_id: 'd1', active_from: formalRange.from, active_to: recordDayRange('2026-10-21').from }];
+const sampleOn = (day, hour, extra = {}) => ({ device_id: 'd1', recorded_at: `${day}T${String(hour).padStart(2, '0')}:00:00`, ...extra });
+assert.deepEqual(formalMeasurementDays([
+  sampleOn('2026-10-19', 8, { mode: 'sleep', sensor_error: false }),
+  sampleOn('2026-10-20', 8, { mode: 'fer', sensor_error: false }),
+  sampleOn('2026-10-20', 9, { mode: 'fer', sensor_error: true }),
+  sampleOn('2026-10-21', 8, { mode: 'fer', sensor_error: false }),
+  sampleOn('2026-10-20', 10, { device_id: 'other', mode: 'fer', sensor_error: false }),
+  sampleOn('2026-10-23', 8, { mode: 'fer', sensor_error: false })
+], formalLinks, formalRange), { '2026-10-20': true });
+assert.equal(markReadRange('2099-01-01T00:00:00Z', '2099-01-02T00:00:00Z'), null, 'future calendars do not request measurements');
+const markCalls = [];
+const marksLoader = createRecordsLoader({
+  listStarterDeviceLinks: async ({ userId, starterId }) => {
+    assert.equal(userId, 'u1');
+    assert.equal(starterId, 's1');
+    return formalLinks;
+  },
+  mobileDeviceService: async () => ({
+    range: async (deviceId, range) => {
+      markCalls.push({ deviceId, range });
+      return { complete: true, rows: [
+        sampleOn('2026-10-19', 8, { mode: 'sleep', sensor_error: false }),
+        sampleOn('2026-10-20', 8, { mode: 'fer', sensor_error: false }),
+        sampleOn('2026-10-20', 9, { mode: 'fer', sensor_error: true }),
+        sampleOn('2026-10-21', 8, { mode: 'fer', sensor_error: false })
+      ] };
+    }
+  })
+});
+const markRange = { from: formalRange.from, to: recordDayRange('2026-10-22').from };
+assert.deepEqual(await marksLoader.marks('u1', markRange, 's1'), { '2026-10-20': true });
+assert.deepEqual(markCalls, [{ deviceId: 'd1', range: { from: markRange.from, to: formalLinks[0].active_to } }], 'measurement reads are clipped to visible dates and the device link');
+await marksLoader.marks('u1', markRange, 's1');
+assert.equal(markCalls.length, 1, 'identical visible ranges share the cached measurement marks');
+marksLoader.clear();
+await marksLoader.marks('u1', markRange, 's1');
+assert.equal(markCalls.length, 2, 'new writes invalidate cached measurement marks');
+console.log('mobile records: local dates, formal measurement backgrounds, device-link windows, feeding rounds, closures, missing/failed devices, returnTo and cache contracts passed');
