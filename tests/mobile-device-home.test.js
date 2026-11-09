@@ -179,10 +179,12 @@ assert.doesNotMatch(home, /<h1>今日<\/h1>/, 'the entry screen no longer labels
 const feedingSource = await readFile(new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url), 'utf8');
 assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable on the feeding page');
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
-// 同次访问保留保存反馈；实际进入带 starter 的路由才清空已确认内容，待确认草稿仍锁定。
+// 保存确认后自动回设备首页；再次进入本页清空已确认内容，待确认草稿仍锁定。
 assert.match(feedingSource, /onMounted\(\(\) => resetConfirmedOnEntry\(\)\)/);
 assert.match(feedingSource, /onBeforeRouteUpdate\(\(to\) => \{ resetConfirmedOnEntry\(to\.query\.starter\); \}\)/);
-assert.match(feedingSource, /if \(starterId && draft\.value\.confirmed\) startNext\(starterId, \{ quiet: true \}\)/);
+assert.match(feedingSource, /if \(draft\.value\.confirmed\) startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/);
+assert.match(feedingSource, /await returnHome\(\)/, 'a confirmed save navigates back to the device home');
+assert.match(feedingSource, /router\.replace\('\/device'\)/, 'the feeding form is replaced, so back never returns to a finished form');
 assert.doesNotMatch(feedingSource, /watch\([^)]*startNext/, 'reactive draft changes must not auto-start another feeding');
 assert.doesNotMatch(feedingSource, /class="m-primary" to="\/device"/, 'the feeding page relies on the header back button instead of a duplicate device button');
 assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the device page instead of duplicating it here');

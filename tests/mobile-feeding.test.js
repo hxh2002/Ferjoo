@@ -8,7 +8,7 @@ import { computeWeights, ratioParts, weightFields } from '../src/lib/feeding-wei
 import { randomUuid, isUuid } from '../src/lib/uuid.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 
-// 同次访问的已确认喂养留在 saved；实际 starter 路由进入时开启下一条。待确认草稿始终锁定。
+// 保存确认后自动回设备首页；再次进入本页才开启下一条。待确认草稿始终锁定。
 const file = new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
 const { descriptor, errors } = parse(source);
@@ -43,9 +43,14 @@ const user = Vue.ref({ id: 'account-confirmed' });
 const route = { query: {} };
 let routeUpdateHook = null;
 let mountedHook = null;
+const navigations = [];
 const modules = {
   vue: { ...Vue, onMounted: (hook) => { mountedHook = hook; } },
-  'vue-router': { useRoute: () => route, onBeforeRouteUpdate: (hook) => { routeUpdateHook = hook; } },
+  'vue-router': {
+    useRoute: () => route,
+    useRouter: () => ({ replace: async (to) => { navigations.push(to); } }),
+    onBeforeRouteUpdate: (hook) => { routeUpdateHook = hook; }
+  },
   '../../composables/useAuth.js': { useAuth: () => ({ user }) },
   '../../composables/useCheckinDraft.js': { useCheckinDraft },
   '../../services/care.service.js': { saveFeeding: async () => ({ id: 'saved-id' }) },
@@ -81,7 +86,7 @@ const confirmed = mountAs('account-confirmed', draftOf({ confirmed: true }));
 assert.equal(confirmed.vm.draft.confirmed, true, 'confirmed content is intact before navigation entry hooks run');
 assert.equal(confirmed.vm.phase, 'saved');
 mountedHook();
-assert.equal(confirmed.vm.draft.confirmed, false, 'a new starter route entry quietly starts a fresh record');
+assert.equal(confirmed.vm.draft.confirmed, false, 'a fresh entry after a confirmed save quietly starts a new record');
 assert.equal(confirmed.vm.draft.ratio, '', 'the prior confirmed ratio is cleared');
 assert.equal(confirmed.vm.phase, 'editing', 'the old saved banner is not shown on a new entry');
 assert.equal(confirmed.vm.status, '', 'route-entry reset stays quiet');
@@ -108,10 +113,12 @@ blank.stop();
 route.query = { starter: STARTER };
 const saved = mountAs('account-save', null);
 saved.vm.draft.ratio = '1:1:1';
+navigations.length = 0;
 await saved.vm.save();
 await Vue.nextTick();
-assert.equal(saved.vm.draft.confirmed, true, 'a saved feeding stays visible for the current visit');
+assert.equal(saved.vm.draft.confirmed, true, 'a saved feeding stays confirmed in the persisted draft');
 assert.equal(saved.vm.error, '');
+assert.deepEqual(navigations, ['/device'], 'a confirmed save returns straight to the device home');
 saved.vm.startNext(saved.vm.draft.starterId);
 assert.equal(saved.vm.draft.confirmed, false, 'starting the next feeding clears the confirmation');
 assert.equal(saved.vm.draft.ratio, '', 'starting the next feeding clears the ratio');
@@ -168,19 +175,26 @@ const custom = mountAs('account-custom-ratio', null);
 custom.vm.selectRatio('1:2:2');
 custom.vm.selectCustom();
 assert.equal(custom.vm.draft.ratio, '1:2:2', 'opening custom keeps the selected preset');
-custom.vm.setCustomPart('starter', '50');
-assert.equal(custom.vm.weights.water, 100);
-assert.equal(custom.vm.weights.flour, 100);
+assert.equal(custom.vm.showCustom, true, 'custom sliders are revealed');
+custom.vm.setCustomSlider('starter', '2');
+assert.equal(custom.vm.draft.ratio, '2:2:2', 'sliders rewrite only the chosen part');
+assert.equal(custom.vm.weights, null, 'no weight is invented before one is typed');
 custom.stop();
 const customBlank = mountAs('account-custom-blank', null);
 customBlank.vm.selectCustom();
-assert.equal(customBlank.vm.draft.ratio, '', 'opening custom does not invent a ratio');
-customBlank.vm.setCustomPart('starter', '50');
-assert.equal(customBlank.vm.draft.ratio, '1:1:1');
-assert.equal(customBlank.vm.weights.water, 50);
+assert.equal(customBlank.vm.draft.ratio, '1:1:1', 'opening custom falls back to 1:1:1 so the sliders have a value');
+customBlank.vm.setCustomSlider('flour', '3');
+assert.equal(customBlank.vm.draft.ratio, '1:1:3');
+assert.equal(customBlank.vm.customRatioLabel, '1 : 1 : 3');
+customBlank.vm.setCustomSlider('water', '99');
+assert.equal(customBlank.vm.draft.ratio, '1:10:3', 'slider input is clamped to its range');
+assert.equal(customBlank.vm.ratioSummary, '自定义 1 : 10 : 3');
+customBlank.vm.setWeight('starter', '50');
+assert.equal(customBlank.vm.weights.water, 500);
 customBlank.stop();
 assert.match(source, /<strong>已保存<\/strong>/);
 assert.match(source, />开始下一条</);
+assert.match(source, /router\.replace\('\/device'\)/, 'a confirmed save replaces the form with the device home');
 
 delete globalThis.localStorage;
 console.log('mobile feeding: six-phase state machine (editing/validating/saving/pending/saved/next) contracts passed');
