@@ -54,7 +54,7 @@ assert.deepEqual(parse(checkinSource).errors, []);
 const selectSafetyBody = /function selectSafety\(key, value\) \{([\s\S]*?)\n\}/.exec(checkinSource)?.[1] || '';
 assert.ok(selectSafetyBody, 'selectSafety remains available');
 assert.doesNotMatch(selectSafetyBody, /draft\.value\.step\s*=\s*3/, 'risk selection must not navigate to review');
-assert.match(checkinSource, /step\.value === 1 && skipsBackground\.value \? 3/, 'explicit next retains safety-priority navigation');
+assert.match(checkinSource, /planNext\(\{ draft: draft\.value/, 'explicit next delegates to the tested flow decision (safety-priority goes straight to review)');
 assert.match(checkinSource, /安全观察需要优先核对/);
 assert.match(checkinSource, /已填写的答案会保留/);
 console.log('mobile observation flow: OK');

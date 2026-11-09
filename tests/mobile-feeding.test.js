@@ -196,5 +196,17 @@ assert.match(source, /<strong>已保存<\/strong>/);
 assert.match(source, />开始下一条</);
 assert.match(source, /router\.replace\('\/device'\)/, 'a confirmed save replaces the form with the device home');
 
+// 高度提醒摘要与通知设置页同为「N×」写法，存储值不变（2 / 2.5 / 3）。
+const alertCard = mountAs('account-alert-summary', null);
+assert.equal(alertCard.vm.alertSummary, '不提醒');
+for (const [stored, label] of [['2', '2×'], ['2.5', '2.5×'], ['3', '3×']]) {
+  alertCard.vm.draft.heightAlert = stored;
+  assert.equal(alertCard.vm.alertSummary, label, `heightAlert ${stored} is summarised as ${label}`);
+  assert.equal(alertCard.vm.draft.heightAlert, stored, 'the stored value is untouched');
+}
+alertCard.vm.draft.heightAlert = '';
+assert.equal(alertCard.vm.alertSummary, '不提醒');
+alertCard.stop();
+
 delete globalThis.localStorage;
 console.log('mobile feeding: six-phase state machine (editing/validating/saving/pending/saved/next) contracts passed');

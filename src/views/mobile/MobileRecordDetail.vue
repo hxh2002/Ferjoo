@@ -9,6 +9,7 @@ import { expansionSeries, loadFeedingEvidence } from '../../services/feeding-ana
 import { describeField } from '../../services/mobile-diagnosis.service.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead } from '../../lib/read-cache.js';
+import { NO_SAMPLE_HINT, clipRoundMeasurements, curveCopy, roundDurationText, roundWindow } from '../../lib/record-detail.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 
 const route = useRoute();
@@ -58,11 +59,8 @@ function clockText(value) {
 // 跨天窗口用偏移小标提示，时间本身只保留时分。
 const windowRange = computed(() => {
   const value = summary.value;
-  const from = Date.parse(value?.windowFrom || record.value?.occurred_at);
+  const { from, to, closed } = roundWindow(value, record.value);
   if (!Number.isFinite(from)) return null;
-  const closed = !!value?.windowClosed;
-  const to = closed ? Date.parse(value?.windowClosedAt || value?.windowTo)
-    : value?.windowStatus === 'in_progress' ? Date.now() : NaN;
   const fromDate = new Date(from);
   const toDate = new Date(Number.isFinite(to) ? to : from);
   const offset = Number.isFinite(to) ? Math.round((new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate()) - new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())) / 86400000) : 0;
@@ -73,14 +71,8 @@ const windowRange = computed(() => {
     title: Number.isFinite(to) ? `${fromDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${toDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''
   };
 });
-const durationText = computed(() => {
-  const hours = summary.value?.elapsedHours;
-  if (!Number.isFinite(hours) || hours < 0) return '—';
-  const minutes = Math.round(hours * 60);
-  const h = Math.floor(minutes / 60); const m = minutes % 60;
-  if (!h) return `${m} 分钟`;
-  return m ? `${h} 小时 ${m} 分钟` : `${h} 小时`;
-});
+// 已发酵 / 历时与记录页同一窗口口径；summary.elapsedHours 会被设备解绑时间截断，只留给诊断预填。
+const durationText = computed(() => roundDurationText(summary.value, record.value));
 const asideDate = computed(() => {
   const date = new Date(record.value?.occurred_at);
   return Number.isFinite(date.getTime()) ? `${date.getMonth() + 1} 月 ${date.getDate()} 日` : '';
@@ -107,9 +99,7 @@ function chartHasValue(points) {
   return points.some((point) => point.v != null);
 }
 const roundCharts = computed(() => {
-  const rows = [...(evidence.value?.measurements || [])]
-    .filter((row) => row?.recorded_at && Number.isFinite(Date.parse(row.recorded_at)))
-    .sort((left, right) => Date.parse(left.recorded_at) - Date.parse(right.recorded_at));
+  const rows = clipRoundMeasurements(evidence.value?.measurements, summary.value, record.value);
   if (!rows.length) return null;
   const height = chartSeries(rows, 'height_mm');
   const expansion = expansionSeries(height, baseline.value);
@@ -152,9 +142,10 @@ const hint = computed(() => {
   if (value.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀率。';
   if (value.heightStale) return '设备数据已中断，膨胀率沿用上次读数。';
   if (value.baselineIncomplete) return '基线采样未满，膨胀率仅供参考。';
-  if (!value.measurementCount) return '本轮没有可用的设备采样，仅保留喂养事实。';
+  if (!value.measurementCount) return NO_SAMPLE_HINT;
   return '';
 });
+const curveText = computed(() => curveCopy({ evidence: evidence.value, evidenceError: evidenceError.value, hint: hint.value, hasCharts: !!roundCharts.value }));
 watch(asideDate, (value) => { if (headerAside) headerAside.value = value; }, { immediate: true });
 let generation = 0;
 watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
@@ -209,7 +200,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
     </section>
     <section v-if="record" class="round-curves" aria-label="本轮曲线">
       <h2 class="curve-title">本轮曲线</h2>
-      <p v-if="hint || evidenceError" class="window-hint">{{ hint || evidenceError }}</p>
+      <p v-if="curveText.hint" class="window-hint">{{ curveText.hint }}</p>
       <div v-if="roundCharts" class="metric-stack">
         <div v-if="roundCharts.expansion" class="metric-chart is-rise">
         <MDraggableChart label="膨胀率" caption="最高" :value-text="peakExpansion ? `${peakExpansion}%` : ''" unit="%" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
@@ -222,7 +213,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
       </div>
       </div>
       <div v-else class="curve-empty">
-        <p>本轮发酵时间窗内没有有效设备采样，暂无曲线；喂养记录仍会保留。</p>
+        <p>{{ curveText.emptyMessage }}</p>
         <RouterLink v-if="deviceTrendTarget" class="curve-link" :to="deviceTrendTarget">查看当日设备数据</RouterLink>
       </div>
     </section>
@@ -248,7 +239,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
         <div><span>膨胀率</span><strong>{{ expansionText }}</strong></div>
       </div>
       <p v-if="temperatureText" class="window-meta">轮次均温 {{ temperatureText }}</p>
-      <p v-if="hint" class="window-hint">{{ hint }}</p>
+      <!-- 提示只在「本轮曲线」里说一次，这里不再重复。 -->
       <p v-if="evidenceText" class="window-meta">{{ evidenceText }}</p>
     </details>
     <section v-if="record" class="m-card">

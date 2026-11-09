@@ -59,7 +59,8 @@ const paths = {
 .m-record-card-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--motion-expand) var(--ease-expand); }
 .m-record-card-panel.is-open { grid-template-rows: 1fr; }
 .m-record-card-body { overflow: hidden; min-height: 0; }
-.m-record-card-inner { padding: 0 16px 16px; border-top: 1px solid var(--border-warm); }
+/* 标题与内容靠 4px 上边距区分，不再画分割线（原 1px 线 + 0 上边距会让内容紧贴线）。 */
+.m-record-card-inner { padding: 4px 16px 16px; }
 .is-disabled .m-record-card-summary { opacity: .55; }
 @media (prefers-reduced-motion: reduce) {
   .m-record-card-chevron, .m-record-card-panel { transition: none; }

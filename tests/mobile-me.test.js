@@ -37,7 +37,20 @@ assert.match(profileEdit, /label="性别" marker="end"/);
 // 182:885 出生日期面板底部「取消」「确定」并排；182:872 性别面板底部全宽「取消」（设计里没有「确定」）。
 assert.match(profileEdit, /<MSheet :open="sheet === 'birth'[\s\S]*<template #footer>[\s\S]*class="sheet-cancel"[\s\S]*@click="closeBirthSheet"[\s\S]*class="sheet-confirm"[\s\S]*@click="confirmBirth"/);
 assert.match(profileEdit, /:model-value="draftBirth\.(year|month|day)"/);
-assert.match(profileEdit, /<MSheet :open="sheet === 'gender'[\s\S]*<template #footer>[\s\S]*class="sheet-cancel"[\s\S]*@click="cancelSheet"/);
+// 遮罩点击、Esc、右上角 × 全部走 MSheet 的 close，必须落到同一个丢弃草稿的取消路径。
+assert.match(profileEdit, /<MSheet :open="sheet === 'birth'"[^>]*@close="closeBirthSheet"/);
+assert.match(profileEdit, /<MSheet :open="sheet === 'gender'"[^>]*@close="cancelSheet"/);
+// 性别面板只加一个全宽「取消」，不能凭空加「确定」。
+const genderStart = profileEdit.indexOf('<MSheet :open="sheet === \'gender\'"');
+const genderBlock = profileEdit.slice(genderStart, profileEdit.indexOf('</MSheet>', genderStart));
+assert.match(genderBlock, /<template #footer>/, 'gender sheet renders a footer action');
+assert.match(genderBlock, /class="sheet-cancel"[^>]*@click="cancelSheet"[^>]*>取消</, 'gender footer is the Cancel button');
+assert.doesNotMatch(genderBlock, /sheet-confirm|确定/, 'the gender sheet has no confirm button in the design');
+const birthStart = profileEdit.indexOf('<MSheet :open="sheet === \'birth\'"');
+const birthBlock = profileEdit.slice(birthStart, profileEdit.indexOf('</MSheet>', birthStart));
+assert.match(birthBlock, /class="sheet-cancel"[^>]*>取消</);
+assert.match(birthBlock, /class="sheet-confirm"[^>]*>确定</);
+assert.match(profileEdit, /\.sheet-actions\{display:grid;grid-template-columns:1fr 1fr;gap:12px\}/, 'the two birth buttons sit side by side');
 assert.doesNotMatch(profileEdit, /sheet = 'birth'/, 'the birth button opens the draft snapshot instead of the sheet directly');
 
 // 真实执行 script setup，验证出生日期滚轮只改草稿、取消（含遮罩 / Esc）丢弃、确定才提交。
@@ -51,8 +64,11 @@ async function profileSheetHarness() {
   const profile = Vue.ref(null);
   const user = Vue.ref({ id: 'u1' });
   const updates = [];
+  const headerTone = Vue.ref('');
+  const mountedHooks = [];
+  const unmountHooks = [];
   const modules = {
-    vue: { ...Vue, onMounted() {} },
+    vue: { ...Vue, inject: (key) => (key === 'mobileHeaderTone' ? headerTone : null), onMounted: (hook) => { mountedHooks.push(hook); }, onBeforeUnmount: (hook) => { unmountHooks.push(hook); } },
     '../../composables/useAuth.js': { useAuth: () => ({ user, profile, init: async () => {}, refreshProfile: async () => {} }) },
     '../../services/auth.service.js': {
       removeAvatar: async () => {},
@@ -71,7 +87,7 @@ async function profileSheetHarness() {
   const scope = Vue.effectScope();
   const vm = Vue.proxyRefs(scope.run(() => component.setup({}, { expose() {} })));
   for (let i = 0; i < 8; i++) await Promise.resolve();
-  return { vm, updates, stop: () => scope.stop() };
+  return { vm, updates, headerTone, mountedHooks, unmountHooks, stop: () => scope.stop() };
 }
 
 const editSheet = await profileSheetHarness();
@@ -110,7 +126,10 @@ editSheet.vm.updateBirth('year', '1999');
 assert.equal(editSheet.vm.draftBirth.day, '28', 'the day is clamped to the month length');
 assert.equal(editSheet.vm.birth.month, '03', 'clamping still only touches the draft');
 editSheet.vm.closeBirthSheet();
-// 性别：取消只关闭面板，不改动已选值；点选项仍是「提交并关闭」。
+// 性别：面板选项来自真实组件状态，只有「男 / 女」；已保存性别为空时入口走占位分支。
+assert.deepEqual(editSheet.vm.MOBILE_GENDER_OPTIONS.map((item) => item.label), ['男', '女'], 'the mounted gender sheet offers only 男 / 女');
+assert.equal(editSheet.vm.gender, '', 'an empty saved gender stays empty (placeholder 请选择性别 is shown)');
+// 取消只关闭面板，不改动已选值；点选项仍是「提交并关闭」。
 editSheet.vm.gender = 'male';
 editSheet.vm.sheet = 'gender';
 editSheet.vm.cancelSheet();
@@ -120,13 +139,41 @@ assert.match(profileEdit, /@update:model-value="gender = \$event; sheet = ''"/, 
 editSheet.stop();
 console.log('profile sheets: birth draft/confirm/cancel and gender cancel passed');
 const profileOptions = await import('../src/lib/profile-options.js');
-assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.value), ['', 'male', 'female']);
+// 182:872 性别面板只有「男 / 女」两行，没有「未设置」。
+assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.value), ['male', 'female']);
+assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.label), ['男', '女']);
 assert.equal(profileOptions.optionLabel(profileOptions.GENDER_OPTIONS, 'secret'), '保密', 'legacy values remain readable');
-assert.equal(profileOptions.GENDER_OPTIONS.length, 5, 'desktop options remain unchanged');
+assert.equal(profileOptions.optionLabel(profileOptions.GENDER_OPTIONS, ''), '未设置', 'shared label lookup still resolves an empty gender');
+assert.deepEqual(profileOptions.GENDER_OPTIONS.map((item) => item.value), ['', 'male', 'female', 'other', 'secret'], 'desktop options remain unchanged');
+// 桌面端（ProfileView）仍使用完整 GENDER_OPTIONS，不受移动端面板影响。
+assert.match(read('src/views/ProfileView.vue'), /:options="GENDER_OPTIONS"/);
+assert.match(read('src/views/ProfileView.vue'), /v-for="option in GENDER_OPTIONS"/);
+// 已保存性别为空时，入口仍显示「请选择性别」占位而不是「未设置」。
+assert.match(profileEdit, /gender \? optionLabel\(GENDER_OPTIONS, gender\) : '请选择性别'/);
+assert.match(profileEdit, /:class="\{ placeholder: !gender \}"/);
+assert.doesNotMatch(genderBlock, /未设置/);
 const shell = compile('src/components/MobileShell.vue');
 assert.match(shell, /route\.meta\.pageOwnTitle === true/);
 assert.match(shell, /<h1 v-if="!hideTopbarTitle">/);
 assert.match(read('src/router/index.js'), /name: 'mobile-profile-edit'.*pageOwnTitle: true/);
+// 编辑资料页与邀请码 / 修改密码页同样把顶栏收成只有「<」：挂载置 settings，卸载复位；页内 h1 与 pageOwnTitle 保持。
+{
+  const tone = await profileSheetHarness();
+  assert.equal(tone.headerTone.value, '', 'nothing is set before mount');
+  await Promise.all(tone.mountedHooks.map((hook) => hook()));
+  assert.equal(tone.headerTone.value, 'settings', 'mount puts the topbar into settings tone (back arrow only)');
+  tone.unmountHooks.forEach((hook) => hook());
+  assert.equal(tone.headerTone.value, '', 'unmount resets the tone');
+  tone.stop();
+  assert.match(profileEdit, /inject\('mobileHeaderTone', null\)/);
+  assert.match(profileEdit, /<h1>编辑资料<\/h1>/, 'the in-page title stays');
+  // 壳：settings 顶栏是 flex-wrap，标题 h1 独占整行；pageOwnTitle 隐藏顶栏 h1 后只剩返回键一个子项，
+  // 不会留下空行，也没有额外的下内边距，因此无需改 CSS。
+  assert.match(shell, /\.mobile-subbar\.is-settings \{ flex-wrap: wrap; align-items: flex-start; min-height: 0; padding-bottom: 0; \}/);
+  assert.match(shell, /\.mobile-subbar\.is-settings h1 \{ flex: 1 0 100%; margin: 8px 0 0;/);
+  assert.match(shell, /<h1 v-if="!hideTopbarTitle">/, 'the hidden topbar h1 is not rendered at all, so its 100%-wide row never exists');
+  assert.match(shell, /<span v-if="!navTone">返回<\/span>/, 'settings tone drops the 返回 text');
+}
 const notifications = compile('src/views/mobile/MobileNotifications.vue');
 assert.match(notifications, /每个酵种的提醒倍数/);
 assert.match(notifications, /以喂养后的起始高度为 1×/);
@@ -167,7 +214,8 @@ assert.match(devices, /<template #footer>[\s\S]*class="starter-save"[\s\S]*@clic
 assert.match(devices, /:aria-pressed="linkedStarter === item.id"/);
 assert.match(devices, /@close="closeStarterSheet"/);
 // 182:1151 修改设备名称面板底部是「取消」「保存」并排；原实现只有正文里的「保存」，缺「取消」。
-assert.match(devices, /<template #footer>[\s\S]*class="rename-cancel"[\s\S]*@click="renameOpen = false"[\s\S]*class="rename-save"[\s\S]*@click="saveRename"/);
+assert.match(devices, /<template #footer>[\s\S]*class="rename-cancel"[\s\S]*@click="closeRename"[\s\S]*class="rename-save"[\s\S]*@click="saveRename"/);
+assert.match(devices, /<MSheet :open="renameOpen" title="修改设备名称" @close="closeRename">/);
 assert.match(devices, /async function saveRename\(\)[\s\S]*rename\(\)[\s\S]*renameOpen\.value = false/);
 
 // 执行真实的 script setup，确保选择只是草稿，关闭不保存，确认成功后才提交并收起弹层。
@@ -179,9 +227,10 @@ async function starterSheetHarness() {
     return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
   }).replace('export default', 'return');
   const user = Vue.ref(null);
-  const state = { calls: [], fail: false, gate: null };
+  const state = { calls: [], renames: [], fail: false, gate: null };
   const service = {
     getDevice: async () => ({ device_id: 'd1', name: '设备一', my_role: 'owner', last_seen_at: new Date().toISOString() }),
+    rename: async (deviceId, next) => { state.renames.push([deviceId, next]); return { name: next }; },
     members: async () => []
   };
   const modules = {
@@ -253,6 +302,29 @@ releaseSave();
 await pendingSave;
 assert.equal(starterSheet.vm.savedStarter, 's1');
 assert.equal(starterSheet.vm.starterOpen, false);
+// 182:1151 修改设备名称：面板底部「取消」丢弃改名，「保存」成功才回写并收起。
+const renamesBefore = starterSheet.state.renames.length;
+assert.equal(starterSheet.vm.name, '设备一', 'the edit field shows the loaded device name');
+starterSheet.vm.openRename();
+assert.equal(starterSheet.vm.renameOpen, true);
+starterSheet.vm.name = '改名未保存';
+starterSheet.vm.closeRename();
+assert.equal(starterSheet.vm.renameOpen, false);
+assert.equal(starterSheet.vm.name, '设备一', 'cancel restores the persisted name');
+assert.equal(starterSheet.state.renames.length, renamesBefore, 'cancel never calls the rename API');
+starterSheet.vm.openRename();
+starterSheet.vm.name = '新名字';
+await starterSheet.vm.saveRename();
+assert.deepEqual(starterSheet.state.renames.at(-1), ['d1', '新名字'], 'save submits the edited name');
+assert.equal(starterSheet.vm.renameOpen, false, 'a successful save closes the sheet');
+assert.equal(starterSheet.vm.device.name, '新名字');
+// 校验失败时保留面板，避免用户丢掉刚输入的内容。
+starterSheet.vm.openRename();
+starterSheet.vm.name = '   ';
+await starterSheet.vm.saveRename();
+assert.equal(starterSheet.vm.renameOpen, true, 'an invalid name keeps the sheet open');
+assert.equal(starterSheet.vm.error, '设备名称须为一至八十个字符。');
+starterSheet.vm.closeRename();
 starterSheet.stop();
 console.log('mobile devices: starter draft, cancel, confirm, failure and duplicate-save behavior passed');
 

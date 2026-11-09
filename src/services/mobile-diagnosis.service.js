@@ -50,7 +50,11 @@ export function validateCheckin(input) {
   const risk = input.color === 'suspicious' || input.smell === 'suspicious';
   if (risk) return errors;
   if (input.color === 'unknown' || input.smell === 'unknown') {
-    for (const key of ['color', 'smell']) if (!['normal', 'unknown'].includes(input[key])) errors[key] = '请主动确认本次安全观察。';
+    // 一项「不确定」时，另一项没回答也不阻断：报告固定为「需要进一步检查」，
+    // 绝不会当作正常；只有传入了无法识别的值才视为错误。
+    for (const key of ['color', 'smell']) {
+      if (input[key] !== '' && input[key] != null && !['normal', 'unknown'].includes(input[key])) errors[key] = '请主动确认本次安全观察。';
+    }
     return errors;
   }
   for (const key of ['color', 'smell']) {

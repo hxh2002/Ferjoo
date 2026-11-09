@@ -16,6 +16,8 @@ Ferjoo_PPT_HKTech300.pptx
 
 # Figma 量取用的临时截图与导出（不入库）
 .tmp-figma/
+# 仓库根目录的临时截图（正式图片资源放在 public/ 或 src/assets/）
+/*.png
 
 # 系统与通用
 .DS_Store

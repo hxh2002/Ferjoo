@@ -125,7 +125,7 @@ const ratioSummary = computed(() => {
 });
 const alertSummary = computed(() => {
   const value = Number(draft.value.heightAlert);
-  return Number.isFinite(value) && value > 0 ? `${Math.round(value * 100)}%` : '不提醒';
+  return Number.isFinite(value) && value > 0 ? `${value}×` : '不提醒';
 });
 const inputsLocked = computed(() => locked.value || saving.value);
 
@@ -453,7 +453,7 @@ async function save() {
 .mobile-area .mobile-main .m-page.mobile-feeding > .saved-banner{margin-block:0 14px}
 .alert-card :deep(.m-record-card-summary){font-size:14px;line-height:21px}
 .feeding-form{display:grid;gap:12px}
-.time-switch{display:grid;grid-template-columns:minmax(0,184fr) minmax(0,103fr);gap:8px;max-width:295px;margin:3px 0 6px}
+.time-switch{display:grid;grid-template-columns:minmax(0,184fr) minmax(0,103fr);gap:8px;max-width:295px;margin:0 0 6px}
 .time-switch button{height:48px;min-height:48px;padding:0 12px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;text-align:left;cursor:pointer}
 .time-switch button[aria-expanded="true"]{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .time-fields,.ratio-presets,.time-wheels{display:grid;gap:8px}
@@ -465,7 +465,8 @@ async function save() {
 /* 370:16276 / 370:16790 / 370:16892 的卡片内坐标：输入 68–116；「恢复当前时间」分别落在 122 / 342 / 272，
    卡底再留 10，三种展开高度因此是 160 / 380 / 310。
    日历框标注 295×209，实际内容到 341（6 行 × 28 节距），「恢复当前时间」紧随其后 1px，故按内容高度 219 排。 */
-.time-record :deep(.m-record-card-inner){padding:0 16px 10px}
+/* 原 1px 分割线 + 3px 的 .time-switch 上边距 = 4px；线删掉后由内层 4px 上 padding 承担，展开高度不变。 */
+.time-record :deep(.m-record-card-inner){padding:4px 16px 10px}
 .restore-time{display:block;width:124px;min-height:28px;margin:6px auto 0;border-radius:14px;font-size:var(--text-xs)}
 .time-record :deep(.m-calendar){margin-top:6px}
 .time-record :deep(.time-wheels){margin-top:6px}
@@ -475,10 +476,11 @@ async function save() {
 .ratio-presets button{width:100%;height:42px;min-height:42px;padding:0}
 .ratio-presets button.is-selected,.custom-ratio.is-selected{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action);font-weight:500}
 .custom-ratio{width:100%;height:42px;min-height:42px;padding:0;font-size:var(--text-sm)}
-.custom-ratio-panel{margin-top:12px;padding:14px 14px 4px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-warm)}
+.custom-ratio-panel{margin-top:12px;padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-warm)}
 .custom-ratio-value{margin:0 0 10px;color:var(--text-primary);font-size:var(--text-sm);font-variant-numeric:tabular-nums}
-.custom-ratio-hint{margin:0 0 10px;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+.custom-ratio-hint{margin:0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
 .custom-slider{display:block;margin-bottom:12px}
+.custom-slider:last-child{margin-bottom:0}
 .custom-slider-head{display:flex;align-items:baseline;justify-content:space-between;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
 .custom-slider-head strong{color:var(--brand-action);font-size:var(--text-md);font-weight:500;font-variant-numeric:tabular-nums}
 /* 滑块只改自己的轨道和滑块尺寸，不继承 .feeding-form input 的输入框描边与高度；
@@ -496,8 +498,11 @@ async function save() {
 /* 输入控件统一 16px：iOS Safari 对 <16px 的输入框 focus 时会放大页面且不缩回。 */
 .feeding-form input,.feeding-form select{width:100%;min-height:44px;padding:10px 12px;box-sizing:border-box;border:1px solid var(--border-input);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:16px}
 .feeding-form input:disabled,.feeding-form select:disabled{opacity:.7;cursor:not-allowed}
-.weight-fields{min-width:0;margin:0;padding:12px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-warm)}
-.weight-fields legend{padding:0 6px;font-size:12px;color:var(--text-secondary)}
+/* 去掉描边与底色：它已经在记录卡里，不再是「框里套框」；legend 退化为小标题。
+   mobile.css 用 `.mobile-area .mobile-main :is(…, .weight-fields)` 给了它边框和底色，这里加同样的前缀才压得过。
+   margin-top:12px 与「预设按钮 → 自定义面板」一致，自定义面板之后、或紧跟预设按钮时都适用。 */
+.mobile-area .mobile-main .weight-fields{min-width:0;margin:12px 0 0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.weight-fields legend{padding:0;font-size:12px;color:var(--text-secondary)}
 .weight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0}
 .weight-item{display:grid;gap:4px;min-width:0;font-size:12px;color:var(--text-secondary)}
 /* 同理：iOS 对 <16px 的输入框 focus 会放大视口，配比输入框必须保持 16px。 */

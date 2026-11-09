@@ -7,6 +7,7 @@ import { mobileOptions, fieldLabels, describeField, describeSource, parsePending
 import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
+import { locateErrors, observationReady as flowObservationReady, planBack, planNext, skipsBackground as flowSkipsBackground } from '../../lib/checkin-flow.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 import MRadioCard from '../../components/mobile/MRadioCard.vue';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
@@ -28,7 +29,7 @@ const draft = computed(() => activeDraft.value.draft.value);
 const storageAvailable = computed(() => activeDraft.value.storageAvailable.value);
 const persist = () => activeDraft.value.persist();
 const replace = (value) => activeDraft.value.replace(value);
-const { starterName } = useStarterName(accountId, computed(() => draft.value.starterId));
+const { starterName, starterNameLoading } = useStarterName(accountId, computed(() => draft.value.starterId));
 const errors = ref({});
 const pending = ref({});
 const notice = ref('');
@@ -52,7 +53,7 @@ const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
 const step = computed(() => [1, 2, 3].includes(draft.value.step) ? draft.value.step : 1);
 // 安全答案可疑或不确定时，「本轮背景」会被跳过；步骤数必须跟着实际路径走。
-const skipsBackground = computed(() => [draft.value.color, draft.value.smell].some((value) => value === 'suspicious' || value === 'unknown'));
+const skipsBackground = computed(() => flowSkipsBackground(draft.value));
 const stepMeta = computed(() => {
   const label = steps[step.value - 1];
   if (!skipsBackground.value) return { label, index: step.value, total: 3 };
@@ -133,9 +134,7 @@ function restoreAutoHeight() {
   draft.value.sources.height = `自动区间计算 · ${autoHeight.value.ratio.toFixed(2)} 倍 · 已恢复自动值`;
 }
 function observationReady(part = observePart.value) {
-  if (part === 1) return ['normal', 'suspicious', 'unknown'].includes(draft.value.color);
-  if (part === 2) return ['normal', 'suspicious', 'unknown'].includes(draft.value.smell);
-  return draft.value.height !== '' && draft.value.height != null;
+  return flowObservationReady(draft.value, part);
 }
 const canAdvance = computed(() => step.value > 1 || observationReady());
 function reviewLabel(key) {
@@ -149,9 +148,9 @@ function reviewValue(key) {
   return describeField(key, value);
 }
 function back() {
-  if (step.value === 1 && observePart.value > 1) { observePart.value -= 1; return; }
-  draft.value.step = step.value === 3 && skipsBackground.value ? 1 : step.value - 1;
-  if (draft.value.step === 1) observePart.value = skipsBackground.value ? 1 : 3;
+  const target = planBack({ draft: draft.value, step: step.value, observePart: observePart.value });
+  draft.value.step = target.step;
+  observePart.value = target.observePart;
 }
 onBeforeRouteLeave(() => { persist(); });
 async function showErrors(value) {
@@ -176,18 +175,12 @@ function selectBackground(key, value) {
   markManual(key);
 }
 function next() {
-  if (step.value === 1 && !skipsBackground.value && observePart.value < 3) {
-    if (!observationReady()) return;
-    observePart.value += 1;
-    errors.value = {};
-    return;
-  }
-  const all = validateCheckin(draft.value);
-  const keys = step.value === 1 ? ['color', 'smell', 'height'] : ['stage', 'ratio', 'tempC', 'elapsedHours', 'ph'];
-  const visible = Object.fromEntries(Object.entries(all).filter(([key]) => keys.includes(key)));
-  if (Object.keys(visible).length) return showErrors(visible);
-  // 可疑与不确定都必须直接核对，不能把安全优先的路径退回背景填写。
-  draft.value.step = step.value === 1 && skipsBackground.value ? 3 : Math.min(3, step.value + 1);
+  const plan = planNext({ draft: draft.value, step: step.value, observePart: observePart.value, validate: validateCheckin });
+  if (plan.type === 'stay') return;
+  if (plan.type === 'errors') return showErrors(plan.errors);
+  if (plan.type === 'part') observePart.value = plan.observePart;
+  // 可疑与不确定都直接去核对（安全优先），不再退回背景填写。
+  else draft.value.step = plan.step;
   errors.value = {};
 }
 function generate() {
@@ -195,7 +188,13 @@ function generate() {
   fatal.value = '';
   try {
     const { report, errors: invalid } = generateMobileReport(draft.value, accountId.value);
-    if (invalid) { draft.value.step = 1; return showErrors(invalid); }
+    if (invalid) {
+      // 把页面送到真正放着出错控件的那一页，避免报错却看不见。
+      const where = locateErrors(invalid);
+      draft.value.step = where.step;
+      observePart.value = where.observePart;
+      return showErrors(invalid);
+    }
     storeSessionReport(accountId.value, report);
     router.push('/reports/session');
   } catch (cause) { fatal.value = cause.message || '生成建议失败，请稍后重试。'; }
@@ -217,7 +216,7 @@ function applyPending(key) {
     <header class="checkin-head">
       <h1 v-if="!diagnosisMode">观察记录</h1>
       <span v-if="step === 1" class="observe-index">{{ skipsBackground ? '安全观察' : `观察 ${observePart} / 3` }}</span>
-      <span v-if="draft.starterId && !(diagnosisMode && step === 3)" class="checkin-starter">{{ starterName }}</span>
+      <span v-if="draft.starterId && !(diagnosisMode && step === 3) && !starterNameLoading" class="checkin-starter">{{ starterName }}</span>
     </header>
     <ol v-if="!diagnosisMode" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
       <li v-for="n in stepMeta.total" :key="n" :class="{ active: n === stepMeta.index, done: n < stepMeta.index }">

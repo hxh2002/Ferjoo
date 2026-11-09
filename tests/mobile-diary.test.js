@@ -51,19 +51,26 @@ assert.match(checkinSource, /class="checkin-head"[\s\S]*class="observe-index"/);
 assert.match(checkinSource, /class="step-track"[\s\S]*stepMeta\.total/);
 assert.match(checkinSource, /\.step-track li\.active \.step-dot\s*\{\s*background:\s*var\(--brand-action\)/);
 assert.match(checkinSource, /checkin-starter/);
-// 一级页面只保留设备在线时间与采样数，曲线下放到各轮次，采样明细仍走设备二级页。
+// 一级页面不再逐台列出设备：只留一个「本日全部数据 ›」胶囊入口，曲线下放到各轮次，采样明细走设备二级页。
 assert.match(source, /deviceBlocks/);
-assert.match(source, /本日设备数据/);
+assert.match(source, /本日全部数据 ›/);
 assert.doesNotMatch(source, />单日数据</);
-assert.match(source, /在线 \{\{ item\.online \}\}/);
-assert.match(source, /\{\{ item\.count \}\} 条采样/);
-assert.match(source, /name: rows\.length > 1 \? `\$\{selectedStarterName\.value \|\| '酵种'\}/, 'device summary is titled by the selected starter');
-assert.match(source, /class="m-list-row record-row device-row"/);
+assert.doesNotMatch(source, /本日设备数据|在线 \{\{ item\.online \}\}|\{\{ item\.count \}\} 条采样|device-row|chart-group/, 'the old per-device rows are gone');
+assert.match(source, /<RouterLink class="day-data-pill" :to="dayDataBlock\.to">/);
+assert.match(source, /const dayDataBlock = computed\(\(\) => deviceBlocks\.value\.reduce\(\(best, item\) => \(!best \|\| item\.count > best\.count \? item : best\), null\)\)/, 'multiple devices link to the one with the most samples');
+assert.match(source, /<small v-if="dayDataPartial" class="day-data-note">部分采样未完整加载/);
+assert.match(source, /\.day-data-pill\{[^}]*border-radius:var\(--radius-pill\);background:var\(--m-disc\);color:var\(--m-text-link\)/, 'pill uses existing tokens only');
+assert.doesNotMatch(source.match(/\.day-data-pill\{[^}]*\}/)[0], /#[0-9a-f]{3,8}/i);
+// 年月白卡：滚轮渐隐用卡片底色；「完成」在文档流里并压在渐隐之上，不再绝对定位到滚轮底部。
+assert.match(source, /\.month-wheels\{--m-wheel-fade-bg:var\(--surface-card\);[^}]*isolation:isolate/);
+assert.match(source, /\.month-wheel-done\{position:relative;z-index:3;grid-column:1 \/ -1;justify-self:end/);
+assert.match(await readFile(new URL('../src/components/mobile/MWheelPicker.vue', import.meta.url), 'utf8'), /\.m-wheel-fade-top \{[^}]*var\(--m-wheel-fade-bg, var\(--surface-page\)\)/);
 assert.match(source, /最高膨胀率/);
 assert.match(source, /平均温度/);
 assert.match(source, /平均湿度/);
-// 轮次卡片是当天的主线，单日设备摘要排在卡片之后。
-assert.ok(source.indexOf('record-group round-group') < source.indexOf('record-group chart-group'), 'rounds appear above the day summary');
+// 轮次卡片是当天的主线，「本日全部数据」胶囊排在卡片之后、观察记录之前。
+assert.ok(source.indexOf('record-group round-group') < source.indexOf('record-group day-data-group'), 'rounds appear above the day-data pill');
+assert.ok(source.indexOf('record-group day-data-group') < source.indexOf('record-group observation-group'), 'the pill stays where the old group sat');
 assert.match(source, /class="feed-card"/);
 assert.match(source, /metrics: roundMetrics\(item\)/);
 // 结束时间留在独立字段，标题和链接都不能误用路由对象 to。

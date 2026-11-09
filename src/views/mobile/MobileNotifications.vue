@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { listStarters } from '../../services/care.service.js';
+import { starterDisambiguation } from '../../lib/starter-labels.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { HEIGHT_ALERT_TARGETS, enableSystemNotification, notificationPermission } from '../../services/height-alert.service.js';
 import {
@@ -18,6 +19,8 @@ const supported = webPushAvailable();
 const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = Boolean(navigator.standalone) || Boolean(window.matchMedia?.('(display-mode: standalone)')?.matches);
 const permissionLabel = computed(() => ({ granted: '已允许', denied: '已拒绝', default: '未授权', unsupported: '浏览器不支持' })[permission.value] || '未知');
+// 只有列表里存在同名酵种时才给次要说明，避免两行「一号」无法分辨。
+const starterNotes = computed(() => starterDisambiguation(starters.value));
 const systemLabel = computed(() => (permission.value === 'granted' ? '已开启' : permissionLabel.value));
 
 async function load() {
@@ -31,9 +34,11 @@ async function load() {
       listStarters({ userId: user.id }),
       listStarterDeviceLinks({ userId: user.id }).catch(() => [])
     ]);
-    const linked = new Set((links || []).filter((row) => row.active_to == null).map((row) => row.starter_id));
+    const activeLinks = (links || []).filter((row) => row.active_to == null);
+    const linked = new Set(activeLinks.map((row) => row.starter_id));
+    const deviceOf = new Map(activeLinks.map((row) => [row.starter_id, row.device_id]));
     const detailed = await Promise.all(rows.map(async (row) => ({
-      ...row, linked: linked.has(row.id), targets: await loadHeightTargets(row.id).catch(() => [])
+      ...row, linked: linked.has(row.id), deviceId: deviceOf.get(row.id) || '', targets: await loadHeightTargets(row.id).catch(() => [])
     })));
     subscribed.value = subscribedNow;
     starters.value = detailed;
@@ -139,7 +144,7 @@ onMounted(() => auth.init().then(load));
       <button type="button" class="m-switch" role="switch" :aria-label="`高度提醒${subscribed ? '已开启' : '已关闭'}`" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
   </div>
-  <p class="hint">提醒设置即时生效，无需保存。每个提醒倍数每轮喂养只提醒一次。</p>
+  <p class="hint">提醒设置即时生效，无需保存。</p>
   <p v-if="error" class="m-error" role="alert">{{ error }}</p>
   <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
 
@@ -151,6 +156,7 @@ onMounted(() => auth.init().then(load));
     <div v-for="row in starters" :key="row.id" class="starter-row">
       <div class="starter-head">
         <strong>{{ row.name }}</strong>
+        <small v-if="starterNotes.get(row.id)" class="starter-note">{{ starterNotes.get(row.id) }}</small>
         <small v-if="!row.linked">未关联设备，不会产生提醒</small>
       </div>
       <div class="targets" role="group" :aria-label="`${row.name} 起始高度提醒倍数`">
@@ -218,6 +224,7 @@ onMounted(() => auth.init().then(load));
 .starter-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .starter-head strong{font-size:16px;line-height:24px;font-weight:400}
 .starter-head small{font-size:12px;line-height:18px;color:var(--text-secondary)}
+.starter-head .starter-note{margin-right:auto}
 .targets{display:flex;gap:6px}
 .target{flex:1;min-height:44px;padding:0 4px;border:1px solid var(--border-warm);border-radius:var(--m-radius-button);background:var(--surface-input);font:inherit;font-size:14px;color:inherit;cursor:pointer}
 .target.active{border-color:var(--brand-action);background:var(--brand-light);color:var(--text-primary);font-weight:500}

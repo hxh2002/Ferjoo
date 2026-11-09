@@ -236,7 +236,7 @@ async function refresh() {
           loadWindowClosure(owner, feeding.value.id).then(value => ({ value }), cause => ({ cause }))
         ]);
         if (!current(token, owner)) return;
-        if (loadedResult.cause) error.value = loadedResult.cause?.message || '本轮设备证据读取失败，可手动诊断。';
+        if (loadedResult.cause) error.value = loadedResult.cause?.message || '本轮设备证据读取失败，请刷新重试。';
         else {
           const loaded = loadedResult.value;
           nextFeedingAt.value = loaded?.nextFeedingAt || null;
@@ -518,9 +518,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .device-cta{display:flex;align-items:center;justify-content:center;width:100%;height:60px;min-height:60px;margin:14px 0 0;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;text-decoration:none;cursor:pointer}
 .device-cta:active:not(:disabled){background:var(--brand-accent)}
 .device-cta:disabled{opacity:.6;cursor:not-allowed}
-.cta-note{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;margin:10px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}
-.cta-note .text-link{min-height:0;padding:0;color:var(--brand-action);font-size:12px;font-weight:500;text-decoration:none}
-.risk-banner{margin-top:16px;padding:12px;border-left:3px solid var(--danger-text);background:var(--danger-bg);color:var(--danger-text);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cta-note{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;margin:10px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}.risk-banner{margin-top:16px;padding:12px;border-left:3px solid var(--danger-text);background:var(--danger-bg);color:var(--danger-text);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .risk-banner a{color:inherit;font-weight:600}
 .picker-row{position:absolute;z-index:var(--m-z-raised);top:calc(100% + 8px);right:0;display:grid;gap:8px;width:min(280px,calc(100vw - 48px));max-height:min(420px,70vh);margin:0;padding:12px;overflow:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface-card);box-shadow:0 8px 24px rgba(48,37,31,.14)}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}

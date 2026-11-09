@@ -335,6 +335,8 @@ console.log('mobile device home: layout contracts plus real script-setup state t
   const diary = read('../src/views/mobile/MobileDiary.vue');
   const draggable = read('../src/components/mobile/MDraggableChart.vue');
   assert.match(home, /expansionPercent\.toFixed\(1\)/, 'device home shows expansion with one decimal');
+  assert.doesNotMatch(home, /可手动诊断/, 'home has no diagnosis entry, so the evidence error never suggests one');
+  assert.match(home, /本轮设备证据读取失败，请刷新重试。/);
   assert.match(detail, /Math\.max\(\.\.\.values\)\.toFixed\(1\)/, 'record detail peak keeps one decimal');
   assert.match(diary, /metricText\(peak, '%', 1\)/, 'diary peak keeps one decimal');
   assert.match(draggable, /toFixed\(1\)/, 'the chart tooltip rounds to one decimal');

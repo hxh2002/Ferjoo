@@ -116,8 +116,9 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); clearTimeout(settleTimer); 
 .m-wheel-picker.is-compact .m-wheel-selection { background: var(--m-wheel-selected); border-radius: 10px; }
 .m-wheel-selection { position: absolute; z-index: 0; top: var(--m-wheel-spacer, 84px); left: 0; right: 0; height: var(--m-wheel-row-height); border-radius: var(--radius-control); background: var(--surface-selected); pointer-events: none; }
 .m-wheel-fade { position: absolute; z-index: 2; left: 0; right: 0; height: var(--m-wheel-spacer, 84px); pointer-events: none; }
-.m-wheel-fade-top { top: 0; background: linear-gradient(var(--surface-page), color-mix(in srgb, var(--surface-page) 0%, transparent)); }
-.m-wheel-fade-bottom { bottom: 0; background: linear-gradient(color-mix(in srgb, var(--surface-page) 0%, transparent), var(--surface-page)); }
+/* 渐隐底色由外层用 --m-wheel-fade-bg 指定（白卡里用卡片色），默认仍是页面底色。 */
+.m-wheel-fade-top { top: 0; background: linear-gradient(var(--m-wheel-fade-bg, var(--surface-page)), color-mix(in srgb, var(--m-wheel-fade-bg, var(--surface-page)) 0%, transparent)); }
+.m-wheel-fade-bottom { bottom: 0; background: linear-gradient(color-mix(in srgb, var(--m-wheel-fade-bg, var(--surface-page)) 0%, transparent), var(--m-wheel-fade-bg, var(--surface-page))); }
 .is-disabled { opacity: .55; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .m-wheel-scroller { scroll-behavior: auto; } }
 </style>

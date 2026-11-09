@@ -129,7 +129,17 @@ async function rename() {
   const result = await perform((service) => service.rename(c.device, name.value), '设置已保存');
   if (result && current(c)) device.value = { ...device.value, name: result.name };
 }
-// 面板底部的「保存」：只有接口成功后关闭，校验或请求失败时保留面板便于修改。
+// 打开面板时从设备当前名称取草稿；取消 / 遮罩 / Esc / × 都丢弃未保存的改名。
+function openRename() {
+  name.value = device.value?.name || '';
+  renameOpen.value = true;
+}
+function closeRename() {
+  if (saving.value) return;
+  renameOpen.value = false;
+  name.value = device.value?.name || '';
+}
+// 面板底部的「保存」：只有接口成功后关闭，校验或请求失败时保留便于修改。
 async function saveRename() {
   if (saving.value) return;
   await rename();
@@ -272,7 +282,7 @@ onBeforeUnmount(() => { version += 1; });
       </section>
       <p class="group-label">设备管理</p>
       <section id="device-settings" class="m-card settings-card">
-        <button v-if="manager" type="button" class="settings-row" @click="renameOpen = true">设备名称 <span aria-hidden="true">›</span></button>
+        <button v-if="manager" type="button" class="settings-row" @click="openRename">设备名称 <span aria-hidden="true">›</span></button>
         <button type="button" class="settings-row" @click="openStarterSheet">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small><span aria-hidden="true">›</span></button>
         <RouterLink class="settings-row" :to="`/me/devices/${encodeURIComponent(deviceId)}/info`">设备信息 <span aria-hidden="true">›</span></RouterLink>
         <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备数据 <span aria-hidden="true">›</span></RouterLink>
@@ -290,11 +300,11 @@ onBeforeUnmount(() => { version += 1; });
         <form @submit.prevent="addMember"><label class="m-field">系统用户编号<input v-model="target" placeholder="例如 U26010001" maxlength="9"></label><button class="m-primary" :disabled="saving">添加成员</button></form>
       </details>
     </template>
-    <MSheet :open="renameOpen" title="修改设备名称" @close="renameOpen = false">
+    <MSheet :open="renameOpen" title="修改设备名称" @close="closeRename">
       <form class="rename-form" @submit.prevent="saveRename"><label class="rename-field">设备名称<input v-model="name" maxlength="80"></label></form>
       <template #footer>
         <div class="rename-actions">
-          <button type="button" class="rename-cancel" @click="renameOpen = false">取消</button>
+          <button type="button" class="rename-cancel" @click="closeRename">取消</button>
           <button type="button" class="rename-save" :disabled="saving" @click="saveRename">{{ saving ? '保存中…' : '保存' }}</button>
         </div>
       </template>

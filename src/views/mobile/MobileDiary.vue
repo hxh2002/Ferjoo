@@ -72,11 +72,6 @@ function rangeText(fromMs, toMs) {
     title: `${fromDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${toDate.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
   };
 }
-// 在线时长与采样数只作为文字摘要留在一级页面，曲线统一放进各轮次与数据明细。
-function onlineText(fromMs, toMs) {
-  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) return '不足 1 分钟';
-  return durationText(fromMs, toMs);
-}
 function ratioText(value) {
   return value === 'deep_reset' ? '大比例刷新' : value || '比例未记录';
 }
@@ -91,7 +86,6 @@ const onRecordsPage = () => route.name === 'mobile-diary';
 const selectedDay = computed(() => query.value.from);
 const page = computed(() => Number(query.value.page) || 1);
 const selectedStarterId = computed(() => query.value.starter || '');
-const selectedStarterName = computed(() => starters.value.find((item) => item.id === selectedStarterId.value)?.name || '');
 const todayKey = computed(() => recentRecordDays().at(-1));
 const isToday = computed(() => selectedDay.value === todayKey.value);
 const dayHeading = computed(() => {
@@ -225,7 +219,7 @@ function observationItem(row) {
     to: recordsDetailTarget(row, returnTo())
   };
 }
-// 保留各项时间顺序，再按发酵轮次、观察记录分组展示；设备采样统一进入本日设备数据。
+// 保留各项时间顺序，再按发酵轮次、观察记录分组展示；设备采样统一收进「本日全部数据」入口。
 const timeline = computed(() => {
   if (!model.value) return [];
   const now = Date.now();
@@ -237,22 +231,15 @@ const roundItems = computed(() => timeline.value
   .filter((item) => item.kind === 'round')
   .map((item, index) => ({ ...item, index: index + 1 })));
 const observationItems = computed(() => timeline.value.filter((item) => item.kind === 'observation'));
-// 本日设备数据在一级页面只保留在线时长与采样数；曲线按设备与轮次分别展示。
+// 本日设备摘要只用于空态判断与入口目标；一级页面不再逐台列出。
 const deviceBlocks = computed(() => {
-  const rows = (model.value?.devices || []).filter((row) => row.samples?.length);
-  return rows.map((row, index) => {
-    const times = row.samples.map((sample) => Date.parse(sample.recorded_at)).filter(Number.isFinite).sort((a, b) => a - b);
-    return {
-      id: row.id,
-      // 页面已限定单只酵种，标题直接写酵种名；多设备时再补序号区分。
-      name: rows.length > 1 ? `${selectedStarterName.value || '酵种'} · 设备 ${index + 1}` : selectedStarterName.value || '设备',
-      count: row.samples.length,
-      online: onlineText(times[0], times.at(-1)),
-      partial: !!row.partial,
-      to: recordsDetailTarget(row, returnTo())
-    };
-  });
+  return (model.value?.devices || [])
+    .filter((row) => row.samples?.length)
+    .map((row) => ({ id: row.id, count: row.samples.length, partial: !!row.partial, to: recordsDetailTarget(row, returnTo()) }));
 });
+// 「本日全部数据」入口：采样最多的设备（并列取靠前者）；设备明细仍保留给空态判断。
+const dayDataBlock = computed(() => deviceBlocks.value.reduce((best, item) => (!best || item.count > best.count ? item : best), null));
+const dayDataPartial = computed(() => deviceBlocks.value.some((item) => item.partial));
 // 轮次摘要复用单日采样，按设备归并后裁到本轮窗口。
 const deviceSamples = computed(() => {
   const map = new Map();
@@ -590,18 +577,10 @@ onUnmounted(() => {
               </span>
             </RouterLink>
           </section>
-          <section v-if="deviceBlocks.length" class="record-group chart-group">
-            <h2 class="record-group-title">
-              <span class="group-mark chart-mark" aria-hidden="true"></span>本日设备数据
-            </h2>
-            <RouterLink v-for="item in deviceBlocks" :key="item.id" class="m-list-row record-row device-row" :to="item.to">
-              <span class="record-main">
-                <span class="record-head"><strong class="record-title">{{ item.name }}</strong></span>
-                <small class="record-sub">在线 {{ item.online }} · {{ item.count }} 条采样</small>
-                <small v-if="item.partial" class="record-note">部分采样未完整加载，明细只代表已读取数据。</small>
-              </span>
-              <span class="record-side"><span class="record-go" aria-hidden="true">›</span></span>
-            </RouterLink>
+          <!-- 单日设备数据只留一个入口：多设备时进入采样最多的那台，在线时长与采样数在详情页里看。 -->
+          <section v-if="dayDataBlock" class="record-group day-data-group">
+            <RouterLink class="day-data-pill" :to="dayDataBlock.to">本日全部数据 ›</RouterLink>
+            <small v-if="dayDataPartial" class="day-data-note">部分采样未完整加载，明细只代表已读取数据。</small>
           </section>
           <section v-if="observationItems.length" class="record-group observation-group">
             <h2 class="record-group-title"><span class="group-mark observation-mark" aria-hidden="true"></span>观察记录<small class="group-note">{{ observationItems.length }} 条</small></h2>
@@ -639,11 +618,13 @@ onUnmounted(() => {
 /* 画板 370:8446：月份 16px / 400 / #30251f，比日期标题轻一档。 */
 .month-label{margin:0;font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
 /* 画板 370:10344：295×178 白卡，圆角 14，阴影 0 3 12 rgba(77,46,26,.12)，选中区 263×38、var(--m-wheel-selected)。 */
-.month-wheels{position:relative;display:grid;grid-template-columns:1fr 1fr;column-gap:35px;margin:0 0 12px;padding:8px 16px 26px;border-radius:14px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.12)}
+/* 滚轮上下渐隐默认用页面底色，放进白卡会盖出一块米色；这里改成卡片底色。
+   「完成」放回文档流单独占一行，并抬到滚轮层序之上，不再被滚轮渐隐遮住。 */
+.month-wheels{--m-wheel-fade-bg:var(--surface-card);position:relative;isolation:isolate;display:grid;grid-template-columns:1fr 1fr;column-gap:35px;margin:0 0 12px;padding:8px 16px 3px;border-radius:14px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.12)}
 .month-wheel{display:grid;gap:0;min-width:0}
 .month-wheel-caption{display:block;height:20px;font-size:12px;line-height:20px;font-weight:400;color:var(--text-secondary);text-align:center}
 .month-wheel :deep(.m-wheel-picker){height:140px}
-.month-wheel-done{position:absolute;right:16px;bottom:3px;min-width:64px;height:26px;padding:0;border:0;background:transparent;color:var(--m-text-link);font:inherit;font-size:13px;line-height:26px;font-weight:500;text-align:center;cursor:pointer}
+.month-wheel-done{position:relative;z-index:3;grid-column:1 / -1;justify-self:end;margin-top:2px;min-width:64px;height:26px;padding:0;border:0;background:transparent;color:var(--m-text-link);font:inherit;font-size:13px;line-height:26px;font-weight:500;text-align:center;cursor:pointer}
 .date-calendar{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
 .date-calendar img{display:block;width:44px;height:44px}
 .day-summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 0 12px}
@@ -703,16 +684,17 @@ onUnmounted(() => {
 .calendar-nav button{min-height:36px;padding:0 12px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:transparent;color:var(--m-text-link);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .record-group{display:grid;gap:8px;margin-top:16px;min-width:0}
 .record-group-title{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--text-sm);line-height:21px;font-weight:500;color:var(--text-secondary)}
+.day-data-group{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.day-data-pill{display:inline-flex;align-items:center;min-height:32px;padding:0 14px;border-radius:var(--radius-pill);background:var(--m-disc);color:var(--m-text-link);font-size:13px;line-height:20px;font-weight:500;text-decoration:none}
+.day-data-note{min-width:0;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
 .group-mark{width:3px;height:12px;border-radius:2px;background:var(--brand-action);flex:none}
-.chart-mark{background:var(--chart-height)}.observation-mark{background:var(--chart-humidity)}
+.observation-mark{background:var(--chart-humidity)}
 .group-note{margin-left:auto;font-size:var(--text-xs);line-height:18px;font-weight:500;color:var(--text-secondary);font-variant-numeric:tabular-nums}
 /* 日记一级页按 370:8290 / 370:8502 只有轮次摘要卡，曲线在详情页；这里不再保留图表容器样式。 */
 .record-main{display:grid;gap:.25rem;min-width:0;flex:1}
 .record-head{display:flex;align-items:center;gap:.25rem;min-width:0}
 .record-row .record-title{font-size:var(--text-md);font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
-.record-row .record-sub,.record-row .record-note{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px}
-.record-row .record-sub{font-size:var(--text-xs);color:var(--text-secondary)}
-.record-row .record-note{font-size:var(--text-xs);color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.record-row .record-sub{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px;font-size:var(--text-xs);color:var(--text-secondary)}
 .record-side{display:flex;align-items:center;gap:.3rem;flex:none}
 .record-go{font-size:var(--text-md);line-height:1;color:var(--text-muted)}
 .more-row{width:100%;min-height:44px;margin-top:8px;border:1px solid var(--border-warm);border-radius:var(--m-radius-bubble);background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);font-weight:500;cursor:pointer}

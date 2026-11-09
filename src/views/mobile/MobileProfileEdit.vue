@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { removeAvatar, updateProfile, uploadAvatar } from '../../services/auth.service.js';
 import { GENDER_OPTIONS, MOBILE_GENDER_OPTIONS, optionLabel } from '../../lib/profile-options.js';
@@ -11,6 +11,8 @@ import MToast from '../../components/mobile/MToast.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
 
 const auth = useAuth();
+// 与邀请码 / 修改密码页一致：顶栏只留「<」返回键；大标题由本页自己的 h1 提供（路由 meta.pageOwnTitle 已隐藏顶栏 h1）。
+const headerTone = inject('mobileHeaderTone', null);
 const name = ref('');
 const gender = ref('');
 const identity = ref('');
@@ -65,6 +67,7 @@ function confirmBirth() {
 }
 
 onMounted(async () => {
+  if (headerTone) headerTone.value = 'settings';
   await auth.init();
   const profile = auth.profile.value || {};
   name.value = profile.display_name || '';
@@ -73,6 +76,8 @@ onMounted(async () => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(profile.birth_date || '');
   if (match) { birth.value = { year: match[1], month: match[2], day: match[3] }; birthValue.value = true; }
 });
+
+onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 
 async function save() {
   if (busy.value || !auth.user.value) return;

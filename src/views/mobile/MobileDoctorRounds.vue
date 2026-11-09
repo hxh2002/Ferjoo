@@ -59,6 +59,10 @@ function chooseMonth(year = day.value.slice(0, 4), month = day.value.slice(5, 7)
   const next = validLocalDay(preferred) && Number(preferred.slice(-2)) <= last ? preferred : candidate;
   chooseDay(next > localDayKey() ? localDayKey() : next < earliestDay.value ? earliestDay.value : next, false);
 }
+// 「完成」只收起年月滚轮、回到日历；滚轮已经把所选年月写进 route.query.date，这里不再改动。
+function finishMonth() {
+  picker.value = 'day';
+}
 
 async function load() {
   const token = ++generation;
@@ -106,9 +110,17 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
     </div>
     <MCalendar v-if="picker === 'day'" :model-value="day" :min="earliestDay" :max="localDayKey()" @update:model-value="chooseDay" />
     <button v-if="picker === 'day'" type="button" class="month-entry" @click="picker = 'month'">选择年月</button>
+    <!-- 370:18946 年月 / 双列滚轮示意：与日记页同款，右下角「完成 / 收起年月」。 -->
     <div v-if="picker === 'month'" class="month-wheels">
-      <MWheelPicker :model-value="day.slice(0, 4)" :options="yearOptions" label="年份" @update:model-value="chooseMonth($event, day.slice(5, 7))" />
-      <MWheelPicker :model-value="day.slice(5, 7)" :options="monthOptions" label="月份" @update:model-value="chooseMonth(day.slice(0, 4), $event)" />
+      <div class="month-wheel">
+        <span class="month-wheel-caption">年份</span>
+        <MWheelPicker :model-value="day.slice(0, 4)" :options="yearOptions" label="年份" :row-height="30" :height="140" @update:model-value="chooseMonth($event, day.slice(5, 7))" />
+      </div>
+      <div class="month-wheel">
+        <span class="month-wheel-caption">月份</span>
+        <MWheelPicker :model-value="day.slice(5, 7)" :options="monthOptions" label="月份" :row-height="30" :height="140" @update:model-value="chooseMonth(day.slice(0, 4), $event)" />
+      </div>
+      <button type="button" class="month-wheel-done" @click="finishMonth">完成</button>
     </div>
     <div v-if="loading" class="m-skeleton" role="status" aria-label="正在读取喂养记录"><span></span><span></span><span></span></div>
     <p v-else-if="error" class="m-error" role="alert">{{ error }} <button type="button" class="retry" @click="load">重试</button></p>
@@ -145,7 +157,12 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 .day-picker,.month-entry,.retry{min-height:34px;padding:0 12px;border:1px solid var(--border-warm);border-radius:17px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px}
 .day-picker{width:115px;height:34px;padding:0 10px;border:0;border-radius:17px;background:var(--m-date-capsule-bg);color:var(--m-date-capsule-text);font-size:13px}
 .month-entry{margin:8px 0 12px}
-.month-wheels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* 370:18946：卡 295×178、圆角 14；与日记页 .month-wheels 逐条同款（渐隐用卡片底色，「完成」在文档流里单独一行、压在渐隐之上）。 */
+.month-wheels{--m-wheel-fade-bg:var(--surface-card);position:relative;isolation:isolate;display:grid;grid-template-columns:1fr 1fr;column-gap:35px;margin:0 0 12px;padding:8px 16px 3px;border-radius:14px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.12)}
+.month-wheel{display:grid;gap:0;min-width:0}
+.month-wheel-caption{display:block;height:20px;font-size:12px;line-height:20px;font-weight:400;color:var(--text-secondary);text-align:center}
+.month-wheel :deep(.m-wheel-picker){height:140px}
+.month-wheel-done{position:relative;z-index:3;grid-column:1 / -1;justify-self:end;margin-top:2px;min-width:64px;height:26px;padding:0;border:0;background:transparent;color:var(--m-text-link);font:inherit;font-size:13px;line-height:26px;font-weight:500;text-align:center;cursor:pointer}
 .empty{margin:14px 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
 /* 370:17647：轮次卡 327×76、圆角 18、无边框无阴影，内边距 12 16；
    标题 x=40（卡内 16）、16/22 起于 y=272，次行 12/17 起于 y=302（间距 8），chevron 20×31 居中。

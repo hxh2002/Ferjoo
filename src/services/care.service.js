@@ -73,11 +73,11 @@ function record(row) {
 export function listStarters({ userId } = {}) {
   const key = readCacheKey(['care', 'starters', userId ?? 'all']);
   return cachedRead(key, () => run(async () => {
-    let query = requireClient().from('starters').select('id, name').order('created_at', { ascending: false });
+    let query = requireClient().from('starters').select('id, name, created_at').order('created_at', { ascending: false });
     if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map(({ id, name }) => ({ id, name }));
+    return (data || []).map(({ id, name, created_at }) => ({ id, name, created_at }));
   }), { ttl: READ_TTL.starter });
 }
 

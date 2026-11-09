@@ -6,8 +6,9 @@ export const GENDER_OPTIONS = [
   { value: 'secret', label: '保密' }
 ];
 
-// 移动端只提供三种新选项；已有 other / secret 仍由 GENDER_OPTIONS 回显。
-export const MOBILE_GENDER_OPTIONS = GENDER_OPTIONS.filter((item) => ['', 'male', 'female'].includes(item.value));
+// 移动端性别面板只提供「男 / 女」（设计 182:872，没有「未设置」行）；
+// 已有的空值 / other / secret 仍由 GENDER_OPTIONS 回显，页面对空值显示「请选择性别」占位。
+export const MOBILE_GENDER_OPTIONS = GENDER_OPTIONS.filter((item) => ['male', 'female'].includes(item.value));
 
 export const IDENTITY_OPTIONS = [
   { value: '', label: '未设置' },
