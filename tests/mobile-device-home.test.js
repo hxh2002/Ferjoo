@@ -30,7 +30,7 @@ assert.match(source, /结束当前发酵/);
 assert.match(source, /确认结束/);
 assert.match(source, /历史记录已保存/);
 assert.match(source, /\/me\/devices\?bind=1/);
-assert.match(source, /mode: 'diagnosis'/);
+assert.doesNotMatch(source, /诊断本轮|诊断需 3 步/, 'diagnosis stays in diary flows rather than the home CTA');
 assert.match(source, /linkStarterDevice/);
 assert.doesNotMatch(source, /SeriesChart/, 'charts move to the detail page, not the device home');
 // 酵种弹层只有 280px：.starter-choice 既是 grid 子项又是 flex 容器，两层都要 min-width:0
@@ -146,11 +146,10 @@ assert.match(home, /本次喂养/);
 assert.match(home, /当前数据/);
 assert.match(home, /1 : 2 : 2/, 'feed summary restates the ratio');
 assert.match(home, /结束当前发酵/, 'an active round can be ended straight from the home page');
-assert.match(home, /诊断本轮/);
+assert.doesNotMatch(home, /诊断本轮|诊断需 3 步/);
 assert.match(home, /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(home, /传感器异常/, 'the latest sensor-error sample is surfaced as an explicit jar state');
-assert.match(home, /未计入膨胀率/, 'data note explains which samples are excluded');
-assert.match(home, /段超过 40 分钟无采样/, 'data note states the size of measurement gaps');
+assert.doesNotMatch(home, /未计入膨胀率|段超过 40 分钟无采样/, 'technical sample-quality details stay off the home page');
 assert.doesNotMatch(home, /高度预约/, 'height alert entry is no longer on the home page');
 assert.doesNotMatch(home, /\/me\/notifications/, 'device home no longer carries notification settings links');
 assert.doesNotMatch(home, /开启云端推送/, 'device home no longer embeds push setup');
@@ -161,8 +160,11 @@ assert.doesNotMatch(home, /<h1>今日<\/h1>/, 'the entry screen no longer labels
 const feedingSource = await readFile(new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url), 'utf8');
 assert.match(feedingSource, /高度预约/, 'height alert entry is discoverable on the feeding page');
 assert.match(feedingSource, /\/me\/notifications/, 'feeding page delegates alert thresholds to notification settings');
-// 进入喂养页就是要记下一条：已确认的草稿自动变成空表单，不再提供重复入口。
-assert.doesNotMatch(feedingSource, /startNext\(starterId \|\| draft\.value\.starterId, \{ quiet: true \}\)/, 'a confirmed feeding stays on screen until the user starts the next one');
+// 同次访问保留保存反馈；实际进入带 starter 的路由才清空已确认内容，待确认草稿仍锁定。
+assert.match(feedingSource, /onMounted\(\(\) => resetConfirmedOnEntry\(\)\)/);
+assert.match(feedingSource, /onBeforeRouteUpdate\(\(to\) => \{ resetConfirmedOnEntry\(to\.query\.starter\); \}\)/);
+assert.match(feedingSource, /if \(starterId && draft\.value\.confirmed\) startNext\(starterId, \{ quiet: true \}\)/);
+assert.doesNotMatch(feedingSource, /watch\([^)]*startNext/, 'reactive draft changes must not auto-start another feeding');
 assert.doesNotMatch(feedingSource, /class="m-primary" to="\/device"/, 'the feeding page relies on the header back button instead of a duplicate device button');
 assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the device page instead of duplicating it here');
 
@@ -220,7 +222,7 @@ assert.equal(h.state.closed.detail, 'fallen', 'manual end records the selected r
 assert.equal(h.vm.summary.windowStatus, 'closed', 'manual end closes the round immediately');
 const closedHtml = await h.html();
 assert.match(closedHtml, /已结束/);
-assert.match(closedHtml, /结束原因：峰值后回落/, 'closed round keeps the reason in a dedicated line');
+assert.doesNotMatch(closedHtml, /结束原因/, 'the reason stays in record detail instead of cluttering home');
 assert.match(closedHtml, /历史记录已保存/, 'saving the history raises the toast');
 assert.match(closedHtml, /本次发酵已结束/);
 assert.match(closedHtml, /class="device-cta"/);

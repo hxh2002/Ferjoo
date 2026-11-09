@@ -53,6 +53,7 @@ const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
 // 登录 / 注册的标题由页面自身提供（28 / 500 / 36），顶栏只留返回键，避免同一屏出现两个标题。
 const isAuthPage = computed(() => ['mobile-login', 'mobile-register'].includes(route.name));
+const hideTopbarTitle = computed(() => isAuthPage.value || route.meta.pageOwnTitle === true);
 // App.vue 会把共享账号页再包一层 MobileShell；这些页现在也挂在 MobileShell 路由下，
 // 内层实例检测到祖先时只转发路由出口，避免同一屏出现两套顶栏与底栏。
 const shellNested = inject('mobileShellNested', false);
@@ -149,7 +150,7 @@ function go(path) {
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span v-if="!navTone">返回</span>
       </button>
-      <h1 v-if="!isAuthPage">{{ title }}</h1>
+      <h1 v-if="!hideTopbarTitle">{{ title }}</h1>
       <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
     </header>
     <main class="mobile-main">

@@ -220,7 +220,7 @@ function observationItem(row) {
     to: recordsDetailTarget(row, returnTo())
   };
 }
-// 保留各项时间顺序，再按发酵轮次、观察记录分组展示；设备采样统一进入单日数据。
+// 保留各项时间顺序，再按发酵轮次、观察记录分组展示；设备采样统一进入本日设备数据。
 const timeline = computed(() => {
   if (!model.value) return [];
   const now = Date.now();
@@ -232,7 +232,7 @@ const roundItems = computed(() => timeline.value
   .filter((item) => item.kind === 'round')
   .map((item, index) => ({ ...item, index: index + 1 })));
 const observationItems = computed(() => timeline.value.filter((item) => item.kind === 'observation'));
-// 单日数据在一级页面只保留在线时长与采样数；曲线按设备与轮次分别展示。
+// 本日设备数据在一级页面只保留在线时长与采样数；曲线按设备与轮次分别展示。
 const deviceBlocks = computed(() => {
   const rows = (model.value?.devices || []).filter((row) => row.samples?.length);
   return rows.map((row, index) => {
@@ -583,7 +583,7 @@ onUnmounted(() => {
           </section>
           <section v-if="deviceBlocks.length" class="record-group chart-group">
             <h2 class="record-group-title">
-              <span class="group-mark chart-mark" aria-hidden="true"></span>单日数据
+              <span class="group-mark chart-mark" aria-hidden="true"></span>本日设备数据
             </h2>
             <RouterLink v-for="item in deviceBlocks" :key="item.id" class="m-list-row record-row device-row" :to="item.to">
               <span class="record-main">

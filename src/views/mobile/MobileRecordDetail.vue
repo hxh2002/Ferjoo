@@ -126,6 +126,13 @@ const peakExpansion = computed(() => {
   const values = (roundCharts.value?.expansion || []).map((point) => point.v).filter((value) => Number.isFinite(value));
   return values.length ? Math.max(...values).toFixed(1) : '';
 });
+const deviceTrendTarget = computed(() => {
+  const deviceId = evidence.value?.link?.device_id;
+  if (!deviceId || !record.value) return null;
+  const date = new Date(record.value.occurred_at);
+  const day = Number.isFinite(date.getTime()) ? `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` : '';
+  return { path: `/devices/${encodeURIComponent(deviceId)}/trend`, query: { ...(day ? { day } : {}), starter: record.value.starter_id } };
+});
 const evidenceText = computed(() => {
   const value = summary.value;
   if (!value) return '';
@@ -200,8 +207,11 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
         <strong class="feed-value">{{ durationText }}</strong>
       </span>
     </section>
-    <section v-if="roundCharts" class="metric-stack" aria-label="本轮曲线">
-      <div v-if="roundCharts.expansion" class="metric-chart is-rise">
+    <section v-if="record" class="round-curves" aria-label="本轮曲线">
+      <h2 class="curve-title">本轮曲线</h2>
+      <p v-if="hint || evidenceError" class="window-hint">{{ hint || evidenceError }}</p>
+      <div v-if="roundCharts" class="metric-stack">
+        <div v-if="roundCharts.expansion" class="metric-chart is-rise">
         <MDraggableChart label="膨胀率" caption="最高" :value-text="peakExpansion ? `${peakExpansion}%` : ''" unit="%" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
       </div>
       <div v-if="roundCharts.temperature" class="metric-chart is-temp">
@@ -209,6 +219,11 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
       </div>
       <div v-if="roundCharts.humidity" class="metric-chart is-humidity">
         <MDraggableChart label="湿度" caption="平均" :value-text="averageText(roundCharts.humidity, 0, '%')" unit="%" color="var(--brand-primary)" :height="126" :points="roundCharts.humidity" :from="roundCharts.from" :to="roundCharts.to" />
+      </div>
+      </div>
+      <div v-else class="curve-empty">
+        <p>本轮发酵时间窗内没有有效设备采样，暂无曲线；喂养记录仍会保留。</p>
+        <RouterLink v-if="deviceTrendTarget" class="curve-link" :to="deviceTrendTarget">查看当日设备数据</RouterLink>
       </div>
     </section>
     <details v-if="record" class="detail-more">
@@ -254,7 +269,12 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
 .disc img{display:block}
 .feed-label{font-size:14px;line-height:21px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .feed-value{font-size:16px;line-height:24px;font-weight:500}
+.round-curves{display:grid;gap:12px}
+.curve-title{margin:0;font-size:14px;line-height:21px;font-weight:500;color:var(--text-secondary)}
 .metric-stack{display:grid;gap:12px}
+.curve-empty{display:grid;gap:8px;padding:16px;border-radius:var(--radius-card);background:var(--surface-card);color:var(--text-secondary);font-size:13px;line-height:19px}
+.curve-empty p{margin:0}
+.curve-link{color:var(--brand-action);font-weight:500;text-decoration:none}
 .metric-chart{padding:12px 16px 16px;border:0;border-radius:var(--radius-card);background:var(--m-chart-rise)}
 .metric-chart.is-temp{background:var(--m-chart-warm)}
 .metric-chart.is-humidity{background:var(--m-chart-pale)}

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useAuth } from '../../composables/useAuth.js';
 import { removeAvatar, updateProfile, uploadAvatar } from '../../services/auth.service.js';
-import { GENDER_OPTIONS, IDENTITY_OPTIONS } from '../../lib/profile-options.js';
+import { GENDER_OPTIONS, MOBILE_GENDER_OPTIONS, optionLabel } from '../../lib/profile-options.js';
 import MActionSheet from '../../components/mobile/MActionSheet.vue';
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
 import MRadioCard from '../../components/mobile/MRadioCard.vue';
@@ -134,7 +134,7 @@ async function confirmRemove() {
       </label>
       <div class="field">
         <span>性别</span>
-        <button type="button" class="select" @click="sheet = 'gender'"><span :class="{ placeholder: !gender }">{{ GENDER_OPTIONS.find((item) => item.value === gender)?.label || '请选择性别' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
+        <button type="button" class="select" @click="sheet = 'gender'"><span :class="{ placeholder: !gender }">{{ gender ? optionLabel(GENDER_OPTIONS, gender) : '请选择性别' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
       </div>
       <div class="field">
         <span>出生日期</span>
@@ -147,7 +147,7 @@ async function confirmRemove() {
     <MActionSheet :open="avatarOpen" title="更换头像" :actions="[{ value: 'camera', label: '拍照' }, { value: 'library', label: '从相册选择' }, { value: 'remove', label: '移除', danger: true }]" @close="avatarOpen = false" @select="(value) => value === 'remove' ? (avatarOpen = false, removeOpen = true) : pickAvatar(value === 'camera')" />
     <MConfirmDialog :open="removeOpen" danger title="移除头像" message="移除后资料页会显示名字首字。" confirm-label="移除" @cancel="removeOpen = false" @confirm="confirmRemove" />
     <MSheet :open="sheet === 'gender'" title="性别" @close="sheet = ''">
-      <MRadioCard :model-value="gender" :options="GENDER_OPTIONS" label="性别" @update:model-value="gender = $event; sheet = ''" />
+      <MRadioCard :model-value="gender" :options="MOBILE_GENDER_OPTIONS" label="性别" marker="end" @update:model-value="gender = $event; sheet = ''" />
     </MSheet>
     <MSheet :open="sheet === 'birth'" title="出生日期" @close="sheet = ''">
       <div class="wheels">

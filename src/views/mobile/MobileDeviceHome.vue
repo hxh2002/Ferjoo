@@ -12,7 +12,7 @@ import { loadFeedingEvidence, summarizeFeedingMeasurements } from '../../service
 import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentation-window.service.js';
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
-import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
+import { feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.js';
 
 import { guestLoginTarget, guestRegisterTarget, isAuthPending } from '../../lib/mobile-guest.js';
@@ -123,12 +123,6 @@ const roundElapsed = computed(() => {
 });
 const state = computed(() => summary.value ? roundState(summary.value) : null);
 const windowActive = computed(() => !!summary.value?.windowActive);
-const endReasonText = computed(() => {
-  const value = summary.value;
-  if (value?.windowStatus !== 'closed') return '';
-  if (value.windowEndReason === 'next_feeding') return '下一次喂养';
-  return CLOSE_REASON_LABELS[closure.value?.detail] || '手动结束';
-});
 // 状态按最近一次采样描述；异常与休眠要单独说清，避免把设备问题读成发酵结束。
 const jarStatus = computed(() => {
   if (!deviceId.value) return { tone: 'none', label: '未选择酵种罐', detail: '点按选择设备' };
@@ -142,20 +136,10 @@ const jarStatus = computed(() => {
   if (Number.isFinite(at) && now.value - at <= FRESH_MS) return { tone: 'ok', label: '设备已连接', detail: `最近更新 ${relative(last.recorded_at)}` };
   return { tone: 'warn', label: '断连', detail: `数据延迟 · 保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
 });
-// 被排除的样本和断档要说清楚，否则用户会把缺口误读成发酵停止。
-const dataNote = computed(() => {
-  const rows = chartRows.value;
-  if (!rows.length) return '';
-  const excluded = rows.filter((row) => row.sensor_error || (row.mode && row.mode !== 'fer')).length;
-  let gaps = 0;
-  for (let i = 1; i < rows.length; i += 1) if (Date.parse(rows[i].recorded_at) - Date.parse(rows[i - 1].recorded_at) > FRESH_MS) gaps += 1;
-  return [excluded ? `${excluded} 条休眠/异常样本未计入膨胀率` : '', gaps ? `${gaps} 段超过 40 分钟无采样` : '', summary.value?.dataQuality === 'insufficient' ? '采样不足，当前数字不是实时值' : ''].filter(Boolean).join('；');
-});
 const detailTarget = computed(() => ({
   path: `/devices/${encodeURIComponent(deviceId.value)}/trend`,
   query: { ...(starterId.value ? { starter: starterId.value } : {}), day: localDay(now.value) }
 }));
-const diagnosisTarget = computed(() => ({ path: '/checkin', query: { ...(starterId.value ? { starter: starterId.value } : {}), ...(feeding.value ? { feeding: feeding.value.id, mode: 'diagnosis' } : {}) } }));
 const feedTarget = computed(() => ({ path: '/feeding', query: starterId.value ? { starter: starterId.value } : {} }));
 
 function localDay(value) {
@@ -421,8 +405,6 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
         <div class="feed-empty-copy"><strong>还没有开始新一轮</strong><p>记录一次喂养后，本轮会从喂养时间开始。</p></div>
         <RouterLink class="feed-empty-action" :to="feedTarget">记录喂养</RouterLink>
       </section>
-      <p v-if="endReasonText" class="round-note">结束原因：{{ endReasonText }}</p>
-
       <div class="section-head">
         <p class="section-label">当前数据</p>
         <RouterLink v-if="deviceId" class="detail-link" :to="detailTarget">详情</RouterLink>
@@ -444,13 +426,10 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
           <span class="metric-label">湿度</span>
         </article>
       </section>
-      <p v-if="dataNote" class="data-note">{{ dataNote }}</p>
-
       <p v-if="closeError" class="m-error" role="alert">{{ closeError }}</p>
       <button v-if="windowActive" type="button" class="device-cta" :disabled="closing" @click="confirmOpen = true">结束当前发酵</button>
       <RouterLink v-else class="device-cta" :to="feedTarget">喂养</RouterLink>
-      <p v-if="feeding" class="cta-note"><RouterLink class="text-link" :to="diagnosisTarget">诊断本轮</RouterLink><span>诊断需 3 步，只生成建议。</span></p>
-      <p v-else class="cta-note"><span>记录喂养后，本轮发酵会自动开始计时。</span></p>
+      <p v-if="!feeding" class="cta-note"><span>记录喂养后，本轮发酵会自动开始计时。</span></p>
 
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/diary/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
 
@@ -472,8 +451,6 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
    这里用高优先级别名写回，并把罐体与状态行之间留 12，让帽檐不再侵入状态文字。 */
 .mobile-area .mobile-main .m-page.device-page > .jar-status{margin-block:8px 0}
 .mobile-area .mobile-main .m-page.device-page > .jar-stage{margin-block:12px 0}
-.mobile-area .mobile-main .m-page.device-page > .round-note,
-.mobile-area .mobile-main .m-page.device-page > .data-note{margin-block:8px 0}
 .mobile-area .mobile-main .m-page.device-page > .cta-note{margin-block:10px 0}
 .mobile-area .mobile-main .m-page.device-page > .risk-banner{margin-block:16px 0}
 .device-head{position:relative;z-index:calc(var(--m-z-header) + 2);display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px}
@@ -532,7 +509,6 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .feed-empty-copy p{margin:0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .feed-empty-action{flex:none;min-height:32px;padding:0 12px;border-radius:16px;background:var(--brand-light);color:var(--text-primary);font-size:13px;font-weight:500;text-decoration:none;display:inline-flex;align-items:center}
 .jojo-empty{width:52px;height:52px}
-.round-note{margin:8px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .metric-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:3px 0 0;padding:18px 0;border-radius:24px}
 .metric{display:grid;justify-items:start;gap:2px;min-width:0;height:116px;padding:10px 12px;border-radius:20px;background:var(--m-metric-soft)}
 .metric[data-level="2"]{background:var(--m-metric-mid)}
@@ -540,7 +516,6 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .metric .disc{width:30px;height:30px;background:rgba(255,176,90,.16)}
 .metric strong{margin-top:8px;font-size:18px;line-height:26px;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
 .metric-label{font-size:14px;line-height:21px;color:var(--text-secondary)}
-.data-note{margin:8px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}
 .device-cta{display:flex;align-items:center;justify-content:center;width:100%;height:60px;min-height:60px;margin:14px 0 0;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;text-decoration:none;cursor:pointer}
 .device-cta:active:not(:disabled){background:var(--brand-accent)}
 .device-cta:disabled{opacity:.6;cursor:not-allowed}

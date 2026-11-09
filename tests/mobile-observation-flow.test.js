@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { effectScope, ref } from 'vue';
+import { readFile } from 'node:fs/promises';
+import { parse } from '@vue/compiler-sfc';
 import { emptyCheckin, generateMobileReport, usableDeviceSample, storeSessionReport, loadSessionReport } from '../src/services/mobile-diagnosis.service.js';
 import { useCheckinDraft, readDraft, draftStorageKey } from '../src/composables/useCheckinDraft.js';
 
@@ -47,4 +49,12 @@ assert.equal(usableDeviceSample({ ...sample, sensor_error: true }, link, now), f
 assert.equal(usableDeviceSample({ ...sample, mode: 'sleep' }, link, now), false);
 assert.equal(usableDeviceSample(sample, { ...link, active_from: new Date(now).toISOString() }, now), false);
 assert.equal(usableDeviceSample(sample, link, now + 41 * 60000), false);
+const checkinSource = await readFile(new URL('../src/views/mobile/MobileCheckin.vue', import.meta.url), 'utf8');
+assert.deepEqual(parse(checkinSource).errors, []);
+const selectSafetyBody = /function selectSafety\(key, value\) \{([\s\S]*?)\n\}/.exec(checkinSource)?.[1] || '';
+assert.ok(selectSafetyBody, 'selectSafety remains available');
+assert.doesNotMatch(selectSafetyBody, /draft\.value\.step\s*=\s*3/, 'risk selection must not navigate to review');
+assert.match(checkinSource, /step\.value === 1 && skipsBackground\.value \? 3/, 'explicit next retains safety-priority navigation');
+assert.match(checkinSource, /安全观察需要优先核对/);
+assert.match(checkinSource, /已填写的答案会保留/);
 console.log('mobile observation flow: OK');

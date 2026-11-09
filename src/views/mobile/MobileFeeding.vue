@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onScopeDispose, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
+import { onBeforeRouteUpdate, useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { saveFeeding } from '../../services/care.service.js';
@@ -202,7 +202,7 @@ watch([accountId, () => route.query.starter], () => {
   // 时间默认取当前时刻：草稿不再沿用上次进入时保存的旧时间，避免用户误提交错时间。
   if (!locked.value) draft.value.occurredAt = localDateTimeValue();
   const starterId = typeof route.query.starter === 'string' ? route.query.starter : '';
-  // 已保存的横幅留到用户点「开始下一条」，刷新后仍停在 saved，不自动清掉。
+  // 同一次访问保留已保存横幅；真正进入 starter 路由时由导航钩子开启下一条。
   if (!draft.value.confirmed && !locked.value && starterId && starterId !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId });
     else draft.value.starterId = starterId;
@@ -225,7 +225,7 @@ function validate() {
   return '';
 }
 function startNext(starterId = draft.value.starterId, { quiet = false } = {}) {
-  if (saving.value || !draft.value.confirmed) return;
+  if (saving.value || !draft.value.confirmed) return false;
   try {
     const requestId = randomUuid();
     replace({ starterId, occurredAt: localDateTimeValue(), ratio: '', requestId, heightAlert: '' });
@@ -235,8 +235,16 @@ function startNext(starterId = draft.value.starterId, { quiet = false } = {}) {
     alertNotice.value = '';
     status.value = quiet ? '' : '已开始下一条喂养记录，请填写本次事实。';
     error.value = '';
-  } catch (cause) { error.value = cause.message; }
+    return true;
+  } catch (cause) { error.value = cause.message; return false; }
 }
+function resetConfirmedOnEntry(starter = route.query.starter) {
+  const starterId = typeof starter === 'string' ? starter : '';
+  // 从设备页进入就是记下一轮；待确认提交绝不能被新入口覆盖。
+  if (starterId && draft.value.confirmed) startNext(starterId, { quiet: true });
+}
+onMounted(() => resetConfirmedOnEntry());
+onBeforeRouteUpdate((to) => { resetConfirmedOnEntry(to.query.starter); });
 async function save() {
   if (saving.value || draft.value.confirmed) return;
   if (!user.value) { error.value = '保存喂养需要登录；草稿已在本机保留。'; return; }
@@ -340,12 +348,18 @@ async function save() {
         <div class="ratio-presets" role="group" aria-label="喂养比例">
           <button v-for="item in ratioPresets" :key="item.value" type="button" :class="{ 'is-selected': draft.ratio === item.value && !showCustom }" :disabled="inputsLocked" :aria-pressed="draft.ratio === item.value && !showCustom" @click="selectRatio(item.value)">{{ item.label }}</button>
         </div>
-        <button type="button" class="custom-ratio" :class="{ 'is-selected': showCustom }" :disabled="inputsLocked" @click="selectCustom">自定义比例 <span aria-hidden="true">›</span></button>
-        <div v-if="showCustom" class="custom-grid">
-          <label v-for="field in ['starter', 'water', 'flour']" :key="field">{{ weightLabels[field] }}<input type="number" min="0" step="any" inputmode="decimal" :disabled="inputsLocked" :value="customPart(field)" @input="setCustomPart(field, $event.target.value)" /></label>
-        </div>
-        <details class="more-ratios"><summary>更多比例</summary><button v-for="item in moreRatios" :key="item.value" type="button" :class="{ 'is-selected': draft.ratio === item.value }" :disabled="inputsLocked" @click="selectRatio(item.value)">{{ item.label }}</button></details>
-        <fieldset v-if="draft.ratio" class="weight-fields" :disabled="inputsLocked">
+        <details class="more-ratios">
+          <summary>更多比例与自定义</summary>
+          <button v-for="item in moreRatios" :key="item.value" type="button" :class="{ 'is-selected': draft.ratio === item.value && !showCustom }" :disabled="inputsLocked" @click="selectRatio(item.value)">{{ item.label }}</button>
+          <button type="button" class="custom-ratio" :class="{ 'is-selected': showCustom }" :disabled="inputsLocked" @click="selectCustom">按克重自定义比例 <span aria-hidden="true">›</span></button>
+          <template v-if="showCustom">
+            <p class="m-muted custom-help">填写老种、水或面粉的克重，推算其余两项并确定比例；若尚无比例，先按 1 : 1 : 1 计算。</p>
+            <div class="custom-grid">
+              <label v-for="field in ['starter', 'water', 'flour']" :key="field">{{ weightLabels[field] }}（g）<input type="number" min="0" step="any" inputmode="decimal" :disabled="inputsLocked" :value="customPart(field)" @input="setCustomPart(field, $event.target.value)" /></label>
+            </div>
+          </template>
+        </details>
+        <fieldset v-if="draft.ratio && !showCustom" class="weight-fields" :disabled="inputsLocked">
           <legend>投喂重量（g，可选）</legend>
           <div class="weight-grid">
             <label v-for="field in weightFields" :key="field" class="weight-item">
@@ -424,6 +438,7 @@ async function save() {
 .custom-ratio{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:295px;height:42px;min-height:42px;padding:0 12px}
 .alert-wheel{max-width:295px}
 .more-ratios{margin-top:8px}
+.custom-help{margin:8px 0;font-size:var(--text-xs);line-height:18px}
 .more-ratios summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
 .more-ratios button{width:100%;margin-bottom:8px}
 .alert-settings{display:inline-flex;align-items:center;min-height:44px;color:var(--brand-action);font-size:var(--text-sm);font-weight:500;text-decoration:none}

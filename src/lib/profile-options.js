@@ -6,6 +6,9 @@ export const GENDER_OPTIONS = [
   { value: 'secret', label: '保密' }
 ];
 
+// 移动端只提供三种新选项；已有 other / secret 仍由 GENDER_OPTIONS 回显。
+export const MOBILE_GENDER_OPTIONS = GENDER_OPTIONS.filter((item) => ['', 'male', 'female'].includes(item.value));
+
 export const IDENTITY_OPTIONS = [
   { value: '', label: '未设置' },
   { value: 'secondary', label: '中学生' },

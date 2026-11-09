@@ -8,7 +8,7 @@ import { computeWeights, ratioParts, weightFields } from '../src/lib/feeding-wei
 import { randomUuid, isUuid } from '../src/lib/uuid.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 
-// 已确认的喂养留在 saved，直到用户点「开始下一条」。待确认草稿仍保持锁定。
+// 同次访问的已确认喂养留在 saved；实际 starter 路由进入时开启下一条。待确认草稿始终锁定。
 const file = new URL('../src/views/mobile/MobileFeeding.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
 const { descriptor, errors } = parse(source);
@@ -41,9 +41,11 @@ const draftOf = (extra) => ({
 
 const user = Vue.ref({ id: 'account-confirmed' });
 const route = { query: {} };
+let routeUpdateHook = null;
+let mountedHook = null;
 const modules = {
-  vue: { ...Vue },
-  'vue-router': { useRoute: () => route },
+  vue: { ...Vue, onMounted: (hook) => { mountedHook = hook; } },
+  'vue-router': { useRoute: () => route, onBeforeRouteUpdate: (hook) => { routeUpdateHook = hook; } },
   '../../composables/useAuth.js': { useAuth: () => ({ user }) },
   '../../composables/useCheckinDraft.js': { useCheckinDraft },
   '../../services/care.service.js': { saveFeeding: async () => ({ id: 'saved-id' }) },
@@ -74,16 +76,28 @@ function mountAs(account, draft) {
   return { vm: Vue.proxyRefs(bindings), stop: () => scope.stop() };
 }
 
+route.query = { starter: STARTER };
 const confirmed = mountAs('account-confirmed', draftOf({ confirmed: true }));
-assert.equal(confirmed.vm.draft.confirmed, true, 'a confirmed draft stays until the user starts the next record');
-assert.equal(confirmed.vm.draft.ratio, '1:2:2', 'the saved ratio remains visible after refresh');
-assert.equal(confirmed.vm.phase, 'saved', 'refresh keeps the saved banner');
-assert.equal(confirmed.vm.draft.starterId, STARTER, 'the starter stays with the confirmed draft');
+assert.equal(confirmed.vm.draft.confirmed, true, 'confirmed content is intact before navigation entry hooks run');
+assert.equal(confirmed.vm.phase, 'saved');
+mountedHook();
+assert.equal(confirmed.vm.draft.confirmed, false, 'a new starter route entry quietly starts a fresh record');
+assert.equal(confirmed.vm.draft.ratio, '', 'the prior confirmed ratio is cleared');
+assert.equal(confirmed.vm.phase, 'editing', 'the old saved banner is not shown on a new entry');
+assert.equal(confirmed.vm.status, '', 'route-entry reset stays quiet');
+assert.equal(confirmed.vm.draft.starterId, STARTER, 'the requested starter is selected');
+confirmed.vm.draft.ratio = '1:1:1';
+await Vue.nextTick();
+routeUpdateHook({ query: { starter: STARTER } });
+assert.equal(confirmed.vm.draft.ratio, '1:1:1', 'reactive edits never reset a new unsaved form');
 confirmed.stop();
 
 const pending = mountAs('account-pending', draftOf({ confirmed: false }));
+mountedHook();
+routeUpdateHook({ query: { starter: '22222222-2222-4222-8222-222222222222' } });
 assert.equal(pending.vm.locked, true, 'an unconfirmed submission stays locked');
 assert.equal(pending.vm.draft.ratio, '1:2:2', 'the frozen draft keeps its content');
+assert.equal(pending.vm.draft.starterId, STARTER, 'route entry cannot replace a pending draft starter');
 pending.stop();
 
 const blank = mountAs('account-empty', null);
@@ -105,7 +119,7 @@ assert.notEqual(saved.vm.status, '', 'the explicit action explains what happened
 saved.stop();
 
 delete globalThis.localStorage;
-console.log('mobile feeding: confirmed drafts stay saved, pending drafts stay locked, and startNext clears them');
+console.log('mobile feeding: starter entry resets confirmed drafts, pending drafts stay locked, and same-visit saves remain visible');
 
 // --- 六态状态机：editing / validating / saving / pending / saved / next ---
 globalThis.localStorage = {

@@ -29,7 +29,22 @@ assert.match(profile, /未设置/);
 assert.match(profile, /性别/);
 assert.match(profile, /出生日期/);
 assert.match(profile, /身份/);
-compile('src/views/mobile/MobileProfileEdit.vue');
+const profileEdit = compile('src/views/mobile/MobileProfileEdit.vue');
+assert.match(profileEdit, /MOBILE_GENDER_OPTIONS/);
+assert.match(profileEdit, /:options="MOBILE_GENDER_OPTIONS"/);
+assert.match(profileEdit, /label="性别" marker="end"/);
+const profileOptions = await import('../src/lib/profile-options.js');
+assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.value), ['', 'male', 'female']);
+assert.equal(profileOptions.optionLabel(profileOptions.GENDER_OPTIONS, 'secret'), '保密', 'legacy values remain readable');
+assert.equal(profileOptions.GENDER_OPTIONS.length, 5, 'desktop options remain unchanged');
+const shell = compile('src/components/MobileShell.vue');
+assert.match(shell, /route\.meta\.pageOwnTitle === true/);
+assert.match(shell, /<h1 v-if="!hideTopbarTitle">/);
+assert.match(read('src/router/index.js'), /name: 'mobile-profile-edit'.*pageOwnTitle: true/);
+const notifications = compile('src/views/mobile/MobileNotifications.vue');
+assert.match(notifications, /每个酵种的提醒倍数/);
+assert.match(notifications, /以喂养后的起始高度为 1×/);
+assert.match(notifications, /起始高度的 \$\{target\} 倍/);
 
 const toasts = {
   'src/views/mobile/MobileProfileEdit.vue': '资料已保存',

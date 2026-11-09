@@ -162,7 +162,7 @@ async function showErrors(value) {
 function selectSafety(key, value) {
   draft.value[key] = value;
   errors.value = {};
-  if (value === 'suspicious' || value === 'unknown') draft.value.step = 3;
+  // 安全优先只改变后续路径，不替用户跳页；已填答案原样保留。
 }
 function selectHeight(value) {
   draft.value.height = value;
@@ -216,7 +216,7 @@ function applyPending(key) {
   <main class="m-page mobile-checkin" :data-mode="diagnosisMode ? 'diagnosis' : 'observation'">
     <header class="checkin-head">
       <h1 v-if="!diagnosisMode">观察记录</h1>
-      <span v-if="step === 1" class="observe-index">观察 {{ observePart }} / {{ skipsBackground ? 2 : 3 }}</span>
+      <span v-if="step === 1" class="observe-index">{{ skipsBackground ? '安全观察' : `观察 ${observePart} / 3` }}</span>
       <span v-if="draft.starterId && !(diagnosisMode && step === 3)" class="checkin-starter">{{ starterName }}</span>
     </header>
     <ol v-if="!diagnosisMode" class="step-track" :aria-label="`第 ${stepMeta.index} 步，共 ${stepMeta.total} 步`">
@@ -272,6 +272,7 @@ function applyPending(key) {
           <span v-if="errors.height" class="m-error">{{ errors.height }}</span>
         </div>
         <p v-if="observePart === 1" class="safety-note"><strong>请勿品尝生酵种。</strong><span>设备不能判断颜色、气味或食品安全，请逐项确认。</span></p>
+        <p v-if="step === 1 && skipsBackground" class="safety-priority" role="status">安全观察需要优先核对。点「下一步」直接进入安全核对，并跳过本轮背景；已填写的答案会保留。</p>
         <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
@@ -292,7 +293,7 @@ function applyPending(key) {
         <h2>确认本次信息</h2>
         <p v-if="diagnosisMode" class="m-muted">请核对后再生成建议。</p>
         <div class="review-card">
-        <p v-if="skipsBackground" class="skip-note">安全答案需要优先处理，已跳过后续观察；本次不会生成常规养护结论。</p>
+        <p v-if="skipsBackground" class="skip-note">安全观察将优先处理，已跳过本轮背景；已填写的答案均保留，本次不会生成常规养护结论。</p>
         <dl><template v-for="key in reviewKeys" :key="key"><dt>{{ reviewLabel(key) }}</dt><dd>{{ reviewValue(key) }}<small v-if="!diagnosisMode" class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
         </div>
         <p class="sample-note">示例数据 · 可返回修改</p>
@@ -663,6 +664,15 @@ li {
   color: var(--brand-action);
   font-size: .68rem;
   font-weight: 700
+}
+.safety-priority {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-control);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: var(--text-sm);
+  line-height: 21px
 }
 .skip-note {
   margin: .35rem 0 0;

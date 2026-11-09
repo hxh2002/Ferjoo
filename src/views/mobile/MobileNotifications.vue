@@ -139,12 +139,12 @@ onMounted(() => auth.init().then(load));
       <button type="button" class="m-switch" role="switch" :aria-label="`高度提醒${subscribed ? '已开启' : '已关闭'}`" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
   </div>
-  <p class="hint">提醒设置即时生效，无需保存。每个阈值每轮喂养只提醒一次。</p>
-  <p class="hint">诊断结论保存在日记。这里不另存一条推送开关。</p>
+  <p class="hint">提醒设置即时生效，无需保存。每个提醒倍数每轮喂养只提醒一次。</p>
   <p v-if="error" class="m-error" role="alert">{{ error }}</p>
   <p v-if="!supported" class="hint warn">当前浏览器不支持 Web Push，或页面不是 HTTPS。iOS 需 16.4+ 并从主屏幕图标打开。</p>
 
-  <p class="group-label">每个酵种的阈值</p>
+  <p class="group-label">每个酵种的提醒倍数</p>
+  <p class="hint">以喂养后的起始高度为 1×；例如选 2×，高度长到约 2 倍时提醒。可多选，每轮每个倍数只提醒一次。</p>
   <section class="m-card">
     <div v-if="loading && !starters.length" class="m-skeleton" aria-busy="true" aria-label="正在读取通知"><span></span><span></span></div>
     <p v-else-if="!starters.length" class="m-muted">还没有酵种，请先到「今日」页新建。</p>
@@ -153,8 +153,8 @@ onMounted(() => auth.init().then(load));
         <strong>{{ row.name }}</strong>
         <small v-if="!row.linked">未关联设备，不会产生提醒</small>
       </div>
-      <div class="targets" role="group" :aria-label="`${row.name} 高度提醒阈值`">
-        <button v-for="target in HEIGHT_ALERT_TARGETS" :key="target" type="button" class="target" :class="{ active: row.targets.includes(target) }" :aria-pressed="row.targets.includes(target)" :disabled="busy === row.id" @click="toggle(row, target)">{{ target }}×</button>
+      <div class="targets" role="group" :aria-label="`${row.name} 起始高度提醒倍数`">
+        <button v-for="target in HEIGHT_ALERT_TARGETS" :key="target" type="button" class="target" :aria-label="`${row.name} 起始高度的 ${target} 倍`" :class="{ active: row.targets.includes(target) }" :aria-pressed="row.targets.includes(target)" :disabled="busy === row.id" @click="toggle(row, target)">{{ target }}×</button>
       </div>
     </div>
   </section>

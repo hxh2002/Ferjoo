@@ -53,7 +53,8 @@ assert.match(checkinSource, /\.step-track li\.active \.step-dot\s*\{\s*backgroun
 assert.match(checkinSource, /checkin-starter/);
 // 一级页面只保留设备在线时间与采样数，曲线下放到各轮次，采样明细仍走设备二级页。
 assert.match(source, /deviceBlocks/);
-assert.match(source, /单日数据/);
+assert.match(source, /本日设备数据/);
+assert.doesNotMatch(source, />单日数据</);
 assert.match(source, /在线 \{\{ item\.online \}\}/);
 assert.match(source, /\{\{ item\.count \}\} 条采样/);
 assert.match(source, /name: rows\.length > 1 \? `\$\{selectedStarterName\.value \|\| '酵种'\}/, 'device summary is titled by the selected starter');

@@ -66,6 +66,10 @@ assert.match(toast, /duration: \{ type: Number, default: 2600 \}/);
 assert.match(toast, /is-success/);
 assert.match(toast, /is-error/);
 assert.match(toast, /is-neutral/);
+assert.match(toast, /\.m-toast \{[^}]*transform: translateX\(-50%\)/, 'toast stays centered outside transition states');
+assert.match(toast, /max-width: calc\(100vw - 48px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)/);
+assert.match(toast, /box-sizing: border-box/);
+assert.match(toast, /\.m-toast-enter-from, \.m-toast-leave-to \{ opacity: 0; transform: translate\(-50%, 8px\); \}/);
 
 const confirm = compile('src/components/mobile/MConfirmDialog.vue');
 assert.match(confirm, /width: min\(327px, 100%\)/);
