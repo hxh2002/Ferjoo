@@ -103,7 +103,9 @@ async function mount(evidence) {
   assert.equal(page.vm.summary.elapsedHours, 0, 'elapsedHours (used for diagnosis prefill) is untouched');
   assert.equal(page.vm.roundCharts, null);
   assert.deepEqual({ ...page.vm.curveText }, { hint: '', emptyMessage: unavailableReason });
-  assert.equal(page.vm.windowRange.to, '14:37');
+  // 时分按运行环境本地时区显示（CI 为 UTC），期望值也按本地时区算。
+  const closedAt = new Date(NEXT);
+  assert.equal(page.vm.windowRange.to, `${String(closedAt.getHours()).padStart(2, '0')}:${String(closedAt.getMinutes()).padStart(2, '0')}`);
   page.stop();
 }
 // 手动结束的轮次：曲线只到结束点，且排除 sleep / 故障点。
