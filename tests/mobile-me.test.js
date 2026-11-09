@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
+import * as Vue from 'vue';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 function compile(file) {
@@ -33,6 +34,91 @@ const profileEdit = compile('src/views/mobile/MobileProfileEdit.vue');
 assert.match(profileEdit, /MOBILE_GENDER_OPTIONS/);
 assert.match(profileEdit, /:options="MOBILE_GENDER_OPTIONS"/);
 assert.match(profileEdit, /label="性别" marker="end"/);
+// 182:885 出生日期面板底部「取消」「确定」并排；182:872 性别面板底部全宽「取消」（设计里没有「确定」）。
+assert.match(profileEdit, /<MSheet :open="sheet === 'birth'[\s\S]*<template #footer>[\s\S]*class="sheet-cancel"[\s\S]*@click="closeBirthSheet"[\s\S]*class="sheet-confirm"[\s\S]*@click="confirmBirth"/);
+assert.match(profileEdit, /:model-value="draftBirth\.(year|month|day)"/);
+assert.match(profileEdit, /<MSheet :open="sheet === 'gender'[\s\S]*<template #footer>[\s\S]*class="sheet-cancel"[\s\S]*@click="cancelSheet"/);
+assert.doesNotMatch(profileEdit, /sheet = 'birth'/, 'the birth button opens the draft snapshot instead of the sheet directly');
+
+// 真实执行 script setup，验证出生日期滚轮只改草稿、取消（含遮罩 / Esc）丢弃、确定才提交。
+async function profileSheetHarness() {
+  const descriptor = parse(profileEdit).descriptor;
+  const compiled = compileScript(descriptor, { id: 'profile-sheet-test' });
+  const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/g, (_, bindings, path) => {
+    if (bindings.trim().startsWith('{')) return `const ${bindings.replace(/\bas\b/g, ':')} = modules[${JSON.stringify(path)}];`;
+    return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
+  }).replace('export default', 'return');
+  const profile = Vue.ref(null);
+  const user = Vue.ref({ id: 'u1' });
+  const updates = [];
+  const modules = {
+    vue: { ...Vue, onMounted() {} },
+    '../../composables/useAuth.js': { useAuth: () => ({ user, profile, init: async () => {}, refreshProfile: async () => {} }) },
+    '../../services/auth.service.js': {
+      removeAvatar: async () => {},
+      uploadAvatar: async () => '',
+      updateProfile: async (...args) => { updates.push(args); }
+    },
+    '../../lib/profile-options.js': await import('../src/lib/profile-options.js'),
+    '../../components/mobile/MActionSheet.vue': {},
+    '../../components/mobile/MConfirmDialog.vue': {},
+    '../../components/mobile/MRadioCard.vue': {},
+    '../../components/mobile/MSheet.vue': {},
+    '../../components/mobile/MToast.vue': {},
+    '../../components/mobile/MWheelPicker.vue': {}
+  };
+  const component = new Function('modules', setupCode)(modules);
+  const scope = Vue.effectScope();
+  const vm = Vue.proxyRefs(scope.run(() => component.setup({}, { expose() {} })));
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  return { vm, updates, stop: () => scope.stop() };
+}
+
+const editSheet = await profileSheetHarness();
+assert.equal(editSheet.vm.birthValue, false, 'no birth date is confirmed before the sheet is opened');
+editSheet.vm.openBirthSheet();
+assert.equal(editSheet.vm.sheet, 'birth');
+assert.deepEqual({ ...editSheet.vm.draftBirth }, { year: '2000', month: '01', day: '01' }, 'opening snapshots the confirmed date');
+editSheet.vm.updateBirth('year', '1995');
+editSheet.vm.updateBirth('month', '03');
+editSheet.vm.updateBirth('day', '12');
+assert.equal(editSheet.vm.birth.year, '2000', 'wheel edits never touch the confirmed date');
+assert.equal(editSheet.vm.birthValue, false, 'wheel edits never mark the date as chosen');
+// 取消 / 遮罩 / Esc / 右上角 × 都走 MSheet 的 close，最终落到 closeBirthSheet。
+editSheet.vm.closeBirthSheet();
+assert.equal(editSheet.vm.sheet, '');
+assert.deepEqual({ ...editSheet.vm.birth }, { year: '2000', month: '01', day: '01' }, 'cancel discards the draft');
+assert.equal(editSheet.vm.birthValue, false);
+editSheet.vm.openBirthSheet();
+assert.deepEqual({ ...editSheet.vm.draftBirth }, { year: '2000', month: '01', day: '01' }, 'reopening starts from the confirmed date again');
+editSheet.vm.updateBirth('year', '1995');
+editSheet.vm.updateBirth('month', '03');
+editSheet.vm.updateBirth('day', '12');
+editSheet.vm.confirmBirth();
+assert.equal(editSheet.vm.sheet, '');
+assert.deepEqual({ ...editSheet.vm.birth }, { year: '1995', month: '03', day: '12' }, 'confirm commits the draft');
+assert.equal(editSheet.vm.birthValue, true, 'confirm marks the date as chosen');
+assert.equal(editSheet.vm.birthLabel, '1995-03-12');
+// 2 月没有 31 日：改月份后草稿日期要收回到月底，否则滚轮停在不存在的那一天。
+editSheet.vm.openBirthSheet();
+editSheet.vm.updateBirth('year', '2000');
+editSheet.vm.updateBirth('day', '31');
+editSheet.vm.updateBirth('month', '02');
+assert.equal(editSheet.vm.draftBirth.day, '29', '2000 is a leap year');
+assert.equal(editSheet.vm.dayOptions.length, 29);
+editSheet.vm.updateBirth('year', '1999');
+assert.equal(editSheet.vm.draftBirth.day, '28', 'the day is clamped to the month length');
+assert.equal(editSheet.vm.birth.month, '03', 'clamping still only touches the draft');
+editSheet.vm.closeBirthSheet();
+// 性别：取消只关闭面板，不改动已选值；点选项仍是「提交并关闭」。
+editSheet.vm.gender = 'male';
+editSheet.vm.sheet = 'gender';
+editSheet.vm.cancelSheet();
+assert.equal(editSheet.vm.sheet, '');
+assert.equal(editSheet.vm.gender, 'male', 'gender cancel keeps the current choice');
+assert.match(profileEdit, /@update:model-value="gender = \$event; sheet = ''"/, 'choosing a gender still commits and closes');
+editSheet.stop();
+console.log('profile sheets: birth draft/confirm/cancel and gender cancel passed');
 const profileOptions = await import('../src/lib/profile-options.js');
 assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.value), ['', 'male', 'female']);
 assert.equal(profileOptions.optionLabel(profileOptions.GENDER_OPTIONS, 'secret'), '保密', 'legacy values remain readable');
@@ -77,6 +163,99 @@ assert.match(devices, /nav-device-active\.svg/);
 assert.match(devices, /暂无设备/);
 assert.match(devices, /添加设备，查看数据并关联酵种。/);
 assert.match(devices, />设备设置</);
+assert.match(devices, /<template #footer>[\s\S]*class="starter-save"[\s\S]*@click="saveLink"/);
+assert.match(devices, /:aria-pressed="linkedStarter === item.id"/);
+assert.match(devices, /@close="closeStarterSheet"/);
+// 182:1151 修改设备名称面板底部是「取消」「保存」并排；原实现只有正文里的「保存」，缺「取消」。
+assert.match(devices, /<template #footer>[\s\S]*class="rename-cancel"[\s\S]*@click="renameOpen = false"[\s\S]*class="rename-save"[\s\S]*@click="saveRename"/);
+assert.match(devices, /async function saveRename\(\)[\s\S]*rename\(\)[\s\S]*renameOpen\.value = false/);
+
+// 执行真实的 script setup，确保选择只是草稿，关闭不保存，确认成功后才提交并收起弹层。
+async function starterSheetHarness() {
+  const descriptor = parse(devices).descriptor;
+  const compiled = compileScript(descriptor, { id: 'device-starter-sheet-test' });
+  const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/g, (_, bindings, path) => {
+    if (bindings.trim().startsWith('{')) return `const ${bindings.replace(/\bas\b/g, ':')} = modules[${JSON.stringify(path)}];`;
+    return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
+  }).replace('export default', 'return');
+  const user = Vue.ref(null);
+  const state = { calls: [], fail: false, gate: null };
+  const service = {
+    getDevice: async () => ({ device_id: 'd1', name: '设备一', my_role: 'owner', last_seen_at: new Date().toISOString() }),
+    members: async () => []
+  };
+  const modules = {
+    vue: { ...Vue, onMounted() {}, onBeforeUnmount() {} },
+    'vue-router': { useRoute: () => ({ params: { deviceId: 'd1' }, query: {}, fullPath: '/me/devices/d1' }), useRouter: () => ({ push() {}, replace() {} }) },
+    '../../composables/useAuth.js': { useAuth: () => ({ user, profile: Vue.ref(null), init() {} }) },
+    '../../services/care.service.js': { listStarters: async () => [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }, { id: 's3', name: '三号' }] },
+    '../../services/starter-device.service.js': {
+      getStarterDeviceLink: async ({ starterId }) => ({ device_id: starterId === 's1' ? 'd1' : starterId === 's3' ? 'd2' : '' }),
+      linkStarterDevice: async (args) => {
+        state.calls.push(args);
+        if (state.gate) await state.gate;
+        if (state.fail) throw new Error('link failed');
+        return { starter_id: args.starterId, device_id: args.deviceId };
+      }
+    },
+    '../../services/mobile-device.service.js': { mobileDeviceService: async () => service, mobileError: (cause) => cause.message, normalizeBindCode: (value) => value },
+    '../../components/mobile/MConfirmDialog.vue': {}, '../../components/mobile/MSheet.vue': {}, '../../components/mobile/MToast.vue': {}
+  };
+  const component = new Function('modules', setupCode)(modules);
+  const scope = Vue.effectScope();
+  const vm = Vue.proxyRefs(scope.run(() => component.setup({}, { expose() {} })));
+  user.value = { id: 'u1' };
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  return { state, vm, stop: () => scope.stop() };
+}
+const starterSheet = await starterSheetHarness();
+assert.equal(starterSheet.vm.savedStarter, 's1');
+assert.deepEqual(starterSheet.vm.linkableStarters.map(item => item.id), ['s1', 's2'], 'current and unlinked starters are selectable; other-device links stay excluded');
+starterSheet.vm.openStarterSheet();
+assert.equal(starterSheet.vm.linkedStarter, 's1', 'opening restores the persisted selection');
+starterSheet.vm.chooseStarter('s2');
+assert.equal(starterSheet.vm.linkedStarter, 's2');
+assert.equal(starterSheet.vm.starterOpen, true);
+assert.equal(starterSheet.state.calls.length, 0, 'selection alone never saves');
+starterSheet.vm.closeStarterSheet();
+assert.equal(starterSheet.vm.starterOpen, false);
+assert.equal(starterSheet.vm.linkedStarter, 's1');
+assert.equal(starterSheet.vm.savedStarter, 's1');
+assert.equal(starterSheet.state.calls.length, 0, 'closing discards the unconfirmed selection');
+
+starterSheet.vm.openStarterSheet();
+starterSheet.vm.chooseStarter('s2');
+starterSheet.state.fail = true;
+await starterSheet.vm.saveLink();
+assert.equal(starterSheet.vm.starterOpen, true, 'failed confirmation keeps the sheet open');
+assert.equal(starterSheet.vm.savedStarter, 's1');
+assert.equal(starterSheet.vm.linkedStarter, 's2', 'failed confirmation preserves the choice for retry');
+starterSheet.state.fail = false;
+await starterSheet.vm.saveLink();
+assert.equal(starterSheet.vm.starterOpen, false, 'successful confirmation closes the sheet');
+assert.equal(starterSheet.vm.savedStarter, 's2');
+assert.deepEqual(starterSheet.state.calls.map(call => call.starterId), ['s2', 's2']);
+assert.equal(starterSheet.vm.starterLinks.s1, '');
+assert.equal(starterSheet.vm.starterLinks.s2, 'd1');
+
+let releaseSave;
+starterSheet.state.gate = new Promise(resolve => { releaseSave = resolve; });
+starterSheet.vm.openStarterSheet();
+starterSheet.vm.chooseStarter('s1');
+const pendingSave = starterSheet.vm.saveLink();
+await Promise.resolve(); await Promise.resolve();
+starterSheet.vm.closeStarterSheet();
+assert.equal(starterSheet.vm.starterOpen, true, 'an in-flight save is not presented as cancelled');
+const callsBeforeDoubleConfirm = starterSheet.state.calls.length;
+await starterSheet.vm.saveLink();
+assert.equal(starterSheet.state.calls.length, callsBeforeDoubleConfirm, 'double confirmation cannot duplicate the request');
+releaseSave();
+await pendingSave;
+assert.equal(starterSheet.vm.savedStarter, 's1');
+assert.equal(starterSheet.vm.starterOpen, false);
+starterSheet.stop();
+console.log('mobile devices: starter draft, cancel, confirm, failure and duplicate-save behavior passed');
+
 const home = compile('src/views/mobile/MobileDeviceHome.vue');
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*删除酵种/);
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*结束当前发酵？/);

@@ -15,6 +15,8 @@ const name = ref('');
 const gender = ref('');
 const identity = ref('');
 const birth = ref({ year: '2000', month: '01', day: '01' });
+// 出生日期面板里的滚轮只改草稿，只有「确定」才写回 birth；关闭面板（取消 / 遮罩 / Esc / ×）一律丢弃草稿。
+const draftBirth = ref({ ...birth.value });
 const sheet = ref('');
 const avatarOpen = ref(false);
 const removeOpen = ref(false);
@@ -30,11 +32,37 @@ const yearOptions = Array.from({ length: 100 }, (_, index) => {
 });
 const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: `${index + 1} 月` }));
 const dayOptions = computed(() => {
-  const count = new Date(Number(birth.value.year), Number(birth.value.month), 0).getDate();
+  const count = new Date(Number(draftBirth.value.year), Number(draftBirth.value.month), 0).getDate();
   return Array.from({ length: count }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: `${index + 1} 日` }));
 });
 const birthLabel = computed(() => `${birth.value.year}-${birth.value.month}-${birth.value.day}`);
 const birthValue = ref(false);
+// 打开出生日期面板时把已确认的日期快照为草稿，滚轮只改草稿。
+function openBirthSheet() {
+  draftBirth.value = { ...birth.value };
+  sheet.value = 'birth';
+}
+function closeBirthSheet() {
+  sheet.value = '';
+  draftBirth.value = { ...birth.value };
+}
+// 只收起面板、不改动已选值：性别面板的「取消」走这里。
+function cancelSheet() {
+  sheet.value = '';
+}
+function updateBirth(part, value) {
+  const next = { ...draftBirth.value, [part]: value };
+  // 年 / 月变化后把超出当月天数的日期收回到月底，否则滚轮会停在一个不存在的日期上。
+  const count = new Date(Number(next.year), Number(next.month), 0).getDate();
+  if (Number(next.day) > count) next.day = String(count).padStart(2, '0');
+  draftBirth.value = next;
+}
+// 「确定」才把草稿提交到 birth，并补上 birthValue 标记；原本已有日期时行为不变。
+function confirmBirth() {
+  birth.value = { ...draftBirth.value };
+  birthValue.value = true;
+  sheet.value = '';
+}
 
 onMounted(async () => {
   await auth.init();
@@ -138,23 +166,32 @@ async function confirmRemove() {
       </div>
       <div class="field">
         <span>出生日期</span>
-        <button type="button" class="select" @click="sheet = 'birth'"><span :class="{ placeholder: !birthValue }">{{ birthValue ? birthLabel : '请选择日期' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
+        <button type="button" class="select" @click="openBirthSheet"><span :class="{ placeholder: !birthValue }">{{ birthValue ? birthLabel : '请选择日期' }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>
       </div>
       <p class="note">账号 ID 和注册时间由系统生成，不可修改。</p>
       <p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <button type="button" class="m-primary" :disabled="busy" @click="save">{{ busy ? '保存中…' : '保存资料' }}</button>
     </section>
-    <MActionSheet :open="avatarOpen" title="更换头像" :actions="[{ value: 'camera', label: '拍照' }, { value: 'library', label: '从相册选择' }, { value: 'remove', label: '移除', danger: true }]" @close="avatarOpen = false" @select="(value) => value === 'remove' ? (avatarOpen = false, removeOpen = true) : pickAvatar(value === 'camera')" />
+    <MActionSheet :open="avatarOpen" title="更换头像" :actions="[{ value: 'library', label: '从相册选择' }, { value: 'camera', label: '拍照' }, { value: 'remove', label: '移除', danger: true }]" @close="avatarOpen = false" @select="(value) => value === 'remove' ? (avatarOpen = false, removeOpen = true) : pickAvatar(value === 'camera')" />
     <MConfirmDialog :open="removeOpen" danger title="移除头像" message="移除后资料页会显示名字首字。" confirm-label="移除" @cancel="removeOpen = false" @confirm="confirmRemove" />
-    <MSheet :open="sheet === 'gender'" title="性别" @close="sheet = ''">
+    <MSheet :open="sheet === 'gender'" title="性别" @close="cancelSheet">
       <MRadioCard :model-value="gender" :options="MOBILE_GENDER_OPTIONS" label="性别" marker="end" @update:model-value="gender = $event; sheet = ''" />
+      <template #footer>
+        <button type="button" class="sheet-cancel" @click="cancelSheet">取消</button>
+      </template>
     </MSheet>
-    <MSheet :open="sheet === 'birth'" title="出生日期" @close="sheet = ''">
+    <MSheet :open="sheet === 'birth'" title="出生日期" @close="closeBirthSheet">
       <div class="wheels">
-        <MWheelPicker :model-value="birth.year" :options="yearOptions" label="年" @update:model-value="birth.year = $event" />
-        <MWheelPicker :model-value="birth.month" :options="monthOptions" label="月" @update:model-value="birth.month = $event" />
-        <MWheelPicker :model-value="birth.day" :options="dayOptions" label="日" @update:model-value="birth.day = $event" />
+        <MWheelPicker :model-value="draftBirth.year" :options="yearOptions" label="年" @update:model-value="updateBirth('year', $event)" />
+        <MWheelPicker :model-value="draftBirth.month" :options="monthOptions" label="月" @update:model-value="updateBirth('month', $event)" />
+        <MWheelPicker :model-value="draftBirth.day" :options="dayOptions" label="日" @update:model-value="updateBirth('day', $event)" />
       </div>
+      <template #footer>
+        <div class="sheet-actions">
+          <button type="button" class="sheet-cancel" @click="closeBirthSheet">取消</button>
+          <button type="button" class="sheet-confirm" @click="confirmBirth">确定</button>
+        </div>
+      </template>
     </MSheet>
     <MToast :open="!!toast" :message="toast" tone="success" @close="toast = ''" />
   </main>
@@ -178,4 +215,8 @@ h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
 .file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .m-primary{width:100%;height:60px;min-height:60px;margin-top:auto;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;line-height:24px;font-weight:500;box-shadow:var(--m-shadow-button);cursor:pointer}
 .wheels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sheet-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sheet-actions > button,.sheet-cancel{display:flex;align-items:center;justify-content:center;width:100%;height:48px;min-height:48px;padding:0 12px;border-radius:var(--m-radius-button);font:inherit;font-size:var(--text-md);line-height:24px;font-weight:500;cursor:pointer}
+.sheet-cancel{border:1px solid var(--border-warm);background:var(--surface-card);color:var(--text-primary)}
+.sheet-confirm{border:0;background:var(--brand-light);color:var(--text-primary)}
 </style>

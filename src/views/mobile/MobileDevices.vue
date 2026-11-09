@@ -12,14 +12,22 @@ const starterLinks = ref({});
 const linkedStarter = ref('');
 const savedStarter = ref('');
 async function saveLink() {
-  if (!linkedStarter.value) return;
+  if (saving.value || !linkedStarter.value) return;
   const c = context();
   const starterId = linkedStarter.value;
+  let saved = false;
   await perform(async () => {
     const result = await linkStarterDevice({ userId: c.user, starterId, deviceId: c.device });
-    if (current(c)) savedStarter.value = starterId;
+    if (current(c)) {
+      savedStarter.value = starterId;
+      starterLinks.value = Object.fromEntries(Object.entries(starterLinks.value).map(([id, linkedDevice]) => [id, linkedDevice === c.device ? '' : linkedDevice]));
+      starterLinks.value[starterId] = c.device;
+      saved = true;
+    }
     return result;
   }, '设置已保存');
+  // perform 会统一展示错误；只有关联接口真正完成后才关闭，失败时保留选择便于重试。
+  if (saved && current(c)) starterOpen.value = false;
 }
 import { mobileDeviceService, mobileError, normalizeBindCode } from '../../services/mobile-device.service.js';
 const router = useRouter();
@@ -121,6 +129,12 @@ async function rename() {
   const result = await perform((service) => service.rename(c.device, name.value), '设置已保存');
   if (result && current(c)) device.value = { ...device.value, name: result.name };
 }
+// 面板底部的「保存」：只有接口成功后关闭，校验或请求失败时保留面板便于修改。
+async function saveRename() {
+  if (saving.value) return;
+  await rename();
+  if (!error.value) renameOpen.value = false;
+}
 async function addMember() {
   if (!manager.value) return;
   if (!/^[UA]\d{8}$/.test(target.value.trim())) { error.value = '请输入有效的系统用户编号。'; return; }
@@ -151,7 +165,7 @@ async function copy(value) {
 }
 const offline = computed(() => isOffline(device.value?.last_seen_at));
 const lastSync = computed(() => formatSeen(device.value?.last_seen_at));
-const linkableStarters = computed(() => starters.value.filter((item) => !starterLinks.value[item.id]));
+const linkableStarters = computed(() => starters.value.filter((item) => !starterLinks.value[item.id] || starterLinks.value[item.id] === deviceId.value));
 function isOffline(value) {
   const seen = Date.parse(value);
   return !Number.isFinite(seen) || Date.now() - seen > 40 * 60 * 1000;
@@ -175,15 +189,25 @@ async function refreshDevice() {
   if (error.value || (scoped && offline.value)) { showToast('设备仍离线', 'error'); return; }
   if (scoped && (device.value?.last_seen_at || '') === seen) showToast('暂无新数据', 'neutral');
 }
-async function chooseStarter(id) {
-  linkedStarter.value = id;
+function openStarterSheet() {
+  linkedStarter.value = savedStarter.value;
+  starterOpen.value = true;
+}
+function closeStarterSheet() {
+  // 保存请求进行中不允许把关闭误认为取消；其余关闭方式都只丢弃未确认选择。
+  if (saving.value) return;
   starterOpen.value = false;
-  await saveLink();
+  linkedStarter.value = savedStarter.value;
+}
+function chooseStarter(id) {
+  if (saving.value) return;
+  linkedStarter.value = id;
 }
 watch([userId, deviceId], () => {
   version += 1; devices.value = []; device.value = null; members.value = [];
   code.value = ''; confirmed.value = false; name.value = ''; target.value = '';
   showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; starterLinks.value = {}; linkedStarter.value = ''; savedStarter.value = '';
+  starterOpen.value = false;
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
   if (userId.value) load();
 }, { immediate: true, flush: 'sync' });
@@ -249,7 +273,7 @@ onBeforeUnmount(() => { version += 1; });
       <p class="group-label">设备管理</p>
       <section id="device-settings" class="m-card settings-card">
         <button v-if="manager" type="button" class="settings-row" @click="renameOpen = true">设备名称 <span aria-hidden="true">›</span></button>
-        <button type="button" class="settings-row" @click="starterOpen = true">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small><span aria-hidden="true">›</span></button>
+        <button type="button" class="settings-row" @click="openStarterSheet">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small><span aria-hidden="true">›</span></button>
         <RouterLink class="settings-row" :to="`/me/devices/${encodeURIComponent(deviceId)}/info`">设备信息 <span aria-hidden="true">›</span></RouterLink>
         <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备数据 <span aria-hidden="true">›</span></RouterLink>
       </section>
@@ -267,11 +291,32 @@ onBeforeUnmount(() => { version += 1; });
       </details>
     </template>
     <MSheet :open="renameOpen" title="修改设备名称" @close="renameOpen = false">
-      <form class="rename-form" @submit.prevent="rename().then(() => { if (!error.value) renameOpen = false; })"><label class="rename-field">设备名称<input v-model="name" maxlength="80"></label><button class="rename-save" :disabled="saving">保存</button></form>
+      <form class="rename-form" @submit.prevent="saveRename"><label class="rename-field">设备名称<input v-model="name" maxlength="80"></label></form>
+      <template #footer>
+        <div class="rename-actions">
+          <button type="button" class="rename-cancel" @click="renameOpen = false">取消</button>
+          <button type="button" class="rename-save" :disabled="saving" @click="saveRename">{{ saving ? '保存中…' : '保存' }}</button>
+        </div>
+      </template>
     </MSheet>
-    <MSheet :open="starterOpen" title="关联酵种" @close="starterOpen = false">
+    <MSheet :open="starterOpen" title="关联酵种" @close="closeStarterSheet">
+      <p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <p v-if="!linkableStarters.length" class="m-muted">还没有可关联的酵种。</p>
-      <button v-for="item in linkableStarters" :key="item.id" type="button" class="settings-row" @click="chooseStarter(item.id)">{{ item.name }}</button>
+      <div v-else class="starter-options" role="group" aria-label="选择要关联的酵种">
+        <button
+          v-for="item in linkableStarters"
+          :key="item.id"
+          type="button"
+          class="settings-row starter-option"
+          :class="{ 'is-selected': linkedStarter === item.id }"
+          :aria-pressed="linkedStarter === item.id"
+          :disabled="saving"
+          @click="chooseStarter(item.id)"
+        >{{ item.name }}<span aria-hidden="true">{{ linkedStarter === item.id ? '✓' : '' }}</span></button>
+      </div>
+      <template #footer>
+        <button type="button" class="starter-save" :disabled="saving || !linkedStarter" @click="saveLink">{{ saving ? '保存中…' : '确认' }}</button>
+      </template>
     </MSheet>
     <MConfirmDialog :open="!!unbindTarget" danger title="解除绑定" :message="unbindTarget?.self ? '解绑后将不再通过成员身份访问设备历史，原始数据不会删除。' : '该成员将失去设备历史访问权限。'" confirm-label="解除绑定" @cancel="unbindTarget = null" @confirm="confirmRemove" />
     <MToast :open="!!toast" :message="toast" :tone="toastTone" @close="toast = ''" />
@@ -335,5 +380,15 @@ onBeforeUnmount(() => { version += 1; });
 .rename-form{display:grid;gap:16px;width:min(327px,100%)}
 .rename-field{display:grid;gap:8px;font-size:var(--text-sm);font-weight:500}
 .rename-field input{width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md)}
-.rename-save{display:flex;align-items:center;justify-content:center;width:100%;height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
+.starter-options{display:grid;gap:8px}
+.starter-option{min-height:56px;padding:0 16px;border-radius:var(--radius-control);cursor:pointer}
+.starter-option + .starter-option::before{display:none}
+.starter-option.is-selected{background:var(--surface-selected);color:var(--brand-action)}
+.starter-option:disabled{cursor:not-allowed;opacity:.6}
+.rename-save,.starter-save{display:flex;align-items:center;justify-content:center;width:100%;height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
+.rename-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rename-actions > button{height:48px;min-height:48px;border-radius:var(--m-radius-button);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
+.rename-cancel{border:1px solid var(--border-warm);background:var(--surface-card);color:var(--text-primary)}
+.rename-save:disabled{cursor:not-allowed;opacity:.6}
+.starter-save:disabled{cursor:not-allowed;opacity:.6}
 </style>
