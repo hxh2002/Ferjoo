@@ -46,6 +46,7 @@ const endReasonText = computed(() => {
   const value = summary.value;
   if (value?.windowStatus !== 'closed') return '';
   if (value.windowEndReason === 'next_feeding') return '下一次喂养';
+  if (value.windowEndReason === 'auto') return '自动结束';
   return CLOSE_REASON_LABELS[evidence.value?.closure?.detail] || '手动结束';
 });
 const weights = computed(() => {

@@ -30,19 +30,6 @@ const props = defineProps({
   valueText: { type: String, default: '' }
 });
 const chartStyle = computed(() => ({ '--m-chart-height': `${props.height}px` }));
-
-function elapsedCaption(point) {
-  if (!point?.t) return '';
-  const time = Date.parse(point.t);
-  const start = Date.parse(props.from);
-  if (!Number.isFinite(time)) return '';
-  if (Number.isFinite(start) && time >= start) {
-    const hours = Math.max(0, Math.round((time - start) / 3600000));
-    return `发酵 ${hours} 小时`;
-  }
-  const date = new Date(time);
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
 </script>
 
 <template>
@@ -64,7 +51,6 @@ function elapsedCaption(point) {
     :value-text="valueText"
   >
     <template #tip="{ point }">
-      <span>{{ elapsedCaption(point) }}</span>
       <strong>{{ tipValue(point) }}{{ unit }}</strong>
     </template>
   </SeriesChart>

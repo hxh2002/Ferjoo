@@ -62,6 +62,26 @@ export function loadWindowClosures(userId, feedingIds) {
   }), { ttl: READ_TTL.window });
 }
 
+// 自动结束归档：只在摘要判定为 'auto' 且尚无结束记录时写入；同一页面会话内每轮只尝试一次。
+// 归档失败（未迁移 / 离线 / 已过期）不影响展示，摘要始终能按读数重新算出自动结束。
+const autoClosureAttempts = new Set();
+export async function persistAutoClosure({ feedingId, summary, closure } = {}) {
+  if (closure || summary?.windowEndReason !== 'auto' || !summary?.windowClosedAt) return null;
+  if (typeof feedingId !== 'string' || autoClosureAttempts.has(feedingId)) return null;
+  autoClosureAttempts.add(feedingId);
+  try {
+    const { data, error } = await requireClient().rpc('auto_close_fermentation_window', {
+      p_feeding_id: requiredUuid(feedingId, '喂养记录 ID'),
+      p_ended_at: summary.windowClosedAt
+    });
+    if (error) throw error;
+    invalidateReadCache('window');
+    return (Array.isArray(data) ? data[0] : data) || null;
+  } catch {
+    return null;
+  }
+}
+
 export function closeFeedingWindow({ feedingId, endedAt, detail = null } = {}) {
   return run(async () => {
     const at = new Date(endedAt);

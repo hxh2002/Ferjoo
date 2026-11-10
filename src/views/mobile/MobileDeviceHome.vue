@@ -80,7 +80,8 @@ const summary = computed(() => feeding.value ? summarizeFeedingMeasurements({
   links: allLinks.value.filter((row) => row.starter_id === starterId.value),
   now: now.value,
   nextFeedingAt: nextFeedingAt.value,
-  windowEndedAt: closure.value?.ended_at || null
+  windowEndedAt: closure.value?.ended_at || null,
+  windowEndedReason: closure.value?.reason
 }) : null);
 // measurements 已在读取时按该酵种全部历史窗口过滤；这里只排序。
 const chartRows = computed(() => measurements.value.slice().sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at)));

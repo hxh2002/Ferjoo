@@ -360,6 +360,13 @@ where system_user_id = 'U26090001';
 - 每个 `(user_id, feeding_id)` 只保存一条结束事实，重复请求返回原记录；`ended_at` 不会晚于下一次喂养时间与当前时间。
 - 写入走 `close_fermentation_window` RPC（校验酵种归属与时间边界），表对 `authenticated` 只开放 `SELECT`。
 
+#### 自动结束（迁移 `030`）
+
+- `reason` 区分结束来源：`manual` 为用户手动结束，`auto` 为自动结束（last-peak 触发后设备连续 2 小时无读数，结束时刻 = 断档前最后一条读数）。
+- 自动结束由客户端按读数判定，经 `auto_close_fermentation_window` RPC 归档；服务端校验结束时刻在本轮内、不晚于下一次喂养、且距今至少 2 小时。
+- 与手动结束共用 `(user_id, feeding_id)` 唯一约束：先写入者生效，之后的请求原样返回已有记录，手动结束不会被自动结束覆盖。
+- 归档前（或迁移未执行时）界面仍按读数实时算出“自动结束”。
+
 ### 数据分辨率
 
 `device_measurements.recorded_at` 保存采样时间，数据库按原始数据逐条存储，不做时间分辨率分割。10 分钟展示桶在 Web 查询时计算：每个 10 分钟区间自动选取 `recorded_at` 最新的一条用于曲线和表格展示。

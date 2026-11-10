@@ -60,9 +60,9 @@ export const CLOSE_REASON_LABELS = { fallen: '峰值后回落', no_peak: '未见
 // 轮次状态与设备观测质量分开：数据中断只降低可信度，不代表发酵结束。
 export function roundState(summary = {}) {
   if (summary.windowStatus === 'closed') {
-    return summary.windowEndReason === 'manual'
-      ? { label: '手动结束', tone: 'closed' }
-      : { label: '已结束', tone: 'closed' };
+    if (summary.windowEndReason === 'manual') return { label: '手动结束', tone: 'closed' };
+    if (summary.windowEndReason === 'auto') return { label: '自动结束', tone: 'closed' };
+    return { label: '已结束', tone: 'closed' };
   }
   if (summary.baselineStatus === 'pending') return { label: '基线计算中', tone: 'pending' };
   if (summary.dataQuality === 'stale') return { label: '数据中断', tone: 'pending' };
@@ -306,7 +306,7 @@ export function recordsDayModel({ day, facts = [], context, devices, now = Date.
     const fedAt = Date.parse(feeding.occurred_at);
     const attributed = roundDeviceWindows(starterLinks, { feeding, feedings, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at, now });
     const link = linkCoveringInstant(starterLinks, feeding.occurred_at, { starterId: feeding.starter_id }) || attributed[0];
-    const summary = summarizeFeedingMeasurements({ feeding, link, links: attributed, measurements: devices?.samples.filter(row => row.starter_id === feeding.starter_id) || [], now, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at });
+    const summary = summarizeFeedingMeasurements({ feeding, link, links: attributed, measurements: devices?.samples.filter(row => row.starter_id === feeding.starter_id) || [], now, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at, windowEndedReason: closure?.reason });
     return { ...feeding, summary, closure, deviceId: link?.device_id || '', linked: !!link, boundaryPending: !context || context.closuresComplete === false || context.notices.some(notice => notice.includes('相邻喂养')) };
   }
   const events = facts.map(row => row.kind === 'feeding' ? round(feedings.find(item => item.id === row.id)) : row);

@@ -94,6 +94,7 @@ assert.doesNotMatch(trendSource, /<details[^>]*\sopen[\s>]/);
 assert.doesNotMatch(trendSource, /window-list/);
 assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'next_feeding' }), { label: '已结束', tone: 'closed' });
 assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'manual' }), { label: '手动结束', tone: 'closed' });
+assert.deepEqual(roundState({ windowStatus: 'closed', windowEndReason: 'auto' }), { label: '自动结束', tone: 'closed' });
 assert.deepEqual(roundState({ windowStatus: 'in_progress', baselineStatus: 'pending' }), { label: '基线计算中', tone: 'pending' });
 assert.deepEqual(roundState({ windowStatus: 'in_progress', dataQuality: 'stale' }), { label: '数据中断', tone: 'pending' });
 assert.deepEqual(roundState({ windowStatus: 'in_progress', baselineStatus: 'established', dataQuality: 'complete' }), { label: '进行中', tone: 'active' });

@@ -625,6 +625,8 @@ const bandBadges = computed(() => {
    黑色楔形，陡峭段尤其明显。移动端不加载 main.css，所以关键呈现必须由组件自己兜住。 */
 .series-line { fill: none; stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
 .series-area { stroke: none; }
+/* 选点竖线也是开放路径；移动端没有 main.css 兜底时，默认黑色填充会把它变成实色柱。 */
+.series-guide { fill: none; stroke: rgba(42,29,23,.38); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .series-guide-y { stroke: var(--brand-action); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .series-value-label { position: absolute; left: 0; z-index: 2; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 20px; padding: 0 4px; border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: var(--m-shadow); }

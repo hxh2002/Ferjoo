@@ -141,6 +141,9 @@ assert.match(gradient.html, /class="series-area"/, 'the area keeps its own segme
 // 折线是开放路径：没有 fill:none 时 SVG 会用默认黑色填充，陡峭段直接被填成黑楔形。
 // 移动端不加载 main.css，所以这条必须由组件自己的样式保证。
 assert.match(source, /\.series-line \{[^}]*fill:\s*none/, 'the polyline must opt out of SVG default black fill');
+assert.match(source, /\.series-guide \{[^}]*fill:\s*none/, 'the vertical selection guide must not become a filled black column on mobile');
+assert.match(source, /\.series-guide \{[^}]*stroke:\s*rgba\(42,29,23,\.38\)/, 'the guide keeps its own stroke without relying on desktop CSS');
+assert.match(source, /\.series-guide \{[^}]*stroke-dasharray:\s*2 2/, 'the plot guide continues the dashed stem from the tooltip');
 assert.match(source, /\.series-area \{[^}]*stroke:\s*none/, 'the area fill must not inherit a stroke');
 // 固定气泡行：有数据时始终预留（布局不抖动），且不再渲染纵坐标值标签 / 时间游标标签。
 const fixed = await draw([at(0, 30), at(10, 35)], { fixedTip: true });

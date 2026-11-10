@@ -31,9 +31,38 @@ function median(values) {
  * - links：该酵种全部关联（含已关闭窗口），轮次期间任何一段窗口内、且设备一致的读数都计入；
  * - link：兼容旧调用，只给一条关联时等价于 links=[link]。
  * 窗口可以晚于喂养时刻开始（重绑后继续的同一轮），但这时起始基线不再代表真实起点，会标记 coverageStartsLate。
- * @param {{ measurements?: any[], feeding?: any, link?: any, links?: any[], now?: number, nextFeedingAt?: any, windowEndedAt?: any }} [options]
+ * @param {{ measurements?: any[], feeding?: any, link?: any, links?: any[], now?: number, nextFeedingAt?: any, windowEndedAt?: any, windowEndedReason?: 'manual' | 'auto' }} [options]
+ * windowEndedAt / windowEndedReason 来自 fermentation_window_closures 的 ended_at / reason（'manual' 或 'auto'）。
  */
-export function summarizeFeedingMeasurements({ measurements = [], feeding, link, links, now = Date.now(), nextFeedingAt, windowEndedAt } = {}) {
+export function summarizeFeedingMeasurements(options = {}) {
+  const base = buildSummary(options, NaN);
+  const autoEndAt = findAutoEnd(base, options);
+  return Number.isFinite(autoEndAt) ? buildSummary(options, autoEndAt).summary : base.summary;
+}
+
+// 自动结束：last-peak 已触发后，设备连续 AUTO_END_GAP_MS 无任何读数，本轮在最后一条读数处结束。
+// 中途出现的长断档同样生效（断档前已锁定峰值）；末尾断档只对仍在进行中的轮次判定，
+// 已被手动 / 下一次喂养结束的轮次保持原结束原因。返回结束时刻（含最后一条读数），无则 NaN。
+export const AUTO_END_GAP_MS = 2 * 60 * 60 * 1000;
+function findAutoEnd({ summary, rows }, { now = Date.now() } = {}) {
+  const currentTime = time(now);
+  const baseline = summary.baselineHeightMm;
+  if (!(baseline > 0) || !rows.length) return NaN;
+  const stamps = rows.map((row) => time(row.recorded_at));
+  const heights = rows
+    .filter((row) => row.mode === 'fer' && !row.sensor_error && number(row.height_mm) > 0)
+    .map((row) => ({ t: time(row.recorded_at), v: number(row.height_mm) }));
+  for (let index = 0; index < stamps.length; index += 1) {
+    const last = index === stamps.length - 1;
+    if (last && (summary.windowClosed || !(currentTime - stamps[index] >= AUTO_END_GAP_MS))) continue;
+    if (!last && !(stamps[index + 1] - stamps[index] >= AUTO_END_GAP_MS)) continue;
+    const before = heights.filter((point) => point.t <= stamps[index]);
+    if (risePhase(before, baseline).peakAt) return stamps[index] + 1;
+  }
+  return NaN;
+}
+
+function buildSummary({ measurements = [], feeding, link, links, now = Date.now(), nextFeedingAt, windowEndedAt, windowEndedReason } = {}, autoEndAt = NaN) {
   const fedAt = time(feeding?.occurred_at);
   const currentTime = time(now);
   const nextAt = time(nextFeedingAt);
@@ -41,10 +70,13 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   // 业务结束点只来自下一次喂养或用户手动结束；设备断线只缩短可观测范围，不结束本轮。
   const scheduledEnd = Number.isFinite(nextAt) && Number.isFinite(fedAt) && nextAt >= fedAt ? nextAt : NaN;
   const manualEnd = Number.isFinite(manualAt) && Number.isFinite(fedAt) && manualAt >= fedAt ? Math.min(manualAt, currentTime) : NaN;
-  const closedAt = Math.min(Number.isFinite(scheduledEnd) ? scheduledEnd : Infinity, Number.isFinite(manualEnd) ? manualEnd : Infinity);
+  const autoEnd = Number.isFinite(autoEndAt) && Number.isFinite(fedAt) && autoEndAt >= fedAt ? Math.min(autoEndAt, currentTime) : NaN;
+  const closedAt = Math.min(Number.isFinite(scheduledEnd) ? scheduledEnd : Infinity, Number.isFinite(manualEnd) ? manualEnd : Infinity, Number.isFinite(autoEnd) ? autoEnd : Infinity);
   const windowClosed = Number.isFinite(closedAt) && closedAt <= currentTime;
+  // 并列时人工结束 > 下一次喂养 > 自动结束，保证自动结束只在更早时才占用结束原因。
   const windowEndReason = !windowClosed ? null
-    : Number.isFinite(manualEnd) && (!Number.isFinite(scheduledEnd) || manualEnd <= scheduledEnd) ? 'manual' : 'next_feeding';
+    : Number.isFinite(manualEnd) && manualEnd === closedAt ? (windowEndedReason === 'auto' ? 'auto' : 'manual')
+      : Number.isFinite(scheduledEnd) && scheduledEnd === closedAt ? 'next_feeding' : 'auto';
   const roundEnd = Math.min(currentTime, Number.isFinite(closedAt) ? closedAt : Infinity);
   const allWindows = starterWindows(Array.isArray(links) && links.length ? links : link ? [link] : [], { starterId: feeding?.starter_id ?? null });
   // 只保留与本轮 [喂养时刻, 轮次终点] 有交集的窗口：别的时段的关联与本轮无关。
@@ -132,7 +164,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
       : baselineHeightMm == null ? (baselinePending ? 'partial' : 'insufficient')
         : heightStale ? 'stale'
           : baselineIncomplete || coverageBroken ? 'partial' : 'complete';
-  return {
+  const summary = {
     baselineHeightMm, baselinePending, baselineSource, expansionPercent, height, currentHeightMm,
     tempC: temperatureStale || !temperatureCoverageReliable ? null : meanTempC, meanTempC, temperatureCoverageReliable, heightStale, temperatureStale, staleEvidence: heightStale || temperatureStale,
     elapsedHours: Number.isFinite(fedAt) && end >= fedAt ? (end - fedAt) / 3600000 : null,
@@ -149,6 +181,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     linkedWindowCount: windows.length, coverageGapMs: coverage.gapMs, coverageStartsLate, coverageBroken,
     risePhase: rise.phase, trendHeightMm: rise.trendHeightMm, highHeightMm: rise.highHeightMm, peakHeightMm: rise.peakHeightMm, peakAt: rise.peakAt,
   };
+  return { summary, rows: scoped };
 }
 
 /**
@@ -157,7 +190,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
  * 读取失败时降级：登录过期直接抛出（需要重新登录）；无权限（已退出共享且 RPC 不可用）给出 unavailableReason。
  */
 export async function loadFeedingEvidence(userId, starterId, feedingId) {
-  const [{ getCareRecord, listCareRecords }, { listStarterDeviceLinks }, { listMeasurementsRange }, { loadWindowClosure }] = await Promise.all([
+  const [{ getCareRecord, listCareRecords }, { listStarterDeviceLinks }, { listMeasurementsRange }, { loadWindowClosure, persistAutoClosure: persist }] = await Promise.all([
     import('./care.service.js'), import('./starter-device.service.js'), import('./device.service.js'),
     import('./fermentation-window.service.js'),
   ]);
@@ -203,6 +236,8 @@ export async function loadFeedingEvidence(userId, starterId, feedingId) {
     measurements.sort((a, b) => time(a.recorded_at) - time(b.recorded_at));
     if (measurements.length >= 40000) throw new Error('测量记录达到 40000 行，结果可能不完整，请缩短查询范围后重试。');
   }
-  const summary = summarizeFeedingMeasurements({ measurements, feeding, links: windows, now, nextFeedingAt, windowEndedAt: closure?.ended_at });
+  const summary = summarizeFeedingMeasurements({ measurements, feeding, links: windows, now, nextFeedingAt, windowEndedAt: closure?.ended_at, windowEndedReason: closure?.reason });
+  // 自动结束一经判定就归档，数据库由此区分手动 / 自动；归档失败不影响本次结果。
+  if (!closure && summary.windowEndReason === 'auto') void persist?.({ feedingId, summary, closure });
   return { feeding, link, links: windows, measurements, nextFeedingAt, now, closure, summary, unavailableReason, readNotice };
 }

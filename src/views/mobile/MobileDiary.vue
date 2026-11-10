@@ -15,7 +15,7 @@ import calendarIcon from '../../assets/icons/diary-calendar.svg';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
-import { loadWindowClosures } from '../../services/fermentation-window.service.js';
+import { loadWindowClosures, persistAutoClosure } from '../../services/fermentation-window.service.js';
 import {
   createRecordsLoader, normalizeRecordsQuery, recentRecordDays, recordDayRange, recordsDayModel,
   recordsDetailTarget, roundState, validLocalDay
@@ -314,6 +314,10 @@ async function load() {
     if (!current() || !factPage) return;
     hasMore.value = factPage.hasMore;
     model.value = recordsDayModel({ day, facts: factPage.rows, context, devices, now: Date.now() });
+    // 自动结束的轮次归档到数据库（reason = 'auto'），与手动结束区分；结束边界未核实完整时不写。
+    for (const round of [...model.value.events, ...model.value.continuations]) {
+      if (round.kind === 'feeding' && !round.boundaryPending) void persistAutoClosure({ feedingId: round.id, summary: round.summary, closure: round.closure });
+    }
     loadedPosition = position;
     loadedRevision = readRevision();
     notice.value = [...new Set([...(context?.notices || []), ...(devices?.notices || [])])].join(' ');

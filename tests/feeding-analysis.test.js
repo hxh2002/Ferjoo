@@ -110,6 +110,45 @@ assert.equal(summarize().baselineStatus, 'established');
 assert.equal(summarize().dataQuality, 'complete');
 assert.equal(summarize([]).dataQuality, 'insufficient');
 
+// 自动结束：last-peak 触发后连续两小时无数据。
+{
+  const flat = [5, 15, 25, 35, 45].map((m) => row(m, 100));
+  const peaked = [...flat, row(55, 150), row(65, 190), row(75, 210), row(85, 230), row(95, 225), row(105, 220)];
+  const at2 = (m, extra = {}) => summarize(peaked, { now: Date.parse(at(m)), ...extra });
+  assert.equal(at2(105).risePhase, 'peak');
+  assert.equal(at2(105 + 119).windowClosed, false, '无数据不满两小时仍在进行中');
+  let auto = at2(105 + 121);
+  assert.equal(auto.windowClosed, true);
+  assert.equal(auto.windowEndReason, 'auto');
+  assert.equal(auto.windowClosedAt, new Date(Date.parse(at(105)) + 1).toISOString());
+  assert.equal(auto.measurementCount, 11, '最后一条读数仍计入本轮');
+  assert.equal(auto.currentHeightMm, 220);
+  assert.equal(auto.peakHeightMm, 230);
+  // 未触发 last-peak（仍在 pre-peak）时，断档不会自动结束。
+  const prePeak = [...flat, row(55, 150), row(65, 190), row(75, 210), row(85, 230)];
+  assert.equal(summarize(prePeak, { now: Date.parse(at(85 + 300)) }).windowClosed, false);
+  // 峰值后数据中断两小时再恢复：在断档起点结束，之后的读数不计入。
+  auto = summarize([...peaked, row(105 + 150, 200)], { now: Date.parse(at(105 + 200)) });
+  assert.equal(auto.windowEndReason, 'auto');
+  assert.equal(auto.measurementCount, 11);
+  // 人工结束 / 下一次喂养保持各自的结束原因；末尾断档不改写它们。
+  assert.equal(at2(105 + 300, { windowEndedAt: at(105 + 200) }).windowEndReason, 'manual');
+  assert.equal(at2(105 + 300, { nextFeedingAt: at(105 + 200) }).windowEndReason, 'next_feeding');
+  assert.equal(at2(105 + 300, { windowEndedAt: at(106) }).windowEndReason, 'manual');
+  // 已归档的自动结束（closure.reason = 'auto'）：读取后仍是自动结束，手动归档保持手动。
+  const archivedAt = new Date(Date.parse(at(105)) + 1).toISOString();
+  assert.equal(at2(105 + 300, { windowEndedAt: archivedAt, windowEndedReason: 'auto' }).windowEndReason, 'auto');
+  assert.equal(at2(105 + 300, { windowEndedAt: archivedAt, windowEndedReason: 'manual' }).windowEndReason, 'manual');
+  assert.equal(at2(105 + 300, { windowEndedAt: archivedAt }).windowEndReason, 'manual');
+
+  const migration = await readFile(new URL('../supabase/migrations/030_auto_window_closure.sql', import.meta.url), 'utf8');
+  assert.match(migration, /check \(reason in \('manual', 'auto'\)\)/);
+  assert.match(migration, /function public\.auto_close_fermentation_window/);
+  assert.match(migration, /'auto', null/, '自动结束写入 reason = auto');
+  assert.match(migration, /interval '2 hours'/, '服务端校验缺口至少两小时');
+  assert.match(migration, /on conflict \(user_id, feeding_id\) do nothing/, '一轮只有一条结束事实');
+}
+
 // 手动结束只影响业务边界；设备断线只缩短可观测范围。
 result = summarize(normal, { now: Date.parse(at(300)), nextFeedingAt: at(200), windowEndedAt: at(60) });
 assert.equal(result.windowStatus, 'closed');
