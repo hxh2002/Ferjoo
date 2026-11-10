@@ -5,6 +5,10 @@ import { useAuth } from '../../composables/useAuth.js';
 import { deviceStatus, mobileDeviceService, mobileError } from '../../services/mobile-device.service.js';
 import { localDateTimeValue } from '../../lib/localDateTime.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import { clipWindows, filterRowsByWindows } from '../../lib/starter-link-windows.js';
+import { starterRoundDeviceWindows } from '../../lib/round-device-attribution.js';
+import { listCareRecords } from '../../services/care.service.js';
+import { loadWindowClosures } from '../../services/fermentation-window.service.js';
 import { READ_TTL, cachedRead, invalidateReadCache, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
@@ -128,27 +132,29 @@ async function fetchSnapshot(owner, id) {
   const endMs = Math.min(dayEnd.value.getTime(), Date.now());
   const info = await service.getDevice(id, owner);
 
-  let periods = [];
+  // 带 starter 参数时只展示该酵种在这台设备上的全部历史关联窗口（含已关闭窗口、重绑后的多段窗口）内的行；
+  // 同一天里别的酵种占用该设备的时段不会混入，窗口之外（空窗期）的行也不属于这个酵种。
+  let windows = null;
   if (starterId.value) {
-    const links = await listStarterDeviceLinks({ userId: owner, starterId: starterId.value });
-    periods = links.filter((row) => row.device_id === id)
-      .map((row) => [Date.parse(row.active_from), row.active_to ? Date.parse(row.active_to) : Infinity])
-      .filter(([from, to]) => to > startMs && from < endMs);
+    const [links, feedings] = await Promise.all([
+      listStarterDeviceLinks({ userId: owner }),
+      listCareRecords({ userId: owner, kind: 'feeding', limit: 200 })
+    ]);
+    const closures = await loadWindowClosures(owner, feedings.map((row) => row.id));
+    const rounds = starterRoundDeviceWindows(links, { starterId: starterId.value, feedings, closures });
+    windows = clipWindows(rounds.filter((window) => window.deviceId === id), startMs, endMs);
   }
 
   let measured = [];
   let complete = true;
-  if (endMs - startMs >= 600000) {
-    const result = await service.range(id, { from: new Date(startMs).toISOString(), to: new Date(endMs).toISOString() });
+  if (endMs - startMs >= 600000 && (!windows || windows.length)) {
+    const result = await service.range(id, { from: new Date(startMs).toISOString(), to: new Date(endMs).toISOString(), ...(starterId.value ? { starterId: starterId.value } : {}) });
+    // 登录过期 / 无权限与「这天没有数据」分开提示，不再把读取失败画成空曲线。
+    if (result.error) throw new Error(result.error);
     measured = result.rows;
     complete = result.complete;
   }
-  if (starterId.value) {
-    measured = measured.filter((row) => {
-      const at = Date.parse(row.recorded_at);
-      return periods.some(([from, to]) => at >= from && at < to);
-    });
-  }
+  if (windows) measured = filterRowsByWindows(measured.map((row) => ({ ...row, device_id: row.device_id || id })), windows);
   return { info, rows: measured, complete };
 }
 
@@ -253,7 +259,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.mobile-area .m-page.mobile-trend{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
+.mobile-area .m-page.mobile-trend{padding-top:12px;padding-bottom:calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);gap:0}
 .mobile-area .m-page.mobile-trend.is-empty{padding-top:16px}
 .device-row{display:flex;align-items:center;gap:12px;min-height:40px;margin:0 0 72px}
 .device-disc{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:20px;background:var(--m-icon-disc)}

@@ -44,10 +44,47 @@ result = summarize([row(5, 100), row(15, 110)], { nextFeedingAt: at(20) });
 assert.equal(result.baselineHeightMm, 100, '不足三个有效点时退回前五个点的最低点');
 assert.equal(result.baselineSource, 'sensor-min');
 assert.equal(result.baselineIncomplete, true);
-assert.equal(summarize(normal, { link: { ...link, active_from: at(10) } }).measurementCount, 0);
+// 关联晚于喂养时刻开始（重绑后继续的同一轮）：窗口内的读数照常计入，不再因 active_from > fedAt 被整体丢弃；
+// 但迟到超过 40 分钟时起始基线不再代表真实起点，必须标记为不完整。
+assert.equal(summarize(normal, { link: { ...link, active_from: at(10) } }).measurementCount, 5, 'rows inside a later-starting window are kept');
+assert.equal(summarize(normal, { link: { ...link, active_from: at(10) } }).coverageStartsLate, false, 'ten minutes late is still a trustworthy baseline');
+result = summarize(normal, { link: { ...link, active_from: at(50) } });
+assert.equal(result.measurementCount, 1, 'only the row after the window opens counts');
+assert.equal(result.coverageStartsLate, true);
+assert.equal(result.baselineIncomplete, true, 'a late first window makes the automatic baseline provisional');
+assert.notEqual(result.dataQuality, 'complete');
+assert.equal(summarize(normal, { link: { ...link, active_from: at(200) } }).measurementCount, 0, 'a window opening after the round ends contributes nothing');
 assert.equal(summarize(normal, { link: { ...link, starter_id: 's2' } }).measurementCount, 0);
 assert.equal(summarize(normal, { link: { ...link, active_to: at(25) } }).measurementCount, 2, 'association end is exclusive');
 assert.equal(summarize([row(-1, 100), row(121, 100), row(10, 100, { device_id: 'd2' })]).measurementCount, 0);
+
+// ---- 全部历史窗口：换绑 / 解绑 / 重绑后，同一酵种的多段窗口取并集，且互不混入 ----
+{
+  const closedFirst = { ...link, active_from: at(-10), active_to: at(30) };
+  const reopened = { ...link, active_from: at(60), active_to: null };
+  const across = summarize(normal, { link: undefined, links: [closedFirst, reopened] });
+  // 5/15/25 在第一段，70 在重绑后的第二段；35/45 落在空窗期，归属不明，不计入。
+  assert.equal(across.measurementCount, 4, 'rows from both windows of the same starter/device are included');
+  assert.deepEqual([across.latestMeasurementAt], [at(70)]);
+  assert.equal(across.linkedWindowCount, 2);
+  assert.equal(across.coverageGapMs, 30 * 60000, 'the unbound gap is reported, not silently filled');
+  assert.equal(across.coverageBroken, false, 'a 30 minute gap is within the sampling tolerance');
+  // 另一台设备、别的酵种占用的时段都不会混入。
+  const mixed = summarize([...normal, row(40, 777, { device_id: 'd2' })], { link: undefined, links: [closedFirst, reopened, { ...link, device_id: 'd2', starter_id: 's2', active_from: at(30), active_to: at(60) }] });
+  assert.equal(mixed.measurementCount, 4, 'another starter window on another device does not contribute');
+  // 同一酵种换到另一台设备再换回来：两台设备的窗口按各自设备过滤。
+  const swapped = summarize([...normal, row(40, 300, { device_id: 'd2' }), row(50, 301, { device_id: 'd2' }), row(55, 999, { device_id: 'd1' })], {
+    link: undefined, links: [closedFirst, { ...link, device_id: 'd2', active_from: at(30), active_to: at(60) }, reopened]
+  });
+  assert.equal(swapped.measurementCount, 4 + 2, 'rows from d2 count only inside the d2 window; d1 row inside the d2 window is rejected');
+  assert.equal(swapped.coverageGapMs, 0, 'contiguous windows across devices leave no gap');
+  // 长空窗期会把数据质量降级，而不是假装完整。
+  const longGap = summarize(normal, { link: undefined, links: [{ ...link, active_from: at(-10), active_to: at(10) }, { ...link, active_from: at(65), active_to: null }] });
+  assert.equal(longGap.coverageBroken, true);
+  assert.notEqual(longGap.dataQuality, 'complete');
+  // 别的酵种的窗口即使被一起传入也只按本酵种过滤。
+  assert.equal(summarize(normal, { link: undefined, links: [{ ...link, starter_id: 's2' }] }).measurementCount, 0);
+}
 
 result = summarize([row(5, 0), row(10, ''), row(15, null), row(20, 100, { sensor_error: true }), row(22, 100, { mode: 'sleep' }), row(25, 100), row(35, 101)]);
 assert.equal(result.heightCount, 2);
@@ -135,13 +172,18 @@ globalThis.__feedingEvidenceMocks = {
     async getCareRecord(id, options) { assert.equal(options.userId, 'owner'); return selectedFeeding; },
     async listCareRecords(options) {
       assert.equal(options.userId, 'owner');
-      assert.equal(options.starterId, 's1');
-      assert.equal(options.from, feeding.occurred_at);
-      return [feeding, { ...feeding, id: 'f2', occurred_at: at(80) }];
+      return globalThis.__allFeedings || [feeding, { ...feeding, id: 'f2', occurred_at: at(80) }];
     },
   },
   links: { async listStarterDeviceLinks() { return queriedLinks; } },
-  device: { async listMeasurementsRange(deviceId, options) { rawCalls.push({ deviceId, ...options }); return [...normal, row(90, 900)]; } },
+  device: {
+    async listMeasurementsRange(deviceId, options) {
+      rawCalls.push({ deviceId, ...options });
+      if (globalThis.__deviceReadError) throw globalThis.__deviceReadError;
+      const lo = Date.parse(options.from); const hi = Date.parse(options.to);
+      return [...normal, row(90, 900)].map((item) => ({ ...item, device_id: deviceId })).filter((item) => Date.parse(item.recorded_at) >= lo && Date.parse(item.recorded_at) <= hi);
+    }
+  },
   window: {
     async loadWindowClosure(userId, feedingId) {
       assert.equal(userId, 'owner');
@@ -152,7 +194,11 @@ globalThis.__feedingEvidenceMocks = {
   },
 };
 const mockSource = (bandSource + source.replace("import { heightBand } from '../lib/height-band.js';", '')
-  .replace("'../lib/rise-phase.js'", JSON.stringify(new URL('../src/lib/rise-phase.js', import.meta.url).href)))
+  .replace("'../lib/rise-phase.js'", JSON.stringify(new URL('../src/lib/rise-phase.js', import.meta.url).href))
+  .replace("'../lib/starter-link-windows.js'", JSON.stringify(new URL('../src/lib/starter-link-windows.js', import.meta.url).href))
+  .replace("'../lib/round-device-attribution.js'", JSON.stringify(new URL('../src/lib/round-device-attribution.js', import.meta.url).href))
+  .replace("'../lib/round-device-attribution.js'", JSON.stringify(new URL('../src/lib/round-device-attribution.js', import.meta.url).href))
+  .replace("'../lib/read-errors.js'", JSON.stringify(new URL('../src/lib/read-errors.js', import.meta.url).href)))
   .replace("import('./care.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.care)')
   .replace("import('./starter-device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.links)')
   .replace("import('./device.service.js')", 'Promise.resolve(globalThis.__feedingEvidenceMocks.device)')
@@ -178,12 +224,48 @@ globalThis.__windowClosureFails = false;
 rawCalls = [];
 queriedLinks = [{ ...link, active_to: at(100) }, { ...link, device_id: 'new', active_from: at(100) }];
 evidence = await loadFeedingEvidence('owner', 's1', 'f1');
-assert.equal(rawCalls.length, 0, 'closed association does not read device data through present permissions');
-assert.match(evidence.unavailableReason, /已经结束/);
+assert.equal(rawCalls.length, 1, 'a closed association still reads its own historical window');
+assert.equal(rawCalls[0].deviceId, 'd1');
+assert.equal(rawCalls[0].starterId, 's1', 'reads are scoped to the starter so the RPC fallback only returns its own windows');
+assert.equal(evidence.unavailableReason, '', 'a closed window is verifiable history, not an unavailable one');
+assert.equal(evidence.summary.currentHeightMm, 150);
+assert.equal(evidence.summary.dataQuality, 'complete');
+// 轮次跨越换绑：d1 关闭，随后同一酵种改绑 d2，再绑回 d1。每段窗口各读一次，只读它自己的时段。
+rawCalls = [];
+queriedLinks = [
+  { ...link, active_from: at(-10), active_to: at(30) },
+  { ...link, device_id: 'd2', active_from: at(30), active_to: at(60) },
+  { ...link, active_from: at(60), active_to: null },
+  { ...link, starter_id: 's2', device_id: 'd3', active_from: at(-100), active_to: null }
+];
+evidence = await loadFeedingEvidence('owner', 's1', 'f1');
+assert.deepEqual(rawCalls.map((call) => [call.deviceId, call.from, call.to]), [
+  ['d1', at(0), new Date(Date.parse(at(30)) - 1).toISOString()],
+  ['d2', at(30), new Date(Date.parse(at(60)) - 1).toISOString()],
+  ['d1', at(60), new Date(Date.parse(at(80)) - 1).toISOString()]
+], 'one read per historical window, clipped to the round; other starters devices are never read');
+assert.ok(evidence.measurements.every((item) => item.device_id), 'rows are tagged with the device they were read from');
+assert.equal(evidence.summary.linkedWindowCount, 3);
+assert.equal(evidence.summary.coverageGapMs, 0);
+assert.ok(evidence.summary.measurementCount > 0);
+// 关联在轮次之后才开始：不读取旧轮次的读数。
+rawCalls = [];
 queriedLinks = [{ ...link, active_from: at(100) }];
 evidence = await loadFeedingEvidence('owner', 's1', 'f1');
-assert.equal(rawCalls.length, 0, 'new association never supplies old feeding readings');
+assert.equal(rawCalls.length, 0, 'an association that starts after the round never supplies its readings');
 assert.equal(evidence.summary.baselineHeightMm, null);
+assert.match(evidence.unavailableReason, /没有可核实的设备归属/);
+// 读取失败再降级：无权限给出明确原因，登录过期抛出（让页面引导重新登录），空数据不是错误。
+queriedLinks = [{ ...link, active_to: at(100) }];
+globalThis.__deviceReadError = Object.assign(new Error('permission denied for table device_measurements'), { code: '42501' });
+evidence = await loadFeedingEvidence('owner', 's1', 'f1');
+assert.match(evidence.unavailableReason, /不是这台设备的成员/);
+assert.deepEqual(evidence.measurements, []);
+globalThis.__deviceReadError = Object.assign(new Error('JWT expired'), { code: 'PGRST301' });
+await assert.rejects(loadFeedingEvidence('owner', 's1', 'f1'), /登录已过期/);
+globalThis.__deviceReadError = new Error('network down');
+await assert.rejects(loadFeedingEvidence('owner', 's1', 'f1'), /network down/);
+delete globalThis.__deviceReadError;
 queriedLinks = [link];
 globalThis.__feedingEvidenceMocks.device.listMeasurementsRange = async () => Array(40000).fill(row(70, 150));
 await assert.rejects(loadFeedingEvidence('owner', 's1', 'f1'), /40000.*缩短/);

@@ -160,7 +160,14 @@ const activeFrom = new Date(dayStart.getTime() - 86400000).toISOString();
 const failingLoader = createRecordsLoader({
   listStarterDeviceLinks: async ({starterId}) => [{starter_id:starterId,device_id:starterId,active_from:activeFrom,active_to:null}],
   mobileDeviceService: async () => ({ range: async (deviceId) => { if (deviceId === 'broken') throw new Error('offline'); return { complete:true, rows:[{id:'sample',device_id:deviceId,recorded_at:sampleAt,mode:'fer',sensor_error:false,height_mm:30}] }; } }),
-  listCareRecords: async () => [], loadWindowClosures: async () => []
+  // 设备采样按喂养轮次归属：每个酵种在当天之前有一次喂养，轮次延续到当天。
+  // 当天索引里带出另一个酵种 broken，使其也能按轮次读取设备数据。
+  listCareRecords: async ({ starterId, from, to }) => {
+    const feed = (id) => ({ id: `feed-${id}`, starter_id: id, kind: 'feeding', occurred_at: activeFrom, input: {}, ratio: '1:2:2' });
+    if (from && to) return starterId === 'ok' ? [feed('broken')] : [];
+    return starterId && to ? [feed(starterId)] : [];
+  },
+  loadWindowClosures: async () => []
 });
 const partial = await failingLoader.devices('u1',deviceDay,['ok','broken']);
 assert.equal(partial.summaries.length,1,'one device failure does not prevent the working linked device summary');
@@ -176,7 +183,7 @@ assert.match(source, /\.date-cell\.today:not\(\.active\)\{font-weight:500\}/, 't
 assert.match(source, /watch\(\[accountId, selectedStarterId, visibleMarkRange\]/);
 assert.match(source, /有正式数据/);
 const formalRange = { from: recordDayRange('2026-10-19').from, to: recordDayRange('2026-10-22').from };
-const formalLinks = [{ device_id: 'd1', active_from: formalRange.from, active_to: recordDayRange('2026-10-21').from }];
+const formalLinks = [{ starter_id: 's1', device_id: 'd1', active_from: formalRange.from, active_to: recordDayRange('2026-10-21').from }];
 const sampleOn = (day, hour, extra = {}) => ({ device_id: 'd1', recorded_at: `${day}T${String(hour).padStart(2, '0')}:00:00`, ...extra });
 assert.deepEqual(formalMeasurementDays([
   sampleOn('2026-10-19', 8, { mode: 'sleep', sensor_error: false }),
@@ -188,12 +195,16 @@ assert.deepEqual(formalMeasurementDays([
 ], formalLinks, formalRange), { '2026-10-20': true });
 assert.equal(markReadRange('2099-01-01T00:00:00Z', '2099-01-02T00:00:00Z'), null, 'future calendars do not request measurements');
 const markCalls = [];
+// 日历标记按喂养轮次归属设备采样：给 s1 一次早于可见范围的喂养，轮次延续到关联结束。
+const markFeeding = { id: 'mark-feed', starter_id: 's1', kind: 'feeding', occurred_at: formalRange.from, input: {}, ratio: '1:2:2' };
+const markCare = async ({ userId, kind, offset = 0 }) => { assert.equal(userId, 'u1'); assert.equal(kind, 'feeding'); return offset ? [] : [markFeeding]; };
 const marksLoader = createRecordsLoader({
-  listStarterDeviceLinks: async ({ userId, starterId }) => {
+  listStarterDeviceLinks: async ({ userId }) => {
     assert.equal(userId, 'u1');
-    assert.equal(starterId, 's1');
     return formalLinks;
   },
+  listCareRecords: markCare,
+  loadWindowClosures: async () => [],
   mobileDeviceService: async () => ({
     range: async (deviceId, range) => {
       markCalls.push({ deviceId, range });
@@ -208,10 +219,43 @@ const marksLoader = createRecordsLoader({
 });
 const markRange = { from: formalRange.from, to: recordDayRange('2026-10-22').from };
 assert.deepEqual(await marksLoader.marks('u1', markRange, 's1'), { '2026-10-20': true });
-assert.deepEqual(markCalls, [{ deviceId: 'd1', range: { from: markRange.from, to: formalLinks[0].active_to } }], 'measurement reads are clipped to visible dates and the device link');
+assert.deepEqual(markCalls, [{ deviceId: 'd1', range: { from: markRange.from, to: formalLinks[0].active_to, starterId: 's1' } }], 'measurement reads are clipped to visible dates and the device link, scoped to the starter');
 await marksLoader.marks('u1', markRange, 's1');
 assert.equal(markCalls.length, 1, 'identical visible ranges share the cached measurement marks');
 marksLoader.clear();
 await marksLoader.marks('u1', markRange, 's1');
 assert.equal(markCalls.length, 2, 'new writes invalidate cached measurement marks');
+// 重绑后的多段窗口：每段窗口各读一次，第二段（重绑后）的采样同样标记；空窗期与读取失败如实暴露。
+{
+  const day = (d) => recordDayRange(d).from;
+  const windows = [
+    { starter_id: 's1', device_id: 'd1', active_from: day('2026-10-19'), active_to: day('2026-10-20') },
+    { starter_id: 's1', device_id: 'd1', active_from: day('2026-10-21'), active_to: null }
+  ];
+  const calls = [];
+  const rangeRows = (rows) => ({ complete: true, rows });
+  const reopenLoader = createRecordsLoader({
+    listStarterDeviceLinks: async () => windows,
+    listCareRecords: markCare, loadWindowClosures: async () => [],
+    mobileDeviceService: async () => ({ range: async (deviceId, range) => { calls.push({ deviceId, ...range });
+      return rangeRows([sampleOn('2026-10-19', 8, { mode: 'fer', sensor_error: false }), sampleOn('2026-10-20', 8, { mode: 'fer', sensor_error: false }), sampleOn('2026-10-21', 8, { mode: 'fer', sensor_error: false })]); } })
+  });
+  const marked = await reopenLoader.marks('u1', { from: day('2026-10-19'), to: day('2026-10-22') }, 's1');
+  assert.deepEqual(Object.keys(marked).sort(), ['2026-10-19', '2026-10-21'], 'both windows are marked; the unbound day in between is not');
+  assert.equal(calls.length, 2, 'one read per historical window, none for the gap');
+  assert.equal(marked.failures, 0);
+  // 单段失败不清空另一段，失败数暴露给页面，且不缓存以便重试。
+  let failNext = true; const retryCalls = [];
+  const flaky = createRecordsLoader({
+    listStarterDeviceLinks: async () => windows,
+    listCareRecords: markCare, loadWindowClosures: async () => [],
+    mobileDeviceService: async () => ({ range: async (deviceId, range) => { retryCalls.push(range); if (failNext && retryCalls.length === 1) return { complete: false, rows: [], error: '登录已过期', errorKind: 'auth' };
+      return rangeRows([sampleOn('2026-10-21', 8, { mode: 'fer', sensor_error: false })]); } })
+  });
+  const part = await flaky.marks('u1', { from: day('2026-10-19'), to: day('2026-10-22') }, 's1');
+  assert.equal(part.failures, 1); assert.ok(part['2026-10-21'] || part['2026-10-19']);
+  failNext = false; const before = retryCalls.length;
+  await flaky.marks('u1', { from: day('2026-10-19'), to: day('2026-10-22') }, 's1');
+  assert.ok(retryCalls.length > before, 'a partially failed read is retried instead of cached');
+}
 console.log('mobile records: local dates, formal measurement backgrounds, device-link windows, feeding rounds, closures, missing/failed devices, returnTo and cache contracts passed');

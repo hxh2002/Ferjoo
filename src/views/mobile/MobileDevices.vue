@@ -3,31 +3,50 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { listStarters } from '../../services/care.service.js';
-import { getStarterDeviceLink, linkStarterDevice } from '../../services/starter-device.service.js';
+import { LOCAL_LINK_NOTICE } from '../../lib/link-change.js';
+import { linkStarterDevice, listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import { invalidateReadCache } from '../../lib/read-cache.js';
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
 import MSheet from '../../components/mobile/MSheet.vue';
 import MToast from '../../components/mobile/MToast.vue';
 const starters = ref([]);
 const starterLinks = ref({});
-const linkedStarter = ref('');
-const savedStarter = ref('');
+const linkedStarters = ref([]);
+const savedStarters = ref([]);
+const savedStarterNames = computed(() => savedStarters.value.map((id) => starters.value.find((item) => item.id === id)?.name).filter(Boolean));
 async function saveLink() {
-  if (saving.value || !linkedStarter.value) return;
+  if (saving.value) return;
   const c = context();
-  const starterId = linkedStarter.value;
+  const selected = new Set(linkedStarters.value);
+  const previous = new Set(savedStarters.value);
+  const additions = linkedStarters.value.filter((id) => !previous.has(id));
+  const removals = savedStarters.value.filter((id) => !selected.has(id));
+  if (!additions.length && !removals.length) { starterOpen.value = false; return; }
   let saved = false;
   await perform(async () => {
-    const result = await linkStarterDevice({ userId: c.user, starterId, deviceId: c.device });
-    if (current(c)) {
-      savedStarter.value = starterId;
-      starterLinks.value = Object.fromEntries(Object.entries(starterLinks.value).map(([id, linkedDevice]) => [id, linkedDevice === c.device ? '' : linkedDevice]));
-      starterLinks.value[starterId] = c.device;
-      saved = true;
+    const results = [];
+    // 按酵种独立提交；一台设备的多个活跃关联互不影响。取消关联只结束当前酵种的窗口。
+    for (const id of [...removals, ...additions]) {
+      results.push(await linkStarterDevice({ userId: c.user, starterId: id, deviceId: selected.has(id) ? c.device : null }));
     }
-    return result;
-  }, '设置已保存');
-  // perform 会统一展示错误；只有关联接口真正完成后才关闭，失败时保留选择便于重试。
+    invalidateReadCache('links');
+    saved = true;
+    return results;
+  }, (results) => (results?.some((result) => result?.local_only) ? LOCAL_LINK_NOTICE : '设置已保存'));
+  // 提交后重新读取服务端结果，避免部分成功时把未保存的草稿当成已生效。
+  if (current(c) && (saved || additions.length || removals.length)) {
+    invalidateReadCache('links');
+    try {
+      const links = await listStarterDeviceLinks({ userId: c.user });
+      if (current(c)) applyLinks(links);
+    } catch (cause) { if (current(c)) error.value = mobileError(cause); }
+  }
   if (saved && current(c)) starterOpen.value = false;
+}
+function applyLinks(links) {
+  starterLinks.value = Object.fromEntries(starters.value.map((item) => [item.id, links.find((row) => row.active_to == null && row.starter_id === item.id)?.device_id || '']));
+  savedStarters.value = starters.value.filter((item) => starterLinks.value[item.id] === deviceId.value).map((item) => item.id);
+  linkedStarters.value = [...savedStarters.value];
 }
 import { mobileDeviceService, mobileError, normalizeBindCode } from '../../services/mobile-device.service.js';
 const router = useRouter();
@@ -69,13 +88,13 @@ async function load() {
       device.value = info;
       if (!info) { error.value = '设备不存在或共享权限已变化。'; return; }
       name.value = info.name || '';
-      const names = await listStarters({ userId: c.user });
-      const links = await Promise.all(names.map(item => getStarterDeviceLink({ userId: c.user, starterId: item.id })));
+      const [names, links] = await Promise.all([
+        listStarters({ userId: c.user }),
+        listStarterDeviceLinks({ userId: c.user })
+      ]);
       if (!current(c)) return;
       starters.value = names;
-      starterLinks.value = Object.fromEntries(names.map((item, index) => [item.id, links[index]?.device_id || '']));
-      linkedStarter.value = names.find((item) => starterLinks.value[item.id] === c.device)?.id || '';
-      savedStarter.value = linkedStarter.value;
+      applyLinks(links);
       if (manager.value) {
         const list = await service.members(c.device);
         if (current(c)) members.value = list || [];
@@ -103,8 +122,9 @@ async function perform(action, success) {
     const service = await mobileDeviceService();
     const result = await action(service, c);
     if (!current(c)) return;
-    notice.value = success;
-    if (success === '设置已保存') showToast(success);
+    const message = typeof success === 'function' ? success(result) : success;
+    notice.value = message;
+    if (message === '设置已保存') showToast(message);
     return result;
   } catch (e) { if (current(c)) error.value = mobileError(e); }
   finally { if (current(c)) saving.value = false; }
@@ -175,7 +195,8 @@ async function copy(value) {
 }
 const offline = computed(() => isOffline(device.value?.last_seen_at));
 const lastSync = computed(() => formatSeen(device.value?.last_seen_at));
-const linkableStarters = computed(() => starters.value.filter((item) => !starterLinks.value[item.id] || starterLinks.value[item.id] === deviceId.value));
+// 酵种仍只能活跃关联一台设备；设置另一台设备时会先明确提示，再结束原设备关联。
+const linkableStarters = computed(() => starters.value);
 function isOffline(value) {
   const seen = Date.parse(value);
   return !Number.isFinite(seen) || Date.now() - seen > 40 * 60 * 1000;
@@ -200,23 +221,28 @@ async function refreshDevice() {
   if (scoped && (device.value?.last_seen_at || '') === seen) showToast('暂无新数据', 'neutral');
 }
 function openStarterSheet() {
-  linkedStarter.value = savedStarter.value;
+  linkedStarters.value = [...savedStarters.value];
   starterOpen.value = true;
 }
 function closeStarterSheet() {
   // 保存请求进行中不允许把关闭误认为取消；其余关闭方式都只丢弃未确认选择。
   if (saving.value) return;
   starterOpen.value = false;
-  linkedStarter.value = savedStarter.value;
+  linkedStarters.value = [...savedStarters.value];
 }
 function chooseStarter(id) {
   if (saving.value) return;
-  linkedStarter.value = id;
+  linkedStarters.value = linkedStarters.value.includes(id)
+    ? linkedStarters.value.filter((item) => item !== id)
+    : [...linkedStarters.value, id];
 }
+// 只提示新增关联会结束该酵种在另一台设备上的活跃关联；其他已选酵种保持不变。
+const movedStarters = computed(() => starters.value.filter((item) => linkedStarters.value.includes(item.id)
+  && starterLinks.value[item.id] && starterLinks.value[item.id] !== deviceId.value));
 watch([userId, deviceId], () => {
   version += 1; devices.value = []; device.value = null; members.value = [];
   code.value = ''; confirmed.value = false; name.value = ''; target.value = '';
-  showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; starterLinks.value = {}; linkedStarter.value = ''; savedStarter.value = '';
+  showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; starterLinks.value = {}; linkedStarters.value = []; savedStarters.value = [];
   starterOpen.value = false;
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
   if (userId.value) load();
@@ -234,7 +260,6 @@ onBeforeUnmount(() => { version += 1; });
     <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
     <template v-if="!deviceId">
       <header class="devices-head">
-        <h1>我的设备</h1>
         <button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button>
       </header>
       <section v-if="loading && !devices.length" class="m-skeleton" aria-busy="true" aria-label="正在读取设备"><span></span><span></span></section>
@@ -272,7 +297,7 @@ onBeforeUnmount(() => { version += 1; });
     <template v-else-if="device">
       <p v-if="offline" class="offline-banner" role="status">设备离线<button type="button" :disabled="loading" @click="refreshDevice">刷新</button><span>上次同步 {{ lastSync }}</span></p>
       <p v-if="offline" class="offline-note">请检查设备电源与网络，再刷新状态。</p>
-      <header class="devices-head"><h1>{{ device.name || device.device_id }}</h1><button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button></header>
+      <header class="devices-head"><button class="m-text-action" :disabled="loading || saving || !userId" @click="refreshDevice">刷新</button></header>
       <section class="m-card overview-card detail-overview">
         <span class="device-hat" aria-hidden="true"><img src="../../assets/icons/nav-device.svg" alt="" width="44" height="29" /></span>
         <div class="overview-copy">
@@ -283,7 +308,7 @@ onBeforeUnmount(() => { version += 1; });
       <p class="group-label">设备管理</p>
       <section id="device-settings" class="m-card settings-card">
         <button v-if="manager" type="button" class="settings-row" @click="openRename">设备名称 <span aria-hidden="true">›</span></button>
-        <button type="button" class="settings-row" @click="openStarterSheet">关联酵种 <small>{{ starters.find(item => item.id === savedStarter)?.name || '未关联' }}</small><span aria-hidden="true">›</span></button>
+        <button type="button" class="settings-row" @click="openStarterSheet">关联酵种 <small>{{ savedStarterNames.join('、') || '未关联' }}</small><span aria-hidden="true">›</span></button>
         <RouterLink class="settings-row" :to="`/me/devices/${encodeURIComponent(deviceId)}/info`">设备信息 <span aria-hidden="true">›</span></RouterLink>
         <RouterLink class="settings-row" :to="`/devices/${encodeURIComponent(deviceId)}/trend`">查看设备数据 <span aria-hidden="true">›</span></RouterLink>
       </section>
@@ -312,29 +337,29 @@ onBeforeUnmount(() => { version += 1; });
     <MSheet :open="starterOpen" title="关联酵种" @close="closeStarterSheet">
       <p v-if="error" class="m-error" role="alert">{{ error }}</p>
       <p v-if="!linkableStarters.length" class="m-muted">还没有可关联的酵种。</p>
-      <div v-else class="starter-options" role="group" aria-label="选择要关联的酵种">
+      <div v-else class="starter-options" role="group" aria-label="选择要关联的酵种，可多选">
         <button
           v-for="item in linkableStarters"
           :key="item.id"
           type="button"
           class="settings-row starter-option"
-          :class="{ 'is-selected': linkedStarter === item.id }"
-          :aria-pressed="linkedStarter === item.id"
+          :class="{ 'is-selected': linkedStarters.includes(item.id) }"
+          :aria-pressed="linkedStarters.includes(item.id)"
           :disabled="saving"
           @click="chooseStarter(item.id)"
-        >{{ item.name }}<span aria-hidden="true">{{ linkedStarter === item.id ? '✓' : '' }}</span></button>
+        ><span class="starter-option-name">{{ item.name }}<small v-if="starterLinks[item.id] && starterLinks[item.id] !== deviceId">已关联其他设备</small></span><span aria-hidden="true">{{ linkedStarters.includes(item.id) ? '✓' : '' }}</span></button>
       </div>
+      <p v-if="movedStarters.length" class="m-error link-change" role="alert">{{ movedStarters.map(item => `「${item.name}」目前关联着另一台设备，保存后会结束那段关联；历史记录会保留。`).join('\n') }}</p>
       <template #footer>
-        <button type="button" class="starter-save" :disabled="saving || !linkedStarter" @click="saveLink">{{ saving ? '保存中…' : '确认' }}</button>
+        <button type="button" class="starter-save" :disabled="saving" @click="saveLink">{{ saving ? '保存中…' : movedStarters.length ? '确认更换' : '确认' }}</button>
       </template>
     </MSheet>
-    <MConfirmDialog :open="!!unbindTarget" danger title="解除绑定" :message="unbindTarget?.self ? '解绑后将不再通过成员身份访问设备历史，原始数据不会删除。' : '该成员将失去设备历史访问权限。'" confirm-label="解除绑定" @cancel="unbindTarget = null" @confirm="confirmRemove" />
+    <MConfirmDialog :open="!!unbindTarget" danger title="解除绑定" :message="unbindTarget?.self ? '解绑后会同时结束你名下酵种与这台设备的关联；关联期间已产生的历史读数仍保留，并可在对应酵种的历史里查看。重新加入后需重新关联酵种，退出到重新关联之间的数据归属不明，不会计入任何酵种。' : '该成员将失去设备访问权限，并结束其名下酵种与这台设备的关联；其关联期间的历史读数仍归其酵种。'" confirm-label="解除绑定" @cancel="unbindTarget = null" @confirm="confirmRemove" />
     <MToast :open="!!toast" :message="toast" :tone="toastTone" @close="toast = ''" />
   </main>
 </template>
 <style scoped>
-.devices-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;margin:0 0 14px}
-.devices-head h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
+.devices-head{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin:0}
 .group-label{margin:18px 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
 .empty-state{display:grid;justify-items:center;gap:8px;padding:72px 0 0;text-align:center}
 .empty-disc{display:grid;place-items:center;width:80px;height:80px;margin-bottom:8px;border-radius:50%;background:var(--m-icon-disc)}
@@ -391,9 +416,12 @@ onBeforeUnmount(() => { version += 1; });
 .rename-field{display:grid;gap:8px;font-size:var(--text-sm);font-weight:500}
 .rename-field input{width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md)}
 .starter-options{display:grid;gap:8px}
+.link-change{white-space:pre-line;margin:12px 0 0}
 .starter-option{min-height:56px;padding:0 16px;border-radius:var(--radius-control);cursor:pointer}
 .starter-option + .starter-option::before{display:none}
 .starter-option.is-selected{background:var(--surface-selected);color:var(--brand-action)}
+.starter-option-name{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
+.starter-option-name small{margin:0;color:var(--text-secondary);font-size:12px;line-height:18px}
 .starter-option:disabled{cursor:not-allowed;opacity:.6}
 .rename-save,.starter-save{display:flex;align-items:center;justify-content:center;width:100%;height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
 .rename-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}

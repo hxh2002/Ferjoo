@@ -81,11 +81,26 @@ export function listStarters({ userId } = {}) {
   }), { ttl: READ_TTL.starter });
 }
 
+// 酵种的喂养/观察记录与设备关联历史是回看历史曲线、基线和轮次证据的唯一依据：
+// 有任何记录或关联历史的酵种不允许删除（数据库本身也没有授予 starters 的 delete 权限，删除会级联清空这些历史）。
 export function deleteStarter(starterId) {
   return run(async () => {
     const id = requiredUuid(starterId, '酵种 ID');
-    const { error } = await requireClient().from('starters').delete().eq('id', id);
-    if (error) throw error;
+    const client = requireClient();
+    const [records, links] = await Promise.all([
+      client.from('care_records').select('id').eq('starter_id', id).limit(1),
+      client.from('starter_device_links').select('id').eq('starter_id', id).limit(1)
+    ]);
+    if (records.error) throw records.error;
+    // 关联表尚未迁移时视为没有关联历史；其余错误如实抛出。
+    if (links.error && !['42P01', 'PGRST205'].includes(links.error.code)) throw links.error;
+    if (records.data?.length) fail('这个酵种有喂养或观察记录，不能删除，以免丢失历史数据。');
+    if (links.data?.length) fail('这个酵种有设备关联历史，不能删除，以免丢失历史曲线。');
+    const { error } = await client.from('starters').delete().eq('id', id);
+    if (error) {
+      if (error.code === '42501') fail('当前版本不支持删除酵种，历史数据受保护。');
+      throw error;
+    }
     invalidateReadCache('care:starters');
     return { id };
   });

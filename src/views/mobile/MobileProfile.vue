@@ -25,7 +25,6 @@ const rows = computed(() => [
 
 <template>
   <main class="m-page profile-view">
-    <h1>个人资料</h1>
     <section class="m-card identity-card">
       <div class="identity-row">
         <span class="avatar" aria-hidden="true">
@@ -52,12 +51,6 @@ const rows = computed(() => [
 <style scoped>
 .mobile-area .m-page.profile-view {
   gap: 24px
-}
-h1 {
-  margin: 0;
-  font-size: 28px;
-  line-height: 36px;
-  font-weight: 500
 }
 .identity-card {
   display: grid;

@@ -7,6 +7,9 @@ import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.s
 import { CLOSE_REASON_LABELS, roundState } from '../src/lib/mobile-records.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 import * as starterJar from '../src/components/mobile/MStarterJar.js';
+import * as linkWindows from '../src/lib/starter-link-windows.js';
+import * as linkChange from '../src/lib/link-change.js';
+import * as roundAttribution from '../src/lib/round-device-attribution.js';
 
 const file = new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url);
 const source = await readFile(file, 'utf8');
@@ -30,9 +33,11 @@ assert.match(source, /fermentation-window\.service\.js/);
 assert.match(source, /结束当前发酵/);
 assert.match(source, /确认结束/);
 assert.match(source, /历史记录已保存/);
-assert.match(source, /\/me\/devices\?bind=1/);
+assert.match(source, /在设备设置中管理关联/);
+assert.match(source, /\/me\/devices\/\$\{encodeURIComponent\(deviceId\)\}/);
 assert.doesNotMatch(source, /诊断本轮|诊断需 3 步/, 'diagnosis stays in diary flows rather than the home CTA');
-assert.match(source, /linkStarterDevice/);
+assert.match(source, /listStarterDeviceLinks/);
+assert.doesNotMatch(source, /linkStarterDevice/, 'home never mutates device associations');
 assert.doesNotMatch(source, /SeriesChart/, 'charts move to the detail page, not the device home');
 // 酵种弹层只有 280px：.starter-choice 既是 grid 子项又是 flex 容器，两层都要 min-width:0
 // 才能让长酵种名收缩换行；删除键还要压过 .picker-menu button 的 width:100%（0,1,1），
@@ -125,6 +130,9 @@ function harness() {
       }
     },
     '../../services/mobile-diagnosis.service.js': { loadSessionReport: () => null },
+    '../../lib/starter-link-windows.js': linkWindows,
+    '../../lib/link-change.js': linkChange,
+    '../../lib/round-device-attribution.js': roundAttribution,
     '../../lib/mobile-selection.js': { rememberSelectedStarter: (owner, id) => state.selection.push([owner, id]) },
     '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, roundState, feedingEvidenceCacheKey: () => 'evidence' },
     '../../lib/read-cache.js': { invalidateReadCache: () => {}, cachedRead: (key, loader) => loader(), READ_TTL: { records: 0 } }
@@ -191,8 +199,9 @@ assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the 
 
 h.vm.contextOpen = true;
 const pickerHtml = await h.html();
-assert.match(pickerHtml, /仅查看设备数据/, 'not choosing a starter is described by its actual effect');
-assert.match(pickerHtml, /已关联其他设备/, 'starters linked to another device stay visible with an explanation');
+assert.doesNotMatch(pickerHtml, /酵种罐|仅查看设备数据|新增\/连接酵种罐/, 'the home sheet contains only starter choices');
+assert.match(pickerHtml, /已关联其他设备|已关联 d2/, 'a starter on another device stays selectable');
+assert.match(pickerHtml, /在设备设置中管理关联/);
 h.vm.contextOpen = false;
 {
   // 同一轮继续采样：上涨 → 停涨在高位 → 回落，罐子依次变成吃饭 / Peak / 饿了，并在回落后留下峰值痕迹。
@@ -214,7 +223,7 @@ h.vm.contextOpen = false;
   assert.ok(h.vm.jarLevel < h.vm.jarPeakLevel, 'the fallen level sits below the trace');
   h.state.rows = saved; await h.vm.refresh(); await drain();
 }
-assert.equal(h.vm.deviceId, 'd1', 'oldest valid device is the deterministic default');
+assert.equal(h.vm.deviceId, 'd1', 'the selected starter determines the active device');
 assert.equal(h.vm.starterId, 's1', 'linked starter is selected by default');
 assert.deepEqual(h.state.selection.at(-1), ['a', 's1'], 'the resolved starter is remembered so the diary page opens on the same jar');
 assert.equal(h.vm.evidence.length, rows.length);
@@ -229,10 +238,12 @@ for (const fail of ['starter', 'device', 'link']) {
 h.state.fail = '';
 h.vm.selectStarter(''); await settle(); await h.vm.refresh();
 assert.equal(h.vm.starterId, '', 'explicit empty starter survives polling');
-h.vm.selectDevice('d2'); await settle();
+h.vm.selectStarter('s2'); await settle(); await drain();
+assert.equal(h.vm.deviceId, 'd2', 'selecting a starter switches to its linked device');
 assert.equal(h.vm.jarMood, 'idle', 'without a selected starter round the jar rests');
-h.vm.selectDevice('d1'); await settle();
-assert.equal(h.vm.starterId, '', 'explicit empty choice survives device switching');
+h.state.links.push({ starter_id: 's2', device_id: 'd1', active_from: iso(70), active_to: null });
+await h.vm.refresh(); await drain();
+assert.equal(h.vm.starterId, 's2', 'explicit starter choice survives polling');
 h.vm.selectStarter('s1'); await settle(); await drain();
 h.state.feeding = null; await h.vm.refresh(); await drain();
 assert.deepEqual(h.vm.evidence, [], 'removing feeding clears stale evidence');
@@ -245,11 +256,12 @@ assert.deepEqual(h.vm.evidence, [], 'removing link clears stale evidence');
 assert.deepEqual(h.vm.measurements, [], 'unlinked starter cannot retain raw sample data');
 const unlinkedHtml = await h.html();
 assert.match(unlinkedHtml, /未关联设备/, 'missing device data is described as data quality, not as a finished round');
-assert.doesNotMatch(unlinkedHtml, /picker-row/, 'device and starter pickers stay collapsed until requested');
+assert.doesNotMatch(unlinkedHtml, /picker-row/, 'the starter picker stays collapsed until requested');
 h.vm.contextOpen = true;
 const expandedHtml = await h.html();
-assert.match(expandedHtml, /picker-row/, 'opening the starter switch reveals the device and starter pickers');
-assert.match(expandedHtml, /关联当前设备/, 'switching and associating stay reachable once expanded');
+assert.match(expandedHtml, /picker-row/, 'opening the starter switch reveals only the starter picker');
+assert.match(expandedHtml, /在设备设置中管理关联/, 'association management is delegated to settings');
+assert.doesNotMatch(expandedHtml, /关联当前设备|酵种罐/);
 h.vm.contextOpen = false;
 assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
 // 结束流程先是确认弹层，确认后才写入并给出保存提示。
@@ -270,22 +282,18 @@ assert.match(closedHtml, /本次发酵已结束/);
 assert.match(closedHtml, /class="device-cta"/);
 assert.doesNotMatch(closedHtml, /结束当前发酵/, 'closed round no longer offers manual end');
 assert.match(closedHtml, />喂养</, 'a closed round offers the next feeding instead');
+h.state.links = [link]; await h.vm.refresh(); await drain();
 h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
-await h.vm.addStarter(); await settle();
-assert.equal(h.vm.starterId, 'created'); assert.equal(h.vm.link.device_id, 'd1');
+await h.vm.addStarter(); await settle(); await drain();
+assert.equal(h.vm.starterId, 'created');
+assert.equal(h.vm.link, null, 'creating on the home page does not silently create an association');
+assert.equal(h.vm.deviceId, '');
 assert.equal(h.vm.newName, ''); assert.equal(h.vm.newStarterOpen, false);
 h.stop();
 
 const failed = harness(); await login(failed);
-failed.state.linkFailure = true; failed.vm.newName = '保留的新酵种';
-await failed.vm.addStarter(); await settle();
-assert.equal(failed.vm.starterId, 'created', 'link failure retains created starter');
-assert.equal(failed.vm.link, null); assert.match(failed.vm.mutationError, /已新建.*关联失败/);
-failed.state.linkFailure = false; await failed.vm.associateSelected(); await settle();
-assert.equal(failed.vm.link.device_id, 'd1', 'association can be retried without duplicate creation');
-assert.equal(failed.vm.mutationError, '');
 failed.state.fail = 'create'; failed.vm.newName = '仍在编辑'; failed.vm.newStarterOpen = true;
-await failed.vm.addStarter();
+await failed.vm.addStarter(); await settle();
 assert.equal(failed.vm.newName, '仍在编辑'); assert.equal(failed.vm.newStarterOpen, true);
 assert.match(failed.vm.error, /create down/);
 failed.stop();
@@ -302,10 +310,10 @@ serial.stop();
 
 const switched = harness(); const stale = deferred(); switched.state.starterGate = stale;
 await login(switched, 'old');
-switched.vm.newName = '旧账号名字'; switched.vm.newStarterOpen = true; switched.vm.deviceOpen = true; switched.vm.starterOpen = true; switched.vm.mutationError = '旧错误';
+switched.vm.newName = '旧账号名字'; switched.vm.newStarterOpen = true; switched.vm.starterOpen = true; switched.vm.mutationError = '旧错误';
 switched.user.value = { id: 'new' };
 assert.equal(switched.vm.newName, ''); assert.equal(switched.vm.newStarterOpen, false);
-assert.equal(switched.vm.deviceOpen, false); assert.equal(switched.vm.starterOpen, false); assert.equal(switched.vm.mutationError, '');
+assert.equal(switched.vm.starterOpen, false); assert.equal(switched.vm.mutationError, '');
 assert.deepEqual(switched.vm.starters, []);
 switched.state.starters = [{ id: 'new-starter', name: '新账号' }]; switched.state.links = [];
 switched.state.starterGate = null; stale.resolve([{ id: 'old-starter', name: '旧账号' }]); await settle();
@@ -322,19 +330,7 @@ assert.equal(mutation.vm.newName, '新账号未提交');
 assert.ok(!mutation.vm.starters.some(item => item.id === 'old-created'), 'old mutation cannot populate a new account');
 assert.equal(mutation.vm.saving, false); mutation.stop();
 
-const store = new Map();
-globalThis.localStorage = { getItem: (key) => (store.has(key) ? store.get(key) : null), setItem: (key, value) => store.set(key, String(value)), removeItem: (key) => store.delete(key) };
-const remembered = harness(); await login(remembered, 'a');
-remembered.vm.selectDevice('d2'); await settle();
-assert.equal(store.get('ferjoo.mobile.today.device:a'), 'd2', 'an explicit device choice is remembered per account');
-const restored = harness(); await login(restored, 'a');
-assert.equal(restored.vm.deviceId, 'd2', 'reload restores the device the user last chose');
-const otherAccount = harness(); await login(otherAccount, 'b');
-assert.equal(otherAccount.vm.deviceId, 'd1', 'another account never inherits the remembered device');
-remembered.stop(); restored.stop(); otherAccount.stop();
-delete globalThis.localStorage;
-
-console.log('mobile device home: layout contracts plus real script-setup state tests passed (account isolation, serialized refresh, create/link outcomes, default device, explicit empty selection, API failures, stale evidence, confirm/end flow and toast)');
+console.log('mobile device home: starter-only picker, linked-device switching, account isolation, serialized refresh, create outcomes, API failures, stale evidence, confirm/end flow and toast passed');
 
 // 膨胀率/发酵倍速统一一位小数：曾出现过 108.20189274447944% 这种原始浮点，
 // 以及 .toFixed(0) 把 310.9% 显示成 311% 的不一致。

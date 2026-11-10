@@ -1,4 +1,5 @@
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
+import { LOCAL_LINK_NOTICE } from '../lib/link-change.js';
 import { READ_TTL, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -92,22 +93,18 @@ export async function linkStarterDevice({ userId, starterId, deviceId }) {
   if (!missingSchema(error)) throw error;
   const rows = localHistory(userId, starterId);
   const current = rows.find((row) => row.active_to == null);
-  if (current?.device_id === deviceId) return current;
+  // 迁移未执行（link_starter_device 不存在）：只能退回浏览器本地存储。返回行带 local_only 与 notice，调用方必须明确告知用户。
+  if (current?.device_id === deviceId) return { ...current, notice: LOCAL_LINK_NOTICE };
   const now = new Date().toISOString();
-  const prefix = `ferjoo:starter-device:${userId}:`;
-  // Keep closed periods when switching a device to another starter on this account.
-  for (const storageKey of Object.keys(globalThis.localStorage)) {
-    if (!storageKey.startsWith(prefix)) continue;
-    const otherId = storageKey.slice(prefix.length);
-    const history = otherId === starterId ? rows : localHistory(userId, otherId);
-    for (const row of history) {
-      if (row.active_to == null && (otherId === starterId || row.device_id === deviceId)) row.active_to = now;
-    }
-    globalThis.localStorage.setItem(storageKey, JSON.stringify(history));
+  // 只结束当前酵种自己的活跃关联；同一台设备可以同时关联多个酵种。
+  for (const row of rows) if (row.active_to == null) row.active_to = now;
+  if (deviceId === null) {
+    globalThis.localStorage.setItem(key(userId, starterId), JSON.stringify(rows));
+    invalidateReadCache('links');
+    return null;
   }
-  if (deviceId === null) { invalidateReadCache('links'); return null; }
   const row = { user_id: userId, starter_id: starterId, device_id: deviceId, active_from: now, active_to: null, created_at: now,
-    source: 'local', storage_source: 'local', local_only: true };
+    source: 'local', storage_source: 'local', local_only: true, notice: LOCAL_LINK_NOTICE };
   rows.unshift(row);
   globalThis.localStorage.setItem(key(userId, starterId), JSON.stringify(rows));
   invalidateReadCache('links');

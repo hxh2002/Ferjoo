@@ -148,7 +148,7 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 </template>
 
 <style scoped>
-.mobile-area .m-page.doctor-rounds{padding-top:calc(41px + env(safe-area-inset-top));gap:0}
+.mobile-area .m-page.doctor-rounds{padding-top:41px;gap:0}
 /* 370:17647：顶栏「酵种医生」底 91 → 标题 132（41）；标题 31 高 → 说明 169（6）；说明 20 高 → 日期行顶 215（26）。 */
 .mobile-area .m-page.doctor-rounds .doctor-head h1{margin:0;font-size:22px;line-height:31px;font-weight:500;letter-spacing:0}
 .doctor-head small{display:block;margin:6px 0 0;color:var(--text-secondary);font-size:14px;line-height:20px}

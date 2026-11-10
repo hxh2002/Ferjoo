@@ -206,7 +206,7 @@ onUnmounted(() => { disposed = true; generation++; });
    页面留白收成 21 并关掉 flex gap。全局 `.m-page > *{margin-block:0}` 会吃掉普通 margin，
    所以这里用带 vue 作用域属性的全前缀选择器统一表达间距，保持其余模块仍是 16px。 */
 .mobile-area .m-page.mobile-report {
-  padding-top: calc(21px + env(safe-area-inset-top));
+  padding-top: 21px;
   gap: 0
 }
 .mobile-area .m-page.mobile-report > * + * {

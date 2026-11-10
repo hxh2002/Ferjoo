@@ -11,7 +11,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const device = source('src/services/device.service.js');
 assert.match(device, /new Date\(a\.recorded_at\) - new Date\(b\.recorded_at\)/);
-const { pickLatestPerBucket } = await import(`data:text/javascript;base64,${Buffer.from(device.replace(/^import[^\n]+\n/, 'const hasSupabaseConfig = false; const supabase = null;\n')).toString('base64')}`);
+const { pickLatestPerBucket } = await import(`data:text/javascript;base64,${Buffer.from(device.replace(/^import[^\n]+\n/gm, '').replace(/^/, 'const hasSupabaseConfig = false; const supabase = null; const fetchLinkedMeasurements = null; const classifyReadError = () => "other"; const incompleteReadError = () => new Error(); const isMissingSchema = () => false; const isPermissionDenied = () => false; const readErrorMessage = () => "";\n')).toString('base64')}`);
 const rows = [{ recorded_at: '2026-01-01T00:01:00Z' }, { recorded_at: '2026-01-01T00:09:00Z' }, { recorded_at: '2026-01-01T00:11:00Z' }];
 assert.deepEqual(pickLatestPerBucket(rows, 'asc'), [rows[1], rows[2]]);
 assert.deepEqual(pickLatestPerBucket(rows, 'desc'), [rows[2], rows[1]]);
@@ -131,6 +131,7 @@ globalThis.__starterTestClient = {
 // data URL 中无法解析相对导入，这里替换掉全部 import 并注入测试替身。
 const starterSource = `const hasSupabaseConfig = true; const supabase = globalThis.__starterTestClient;
 const READ_TTL = { links: 0 };
+const LOCAL_LINK_NOTICE = '本地回退';
 const cachedRead = (key, loader) => loader();
 const invalidateReadCache = () => {};
 const readCacheKey = (parts) => parts.join(':');
@@ -145,7 +146,8 @@ const periods = await starterModule.listStarterDeviceLinks({ userId, starterId }
 assert.equal(periods.length, 2);
 assert.equal(periods[1].active_to, periods[0].active_from);
 await starterModule.linkStarterDevice({ userId, starterId: otherStarterId, deviceId: 'device-b' });
-assert.equal(await starterModule.getStarterDeviceLink({ userId, starterId }), null);
+assert.equal((await starterModule.getStarterDeviceLink({ userId, starterId })).device_id, 'device-b', 'a second starter can share the device without unlinking the first');
+assert.equal((await starterModule.getStarterDeviceLink({ userId, starterId: otherStarterId })).device_id, 'device-b');
 await assert.rejects(starterModule.getStarterDeviceLink({ userId: starterId, starterId }), /当前登录账号/);
 await starterModule.linkStarterDevice({ userId, starterId: otherStarterId, deviceId: null });
 assert.equal(await starterModule.getStarterDeviceLink({ userId, starterId: otherStarterId }), null);

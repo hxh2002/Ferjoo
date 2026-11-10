@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
+import * as linkChange from '../src/lib/link-change.js';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 function compile(file) {
@@ -153,10 +154,12 @@ assert.match(profileEdit, /gender \? optionLabel\(GENDER_OPTIONS, gender\) : '�
 assert.match(profileEdit, /:class="\{ placeholder: !gender \}"/);
 assert.doesNotMatch(genderBlock, /未设置/);
 const shell = compile('src/components/MobileShell.vue');
-assert.match(shell, /route\.meta\.pageOwnTitle === true/);
+assert.doesNotMatch(shell, /pageOwnTitle/, 'pageOwnTitle is retired: the topbar title is the only title');
+assert.match(shell, /hideTopbarTitle = computed\(\(\) => isAuthPage\.value\)/, 'only login / register keep a title-less topbar');
 assert.match(shell, /<h1 v-if="!hideTopbarTitle">/);
-assert.match(read('src/router/index.js'), /name: 'mobile-profile-edit'.*pageOwnTitle: true/);
-// 编辑资料页与邀请码 / 修改密码页同样把顶栏收成只有「<」：挂载置 settings，卸载复位；页内 h1 与 pageOwnTitle 保持。
+assert.doesNotMatch(read('src/router/index.js'), /pageOwnTitle/);
+assert.match(read('src/router/index.js'), /name: 'mobile-profile-edit'.*title: '编辑资料'/);
+// 编辑资料页与邀请码 / 修改密码页同样写 settings 语义档：挂载置 settings，卸载复位；标题只在顶栏，页内无 h1。
 {
   const tone = await profileSheetHarness();
   assert.equal(tone.headerTone.value, '', 'nothing is set before mount');
@@ -166,17 +169,30 @@ assert.match(read('src/router/index.js'), /name: 'mobile-profile-edit'.*pageOwnT
   assert.equal(tone.headerTone.value, '', 'unmount resets the tone');
   tone.stop();
   assert.match(profileEdit, /inject\('mobileHeaderTone', null\)/);
-  assert.match(profileEdit, /<h1>编辑资料<\/h1>/, 'the in-page title stays');
-  // 壳：settings 顶栏是 flex-wrap，标题 h1 独占整行；pageOwnTitle 隐藏顶栏 h1 后只剩返回键一个子项，
-  // 不会留下空行，也没有额外的下内边距，因此无需改 CSS。
-  assert.match(shell, /\.mobile-subbar\.is-settings \{ flex-wrap: wrap; align-items: flex-start; min-height: 0; padding-bottom: 0; \}/);
-  assert.match(shell, /\.mobile-subbar\.is-settings h1 \{ flex: 1 0 100%; margin: 8px 0 0;/);
-  assert.match(shell, /<h1 v-if="!hideTopbarTitle">/, 'the hidden topbar h1 is not rendered at all, so its 100%-wide row never exists');
-  assert.match(shell, /<span v-if="!navTone">返回<\/span>/, 'settings tone drops the 返回 text');
+  assert.doesNotMatch(profileEdit, /<h1/, 'the in-page title is gone; the topbar owns 编辑资料');
+  assert.doesNotMatch(read('src/views/mobile/MobileProfile.vue'), /<h1/, '个人资料 title lives in the topbar only');
+  // 壳：所有 tone 共用同一套玻璃顶栏，没有 tone 变体覆盖背景 / 标题档 / 换行布局。
+  assert.doesNotMatch(shell, /\.mobile-subbar\.is-(feeding|detail|auth|settings)/, 'tone no longer changes topbar appearance');
+  assert.doesNotMatch(shell, /返回<\/span>/, 'the topbar never renders the 返回 text');
+  assert.match(shell, /aria-label="返回上一页"/, 'the icon-only back button keeps an accessible name');
+  // 顶栏样式：磨砂玻璃专用令牌、无下边界线 / 内阴影、统一 20/500/29 标题与 44×44 返回键。
+  const css = read('src/assets/mobile.css');
+  const topbarRule = css.match(/\.mobile-area \.mobile-topbar \{[^}]*\}/)[0];
+  assert.match(topbarRule, /position: sticky/);
+  assert.match(topbarRule, /z-index: var\(--m-z-header\)/);
+  assert.match(topbarRule, /background: var\(--m-topbar-glass\)/);
+  assert.match(topbarRule, /-webkit-backdrop-filter: var\(--m-topbar-blur\); backdrop-filter: var\(--m-topbar-blur\)/);
+  assert.match(topbarRule, /border-bottom: 0/);
+  assert.match(topbarRule, /box-shadow: none/);
+  assert.match(css, /--m-topbar-glass: rgba\(255, 249, 243, \.72\)/);
+  assert.match(css, /--m-topbar-blur: blur\(16px\) saturate\(1\.4\)/);
+  assert.match(css, /--m-glass: #FFF9F3;\s*--m-glass-blur: none;/, 'shared glass tokens used by cards stay untouched');
+  assert.match(css, /@media \(prefers-reduced-transparency: reduce\) \{ :root\.mobile-mode \{ --m-topbar-glass: #FFF9F3; --m-topbar-blur: none; \} \}/);
+  assert.match(css, /\.mobile-subbar h1 \{ margin: 0; font-size: 20px; font-weight: 500; line-height: 29px; letter-spacing: 0; \}/);
+  assert.match(css, /\.mobile-back \{[^}]*width: 44px; min-width: 44px; min-height: 44px;/);
 }
 const notifications = compile('src/views/mobile/MobileNotifications.vue');
-assert.match(notifications, /每个酵种的提醒倍数/);
-assert.match(notifications, /以喂养后的起始高度为 1×/);
+assert.match(notifications, /提醒倍数 <span class="label-sub">以喂养后高度为 1×，可多选<\/span>/);
 assert.match(notifications, /起始高度的 \$\{target\} 倍/);
 
 const toasts = {
@@ -211,7 +227,8 @@ assert.match(devices, /暂无设备/);
 assert.match(devices, /添加设备，查看数据并关联酵种。/);
 assert.match(devices, />设备设置</);
 assert.match(devices, /<template #footer>[\s\S]*class="starter-save"[\s\S]*@click="saveLink"/);
-assert.match(devices, /:aria-pressed="linkedStarter === item.id"/);
+assert.match(devices, /:aria-pressed="linkedStarters.includes\(item.id\)"/);
+assert.match(devices, /选择要关联的酵种，可多选/);
 assert.match(devices, /@close="closeStarterSheet"/);
 // 182:1151 修改设备名称面板底部是「取消」「保存」并排；原实现只有正文里的「保存」，缺「取消」。
 assert.match(devices, /<template #footer>[\s\S]*class="rename-cancel"[\s\S]*@click="closeRename"[\s\S]*class="rename-save"[\s\S]*@click="saveRename"/);
@@ -227,7 +244,10 @@ async function starterSheetHarness() {
     return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
   }).replace('export default', 'return');
   const user = Vue.ref(null);
-  const state = { calls: [], renames: [], fail: false, gate: null };
+  const state = { calls: [], renames: [], fail: false, gate: null, links: [
+    { starter_id: 's1', device_id: 'd1', active_from: '2026-01-01T00:00:00Z', active_to: null },
+    { starter_id: 's3', device_id: 'd2', active_from: '2026-01-01T00:00:00Z', active_to: null }
+  ] };
   const service = {
     getDevice: async () => ({ device_id: 'd1', name: '设备一', my_role: 'owner', last_seen_at: new Date().toISOString() }),
     rename: async (deviceId, next) => { state.renames.push([deviceId, next]); return { name: next }; },
@@ -238,12 +258,17 @@ async function starterSheetHarness() {
     'vue-router': { useRoute: () => ({ params: { deviceId: 'd1' }, query: {}, fullPath: '/me/devices/d1' }), useRouter: () => ({ push() {}, replace() {} }) },
     '../../composables/useAuth.js': { useAuth: () => ({ user, profile: Vue.ref(null), init() {} }) },
     '../../services/care.service.js': { listStarters: async () => [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }, { id: 's3', name: '三号' }] },
+    '../../lib/link-change.js': linkChange,
+    '../../lib/read-cache.js': { invalidateReadCache() {} },
     '../../services/starter-device.service.js': {
-      getStarterDeviceLink: async ({ starterId }) => ({ device_id: starterId === 's1' ? 'd1' : starterId === 's3' ? 'd2' : '' }),
+      listStarterDeviceLinks: async () => state.links.slice(),
       linkStarterDevice: async (args) => {
         state.calls.push(args);
         if (state.gate) await state.gate;
         if (state.fail) throw new Error('link failed');
+        const now = new Date().toISOString();
+        for (const link of state.links) if (link.starter_id === args.starterId && link.active_to == null) link.active_to = now;
+        if (args.deviceId) state.links.unshift({ starter_id: args.starterId, device_id: args.deviceId, active_from: now, active_to: null });
         return { starter_id: args.starterId, device_id: args.deviceId };
       }
     },
@@ -258,18 +283,18 @@ async function starterSheetHarness() {
   return { state, vm, stop: () => scope.stop() };
 }
 const starterSheet = await starterSheetHarness();
-assert.equal(starterSheet.vm.savedStarter, 's1');
-assert.deepEqual(starterSheet.vm.linkableStarters.map(item => item.id), ['s1', 's2'], 'current and unlinked starters are selectable; other-device links stay excluded');
+assert.deepEqual(starterSheet.vm.savedStarters, ['s1']);
+assert.deepEqual(starterSheet.vm.linkableStarters.map(item => item.id), ['s1', 's2', 's3'], 'all starters remain visible, including one linked to another device');
 starterSheet.vm.openStarterSheet();
-assert.equal(starterSheet.vm.linkedStarter, 's1', 'opening restores the persisted selection');
+assert.deepEqual(starterSheet.vm.linkedStarters, ['s1'], 'opening restores the persisted multi-selection');
 starterSheet.vm.chooseStarter('s2');
-assert.equal(starterSheet.vm.linkedStarter, 's2');
+assert.deepEqual(starterSheet.vm.linkedStarters, ['s1', 's2']);
 assert.equal(starterSheet.vm.starterOpen, true);
 assert.equal(starterSheet.state.calls.length, 0, 'selection alone never saves');
 starterSheet.vm.closeStarterSheet();
 assert.equal(starterSheet.vm.starterOpen, false);
-assert.equal(starterSheet.vm.linkedStarter, 's1');
-assert.equal(starterSheet.vm.savedStarter, 's1');
+assert.deepEqual(starterSheet.vm.linkedStarters, ['s1']);
+assert.deepEqual(starterSheet.vm.savedStarters, ['s1']);
 assert.equal(starterSheet.state.calls.length, 0, 'closing discards the unconfirmed selection');
 
 starterSheet.vm.openStarterSheet();
@@ -277,20 +302,24 @@ starterSheet.vm.chooseStarter('s2');
 starterSheet.state.fail = true;
 await starterSheet.vm.saveLink();
 assert.equal(starterSheet.vm.starterOpen, true, 'failed confirmation keeps the sheet open');
-assert.equal(starterSheet.vm.savedStarter, 's1');
-assert.equal(starterSheet.vm.linkedStarter, 's2', 'failed confirmation preserves the choice for retry');
+assert.deepEqual(starterSheet.vm.savedStarters, ['s1']);
+assert.deepEqual(starterSheet.vm.linkedStarters, ['s1'], 'a failed save reloads the persisted selection');
 starterSheet.state.fail = false;
+// 失败后已回读服务器状态；用户重新勾选新增酵种，再确认保存。
+starterSheet.vm.chooseStarter('s2');
 await starterSheet.vm.saveLink();
 assert.equal(starterSheet.vm.starterOpen, false, 'successful confirmation closes the sheet');
-assert.equal(starterSheet.vm.savedStarter, 's2');
+assert.deepEqual(starterSheet.vm.savedStarters, ['s1', 's2'], 'adding a starter retains the existing association');
 assert.deepEqual(starterSheet.state.calls.map(call => call.starterId), ['s2', 's2']);
-assert.equal(starterSheet.vm.starterLinks.s1, '');
+assert.equal(starterSheet.vm.starterLinks.s1, 'd1');
 assert.equal(starterSheet.vm.starterLinks.s2, 'd1');
+assert.deepEqual(starterSheet.vm.savedStarterNames, ['一号', '二号']);
 
 let releaseSave;
 starterSheet.state.gate = new Promise(resolve => { releaseSave = resolve; });
 starterSheet.vm.openStarterSheet();
-starterSheet.vm.chooseStarter('s1');
+starterSheet.vm.chooseStarter('s3');
+assert.match(starterSheet.vm.movedStarters.map(item => item.id).join(','), /s3/, 'moving from another device is explained before saving');
 const pendingSave = starterSheet.vm.saveLink();
 await Promise.resolve(); await Promise.resolve();
 starterSheet.vm.closeStarterSheet();
@@ -300,8 +329,15 @@ await starterSheet.vm.saveLink();
 assert.equal(starterSheet.state.calls.length, callsBeforeDoubleConfirm, 'double confirmation cannot duplicate the request');
 releaseSave();
 await pendingSave;
-assert.equal(starterSheet.vm.savedStarter, 's1');
+assert.deepEqual(starterSheet.vm.savedStarters, ['s1', 's2', 's3']);
 assert.equal(starterSheet.vm.starterOpen, false);
+starterSheet.vm.openStarterSheet();
+starterSheet.vm.chooseStarter('s1');
+await starterSheet.vm.saveLink();
+assert.equal(starterSheet.vm.starterLinks.s1, '', 'a starter can be unlinked from the same multi-select sheet');
+assert.equal(starterSheet.vm.starterLinks.s2, 'd1', 'unlinking one starter leaves sibling links untouched');
+assert.equal(starterSheet.vm.starterLinks.s3, 'd1');
+assert.deepEqual(starterSheet.state.calls.at(-1), { userId: 'u1', starterId: 's1', deviceId: null });
 // 182:1151 修改设备名称：面板底部「取消」丢弃改名，「保存」成功才回写并收起。
 const renamesBefore = starterSheet.state.renames.length;
 assert.equal(starterSheet.vm.name, '设备一', 'the edit field shows the loaded device name');
@@ -332,7 +368,8 @@ const home = compile('src/views/mobile/MobileDeviceHome.vue');
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*删除酵种/);
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*结束当前发酵？/);
 assert.match(home, /deleteStarter/);
-assert.match(home, /v-if="!item\.link"/);
+assert.match(home, /v-if="!deleteGuard\(item\)"/, 'delete is only offered for starters without link history or records');
+assert.match(home, /item\.hasLinkHistory[\s\S]*设备关联历史，不能删除/);
 
 const add = compile('src/views/mobile/MobileDeviceAdd.vue');
 const emptyAt = add.indexOf('请输入设备编号。');

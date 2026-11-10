@@ -438,7 +438,7 @@ async function save() {
 </template>
 
 <style scoped>
-.mobile-area .m-page.mobile-feeding{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:0;gap:0}
+.mobile-area .m-page.mobile-feeding{padding-top:12px;padding-bottom:0;gap:0}
 .phase-chip{display:inline-flex;align-items:center;align-self:flex-start;min-height:26px;margin:0 0 10px;padding:0 10px;border-radius:13px;background:var(--m-icon-disc);color:var(--brand-action);font-size:12px;font-weight:500}
 .phase-chip[data-phase="saved"]{background:var(--success-bg);color:var(--success-text)}
 .phase-chip[data-phase="validating"],.phase-chip[data-phase="pending"]{background:var(--warning-bg);color:var(--warning-text)}

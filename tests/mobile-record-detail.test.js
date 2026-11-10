@@ -162,8 +162,7 @@ assert.equal(noDate.get('a'), '设备 …1234', 'falls back to the linked device
 assert.equal(noDate.get('b'), '同名酵种 2');
 const notifications = await readFile(new URL('../src/views/mobile/MobileNotifications.vue', import.meta.url), 'utf8');
 assert.doesNotMatch(notifications, /每个提醒倍数每轮喂养只提醒一次/, 'the duplicate sentence is removed');
-assert.match(notifications, /提醒设置即时生效，无需保存。<\/p>/);
-assert.match(notifications, /可多选，每轮每个倍数只提醒一次。/, 'the explanation under the heading stays');
+assert.match(notifications, /每轮每个倍数只提醒一次，下次喂养后重新计数。/, 'the once-per-round explanation stays under trigger conditions');
 assert.match(notifications, /v-if="starterNotes\.get\(row\.id\)" class="starter-note"/);
 assert.match(await readFile(new URL('../src/services/care.service.js', import.meta.url), 'utf8'), /select\('id, name, created_at'\)/, 'listStarters exposes created_at');
 

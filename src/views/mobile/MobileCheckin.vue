@@ -307,7 +307,7 @@ function applyPending(key) {
 
 <style scoped>
 .mobile-area .m-page.mobile-checkin {
-  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-top: 20px;
   padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 24px);
   gap: 0
 }

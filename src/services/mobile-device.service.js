@@ -1,3 +1,5 @@
+import { fetchLinkedMeasurements } from '../lib/linked-measurements.js';
+import { READ_MESSAGES, classifyReadError, isMissingSchema, isPermissionDenied } from '../lib/read-errors.js';
 import { READ_TTL, cacheStamp, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
 
 export const BUCKET_MS = 10 * 60 * 1000;
@@ -17,6 +19,8 @@ export function mobileError(error) {
     CANNOT_UNBIND_OWNER: '设备所有者不能解绑自己，当前暂不支持转让所有权。'
   };
   for (const [key, text] of Object.entries(known)) if (message.includes(key)) return text;
+  // 登录过期与「没有权限」必须分开：前者让用户重新登录，后者才说明共享关系变了。
+  if (classifyReadError(error) === 'auth') return READ_MESSAGES.authExpired;
   if (error?.code === '42501') return known.FORBIDDEN;
   return '操作未完成，请检查网络或稍后重试。';
 }
@@ -140,13 +144,17 @@ export function createMobileDeviceService(client) {
     rename: (deviceId, name) => result(client.from('devices').update({ name: name.trim() }).eq('device_id', deviceId).select('device_id,name').single()),
     bind: (deviceId, userId) => result(client.rpc('bind_device_member', { p_device_id: deviceId, p_system_user_id: userId.trim() })),
     unbind: (deviceId, userId) => result(client.rpc('unbind_device_member', { p_device_id: deviceId, p_system_user_id: userId.trim() })),
-    async range(deviceId, { from, to, maxPages = 40, pageSize = 1000, onPage } = {}) {
+    // 读取顺序：先直读（RLS：device_members 成员），直读为空或 42501 时回退 list_linked_measurements RPC，
+    // 只读 auth.uid() 自己关联窗口内的测量（starterId 可再限定到某个酵种）；RPC 不存在时保持原行为。
+    // 返回 errorKind：'' 正常 / 'empty' 无采样 / 'auth' 登录过期 / 'denied' 无权限 / 'other'，调用方据此区分文案。
+    async range(deviceId, { from, to, maxPages = 40, pageSize = 1000, onPage, starterId, linkedFallback = true } = {}) {
       const invalid = validateRange(from, to);
       if (invalid) throw new Error(invalid);
-      const raw = [];
+      let raw = [];
       let complete = false;
-      let error = '';
+      let failure = null;
       let pages = 0;
+      let source = 'direct';
       for (let page = 0; page < maxPages; page += 1) {
         try {
           const data = await result(client.from('device_measurements')
@@ -160,14 +168,29 @@ export function createMobileDeviceService(client) {
           onPage?.(bucketMeasurements(raw));
           if (complete) break;
         } catch (cause) {
-          error = mobileError(cause);
+          failure = cause;
           break;
         }
       }
+      if (linkedFallback && (failure ? isPermissionDenied(failure) : !raw.length)) {
+        try {
+          const linked = await fetchLinkedMeasurements(client, { deviceId, from, to, starterId, maxPages, pageSize });
+          if (linked.rows.length || failure) {
+            raw = linked.rows; complete = linked.complete; failure = null; source = 'linked';
+            onPage?.(bucketMeasurements(raw));
+          }
+        } catch (cause) {
+          // 迁移未执行：保持原行为；其余失败如实上报，不当作「没有数据」。
+          if (!isMissingSchema(cause)) failure = cause;
+        }
+      }
+      const kind = failure ? classifyReadError(failure) : '';
+      const error = !failure ? '' : kind === 'auth' ? READ_MESSAGES.authExpired : kind === 'denied' ? READ_MESSAGES.denied : mobileError(failure);
       return {
-        rows: bucketMeasurements(raw), complete, limited: !complete && !error, error,
+        rows: bucketMeasurements(raw), complete: !failure && complete, limited: !failure && !complete, error,
+        errorKind: failure ? (kind === 'missing' ? 'other' : kind) : raw.length ? '' : 'empty', source,
         requested: { from, to }, covered: raw.length ? { from: raw[0].recorded_at, to: raw.at(-1).recorded_at } : null,
-        nextOffset: complete ? null : pages * pageSize
+        nextOffset: complete || source === 'linked' ? null : pages * pageSize
       };
     }
   };
@@ -188,9 +211,9 @@ export async function mobileDeviceService() {
       range: (deviceId, options = {}) => options.onPage
         ? base.range(deviceId, options)
         : cachedRead(
-          readCacheKey(['device', 'range', deviceId, cacheStamp(options.from), cacheStamp(options.to), options.maxPages ?? '', options.pageSize ?? '']),
+          readCacheKey(['device', 'range', deviceId, cacheStamp(options.from), cacheStamp(options.to), options.maxPages ?? '', options.pageSize ?? '', options.starterId ?? '']),
           () => base.range(deviceId, options),
-          { ttl: READ_TTL.device }
+          { ttl: READ_TTL.device, cacheable: (value) => !value.error }
         ),
       claim: async (code) => { const row = await base.claim(code); invalidateReadCache('device'); invalidateReadCache('links'); return row; },
       rename: async (deviceId, name) => { const row = await base.rename(deviceId, name); invalidateReadCache('device'); return row; },

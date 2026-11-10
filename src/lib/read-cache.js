@@ -33,7 +33,8 @@ export function peekReadCache(key) {
   return Date.now() - hit.at < hit.ttl ? hit.value : undefined;
 }
 
-export function cachedRead(key, loader, { ttl = READ_TTL.records } = {}) {
+// cacheable：返回 false 的结果（例如带错误标记的部分读取）不写入缓存，下次访问会重新读取。
+export function cachedRead(key, loader, { ttl = READ_TTL.records, cacheable = () => true } = {}) {
   const hit = entries.get(key);
   // 同一份数据正在读取时共享同一个 Promise，避免并发重复请求。
   if (hit?.pending) return hit.pending;
@@ -45,7 +46,7 @@ export function cachedRead(key, loader, { ttl = READ_TTL.records } = {}) {
       (value) => {
         entries.delete(key);
         // 读取期间发生过写入或手动刷新时，这份结果可能已经过期，直接丢弃。
-        if (epoch === startEpoch) entries.set(key, { at: Date.now(), ttl, value });
+        if (epoch === startEpoch && cacheable(value)) entries.set(key, { at: Date.now(), ttl, value });
         trim();
         return value;
       },

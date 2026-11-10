@@ -1,5 +1,8 @@
 import { heightBand } from '../lib/height-band.js';
 import { risePhase } from '../lib/rise-phase.js';
+import { READ_MESSAGES, classifyReadError } from '../lib/read-errors.js';
+import { coverageGaps, linkCoveringInstant, readPlans, rowInWindows, starterWindows, windowsOverlapping } from '../lib/starter-link-windows.js';
+import { roundDeviceWindows } from '../lib/round-device-attribution.js';
 
 // 起始基线取本轮最早的 5 个采样点：首个有效高度即可用，收满 5 个点后用 MAD 剔除离群值再冻结。
 const BASELINE_POINTS = 5;
@@ -23,17 +26,18 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-/** @param {{ measurements?: any[], feeding?: any, link?: any, now?: number, nextFeedingAt?: any, windowEndedAt?: any }} [options] */
-export function summarizeFeedingMeasurements({ measurements = [], feeding, link, now = Date.now(), nextFeedingAt, windowEndedAt } = {}) {
+/**
+ * 喂养轮次摘要。设备归属取该酵种的「全部历史关联窗口」：
+ * - links：该酵种全部关联（含已关闭窗口），轮次期间任何一段窗口内、且设备一致的读数都计入；
+ * - link：兼容旧调用，只给一条关联时等价于 links=[link]。
+ * 窗口可以晚于喂养时刻开始（重绑后继续的同一轮），但这时起始基线不再代表真实起点，会标记 coverageStartsLate。
+ * @param {{ measurements?: any[], feeding?: any, link?: any, links?: any[], now?: number, nextFeedingAt?: any, windowEndedAt?: any }} [options]
+ */
+export function summarizeFeedingMeasurements({ measurements = [], feeding, link, links, now = Date.now(), nextFeedingAt, windowEndedAt } = {}) {
   const fedAt = time(feeding?.occurred_at);
   const currentTime = time(now);
   const nextAt = time(nextFeedingAt);
   const manualAt = time(windowEndedAt);
-  const linkedAt = time(link?.active_from);
-  const unlinkedAt = time(link?.active_to);
-  const matches = !!link?.device_id && Number.isFinite(fedAt) && Number.isFinite(linkedAt)
-    && linkedAt <= fedAt && (!Number.isFinite(unlinkedAt) || fedAt < unlinkedAt)
-    && (!link.starter_id || link.starter_id === feeding?.starter_id);
   // 业务结束点只来自下一次喂养或用户手动结束；设备断线只缩短可观测范围，不结束本轮。
   const scheduledEnd = Number.isFinite(nextAt) && Number.isFinite(fedAt) && nextAt >= fedAt ? nextAt : NaN;
   const manualEnd = Number.isFinite(manualAt) && Number.isFinite(fedAt) && manualAt >= fedAt ? Math.min(manualAt, currentTime) : NaN;
@@ -41,12 +45,21 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
   const windowClosed = Number.isFinite(closedAt) && closedAt <= currentTime;
   const windowEndReason = !windowClosed ? null
     : Number.isFinite(manualEnd) && (!Number.isFinite(scheduledEnd) || manualEnd <= scheduledEnd) ? 'manual' : 'next_feeding';
+  const roundEnd = Math.min(currentTime, Number.isFinite(closedAt) ? closedAt : Infinity);
+  const allWindows = starterWindows(Array.isArray(links) && links.length ? links : link ? [link] : [], { starterId: feeding?.starter_id ?? null });
+  // 只保留与本轮 [喂养时刻, 轮次终点] 有交集的窗口：别的时段的关联与本轮无关。
+  const windows = Number.isFinite(fedAt) && Number.isFinite(roundEnd) ? windowsOverlapping(allWindows, fedAt, roundEnd) : [];
+  const matches = windows.length > 0;
+  const lastWindowEnd = matches ? Math.max(...windows.map((window) => window.to)) : NaN;
+  const unlinkedAt = Number.isFinite(lastWindowEnd) ? lastWindowEnd : NaN;
   const end = Math.min(currentTime, Number.isFinite(closedAt) ? closedAt : Infinity, Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity);
+  const coverage = matches ? coverageGaps(windows, fedAt, end) : { gaps: [], gapMs: 0, firstCoveredAt: null };
+  // 第一段关联晚于喂养超过 40 分钟：起始高度已不是真实起点，膨胀率只能参考。
+  const coverageStartsLate = matches && Number.isFinite(coverage.firstCoveredAt) && coverage.firstCoveredAt - fedAt > FRESH_MS;
+  const coverageBroken = matches && coverage.gapMs > FRESH_MS;
   const inWindow = (row) => {
     const at = time(row.recorded_at);
-    return at >= fedAt && at >= linkedAt && at <= currentTime && at < (Number.isFinite(closedAt) ? closedAt : Infinity)
-      && at < (Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity)
-      && (!row.device_id || row.device_id === link.device_id);
+    return at >= fedAt && at <= currentTime && at < (Number.isFinite(closedAt) ? closedAt : Infinity) && rowInWindows(row, windows);
   };
   const scoped = matches ? measurements.filter(inWindow).sort((a, b) => time(a.recorded_at) - time(b.recorded_at)) : [];
   const rows = scoped.filter((row) => row.mode === 'fer' && !row.sensor_error);
@@ -85,7 +98,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     && !(manualBaseline > 0) && automaticBaseline == null && !scanComplete
     && (!Number.isFinite(manualEnd) || currentTime < manualEnd);
   const baselineIncomplete = !(manualBaseline > 0) && automaticBaseline != null
-    && (!scanComplete || baselineFallback);
+    && (!scanComplete || baselineFallback || coverageStartsLate);
   // 当前高度取最近一次有效读数：首个基线点即为 0%，之后缺测也沿用上一个点算出的膨胀率。
   const freshest = heights.at(-1);
   const freshestAt = time(freshest?.recorded_at);
@@ -118,7 +131,7 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     : !matches || !heights.length ? 'insufficient'
       : baselineHeightMm == null ? (baselinePending ? 'partial' : 'insufficient')
         : heightStale ? 'stale'
-          : baselineIncomplete ? 'partial' : 'complete';
+          : baselineIncomplete || coverageBroken ? 'partial' : 'complete';
   return {
     baselineHeightMm, baselinePending, baselineSource, expansionPercent, height, currentHeightMm,
     tempC: temperatureStale || !temperatureCoverageReliable ? null : meanTempC, meanTempC, temperatureCoverageReliable, heightStale, temperatureStale, staleEvidence: heightStale || temperatureStale,
@@ -133,10 +146,16 @@ export function summarizeFeedingMeasurements({ measurements = [], feeding, link,
     windowClosedAt: windowClosed ? new Date(closedAt).toISOString() : null,
     windowEndReason, nextFeedingAt: Number.isFinite(scheduledEnd) ? new Date(scheduledEnd).toISOString() : null,
     baselineStatus, dataQuality, baselineIncomplete,
+    linkedWindowCount: windows.length, coverageGapMs: coverage.gapMs, coverageStartsLate, coverageBroken,
     risePhase: rise.phase, trendHeightMm: rise.trendHeightMm, highHeightMm: rise.highHeightMm, peakHeightMm: rise.peakHeightMm, peakAt: rise.peakAt,
   };
 }
 
+/**
+ * 读取一轮喂养的设备证据。设备归属取该酵种的全部历史关联窗口（含已关闭窗口）：
+ * 轮次期间每一段窗口各读一次（只读该酵种自己的时段），再按窗口过滤，别的酵种占用的时段不会混入。
+ * 读取失败时降级：登录过期直接抛出（需要重新登录）；无权限（已退出共享且 RPC 不可用）给出 unavailableReason。
+ */
 export async function loadFeedingEvidence(userId, starterId, feedingId) {
   const [{ getCareRecord, listCareRecords }, { listStarterDeviceLinks }, { listMeasurementsRange }, { loadWindowClosure }] = await Promise.all([
     import('./care.service.js'), import('./starter-device.service.js'), import('./device.service.js'),
@@ -145,29 +164,45 @@ export async function loadFeedingEvidence(userId, starterId, feedingId) {
   const feeding = await getCareRecord(feedingId, { userId });
   if (feeding.kind !== 'feeding' || feeding.starter_id !== starterId) throw new Error('喂养记录与当前酵种不匹配。');
   const now = Date.now();
-  const links = await listStarterDeviceLinks({ userId, starterId });
-  // 手动结束只是可选的业务事实；读取失败不能阻断诊断证据。
+  // 关联只是设备可用范围；同账号全部喂养用于判断共享设备何时被另一酵种的轮次接管。
+  const [links, feedings] = await Promise.all([
+    listStarterDeviceLinks({ userId }),
+    listCareRecords({ userId, kind: 'feeding' })
+  ]);
   const closure = await loadWindowClosure(userId, feedingId).catch(() => null);
   const fedAt = time(feeding.occurred_at);
-  const link = links.find((row) => time(row.active_from) <= fedAt && (row.active_to == null || fedAt < time(row.active_to))) || null;
-  let nextFeedingAt = null;
-  for (let offset = 0; ; offset += 200) {
-    const records = await listCareRecords({ userId, starterId, kind: 'feeding', from: feeding.occurred_at, to: new Date(now + 1).toISOString(), limit: 200, offset });
-    for (const row of records) {
-      if (row.id !== feeding.id && time(row.occurred_at) >= fedAt && (!nextFeedingAt || time(row.occurred_at) < time(nextFeedingAt))) nextFeedingAt = row.occurred_at;
-    }
-    if (records.length < 200) break;
-    if (offset + records.length >= MAX_FEEDING_ROWS) throw new Error('喂养记录超过 40000 行，请缩短查询范围后重试。');
-  }
+  const nextFeedingAt = feedings
+    .filter((row) => row.starter_id === starterId && time(row.occurred_at) > fedAt)
+    .sort((a, b) => time(a.occurred_at) - time(b.occurred_at))[0]?.occurred_at || null;
+  const manualAt = time(closure?.ended_at);
+  const end = Math.min(now, nextFeedingAt ? time(nextFeedingAt) - 1 : Infinity, Number.isFinite(manualAt) && manualAt >= fedAt ? manualAt : Infinity);
+  const windows = roundDeviceWindows(links, { feeding, feedings, nextFeedingAt, windowEndedAt: closure?.ended_at, now });
+  const link = linkCoveringInstant(links, fedAt, { starterId }) || windows[0] || null;
   let measurements = [];
-  let unavailableReason = !link ? '喂养时没有可核实的设备关联，未使用其他关联的读数。' : '';
-  // 当前设备权限不能证明原始历史读数在当时的归属。
-  if (link?.active_to != null) unavailableReason = '这段设备关联已经结束，现有权限无法核实历史读数归属，请手工确认。';
-  if (link && !unavailableReason) {
-    const end = Math.min(now, nextFeedingAt ? time(nextFeedingAt) - 1 : Infinity);
-    if (end >= fedAt) measurements = await listMeasurementsRange(link.device_id, { from: new Date(fedAt).toISOString(), to: new Date(end).toISOString(), bucketed: false });
+  let readNotice = '';
+  let unavailableReason = !windows.length ? '本轮没有可核实的设备归属，未使用其他酵种轮次的读数。' : '';
+  if (windows.length && end >= fedAt) {
+    const plans = readPlans(windows, { from: fedAt, to: end + 1 });
+    const settled = await Promise.allSettled(plans.map((plan) => listMeasurementsRange(plan.deviceId, { from: plan.from, to: plan.to, bucketed: false, starterId })));
+    const denied = [];
+    settled.forEach((outcome, index) => {
+      if (outcome.status === 'fulfilled') {
+        measurements.push(...outcome.value.filter((row) => {
+          const at = time(row.recorded_at);
+          return windows.some((window) => window.deviceId === plans[index].deviceId && at >= window.from && at < window.to);
+        }).map((row) => ({ ...row, device_id: row.device_id || plans[index].deviceId })));
+        return;
+      }
+      const kind = classifyReadError(outcome.reason);
+      if (kind === 'auth') throw new Error(READ_MESSAGES.authExpired);
+      if (kind !== 'denied') throw outcome.reason;
+      denied.push(plans[index]);
+    });
+    if (denied.length === plans.length) unavailableReason = READ_MESSAGES.deniedHistory;
+    else if (denied.length) readNotice = '部分关联时段的设备读数无权读取，曲线只包含已读到的时段。';
+    measurements.sort((a, b) => time(a.recorded_at) - time(b.recorded_at));
     if (measurements.length >= 40000) throw new Error('测量记录达到 40000 行，结果可能不完整，请缩短查询范围后重试。');
   }
-  const summary = summarizeFeedingMeasurements({ measurements, feeding, link, now, nextFeedingAt, windowEndedAt: closure?.ended_at });
-  return { feeding, link, measurements, nextFeedingAt, now, closure, summary, unavailableReason };
+  const summary = summarizeFeedingMeasurements({ measurements, feeding, links: windows, now, nextFeedingAt, windowEndedAt: closure?.ended_at });
+  return { feeding, link, links: windows, measurements, nextFeedingAt, now, closure, summary, unavailableReason, readNotice };
 }

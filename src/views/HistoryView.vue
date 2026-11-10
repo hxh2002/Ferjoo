@@ -298,7 +298,7 @@ watch(activeWindow, async (w) => {
   for (const [from, to] of [[w.start - 1, loadedFrom.value], [loadedTo.value, w.end + 1]]) {
     if (from >= to) continue;
     try {
-      const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(to) });
+      const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(to), allowPartial: true });
       mergeRows(rows, from, to);
     } catch { /* 补拉失败不阻塞展示 */ }
   }
@@ -362,6 +362,7 @@ async function fetchRangeMerge(from, to, token) {
   await listMeasurementsRange(selectedId.value, {
     from: iso(from),
     to: iso(to),
+    allowPartial: true, // 桌面历史页按周/月滚动加载，触顶时展示已读部分，不整页失败
     onPage: (rows) => { if (token === loadToken) mergeRows(rows, from, to); }
   });
 }
@@ -404,7 +405,7 @@ async function pollLatest() {
     const now = Date.now();
     const from = Math.max(loadedFrom.value || 0, now - 2 * DAY_MS, (loadedTo.value || 0) - FER_GAP_MS);
     if (from > now) return;
-    const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(now) });
+    const rows = await listMeasurementsRange(selectedId.value, { from: iso(from), to: iso(now), allowPartial: true });
     if (rows.length) mergeRows(rows, from, now);
     latest.value = await getLatestMeasurement(selectedId.value);
   } catch { /* 静默：下个周期重试 */ }

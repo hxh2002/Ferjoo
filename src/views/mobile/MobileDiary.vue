@@ -34,7 +34,7 @@ const model = ref(null);
 const marks = ref({});
 const loading = ref(false);
 const error = ref('');
-const notice = ref('');
+const notice = ref(''); const marksNotice = ref('');
 const hasMore = ref(false);
 const scrollY = ref(0);
 const datePanelRef = ref(null);
@@ -42,7 +42,9 @@ const calendarOpen = ref(false);
 const calendarMonth = ref(Date.now());
 const monthPicker = ref(false);
 
-const loader = createRecordsLoader({ listCareRecords, listStarterDeviceLinks, loadWindowClosures, mobileDeviceService });
+// 共享设备交接需要账号下全部喂养与关联，而不只是当前酵种的记录。
+const listFeedings = ({ userId }) => listCareRecords({ userId, kind: 'feeding', limit: 200 });
+const loader = createRecordsLoader({ listCareRecords, listFeedings, listStarterDeviceLinks, loadWindowClosures, mobileDeviceService });
 const accountId = computed(() => auth.user.value?.id || '');
 // 游客 / 会话恢复中分开处理：ready=false 时既不请求云端，也不急着弹「去登录」，只出骨架屏。
 const guest = computed(() => isGuest(auth));
@@ -336,7 +338,11 @@ async function loadMarks() {
     && starterId === selectedStarterId.value && range === visibleMarkRange.value && onRecordsPage();
   if (!owner || !starterId || !range) { marks.value = {}; return; }
   const result = await loader.marks(owner, range, starterId, current).catch(() => null);
-  if (result && current()) { marks.value = result; marksLoadedAt = Date.now(); }
+  if (result && current()) {
+    marks.value = result; marksLoadedAt = Date.now();
+    // 读取失败的窗口不会出现在日历标记里：明确提示，而不是让用户以为那天没有数据。
+    marksNotice.value = result.failures ? '部分日期的设备采样读取失败，日历上的数据标记可能不完整，稍后刷新重试。' : '';
+  }
 }
 
 function selectDay(value) {
@@ -561,6 +567,7 @@ onUnmounted(() => {
         <div v-if="loading && !model" class="m-skeleton" role="status" aria-label="正在读取记录"><span></span><span></span></div>
         <p v-if="error" class="m-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="m-muted" role="status">{{ notice }}</p>
+        <p v-if="marksNotice" class="m-muted" role="status">{{ marksNotice }}</p>
         <template v-if="!error && model">
           <section v-if="roundCards.length" class="record-group round-group">
             <RouterLink v-for="item in roundCards" :key="item.id" class="feed-card" :to="item.to" :title="item.titleTip">

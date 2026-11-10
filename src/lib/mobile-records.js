@@ -2,6 +2,9 @@ import { localDateTimeValue } from './localDateTime.js';
 import { summarizeFeedingMeasurements } from '../services/feeding-analysis.service.js';
 import { BUCKET_MS, METRICS, metricValue, qualityLabel } from '../services/mobile-device.service.js';
 import { readCacheKey, readRevision } from './read-cache.js';
+import { READ_MESSAGES } from './read-errors.js';
+import { clipWindows, linkCoveringInstant, rowInWindows, starterWindows } from './starter-link-windows.js';
+import { roundDeviceWindows, starterRoundDeviceWindows } from './round-device-attribution.js';
 
 // 轮次证据读取较重：同一次修订内跨页面复用，写入后修订号变化自然换键。
 export function feedingEvidenceCacheKey(userId, starterId, feedingId) {
@@ -74,17 +77,13 @@ export function formalMeasurementDays(rows = [], links = [], range = {}) {
   const from = Date.parse(range.from);
   const to = Date.parse(range.to);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return {};
-  const validLinks = links.filter(link => {
-    const start = Date.parse(link.active_from);
-    const end = link.active_to == null ? Infinity : Date.parse(link.active_to);
-    return link.device_id && Number.isFinite(start) && (end === Infinity || Number.isFinite(end)) && end > start;
-  });
+  // 正式采样只认该酵种全部历史关联窗口（含已关闭、含重绑后的多段窗口）内、设备一致的有效发酵采样。
+  const windows = starterWindows(links);
   const result = {};
   for (const row of rows) {
     const at = Date.parse(row.recorded_at);
     if (!Number.isFinite(at) || at < from || at >= to || row.mode !== 'fer' || row.sensor_error) continue;
-    if (!validLinks.some(link => (!row.device_id || row.device_id === link.device_id)
-      && at >= Date.parse(link.active_from) && (link.active_to == null || at < Date.parse(link.active_to)))) continue;
+    if (!rowInWindows(row, windows)) continue;
     result[localDayKey(at)] = true;
   }
   return result;
@@ -125,39 +124,48 @@ export function createRecordsLoader(api) {
       const key = JSON.stringify([starterId, range.from, range.to]);
       if (!marks.has(key)) {
         const pending = (async () => {
-          const links = await api.listStarterDeviceLinks({ userId, starterId });
-          const windows = new Map();
-          for (const link of links) {
-            const activeFrom = Date.parse(link.active_from);
-            const activeTo = link.active_to == null ? Infinity : Date.parse(link.active_to);
-            if (!link.device_id || !Number.isFinite(activeFrom) || !(activeTo > activeFrom)) continue;
-            const from = Math.max(Date.parse(range.from), activeFrom);
-            const to = Math.min(Date.parse(range.to), activeTo);
-            // 只查询该设备与当前酵种的有效关联时段，休眠/故障采样在下方统一排除。
-            if (!(to - from >= BUCKET_MS)) continue;
-            const previous = windows.get(link.device_id);
-            windows.set(link.device_id, {
-              from: previous ? Math.min(previous.from, from) : from,
-              to: previous ? Math.max(previous.to, to) : to,
-              links: [...(previous?.links || []), link]
-            });
-          }
-          if (!windows.size) return {};
+          // 共享设备的轮次交接需要其他酵种的喂养与关联，因此两者都按账号读取，再按酵种归属裁剪。
+          const listFeedings = async () => {
+            const rows = [];
+            for (let offset = 0; current(); offset += 200) {
+              const batch = await api.listCareRecords({ userId, kind: 'feeding', limit: 200, offset, ascending: true });
+              rows.push(...batch);
+              if (batch.length < 200) break;
+            }
+            return rows;
+          };
+          const [links, feedings] = await Promise.all([
+            api.listStarterDeviceLinks({ userId }),
+            listFeedings()
+          ]);
+          const closures = await api.loadWindowClosures(userId, feedings.map((row) => row.id));
+          // 日历标记只认某一轮实际归属，不认仅存在于设置页的共享设备关联。
+          const rounds = starterRoundDeviceWindows(links, { starterId, feedings, closures });
+          const visible = clipWindows(rounds, Date.parse(range.from), Date.parse(range.to))
+            .filter(window => window.to - window.from >= BUCKET_MS);
+          if (!visible.length) return {};
           const service = await api.mobileDeviceService();
           const result = {};
-          await Promise.all([...windows].map(async ([deviceId, window]) => {
+          let failures = 0;
+          await Promise.all(visible.map(async window => {
             try {
-              const data = await service.range(deviceId, { from: new Date(window.from).toISOString(), to: new Date(window.to).toISOString() });
+              const data = await service.range(window.deviceId, { from: new Date(window.from).toISOString(), to: new Date(window.to).toISOString(), ...(starterId ? { starterId } : {}) });
               if (!current()) return;
-              Object.assign(result, formalMeasurementDays(data.rows, window.links, range));
+              if (data?.error) { failures += 1; return; }
+              // 轮次窗口是裁剪后的 [from, to)；还原成关联形状，让正式采样按这一段归属判定。
+              const roundLink = { starter_id: window.starterId, device_id: window.deviceId, active_from: new Date(window.from).toISOString(), active_to: new Date(window.to).toISOString() };
+              Object.assign(result, formalMeasurementDays(data.rows, [roundLink], range));
             } catch {
-              // 单个设备失败不清空其他设备的日期标记，下次进入可按原读取约定重试。
+              // 单段窗口失败不清空其他窗口的日期标记；失败数通过 failures 暴露，且不缓存，下次进入重试。
+              failures += 1;
             }
           }));
+          Object.defineProperty(result, 'failures', { value: failures, enumerable: false });
           return current() ? result : null;
         })();
         marks.set(key, pending);
         pending.catch(() => { if (marks.get(key) === pending) marks.delete(key); });
+        pending.then((value) => { if (value?.failures && marks.get(key) === pending) marks.delete(key); }, () => {});
       }
       return marks.get(key);
     },
@@ -202,13 +210,19 @@ export function createRecordsLoader(api) {
       const state = entry(day, [...starterIds].sort().join(','));
       if (!state.devices) state.devices = (async () => {
         const range = recordDayRange(day); const notices = [];
+        // 先读取当天上下文及相邻轮次，设备数据按完整轮次而非设置页的共享关联裁剪。
+        const context = await this.context(userId, day, starterIds[0] || '', current);
+        const feedings = context.feedings;
         const results = await Promise.allSettled(starterIds.map(starterId => api.listStarterDeviceLinks({ userId, starterId })));
         const links = results.flatMap((result, index) => {
           if (result.status === 'rejected') { notices.push('部分设备关联读取失败，其他记录不受影响。'); return []; }
           return result.value.map(link => ({ ...link, starter_id: starterIds[index] })).filter(link => Date.parse(link.active_from) < Date.parse(range.to) && (!link.active_to || Date.parse(link.active_to) > Date.parse(range.from)));
         });
         if (!current()) return { links: [], samples: [], summaries: [], notices };
-        const deviceIds = [...new Set(links.map(link => link.device_id))];
+        const attributedLinks = starterIds.flatMap((starterId) => starterRoundDeviceWindows(links, {
+          starterId, feedings, closures: context.closures || []
+        }));
+        const deviceIds = [...new Set(attributedLinks.map(link => link.device_id))];
         const samples = []; const summaries = [];
         if (!deviceIds.length) return { links, samples, summaries, notices };
         const service = await api.mobileDeviceService();
@@ -218,10 +232,12 @@ export function createRecordsLoader(api) {
           try {
             const result = await service.range(deviceId, { from: range.from, to });
             if (!current()) return;
-            if (!result.complete) notices.push('部分设备采样未完整加载，摘要仅代表已读取数据。');
-            for (const starterId of [...new Set(links.filter(link => link.device_id === deviceId).map(link => link.starter_id))]) {
-              const related = links.filter(link => link.device_id === deviceId && link.starter_id === starterId);
-              const rows = result.rows.filter(row => (!row.device_id || row.device_id === deviceId) && Date.parse(row.recorded_at) >= Date.parse(range.from) && Date.parse(row.recorded_at) < Date.parse(to) && related.some(link => Date.parse(row.recorded_at) >= Date.parse(link.active_from) && (!link.active_to || Date.parse(row.recorded_at) < Date.parse(link.active_to))));
+            // 登录过期 / 无权限 / 空数据是三种不同情况：不能都说成「没有数据」。
+            if (result.error) notices.push(result.errorKind === 'auth' ? READ_MESSAGES.authExpired : result.errorKind === 'denied' ? READ_MESSAGES.deniedHistory : '部分设备数据读取失败，喂养与观察记录不受影响。');
+            else if (!result.complete) notices.push('部分设备采样未完整加载，摘要仅代表已读取数据。');
+            for (const starterId of [...new Set(attributedLinks.filter(link => link.deviceId === deviceId).map(link => link.starterId))]) {
+              const related = attributedLinks.filter(link => link.deviceId === deviceId && link.starterId === starterId);
+              const rows = result.rows.filter(row => (!row.device_id || row.device_id === deviceId) && Date.parse(row.recorded_at) >= Date.parse(range.from) && Date.parse(row.recorded_at) < Date.parse(to) && rowInWindows({ ...row, device_id: deviceId }, related));
               samples.push(...rows.map(row => ({ ...row, device_id: deviceId, starter_id: starterId })));
               summaries.push({ id: `device:${starterId}:${deviceId}:${day}`, kind: 'device', starter_id: starterId, device_id: deviceId, day, samples: rows, partial: !result.complete });
             }
@@ -242,8 +258,12 @@ export function recordsDayModel({ day, facts = [], context, devices, now = Date.
     const index = feedings.indexOf(feeding);
     const next = feedings.slice(index + 1).find(row => row.starter_id === feeding.starter_id);
     const closure = closures.get(feeding.id);
-    const link = devices?.links.find(link => link.starter_id === feeding.starter_id && Date.parse(link.active_from) <= Date.parse(feeding.occurred_at) && (!link.active_to || Date.parse(feeding.occurred_at) < Date.parse(link.active_to)));
-    const summary = summarizeFeedingMeasurements({ feeding, link, measurements: devices?.samples.filter(row => row.starter_id === feeding.starter_id) || [], now, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at });
+    // 轮次归属取该酵种的全部关联窗口（含已关闭、重绑后的多段）：窗口可以晚于喂养时刻开始。
+    const starterLinks = (devices?.links || []).filter(link => link.starter_id === feeding.starter_id);
+    const fedAt = Date.parse(feeding.occurred_at);
+    const attributed = roundDeviceWindows(starterLinks, { feeding, feedings, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at, now });
+    const link = linkCoveringInstant(starterLinks, feeding.occurred_at, { starterId: feeding.starter_id }) || attributed[0];
+    const summary = summarizeFeedingMeasurements({ feeding, link, links: attributed, measurements: devices?.samples.filter(row => row.starter_id === feeding.starter_id) || [], now, nextFeedingAt: next?.occurred_at, windowEndedAt: closure?.ended_at });
     return { ...feeding, summary, closure, deviceId: link?.device_id || '', linked: !!link, boundaryPending: !context || context.closuresComplete === false || context.notices.some(notice => notice.includes('相邻喂养')) };
   }
   const events = facts.map(row => row.kind === 'feeding' ? round(feedings.find(item => item.id === row.id)) : row);

@@ -53,7 +53,7 @@ const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
 // 登录 / 注册的标题由页面自身提供（28 / 500 / 36），顶栏只留返回键，避免同一屏出现两个标题。
 const isAuthPage = computed(() => ['mobile-login', 'mobile-register'].includes(route.name));
-const hideTopbarTitle = computed(() => isAuthPage.value || route.meta.pageOwnTitle === true);
+const hideTopbarTitle = computed(() => isAuthPage.value);
 // App.vue 会把共享账号页再包一层 MobileShell；这些页现在也挂在 MobileShell 路由下，
 // 内层实例检测到祖先时只转发路由出口，避免同一屏出现两套顶栏与底栏。
 const shellNested = inject('mobileShellNested', false);
@@ -148,7 +148,7 @@ function go(path) {
   <div v-else class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
     <header v-if="!showTabs" class="mobile-topbar mobile-subbar" :class="navTone ? `is-${navTone}` : ''">
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg><span v-if="!navTone">返回</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
       </button>
       <h1 v-if="!hideTopbarTitle">{{ title }}</h1>
       <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
@@ -175,17 +175,7 @@ function go(path) {
 </template>
 
 <style scoped>
-.mobile-subbar.is-feeding,
-.mobile-subbar.is-detail,
-.mobile-subbar.is-auth,
-.mobile-subbar.is-settings { border-bottom: 0; background: transparent; box-shadow: none; }
-.mobile-subbar.is-feeding h1 { font-size: 24px; font-weight: 500; line-height: 35px; letter-spacing: 0; }
-.mobile-subbar.is-detail h1 { font-size: 20px; font-weight: 500; line-height: 29px; letter-spacing: 0; }
-.mobile-subbar.is-settings { flex-wrap: wrap; align-items: flex-start; min-height: 0; padding-bottom: 0; }
-.mobile-subbar.is-settings h1 { flex: 1 0 100%; margin: 8px 0 0; font-size: 28px; font-weight: 500; line-height: 36px; letter-spacing: 0; }
-.mobile-subbar.is-feeding .mobile-back,
-.mobile-subbar.is-detail .mobile-back { position: relative; width: 24px; min-width: 24px; }
-.mobile-subbar.is-settings .mobile-back { width: 44px; min-width: 44px; min-height: 44px; }
+/* 顶栏外观（磨砂玻璃 / 标题 20·500·29 / 44×44 返回键）统一写在 mobile.css；tone 只作语义标记，不再改变外观。 */
 .mobile-aside { margin-left: auto; color: var(--text-secondary); font-size: 13px; font-weight: 400; line-height: 22px; white-space: nowrap; }
 .mobile-page-enter-active { animation: mobile-arrive 280ms cubic-bezier(.2, .8, .3, 1); }
 .mobile-shell :deep(details[open] > :not(summary)),

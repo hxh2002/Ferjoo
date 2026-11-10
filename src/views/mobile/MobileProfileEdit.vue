@@ -11,7 +11,7 @@ import MToast from '../../components/mobile/MToast.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
 
 const auth = useAuth();
-// 与邀请码 / 修改密码页一致：顶栏只留「<」返回键；大标题由本页自己的 h1 提供（路由 meta.pageOwnTitle 已隐藏顶栏 h1）。
+// 与邀请码 / 修改密码页一致写 settings 语义档；标题只在顶栏（路由 meta.title），页内不再重复 h1。
 const headerTone = inject('mobileHeaderTone', null);
 const name = ref('');
 const gender = ref('');
@@ -151,7 +151,6 @@ async function confirmRemove() {
 
 <template>
   <main class="m-page profile-edit">
-    <h1>编辑资料</h1>
     <section class="edit-form">
       <button type="button" class="avatar-card" aria-label="更换头像" @click="avatarOpen = true">
         <span class="avatar" aria-hidden="true">
@@ -204,7 +203,6 @@ async function confirmRemove() {
 
 <style scoped>
 .profile-edit{padding-top:16px;gap:24px}
-h1{margin:0;font-size:28px;line-height:36px;font-weight:500}
 .edit-form{display:flex;flex:1;flex-direction:column;gap:16px}
 .avatar-card{display:flex;align-items:center;gap:12px;width:100%;min-height:88px;padding:0 16px;border:0;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow-button);cursor:pointer}
 .avatar{display:grid;place-items:center;flex:none;width:56px;height:56px;overflow:hidden;border-radius:50%;background:var(--m-disc);color:var(--brand-action);font-size:28px;line-height:36px;font-weight:500}

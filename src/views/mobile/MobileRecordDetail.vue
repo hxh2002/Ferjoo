@@ -140,6 +140,9 @@ const hint = computed(() => {
   if (!value) return '';
   if (value.baselineStatus === 'pending') return '基线计算中…';
   if (value.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀率。';
+  if (value.coverageStartsLate) return '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀率仅供参考。';
+  if (value.coverageBroken) return '本轮中间有一段时间设备未关联（换绑空窗期），这段时间的读数未计入。';
+  if (evidence.value.readNotice) return evidence.value.readNotice;
   if (value.heightStale) return '设备数据已中断，膨胀率沿用上次读数。';
   if (value.baselineIncomplete) return '基线采样未满，膨胀率仅供参考。';
   if (!value.measurementCount) return NO_SAMPLE_HINT;

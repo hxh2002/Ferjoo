@@ -63,6 +63,9 @@
   --m-surface: var(--surface-input);
   --m-glass: #FFF9F3;
   --m-glass-blur: none;
+  /* 顶栏专用磨砂玻璃：不复用 --m-glass，避免卡片 / 报告底栏跟着变；系统要求降低透明度时回退为不透明。 */
+  --m-topbar-glass: rgba(255, 249, 243, .72);
+  --m-topbar-blur: blur(16px) saturate(1.4);
   --m-shadow: 0 4px 18px rgba(48, 37, 31, .07);
   --ink: var(--text-primary);
   --ink-soft: var(--text-secondary);
@@ -86,6 +89,7 @@
   background: var(--surface-page);
   scroll-behavior: auto;
 }
+@media (prefers-reduced-transparency: reduce) { :root.mobile-mode { --m-topbar-glass: #FFF9F3; --m-topbar-blur: none; } }
 body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: transparent; font-size: 16px; isolation: isolate;
   /* 横屏时 iOS 会把正文字号自动放大，配合 100vh 造成版面跳动；锁住自动缩放，字号只按设计值走。 */
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
@@ -109,15 +113,15 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 .mobile-area :is(img, canvas, video) { max-width: 100%; }
 .mobile-area :is(fieldset, .m-page, .m-card, .panel, form, label) { min-width: 0; }
 .mobile-area .mobile-shell { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
-.mobile-area .mobile-topbar { position: sticky; top: 0; z-index: var(--m-z-header); display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: calc(8px + env(safe-area-inset-top)) max(var(--m-page-space), env(safe-area-inset-right)) 8px max(var(--m-page-space), env(safe-area-inset-left)); border-bottom: 1px solid var(--border-subtle); background: var(--m-glass); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65); -webkit-backdrop-filter: var(--m-glass-blur); backdrop-filter: var(--m-glass-blur); }
+.mobile-area .mobile-topbar { position: sticky; top: 0; z-index: var(--m-z-header); display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: calc(8px + env(safe-area-inset-top)) max(var(--m-page-space), env(safe-area-inset-right)) 8px max(var(--m-page-space), env(safe-area-inset-left)); border-bottom: 0; background: var(--m-topbar-glass); box-shadow: none; -webkit-backdrop-filter: var(--m-topbar-blur); backdrop-filter: var(--m-topbar-blur); }
 .mobile-area .mobile-brand { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; }
 .mobile-area .mobile-brand img { display: block; width: 100px; height: auto; }
 .mobile-area :is(.mobile-login, .mobile-account) { display: inline-flex; align-items: center; min-height: 44px; max-width: 52%; font-size: 14px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mobile-area .mobile-account { color: var(--text-secondary); }
 .mobile-area .mobile-login { padding: 0 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: var(--surface-selected); text-decoration: none; }
 .mobile-area .mobile-subbar { justify-content: flex-start; }
-.mobile-area .mobile-subbar h1 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.4; letter-spacing: -.02em; }
-.mobile-area .mobile-back { display: inline-flex; align-items: center; min-height: 44px; gap: 4px; flex-shrink: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: none; cursor: pointer; }
+.mobile-area .mobile-subbar h1 { margin: 0; font-size: 20px; font-weight: 500; line-height: 29px; letter-spacing: 0; }
+.mobile-area .mobile-back { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; min-height: 44px; margin: 0 -6px 0 -10px; flex-shrink: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: none; cursor: pointer; }
 .mobile-area :is(.mobile-back, .mobile-tabbar) svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .mobile-area .mobile-main { flex: 1; width: 100%; min-width: 0; }
 .mobile-area .has-tabs > .mobile-main { padding-bottom: calc(var(--m-tab-height) + max(12px, env(safe-area-inset-bottom)) + 16px); }

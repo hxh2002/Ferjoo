@@ -21,6 +21,8 @@ export function usableDeviceSample(sample, link, now = Date.now()) {
     && now >= time && now - time <= 40 * 60 * 1000
     && (!link?.active_from || time >= Date.parse(link.active_from)) && (!link?.active_to || time < Date.parse(link.active_to));
 }
+// 这里只服务「实时」观察：预填的是最近 40 分钟内的新鲜读数，所以只看当前活跃关联（getStarterDeviceLink）。
+// 历史轮次的证据走 feeding-analysis.service 的 loadFeedingEvidence，取该酵种的全部历史关联窗口。
 export async function loadObservationContext(userId, starterId, feedingId) {
   const [{ listCareRecords, getCareRecord }, { getStarterDeviceLink }, { getLatestMeasurement }] = await Promise.all([
     import('./care.service.js'), import('./starter-device.service.js'), import('./device.service.js'),

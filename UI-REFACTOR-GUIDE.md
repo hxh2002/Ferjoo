@@ -86,7 +86,7 @@ Figma 文件共 5 个页面：
 | --- | --- | --- | --- | --- |
 | 1 | 我的 | `182:567` | `MobileMe.vue` | ✅ 375 下实测三分区、14/21 分区标签、40×40 圆角 20 `--m-disc` 图标块、「设备绑定」帽檐 28×18.2、20px chevron `--brand-action` / 1.5；资料卡只留姓名，不再显示系统 ID |
 | 2 | 个人资料 | `182:718` | `MobileProfile.vue` | ✅ 28/36 标题；身份卡 20px 内边距 + `--m-shadow-button`；头像 64 `--m-disc`、姓名与「编辑资料」76×44 同一行；五行 40 高，标签 116 + 24px 图标（无圆碟）；「邀请与安全」整卡、68 高行 |
-| 3 | 编辑资料 | `182:769` | `MobileProfileEdit.vue` | ✅ 独立移动端页，不复用桌面 `/profile`。头像卡 88 高（56 头像 + 「更换头像」16/24）、三个 64 高输入（用户名 / 性别 / 出生日期）、12/18 说明、60 高「保存资料」；未选出生日期不写空串。页内保留 h1（`pageOwnTitle`），顶栏写 `settings` 档只留「<」 |
+| 3 | 编辑资料 | `182:769` | `MobileProfileEdit.vue` | ✅ 独立移动端页，不复用桌面 `/profile`。头像卡 88 高（56 头像 + 「更换头像」16/24）、三个 64 高输入（用户名 / 性别 / 出生日期）、12/18 说明、60 高「保存资料」；未选出生日期不写空串。标题只在顶栏「编辑资料」（v1.24 起删除页内 h1 与 `pageOwnTitle`），顶栏写 `settings` 语义档 |
 | 4 | 我的邀请码 | `182:798` | `MobileInvite.vue` | ✅ 375 登录后点过。页内标题交给顶栏 `is-settings`（28/36），正文从「专属邀请码」14/21 开始；票券圆角 16，左右各一个 18px 半圆缺口（用 `--surface-page` 掏洞）；复制 Toast「邀请码已复制」 |
 | 5 | 修改密码 | `182:828` | `MobileAccount.vue` | ✅ 375 登录后点过。去掉页内标题，交给顶栏 `is-settings`；说明 14/21；三行 64 高密码框（圆角 20、`--m-shadow-field`、无边框）、显示/隐藏、底部「确认修改」60 高。成功 Toast 仍是「密码修改成功」 |
 | 6 | 更换头像 · 选择方式 | `182:859` | `MobileProfileEdit.vue` | ✅ `MActionSheet`：拍照 / 从相册选择 / 移除，移除前危险确认 |
@@ -246,7 +246,7 @@ Figma 文件共 5 个页面：
 - 观察/诊断：`MRadioCard` 三种标记形态（默认左圆点 / `marker="end"` 右圆点 / `marker="plain"` 无圆点文字格）；气味题「酵种闻起来怎么样？」；涨幅首屏 4 项 + 固定「不确定」，其余 4 项收进「查看更多情况」；诊断核对五行摘要；安全分支卡片改 `--m-chart-pale` 浅底色（不再整卡危险红）
 - 我的：三分区、14/21 标签、40×40 圆角 20 `--m-disc` 图标块、20px `--brand-action` chevron；资料 / 编辑 / 头像动作面板 / 设备 / 帮助 / FAQ / 反馈 / 隐私均已按画板重排
 - 趋势与记录详情使用 `MDraggableChart`；气泡按 104×38 锁定，松手 1.2s 后淡出；`series-value-label` / `series-time-label` 统一 500 字重与无阴影
-- 顶栏语义色：`MobileShell` 提供 `mobileHeaderTone`，页面注入后写 `detail` / `feeding` / `settings`，分别对应 20/29、24/35、28/36 三种标题档
+- 顶栏语义色：`MobileShell` 提供 `mobileHeaderTone`，页面注入后写 `detail` / `feeding` / `settings`；v1.24 起 tone 只是语义标记，不再改变顶栏外观（所有二级页统一 20/29 标题）
 - 移动端登录 / 注册：`MobileLogin.vue`、`MobileRegister.vue` 挂在 `MobileShell` 子树内，与桌面 `/login`、`/register` 分开；移动端与窄视口按第 5.4 章规则分流
 - 移动端令牌闭环：视图内已无硬编码 hex（`MobileDiary.vue` 只剩一条注释里的 `#30251f`），`#ffedda` / `#f1eae4` / `#f3d9c4` / `#d94f0d` / `#a19185` 全部收进 `mobile.css`
 
@@ -718,15 +718,20 @@ S0 已落地：10 个组件、日历状态模型、采样点吸附，以及移�
 
 `MobileShell` 通过 `provide('mobileHeaderTone', headerTone)` 暴露一个 ref；页面在 `onMounted` 写入、`onBeforeUnmount` 清空，`navTone` 优先读它，其次按路由前缀推断（`/diary/records/`、`/devices/`、`/reports/` → `detail`；`/feeding` → `feeding`）。
 
-| tone | 标题档 | 典型页面 |
-| --- | --- | --- |
-| `detail` | 20 / 500 / 29，返回按钮收成 24 宽、无「返回」二字 | 数据详情、记录详情、轮次选择、观察表单（诊断模式） |
-| `feeding` | 24 / 500 / 35 | 记录喂养 |
-| `auth` | 无标题：登录 / 注册页标题由页面自己给（28 / 500 / 36），顶栏只留返回键 | 移动端登录、注册 |
-| `settings` | 28 / 500 / 36，返回热区 44 × 44，允许换行 | 设备信息、添加设备、邀请码、修改密码、通知、FAQ、反馈、隐私 |
-| 默认 | 16 / 500，带文字「返回」 | 其余二级页 |
+**统一顶栏（v1.24，所有 tone 共用）**
 
-> 页面内**不要再写第二个 `<h1>`**：`is-settings` / `is-detail` 页面的标题已由顶栏提供，正文直接从第一个分区标签开始。v1.18 已从 `MobileInvite`、`MobileAccount`、`MobileDeviceAdd`、`MobileDeviceInfo`、`MobileFeedback`、`MobileFaq`、`MobilePrivacy` 移除重复标题。
+| 项 | 规则 |
+| --- | --- |
+| 返回键 | 只有 `<` 图标，不显示「返回」文字；44 × 44 热区，`aria-label="返回上一页"` |
+| 标题 | 20 / 500 / 29，字距 0，文案来自路由 `meta.title` / `MobileShell` 路径映射 |
+| 下边界 | 无 `border-bottom`、无内阴影，不画分界线 |
+| 背景 | 磨砂玻璃：`--m-topbar-glass: rgba(255, 249, 243, .72)` + `--m-topbar-blur: blur(16px) saturate(1.4)`（同时写 `-webkit-backdrop-filter`）；`prefers-reduced-transparency: reduce` 时回退不透明 `#FFF9F3`、无模糊。这两个令牌专给顶栏，不复用 `--m-glass` / `--m-glass-blur`（卡片与报告底栏仍用后者） |
+| 层级 | `position: sticky; top: 0; z-index: var(--m-z-header)`（30），高于滚动内容（`--m-z-raised` 20），内容滑到下方时透出模糊 |
+| 高度 | `min-height: 64px`，顶部含 `env(safe-area-inset-top)`；页内 `padding-top` 不要再叠加安全区 |
+| 右侧 aside | `mobileHeaderAside`（记录详情日期）照旧右对齐 |
+| `auth` | 登录 / 注册页标题由页面自己给（28 / 500 / 36），顶栏只留返回键，不渲染顶栏标题 |
+
+> 页内**不要再写与顶栏相同的标题**，正文直接从第一个分区标签开始；v1.24 删除 `MobileDevices`（设备列表、设备设置）、`MobileProfile`、`MobileProfileEdit` 的重复 `<h1>`，并取消 `pageOwnTitle` 机制。「刷新」按钮在设备页保留为页内右对齐一行。
 
 ### 5.4 移动端鉴权路由落点（v1.21）
 
@@ -931,6 +936,7 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
+| 2026-11-10 | v1.24 | 统一全部移动端二级页顶栏：只留 `<`（44 × 44，无「返回」文字）、无下边界线 / 内阴影、统一磨砂玻璃（新增顶栏专用 `--m-topbar-glass` / `--m-topbar-blur`，`prefers-reduced-transparency` 回退不透明）、`--m-z-header` 高于滚动内容；所有 tone 共用 20 / 500 / 29 标题，删除 `is-feeding/detail/auth/settings` 的透明背景与字号变体。删除页内重复标题（我的设备、设备设置、个人资料、编辑资料），取消 `pageOwnTitle`；`MobileFeeding` / `MobileCheckin` / `MobileReport` / `MobileDoctorRounds` / `MobileTrend` 的 `padding-top` 不再重复叠加安全区。 |
 | 2026-11-09 | v1.23 | v1.22 之后当日其余改动合并为一版。**喂养**（`cf5354b`）：比例卡取消「更多比例与自定义」折叠层，改为 2 行 × 3 个按钮（五个预设 + 「自定义」），「自定义」下展开老种 / 水 / 面粉三条滑块，比例只写 `draft.ratio`；保存成功后 `replace` 回设备首页，再次进入才开新一轮，待确认草稿仍锁定。**酵种罐**（`73901c1` / `ab3cfcb`）：抽出 `MStarterJar`，四种表情按 `370:16072` 落位，2s 浮动；五官按各态液面反推相位、液面裁到罐口 y=170；首页轻点只循环心情预览，不参与发酵判定。**日记日期圆**（`d15c68d`）：只给有正式采样（关联窗口内、`fer`、无传感器故障）的日子画圆形背景（`formalMeasurementDays`）。**设备 / 资料面板**（`195da46`）：关联酵种改草稿 + 底部确认，重复保存拦截、失败保留面板；改名拆出取消 / 保存；出生日期滚轮只改草稿、确定才写回；性别面板补取消。**二轮批注收尾**（本次提交）：观察页颜色 / 气味选「不确定」时「下一步」直达核对（纯决策抽到 `lib/checkin-flow.js`，只校验当前页可见字段；`validateCheckin` 在一项「不确定」且另一项未答时不再阻断，报告仍为「需要进一步检查」；核对页返回回到触发跳过的那一页；生成报错时把页面送到出错控件）；记录详情「已发酵 / 历时」改按窗口口径（`lib/record-detail.js`，已结束 = `windowClosedAt` − `windowFrom`），曲线裁剪到本轮窗口并剔除 sleep / 传感器故障点，空态只说一次且不在无法核实历史归属时声称「无有效采样」；日记「本日设备数据」设备行换成「本日全部数据 ›」胶囊（多设备取采样最多者），年月白卡渐隐改卡片底色、「完成」不再被遮住，酵种医生年月选择与之逐条同款；通知页去掉重复句、同名酵种显示创建日期（`lib/starter-labels.js`，`listStarters` 增加 `created_at`）；移动端性别面板只列男 / 女；喂养页高度提醒摘要统一为 `2×` / `2.5×` / `3×`；编辑资料页顶栏改 settings 档只留「<」；改名面板取消时丢弃草稿；设备首页证据失败文案改中性；诊断页酵种名称加载中不显示占位徽标；`MRecordCard` 去掉标题下分割线。`npm test` 24 个文件 + 2016 组合自检全绿。第 9 章新增 #14–#16 三项待定 |
 | 2026-11-09 | v1.22 | 移动端批注修正：P0 修复 `MToast` 基础居中与安全区宽度；带 `starter` 进入喂养页时仅在实际路由进入钩子中清除已确认草稿、开启可编辑新记录，同次保存反馈与待确认锁定仍保留；安全选项不再自动跳核对，由「下一步」显式进入安全优先路径。P1 记录详情固定展示「本轮曲线」，无有效采样时提供解释与当日设备趋势入口；编辑资料保留页内标题并通过 `pageOwnTitle` 隐藏重复顶栏标题；设备首页移除结束原因、技术采样说明和诊断提示。P2 移动性别选项收敛为未设置 / 男 / 女（旧值仍可回显）；更多比例与克重自定义合并且不再同时显示两套重量输入；通知页明确起始高度倍数；日记设备摘要更名「本日设备数据」。 |
 | 2026-11-05 | v1.0 | 首次成文：完成设计稿全量盘点、现状审计、10 个模块方案与 10 阶段计划 |
@@ -1046,7 +1052,7 @@ assert.doesNotMatch(source, /border-radius:\s*999px/);
 | 结果页标题 | 正常建议 22 / 32；安全分支与信息不足 20 / 29 | 页内标题另起一档，不再用 28 |
 | 反馈提交 | 登录后写入 `user_feedback`，返回编号才算成功 | 成功 Toast「反馈已提交」 |
 | 罐体表情 | 只有一套脸图，高度可上升 | 四种表情，等第 9 章 |
-| 二级页标题 | `is-settings` / `is-detail` 由顶栏提供，页面不再写 `<h1>` | 顶栏统一承担标题 |
+| 二级页标题 | 所有二级页由统一磨砂顶栏提供标题，页面不再写重复 `<h1>` | 顶栏统一承担标题 |
 | 测试注册 | `package.json` 显式串联 21 个文件 | 新增测试必须手动追加 |
 
 ---
@@ -1181,7 +1187,7 @@ Figma 额度恢复，本轮用 `get_metadata` 重新取了三页画板的逐层 
 
 | 元素 | 节点 | 值 | 实现 |
 | --- | --- | --- | --- |
-| 顶栏底 → 「观察 1 / 3」 | `370:17399` | 20 | 页面 `padding-top: calc(20px + env(safe-area-inset-top))`；`.checkin-head` `min-height: 19px`、`margin: 0` |
+| 顶栏底 → 「观察 1 / 3」 | `370:17399` | 20 | 页面 `padding-top: 20px`；`.checkin-head` `min-height: 19px`、`margin: 0` |
 | 观察序号 → 题目 | `370:17399` | 21 | `.observe-step h2` 的 `margin-top: 21px` |
 | 题目 → 说明 | `370:17399` / `370:17432` | 5 | 题目 `margin: 21px 0 5px`，21 / 31 / 500 |
 | 说明 → 首卡 | `370:17399` / `370:17432` | 44 | `.observe-step h2 + .m-muted { margin: 0 0 44px }` |
@@ -1203,7 +1209,7 @@ Figma 额度恢复，本轮用 `get_metadata` 重新取了三页画板的逐层 
 | 安全分支 | `branch-title` 20 / 29 | 31 | 160 | 33 |
 | 信息不足 | `insufficient-title` 20 / 29 | 31 | 150 | 33 |
 
-页面 `padding-top: calc(21px + env(safe-area-inset-top))` 且 `gap: 0`；「结果内容由算法返回」紧随标题 6px。三种卡都是圆角 20、`padding: 20px 18px`、无边框；安全分支底色 `--m-chart-pale`。
+页面 `padding-top: 21px` 且 `gap: 0`；「结果内容由算法返回」紧随标题 6px。三种卡都是圆角 20、`padding: 20px 18px`、无边框；安全分支底色 `--m-chart-pale`。
 
 **轮次选择（`370:17647`）**
 

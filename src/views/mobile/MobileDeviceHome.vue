@@ -7,7 +7,10 @@ import { createStarter, deleteStarter, listCareRecords, listStarters } from '../
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
 import { listMeasurementsRange } from '../../services/device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
-import { linkStarterDevice, listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import { clipWindows, filterRowsByWindows } from '../../lib/starter-link-windows.js';
+import { roundDeviceWindows } from '../../lib/round-device-attribution.js';
+import { LOCAL_LINK_NOTICE } from '../../lib/link-change.js';
 import { loadFeedingEvidence, summarizeFeedingMeasurements } from '../../services/feeding-analysis.service.js';
 import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentation-window.service.js';
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
@@ -35,9 +38,9 @@ const accountId = computed(() => auth.user.value?.id || '');
 const devices = ref([]); const starters = ref([]); const measurements = ref([]);
 const deviceId = ref(''); const starterId = ref(''); const records = ref([]); const link = ref(null); const previousFeeding = ref(null);
 const loading = ref(false); const saving = ref(false); const error = ref(''); const deviceError = ref('');
-const deviceOpen = ref(false); const starterOpen = ref(false); const newStarterOpen = ref(false); const contextOpen = ref(false);
+const starterOpen = ref(false); const newStarterOpen = ref(false); const contextOpen = ref(false);
 const newName = ref(''); const now = ref(Date.now()); const explicitStarter = ref(false);
-const evidence = ref(null); const mutationError = ref('');
+const evidence = ref(null); const mutationError = ref(''); const allLinks = ref([]);
 const nextFeedingAt = ref(null); const closure = ref(null);
 const closing = ref(false); const closeError = ref('');
 const confirmOpen = ref(false); const toast = ref(''); const starterPendingDelete = ref(null);
@@ -45,20 +48,19 @@ let toastTimer;
 let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
 // 与 feeding-analysis 的新鲜度窗口保持一致，仅用于「数据是否还新鲜」的提示。
 const FRESH_MS = 40 * 60000;
-// 记住每个账号手动选过的酵种罐，刷新后回到上次离开时的设备。
-const DEVICE_STORAGE = 'ferjoo.mobile.today.device';
-function readSavedDevice(owner) {
-  if (!owner || typeof localStorage === 'undefined') return '';
-  try { return localStorage.getItem(`${DEVICE_STORAGE}:${owner}`) || ''; } catch { return ''; }
-}
-function rememberDevice(owner, id) {
-  if (!owner || !id || typeof localStorage === 'undefined') return;
-  try { localStorage.setItem(`${DEVICE_STORAGE}:${owner}`, id); } catch { /* 存储不可用时退回默认设备 */ }
-}
-
+// 迁移未执行时关联只存在于本机浏览器：明确告知，避免用户以为已经同步到云端。
+const localLinkNotice = computed(() => allLinks.value.some((row) => row.local_only) ? LOCAL_LINK_NOTICE : '');
 const activeDevice = computed(() => devices.value.find((item) => item.device_id === deviceId.value));
 const starter = computed(() => starters.value.find((item) => item.id === starterId.value));
 const feeding = computed(() => records.value.find((item) => item.kind === 'feeding') || null);
+const roundWindows = computed(() => roundDeviceWindows(allLinks.value, {
+  feeding: feeding.value,
+  // 每个酵种最新一次喂养足以决定它当前是否接管某台共享设备。
+  feedings: starters.value.map((item) => item.feeding).filter(Boolean),
+  nextFeedingAt: nextFeedingAt.value,
+  windowEndedAt: closure.value?.ended_at,
+  now: now.value
+}));
 const observation = computed(() => records.value.find((item) => item.kind === 'observation') || null);
 const report = ref(null);
 const lastAdvice = computed(() => {
@@ -71,16 +73,20 @@ const to = computed(() => new Date(now.value).toISOString());
 const summary = computed(() => feeding.value ? summarizeFeedingMeasurements({
   measurements: evidence.value || measurements.value,
   feeding: feeding.value,
+  // 轮次归属取该酵种的全部历史关联（含已关闭窗口）；当前活跃关联只用于下方「实时」展示。
   link: link.value,
+  links: allLinks.value.filter((row) => row.starter_id === starterId.value),
   now: now.value,
   nextFeedingAt: nextFeedingAt.value,
   windowEndedAt: closure.value?.ended_at || null
 }) : null);
-const chartRows = computed(() => (starterId.value && !link.value ? [] : measurements.value.slice().sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at))));
+// measurements 已在读取时按该酵种全部历史窗口过滤；这里只排序。
+const chartRows = computed(() => measurements.value.slice().sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at)));
+
 // 本轮喂养时间确定时，读取窗口从起始前 10 分钟开始；没有确定起点才回退到最近 24 小时。
 const chartFrom = computed(() => {
   const earliest = Date.parse(feeding.value?.occurred_at);
-  const base = link.value?.active_from && Date.parse(link.value.active_from) > Date.parse(from.value) ? link.value.active_from : from.value;
+  const base = from.value;
   if (!Number.isFinite(earliest)) return base;
   return new Date(Math.min(Date.parse(base), earliest - 10 * 60000)).toISOString();
 });
@@ -105,7 +111,8 @@ const jarCaption = computed(() => {
 });
 const jarMoodLabel = computed(() => `${JAR_MOOD_LABELS[jarMood.value]} · ${jarCaption.value}`);
 // 指标只取最近一条有效样本：休眠与传感器故障的读数不能当作当前环境展示。
-const latest = computed(() => chartRows.value.filter((row) => !row.sensor_error && (!row.mode || row.mode === 'fer')).at(-1) || null);
+// 「当前数据」只描述实时：酵种当前没有活跃关联时，不把旧窗口里的读数当作当前环境展示。
+const latest = computed(() => starterId.value && !link.value ? null : chartRows.value.filter((row) => !row.sensor_error && (!row.mode || row.mode === 'fer')).at(-1) || null);
 function metricText(key, unit) {
   const value = Number(latest.value?.[key]);
   return latest.value && Number.isFinite(value) ? `${Math.round(value * 10) / 10}${unit}` : '—';
@@ -133,8 +140,8 @@ const state = computed(() => summary.value ? roundState(summary.value) : null);
 const windowActive = computed(() => !!summary.value?.windowActive);
 // 状态按最近一次采样描述；异常与休眠要单独说清，避免把设备问题读成发酵结束。
 const jarStatus = computed(() => {
-  if (!deviceId.value) return { tone: 'none', label: '未选择酵种罐', detail: '点按选择设备' };
-  if (starterId.value && !link.value) return { tone: 'none', label: '未关联设备', detail: '点按切换或关联' };
+  if (!starterId.value) return { tone: 'none', label: '未选择酵种', detail: '点按选择酵种' };
+  if (!link.value) return { tone: 'none', label: '未关联设备', detail: '请到设备设置关联酵种' };
   const last = chartRows.value.at(-1);
   if (!last) return { tone: 'none', label: '暂无数据', detail: '最近 24 小时未收到采样' };
   if (last.sensor_error) return { tone: 'fault', label: '传感器异常', detail: `保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
@@ -161,18 +168,9 @@ function relative(value) {
   return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : `${Math.floor(minutes / 60)} 小时前`;
 }
 function current(token, owner) { return !disposed && token === generation && owner === accountId.value; }
-function clearSelected() { records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; }
-function selectDevice(id) {
-  if (saving.value || id === deviceId.value) return;
-  generation++; deviceId.value = id; rememberDevice(accountId.value, id);
-  const keepEmpty = explicitStarter.value && !starterId.value;
-  starterId.value = ''; explicitStarter.value = keepEmpty;
-  deviceOpen.value = false; clearSelected(); void refresh();
-}
+function clearSelected() { allLinks.value = []; records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; }
 function selectStarter(id) {
-  if (saving.value) return;
-  const item = starters.value.find((row) => row.id === id);
-  if (id && (!item || item.link?.device_id && item.link.device_id !== deviceId.value)) return;
+  if (saving.value || id && !starters.value.some((row) => row.id === id)) return;
   generation++; explicitStarter.value = true; starterId.value = id || ''; starterOpen.value = false; contextOpen.value = false; clearSelected(); void refresh();
 }
 function openPicker() { contextOpen.value = !contextOpen.value; }
@@ -197,8 +195,8 @@ async function refresh() {
       if (starterResult.cause) { error.value = '酵种列表读取失败，请重试。'; return; }
       if (deviceResult.cause) { deviceError.value = '设备列表读取失败，请刷新后重试。'; return; }
       if (linkResult.cause) { error.value = '设备关联读取失败，请刷新重试；暂不展示酵种数据。'; return; }
-      const allLinks = linkResult.value || []; const linkMap = new Map();
-      for (const row of allLinks) if (row.active_to == null && !linkMap.has(row.starter_id)) linkMap.set(row.starter_id, row);
+      const loadedLinks = linkResult.value || []; const linkMap = new Map();
+      for (const row of loadedLinks) if (row.active_to == null && !linkMap.has(row.starter_id)) linkMap.set(row.starter_id, row);
       const rows = starterResult.value || [];
       const contexts = await Promise.all(rows.map(async (item) => {
         const [latestRow, feedRows, obsRows] = await Promise.all([
@@ -206,21 +204,17 @@ async function refresh() {
           listCareRecords({ userId: owner, starterId: item.id, kind: 'feeding', limit: 2 }),
           listCareRecords({ userId: owner, starterId: item.id, kind: 'observation', limit: 1 })
         ]);
-        return { ...item, link: linkMap.get(item.id) || null, latest: latestRow[0] || null, feeding: feedRows[0] || null, previousFeeding: feedRows[1] || null, observation: obsRows[0] || null };
+        return { ...item, link: linkMap.get(item.id) || null, hasLinkHistory: loadedLinks.some((row) => row.starter_id === item.id), latest: latestRow[0] || null, feeding: feedRows[0] || null, previousFeeding: feedRows[1] || null, observation: obsRows[0] || null };
       }));
       if (!current(token, owner)) return;
       contexts.sort((a, b) => (Date.parse(b.latest?.occurred_at) || 0) - (Date.parse(a.latest?.occurred_at) || 0));
       devices.value = deviceResult.value || []; starters.value = contexts;
-      const sortedDevices = devices.value.slice().sort((a, b) => { const aa = Date.parse(a.created_at); const bb = Date.parse(b.created_at); return (Number.isFinite(aa) ? aa : Infinity) - (Number.isFinite(bb) ? bb : Infinity); });
-      if (!devices.value.some(row => row.device_id === deviceId.value)) {
-        // 优先回到上次手动选择的设备；首次进入或设备已移除时才用最早的设备。
-        const savedDevice = readSavedDevice(owner);
-        deviceId.value = devices.value.some(row => row.device_id === savedDevice) ? savedDevice : sortedDevices[0]?.device_id || '';
-      }
       let selected = contexts.find(row => row.id === starterId.value);
-      if (!explicitStarter.value && !selected) { selected = contexts.find(row => row.link?.device_id === deviceId.value); if (selected) starterId.value = selected.id; }
-      if (!selected || selected.link?.device_id && selected.link.device_id !== deviceId.value) { starterId.value = ''; selected = null; }
-      link.value = selected?.link || null;
+      if (!selected && !explicitStarter.value) selected = contexts.find(row => row.link) || null;
+      starterId.value = selected?.id || '';
+      // 设备由所选酵种的活跃关联决定；一台设备可同时服务多个酵种，首页只切换酵种。
+      deviceId.value = selected?.link?.device_id || '';
+      link.value = selected?.link || null; allLinks.value = loadedLinks;
       records.value = [selected?.feeding, selected?.observation].filter(Boolean).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
       previousFeeding.value = selected?.previousFeeding || null;
       const session = loadSessionReport(owner);
@@ -241,20 +235,26 @@ async function refresh() {
         else {
           const loaded = loadedResult.value;
           nextFeedingAt.value = loaded?.nextFeedingAt || null;
-          evidence.value = loaded?.link?.device_id === deviceId.value && loaded?.link?.active_from === link.value?.active_from ? loaded.measurements : [];
+          // 证据已按该酵种全部历史窗口读取并过滤（含已关闭窗口），不要求与当前活跃关联一致。
+          evidence.value = loaded?.link ? loaded.measurements : [];
+          if (loaded?.unavailableReason && loaded?.link) error.value = loaded.unavailableReason;
         }
         closure.value = closureResult.value || null;
       }
       if (!current(token, owner)) return;
-      if (!deviceId.value || starterId.value && !link.value) { measurements.value = []; return; }
+      // 选了酵种时，只在它于这台设备上有过关联窗口（含已关闭窗口）时才读取，并按窗口并集过滤。
+      // 首页的实时数据只来自当前酵种本轮实际归属，不能共享给同时关联的其他酵种。
+      const windows = feeding.value ? roundWindows.value.filter((window) => window.deviceId === deviceId.value) : [];
+      if (!deviceId.value || !windows.length) { measurements.value = []; return; }
       const rangeFrom = chartFrom.value;
-      const measuredRows = await listMeasurementsRange(deviceId.value, { from: rangeFrom, to: to.value, bucketed: false });
+      const measuredRows = await listMeasurementsRange(deviceId.value, { from: rangeFrom, to: to.value, bucketed: false, starterId: starterId.value });
       if (!current(token, owner)) return;
-      measurements.value = measuredRows.filter(row => {
+      const inRange = measuredRows.filter(row => {
         const at = Date.parse(row.recorded_at);
-        return at >= Date.parse(rangeFrom) && at <= now.value && (!row.device_id || row.device_id === deviceId.value)
-          && (!link.value || link.value.device_id === deviceId.value && (!link.value.active_to || at < Date.parse(link.value.active_to)));
-      }).map(row => ({ ...row, height_mm: Number(row.height_mm) > 0 ? Number(row.height_mm) : null }));
+        return at >= Date.parse(rangeFrom) && at <= now.value && (!row.device_id || row.device_id === deviceId.value);
+      });
+      const scoped = windows ? filterRowsByWindows(inRange.map(row => ({ ...row, device_id: row.device_id || deviceId.value })), clipWindows(windows, Date.parse(rangeFrom), now.value + 1)) : inRange;
+      measurements.value = scoped.map(row => ({ ...row, height_mm: Number(row.height_mm) > 0 ? Number(row.height_mm) : null }));
     } catch (cause) { if (current(token, owner)) error.value = cause?.message || '读取失败，请稍后重试。'; }
   })();
   try { await inFlight; } finally { inFlight = null; loading.value = false; if (pending && !disposed) { pending = false; void refresh(); } }
@@ -279,17 +279,17 @@ async function endRound(detail = null) {
     if (current(token, owner)) closing.value = false;
   }
 }
-async function associateSelected() {
-  if (saving.value || !starterId.value || !deviceId.value) return;
-  const owner = accountId.value; const id = starterId.value; const token = generation; const mutationToken = ++mutationGeneration; saving.value = true; mutationError.value = '';
-  try { await linkStarterDevice({ userId: owner, starterId: id, deviceId: deviceId.value }); if (current(token, owner)) pending = true; }
-  catch (cause) { if (current(token, owner) && mutationToken === mutationGeneration) mutationError.value = cause?.message || '关联失败，请重试。'; }
-  finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
+// 有任何关联历史或喂养/观察记录的酵种不能删除：历史曲线、基线、轮次证据都靠这些记录定位。
+function deleteGuard(item) {
+  if (item.link) return '已关联设备的酵种不能删除。';
+  if (item.hasLinkHistory) return '该酵种有设备关联历史，不能删除。';
+  if (item.latest || item.feeding || item.observation) return '该酵种有喂养或观察记录，不能删除。';
+  return '';
 }
 async function removeStarter() {
   const item = starterPendingDelete.value;
   starterPendingDelete.value = null;
-  if (!item || item.link || saving.value) return;
+  if (!item || deleteGuard(item) || saving.value) return;
   const owner = accountId.value; const token = generation; saving.value = true; mutationError.value = '';
   try {
     await deleteStarter(item.id);
@@ -309,18 +309,13 @@ async function addStarter() {
     const created = await createStarter(newName.value.trim());
     if (!current(token, owner)) return;
     starters.value.unshift({ ...created, link: null });
-    explicitStarter.value = true; starterId.value = created.id; mutationError.value = ''; clearSelected();
+    explicitStarter.value = true; starterId.value = created.id; deviceId.value = ''; mutationError.value = ''; clearSelected();
     newName.value = ''; newStarterOpen.value = false;
-    if (deviceId.value) {
-      try { await linkStarterDevice({ userId: owner, starterId: created.id, deviceId: deviceId.value }); }
-      catch (cause) { if (current(token, owner) && mutationToken === mutationGeneration) mutationError.value = '酵种已新建，但关联失败。请点击关联当前设备重试。'; }
-    }
-    if (!current(token, owner)) return;
     pending = true;
-  } catch (cause) { if (current(token, owner)) error.value = cause?.message || '新建或关联失败，请重试。'; }
+  } catch (cause) { if (current(token, owner)) error.value = cause?.message || '新建酵种失败，请重试。'; }
   finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
 }
-watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; deviceOpen.value = false; starterOpen.value = false; contextOpen.value = false; mutationError.value = ''; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
+watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; starterOpen.value = false; contextOpen.value = false; mutationError.value = ''; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
 // 记录页读取同一偏好作为默认酵种，切回设备页时两处看到的是同一罐。
 watch(starterId, (id) => { if (id) rememberSelectedStarter(accountId.value, id); });
 useVisiblePolling(refresh, 60000);
@@ -354,29 +349,21 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
         <div class="starter-anchor">
           <button type="button" class="starter-switch" :aria-expanded="contextOpen" aria-haspopup="dialog" @click="openPicker">
             <img class="switch-jar" :src="iconJar" alt="" width="16" height="16" />
-            <span class="switch-name">{{ starter?.name || activeDevice?.name || '选择酵种' }}</span>
+            <span class="switch-name">{{ starter?.name || '选择酵种' }}</span>
             <img class="switch-caret" :src="iconChevron" alt="" width="16" height="16" />
           </button>
           <section v-if="contextOpen" class="picker-row" role="dialog" aria-label="选择酵种">
             <div class="sheet-head"><strong>选择酵种</strong><button type="button" class="sheet-close" aria-label="收起" @click="contextOpen = false">收起</button></div>
-            <details class="picker" :open="deviceOpen" @toggle="deviceOpen = $event.target.open">
-              <summary><span class="picker-label">酵种罐</span><span class="picker-value">{{ activeDevice?.name || activeDevice?.device_id || '未选择' }}</span></summary>
-              <div class="picker-menu">
-                <button v-for="item in devices" :key="item.device_id" type="button" :class="{ active: item.device_id === deviceId }" @click="selectDevice(item.device_id)">{{ item.name || item.device_id }}</button>
-                <RouterLink to="/me/devices?bind=1">新增/连接酵种罐</RouterLink>
-              </div>
-            </details>
             <details class="picker" :open="starterOpen" @toggle="starterOpen = $event.target.open">
               <summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary>
               <div class="picker-menu starter-menu">
-                <button type="button" :class="{ active: !starterId }" @click="selectStarter('')">仅查看设备数据</button>
                 <div v-for="item in starters" :key="item.id" class="starter-choice">
-                  <button type="button" :class="{ active: item.id === starterId }" :disabled="!!item.link?.device_id && item.link.device_id !== deviceId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? (item.link.device_id === deviceId ? '已关联当前设备' : '已关联其他设备 · 切换设备后可选') : '未关联设备 · 仅查看记录' }}</small></button>
-                  <button v-if="!item.link" type="button" class="starter-delete" :disabled="saving" @click="starterPendingDelete = item">删除</button>
+                  <button type="button" :class="{ active: item.id === starterId }" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? `已关联 ${devices.find(device => device.device_id === item.link.device_id)?.name || item.link.device_id}` : '未关联设备 · 仅查看记录' }}</small></button>
+                  <button v-if="!deleteGuard(item)" type="button" class="starter-delete" :disabled="saving" @click="starterPendingDelete = item">删除</button>
                 </div>
                 <button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button>
-                <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建并关联当前设备' }}</button></form>
-                <button v-if="starterId && !link && deviceId" class="menu-action" type="button" :disabled="saving || loading" @click="associateSelected">关联当前设备</button>
+                <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建酵种' }}</button></form>
+                <RouterLink class="menu-action" :to="deviceId ? `/me/devices/${encodeURIComponent(deviceId)}` : '/me/devices'">在设备设置中管理关联</RouterLink>
               </div>
             </details>
           </section>
@@ -389,6 +376,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
         </button>
       </p>
       <p v-if="error || mutationError || deviceError" class="m-error" role="alert">{{ error || mutationError || deviceError }}</p>
+      <p v-if="localLinkNotice && !mutationError" class="m-muted" role="status">{{ localLinkNotice }}</p>
 
       <div class="jar-preview">
         <div class="jar-figure" role="img" :aria-label="`酵种状态：${jarMoodLabel}`">
@@ -442,7 +430,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/diary/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
 
-      <MConfirmDialog :open="!!starterPendingDelete" danger title="删除酵种" :message="`删除「${starterPendingDelete?.name || ''}」后，未关联设备的记录入口会消失。已关联设备的酵种不能在这里删除。`" confirm-label="删除" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
+      <MConfirmDialog :open="!!starterPendingDelete" danger title="删除酵种" :message="`删除「${starterPendingDelete?.name || ''}」后，这个酵种的入口会消失。有喂养/观察记录或设备关联历史的酵种不会提供删除，以免丢失历史数据。`" confirm-label="删除" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
       <MConfirmDialog :open="confirmOpen" danger title="结束当前发酵？" message="结束后，本次发酵将停止记录。你可以开始下一次喂养。" :confirm-label="closing ? '正在结束…' : '确认结束'" cancel-label="继续发酵" @cancel="confirmOpen = false" @confirm="endRound(null)" />
 
       <div v-if="toast" class="saved-toast" role="status">
