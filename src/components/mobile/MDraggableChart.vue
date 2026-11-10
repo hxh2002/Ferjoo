@@ -50,7 +50,8 @@ const chartStyle = computed(() => ({ '--m-chart-height': `${props.height}px` }))
     :caption="caption"
     :value-text="valueText"
   >
-    <template #tip="{ point }">
+    <template #tip="{ point, timeText }">
+      <span>{{ timeText }}</span>
       <strong>{{ tipValue(point) }}{{ unit }}</strong>
     </template>
   </SeriesChart>

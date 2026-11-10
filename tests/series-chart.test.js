@@ -92,6 +92,31 @@ const at = (minute, v) => ({ t: new Date(Date.UTC(2026, 10, 7, 1, minute)).toISO
 // 用真实组件 + 真实 props 解析来渲染：直接调 setup() 会绕过 props 声明，color 永远是 undefined，
 // 渐变颜色相关的断言就失去了意义。
 const chartComponent = { ...component, render };
+const { descriptor: mobileDescriptor, errors: mobileErrors } = parse(chart);
+assert.deepEqual(mobileErrors, []);
+const mobileScript = compileScript(mobileDescriptor, { id: 'mobile-chart-test' });
+const mobileTemplate = compileTemplate({ source: mobileDescriptor.template.content, filename: 'MDraggableChart.vue', id: 'mobile-chart-test', compilerOptions: { bindingMetadata: mobileScript.bindings } });
+assert.deepEqual(mobileTemplate.errors, []);
+const mobileSetupCode = mobileScript.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/g, (_, bindings, path) => {
+  if (bindings.trim().startsWith('{')) return `const ${bindings.replace(/\bas\b/g, ': ')} = modules[${JSON.stringify(path)}];`;
+  return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
+}).replace('export default', 'return');
+const mobileRenderCode = mobileTemplate.code.replace(/import \{([^}]+)\} from "vue"/, (_, bindings) => `const { ${bindings.replace(/ as /g, ': ')} } = Vue;`).replace('export function render', 'function render');
+const mobileRender = new Function('Vue', `${mobileRenderCode}; return render;`)(Vue);
+async function drawTip(points, selectedIndex = 0, extra = {}) {
+  const selectedSeries = {
+    ...chartComponent,
+    setup(props, context) {
+      const state = component.setup(props, context);
+      state.hoverIdx.value = selectedIndex;
+      return state;
+    }
+  };
+  const mobileComponent = new Function('modules', mobileSetupCode)({ vue: Vue, '../SeriesChart.vue': selectedSeries });
+  const app = Vue.createSSRApp({ render: () => Vue.h({ ...mobileComponent, render: mobileRender }, { label: '高度', unit: ' mm', points, ...extra }) });
+  const html = await renderToString(app);
+  return html.match(/<div[^>]*class="series-fixed-tip"[^>]*>([\s\S]*?)<\/div>/)?.[1] || '';
+}
 async function draw(points, extra = {}) {
   const app = Vue.createSSRApp({ render: () => Vue.h(chartComponent, { label: '高度', unit: 'mm', points, interactive: true, highlight: true, sticky: true, ...extra }) });
   const html = await renderToString(app);
@@ -151,4 +176,23 @@ assert.match(fixed.html, /class="series-tip-row/, 'the fixed bubble row is alway
 assert.doesNotMatch(fixed.html, /series-value-label|series-time-label|series-guide-y/);
 const floating = await draw([at(0, 30), at(10, 35)]);
 assert.doesNotMatch(floating.html, /series-tip-row/, 'the default chart has no reserved bubble row');
+
+// 移动端浮层复用 SeriesChart 对 point.t 的格式化，不按数组索引或采样间隔推算时间。
+const sampledAt = new Date(2026, 10, 10, 11, 7).toISOString();
+const irregularTip = await drawTip([
+  { t: new Date(2026, 10, 10, 0, 13).toISOString(), v: 28 },
+  { t: sampledAt, v: 30.04 },
+  { t: new Date(2026, 10, 10, 13, 49).toISOString(), v: 31 }
+], 1);
+assert.match(irregularTip, /11:07/, 'the selected sample uses its actual local sampling time');
+assert.match(irregularTip, /30\.0 mm/, 'the tooltip keeps the selected value, one decimal and unit');
+assert.doesNotMatch(irregularTip, /发酵|00:13|13:49/, 'no elapsed duration or another sample time appears');
+const longTip = await drawTip([
+  { t: new Date(2026, 10, 10, 8, 0).toISOString(), v: 20 },
+  { t: new Date(2026, 10, 11, 11, 7).toISOString(), v: 30 }
+], 1);
+assert.match(longTip, /11\/11 11:07/, 'spans over twenty hours keep the existing month/date fallback');
+assert.doesNotMatch(chart, /elapsedCaption|发酵 \$\{hours\} 小时/, 'mobile tooltips no longer derive elapsed fermentation hours');
+console.log('series chart: tooltip uses the selected ISO timestamp and value');
+
 console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');

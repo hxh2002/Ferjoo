@@ -458,7 +458,7 @@ const bandBadges = computed(() => {
         <template v-if="bubble && hoverPoint">
           <span class="series-tip-stem" :style="fixedStemStyle"></span>
           <div ref="fixedTipRef" class="series-fixed-tip" :style="fixedTipStyle">
-            <slot name="tip" :point="hoverPoint">
+            <slot name="tip" :point="hoverPoint" :time-text="fmtTime(hoverPoint.t)">
               <strong>{{ fmt(hoverPoint.v) }}</strong>
               <span>{{ fmtTime(hoverPoint.t) }}</span>
             </slot>
@@ -597,7 +597,7 @@ const bandBadges = computed(() => {
           class="series-tip"
           :style="tipStyle"
         >
-          <slot name="tip" :point="hoverPoint">
+          <slot name="tip" :point="hoverPoint" :time-text="fmtTime(hoverPoint.t)">
             <strong>{{ fmt(hoverPoint.v) }}</strong>
             <span>{{ fmtTime(hoverPoint.t) }}</span>
           </slot>
