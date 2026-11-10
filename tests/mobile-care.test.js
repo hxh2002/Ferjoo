@@ -10,7 +10,7 @@ const service = fs.readFileSync(path.join(root, 'src/services/care.service.js'),
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/015_mobile_care.sql'), 'utf8');
 
 // 服务导出契约
-for (const fn of ['listStarters', 'createStarter', 'listCareRecords', 'saveFeeding', 'saveObservation', 'getCareRecord', 'listDeviceRoles']) {
+for (const fn of ['listStarters', 'createStarter', 'listCareRecords', 'saveFeeding', 'saveObservation', 'getCareRecord', 'deleteCareRecord', 'listDeviceRoles']) {
   assert.match(service, new RegExp(`export function ${fn}\\(`), `缺少导出：${fn}`);
 }
 
@@ -64,6 +64,18 @@ assert.match(migration, /grant select, insert on public\.starters to authenticat
 assert.match(migration, /grant select, insert on public\.care_records to authenticated/);
 assert.ok(!/grant\s+[^;]*update[^;]*on public\.care_records/.test(migration), 'care_records 不可提供 update 授权');
 assert.ok(!/grant\s+[^;]*delete[^;]*on public\.care_records/.test(migration), 'care_records 不可提供 delete 授权');
+
+// 029：单条记录的删除权限单独放在新迁移里（015 保持不可变快照口径）。
+{
+  const removeMigration = fs.readFileSync(path.join(root, 'supabase/migrations/029_care_record_delete.sql'), 'utf8');
+  assert.match(removeMigration, /grant delete on public\.care_records to authenticated/);
+  assert.match(removeMigration, /revoke update, truncate on public\.care_records from public, anon, authenticated/, '只加 delete，update 继续收回');
+  assert.match(removeMigration, /drop policy if exists care_records_delete_own on public\.care_records/);
+  assert.match(removeMigration, /for delete to authenticated using \(user_id = \(select auth\.uid\(\)\)\)/);
+  assert.ok(!/grant\s+[^;]*update[^;]*on public\.care_records/.test(removeMigration), '029 也不授予 update');
+  // 依赖表由外键 cascade 清理，额外授权会把「删一条记录」放大成「能删别人的派生事实」。
+  assert.ok(!/grant[^;]*delete[^;]*on public\.(feed_events|fermentation_window_closures|height_alert_events)/i.test(removeMigration), '依赖表只靠外键级联');
+}
 
 // 事务保存 + 幂等冲突不可覆盖快照
 assert.match(migration, /function public\.save_care_record\(/);

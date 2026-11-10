@@ -17,7 +17,8 @@ export function useStarterName(accountId, starterId) {
     }
     starterNameLoading.value = true;
     try {
-      const starters = await listStarters({ userId: owner });
+      // 历史记录可能属于已归档酵种：名称必须照常解析，归档只影响选择器。
+      const starters = await listStarters({ userId: owner, includeArchived: true });
       if (token === version) starterName.value = starters.find((item) => item.id === id)?.name || '名称不可用（酵种可能已移除）';
     } catch {
       if (token === version) starterName.value = '名称加载失败，请稍后重试';

@@ -68,6 +68,9 @@ revoke all on function private.force_fk_on_delete_restrict(regclass, name, regcl
 -- 历史外键：级联删除 → restrict
 -- ---------------------------------------------------------------------------
 -- 设备下线 / 账号注销现在会明确失败，而不是带走读数、关联窗口与喂养记录。
+-- 执行注意：add constraint 默认会校验存量数据并对被引用表加 SHARE ROW EXCLUSIVE 锁，
+-- device_measurements 较大时请在低峰期执行；本迁移没有 NOT VALID，存量数据必须自洽
+-- （悬空关联先按 025 末尾的查询收口），校验失败会整体回滚，不会留下半套约束。
 select private.force_fk_on_delete_restrict(
   'public.device_measurements'::regclass, 'device_id',
   'public.devices'::regclass, 'device_id',
@@ -130,8 +133,17 @@ select private.force_fk_on_delete_restrict(
 -- 003 的 devices_delete_owner_or_admin 策略刻意保留不 drop，仅在注释里说明它已对普通用户失效
 -- （策略管「允许删哪些行」，权限管「能不能发 delete」，后者缺失时策略不会生效）。
 revoke delete, truncate on public.devices from public, anon, authenticated;
-comment on policy devices_delete_owner_or_admin on public.devices is
-  '保留历史策略名称，不再生效：authenticated 已于 028 收回 delete 权限，物理删除仅 service_role 可执行；即便执行也会被 028 的 restrict 外键阻止（设备有采样或关联历史时）。';
+do $$
+begin
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'devices' and policyname = 'devices_delete_owner_or_admin'
+  ) then
+    execute $c$comment on policy devices_delete_owner_or_admin on public.devices is
+      '保留历史策略名称，不再生效：authenticated 已于 028 收回 delete 权限，物理删除仅 service_role 可执行；即便执行也会被 028 的 restrict 外键阻止（设备有采样或关联历史时）。'$c$;
+  end if;
+end;
+$$;
 
 -- 设备下线能力（本轮不新增前端入口，仅记录边界）：
 --   * 前端没有任何删除设备的入口，成员只能「解除绑定」自己（unbind_device_member，保留历史窗口）；

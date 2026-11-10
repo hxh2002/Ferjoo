@@ -66,7 +66,7 @@ function normalizeRecord(value, id) {
 async function loadStarterName(id, token, owner) {
   if (!id || owner === 'guest') return;
   try {
-    const list = await listStarters({ userId: owner });
+    const list = await listStarters({ userId: owner, includeArchived: true });
     if (!disposed && token === generation && owner === accountId.value) starterName.value = list.find((item) => item.id === id)?.name || '名称不可用';
   } catch { /* Record facts remain readable when names cannot be loaded. */ }
 }

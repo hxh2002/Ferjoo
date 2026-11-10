@@ -172,7 +172,7 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
     record.value = value;
     // 轮次详情与记录页共用同一份证据，避免列表和详情对状态给出不同结论。
     const [starters, proof] = await Promise.all([
-      listStarters({ userId }).catch(() => []),
+      listStarters({ userId, includeArchived: true }).catch(() => []),
       // 证据包含整轮采样，短时间内重复进入直接复用；任何写入都会推进修订号使旧结果失效。
       cachedRead(
         feedingEvidenceCacheKey(userId, value.starter_id, value.id),
@@ -275,7 +275,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
     <section v-if="record" class="m-card">
       <template v-if="weights"><h2>投喂重量</h2><p>{{ weights }}</p></template>
       <div class="card-actions">
-        <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
+        <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">诊断本次喂养</RouterLink>
         <button type="button" class="m-secondary m-danger" :disabled="deleting" @click="deleteOpen = true">{{ deleting ? '正在删除…' : '删除记录' }}</button>
       </div>
     </section>
@@ -337,10 +337,10 @@ header p{margin:.25rem 0 0;font-size:.8rem}
 .metric-chart :deep(.series-plot){height:var(--m-chart-height,126px)}
 .metric-chart :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
 .m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid var(--border-input);color:inherit;text-decoration:none}
-/* 诊断入口在左、删除在右；窄屏放不下时删除键换到下一行并靠右，不把诊断文字挤成竖排。 */
-.card-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:.5rem}
-.card-actions .m-secondary{flex:1 1 auto;min-width:0}
-.card-actions .m-danger{flex:0 0 auto;margin-left:auto;padding:0 .85rem;border-color:var(--border-input);color:var(--danger-text)}
+/* 诊断入口在左、删除在右并始终同一行；空间不足时省略诊断文案，两个标签均不换行。 */
+.card-actions{display:flex;align-items:stretch;flex-wrap:nowrap;gap:.5rem}
+.card-actions .m-secondary{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-actions .m-danger{flex:0 0 auto;margin-left:auto;padding:0 .85rem;border-color:var(--border-input);color:var(--danger-text);white-space:nowrap}
 .card-actions .m-danger:active:not(:disabled){background:var(--danger-bg)}
 .card-actions .m-danger:disabled{opacity:.55;cursor:not-allowed}
 .m-error{color:var(--danger-text)}

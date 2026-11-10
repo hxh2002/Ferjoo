@@ -16,7 +16,9 @@ export function mobileError(error) {
   const known = {
     AUTH_REQUIRED: '请先登录后再操作。', INVALID_BIND_CODE: '绑定码无效，请检查后重试。',
     USER_NOT_FOUND: '未找到这个系统用户，请核对用户编号。', FORBIDDEN: '没有操作权限，共享关系可能已变化。',
-    CANNOT_UNBIND_OWNER: '设备所有者不能解绑自己，当前暂不支持转让所有权。'
+    CANNOT_UNBIND_OWNER: '设备所有者不能解绑自己，当前暂不支持转让所有权。',
+    STARTER_ARCHIVED: '这个酵种已归档，不能再关联设备；历史记录仍可查看。',
+    STARTER_NOT_FOUND: '找不到这个酵种，可能已被归档或移除。'
   };
   for (const [key, text] of Object.entries(known)) if (message.includes(key)) return text;
   // 登录过期与「没有权限」必须分开：前者让用户重新登录，后者才说明共享关系变了。

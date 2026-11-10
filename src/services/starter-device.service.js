@@ -47,6 +47,8 @@ function accountLocalHistory(userId) {
 
 export async function listStarterDeviceLinks({ userId, starterId } = {}) {
   // 关联变更频率很低，切换页面时直接复用同一份结果。
+  // 刻意不按 starters.archived_at 过滤：归档只收起入口，已关闭窗口仍要用于历史回读（025 的只读口径）。
+  // 可关联酵种由 listStarters 过滤，归档酵种即使仍有窗口也不会再出现在选择器里。
   const cacheKey = readCacheKey(['links', userId ?? '', starterId ?? 'all']);
   return cachedRead(cacheKey, () => readStarterDeviceLinks(userId, starterId), { ttl: READ_TTL.links });
 }

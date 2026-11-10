@@ -303,7 +303,10 @@ async function removeStarter() {
     if (current(token, owner)) saving.value = false;
   }
   // 归档时服务端已关闭该酵种的活跃关联：重新读取关联与列表，避免首页继续展示旧设备。
-  if (archived && !disposed) selectStarter(wasSelected ? '' : starterId.value);
+  if (archived && !disposed) {
+    if (wasSelected) { starterId.value = ''; explicitStarter.value = false; }
+    void refresh();
+  }
 }
 async function addStarter() {
   if (saving.value || !accountId.value || !newName.value.trim()) return;

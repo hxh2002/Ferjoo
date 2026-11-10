@@ -166,13 +166,16 @@ assert.match(descriptor.template.content, /\{\{ curveText\.emptyMessage \}\}/);
 // ---------- 删除记录：按钮 / 二次确认 / 服务调用 / 返回日记 ----------
 const detailTemplate = descriptor.template.content;
 assert.match(detailTemplate, /<button type="button" class="m-secondary m-danger" :disabled="deleting" @click="deleteOpen = true">/, '删除键是 button，删除期间禁用');
-assert.match(detailTemplate, /基于这次喂养记录做诊断<\/RouterLink>\s*<button type="button" class="m-secondary m-danger"/, '删除键排在诊断链接之后（同一行的右侧）');
+assert.match(detailTemplate, /诊断本次喂养<\/RouterLink>\s*<button type="button" class="m-secondary m-danger"/, '删除键排在诊断链接之后（同一行的右侧）');
+assert.doesNotMatch(detailTemplate, /基于这次喂养记录做诊断/, '诊断入口使用精简文案');
 assert.match(detailTemplate, /<div class="card-actions">/, '诊断与删除同处一个 flex 行');
 assert.match(detailTemplate, /<MConfirmDialog :open="deleteOpen" danger title="删除记录"/);
 assert.match(detailTemplate, /confirm-label="删除" cancel-label="取消"/);
 assert.match(detailTemplate, /@cancel="deleteOpen = false" @confirm="removeRecord"/);
-assert.match(source, /\.card-actions\{display:flex;align-items:stretch;flex-wrap:wrap;gap:\.5rem\}/, '诊断与删除同处一个 flex 行');
+assert.match(source, /\.card-actions\{display:flex;align-items:stretch;flex-wrap:nowrap;gap:\.5rem\}/, '诊断与删除始终同处一行');
+assert.match(source, /\.card-actions \.m-secondary\{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/, '空间不足时诊断文案省略，不换行');
 assert.match(source, /\.card-actions \.m-danger\{[^}]*margin-left:auto/, '删除键靠右');
+assert.match(source, /\.card-actions \.m-danger\{[^}]*white-space:nowrap/, '删除文案不换行');
 assert.match(source, /\.card-actions \.m-danger\{[^}]*var\(--danger-text\)/);
 assert.match(source, /\.card-actions \.m-secondary\{[^}]*min-height|\.m-secondary\{display:inline-flex;align-items:center;min-height:48px/, '保留 48px 点击高度');
 
