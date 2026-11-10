@@ -12,6 +12,7 @@ const archive = source('supabase/migrations/027_archive_starters.sql');
 const guard = source('supabase/migrations/028_history_delete_guard.sql');
 const care = source('src/services/care.service.js');
 const home = source('src/views/mobile/MobileDeviceHome.vue');
+const devices = source('src/views/mobile/MobileDevices.vue');
 
 // ---------------------------------------------------------------------------
 // 027：软删除而不是物理删除
@@ -167,16 +168,17 @@ function query(rows, { columnMissing = false } = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// 页面：任何酵种都能归档，并说明历史保留
+// 页面：管理统一收进设置，任何酵种都能归档，并说明历史保留
 // ---------------------------------------------------------------------------
 {
-  assert.match(home, /archiveStarter\(item\.id\)/);
-  assert.doesNotMatch(home, /deleteStarter|deleteGuard/);
-  assert.match(home, /class="starter-archive"/);
-  assert.match(home, /归档酵种/);
-  assert.match(home, /有喂养\/观察记录或设备关联历史；归档后入口会收起，历史记录、曲线与关联时段全部保留。/);
-  assert.match(home, /已归档，历史记录已保留/);
-  assert.match(home, /这个酵种还没有喂养、观察或设备关联历史，归档后会从列表移除。/);
+  assert.doesNotMatch(home, /archiveStarter|deleteStarter|deleteGuard|starter-archive/, 'home only selects starters');
+  assert.match(devices, /archiveStarter\(item\.id\)/);
+  assert.doesNotMatch(devices, /deleteStarter|deleteGuard/);
+  assert.match(devices, /class="m-text-action starter-archive"/);
+  assert.match(devices, /归档酵种/);
+  assert.match(devices, /历史喂养、观察与设备读数会保留/);
+  assert.match(devices, /已归档，历史记录已保留/);
+  assert.match(devices, /@confirm="removeStarter"/, 'archiving always requires confirmation');
 }
 
 console.log('starter archive: soft delete RPC, idempotency, picker filtering, unmigrated fallback, restrict FKs and revoke contract passed');

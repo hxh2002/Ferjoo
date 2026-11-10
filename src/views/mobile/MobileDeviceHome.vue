@@ -3,7 +3,7 @@ import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useVisiblePolling } from '../../composables/useVisiblePolling.js';
-import { archiveStarter, createStarter, listCareRecords, listStarters } from '../../services/care.service.js';
+import { listCareRecords, listStarters } from '../../services/care.service.js';
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
 import MToast from '../../components/mobile/MToast.vue';
 import { listMeasurementsRange } from '../../services/device.service.js';
@@ -40,14 +40,14 @@ const route = useRoute();
 const accountId = computed(() => auth.user.value?.id || '');
 const devices = ref([]); const starters = ref([]); const measurements = ref([]);
 const deviceId = ref(''); const starterId = ref(''); const records = ref([]); const link = ref(null); const previousFeeding = ref(null);
-const loading = ref(false); const saving = ref(false); const error = ref(''); const deviceError = ref('');
-const starterOpen = ref(false); const newStarterOpen = ref(false); const contextOpen = ref(false);
-const newName = ref(''); const now = ref(Date.now()); const explicitStarter = ref(false);
-const evidence = ref(null); const mutationError = ref(''); const allLinks = ref([]);
+const loading = ref(false); const error = ref(''); const deviceError = ref('');
+const contextOpen = ref(false);
+const now = ref(Date.now()); const explicitStarter = ref(false);
+const evidence = ref(null); const allLinks = ref([]);
 const nextFeedingAt = ref(null); const closure = ref(null);
 const closing = ref(false); const closeError = ref('');
-const confirmOpen = ref(false); const toast = ref(''); const starterPendingDelete = ref(null);
-let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
+const confirmOpen = ref(false); const toast = ref('');
+let generation = 0; let disposed = false; let inFlight = null; let pending = false;
 // 与 feeding-analysis 的新鲜度窗口保持一致，仅用于「数据是否还新鲜」的提示。
 const FRESH_MS = 40 * 60000;
 // 迁移未执行时关联只存在于本机浏览器：明确告知，避免用户以为已经同步到云端。
@@ -173,8 +173,8 @@ function relative(value) {
 function current(token, owner) { return !disposed && token === generation && owner === accountId.value; }
 function clearSelected() { allLinks.value = []; records.value = []; previousFeeding.value = null; link.value = null; measurements.value = []; evidence.value = []; report.value = null; nextFeedingAt.value = null; closure.value = null; closeError.value = ''; confirmOpen.value = false; }
 function selectStarter(id) {
-  if (saving.value || id && !starters.value.some((row) => row.id === id)) return;
-  generation++; explicitStarter.value = true; starterId.value = id || ''; starterOpen.value = false; contextOpen.value = false; clearSelected(); void refresh();
+  if (id && !starters.value.some((row) => row.id === id)) return;
+  generation++; explicitStarter.value = true; starterId.value = id || ''; contextOpen.value = false; clearSelected(); void refresh();
 }
 function openPicker() { contextOpen.value = !contextOpen.value; }
 
@@ -185,7 +185,7 @@ function refreshNow() {
 }
 async function refresh() {
   if (disposed || !accountId.value) return;
-  if (inFlight || saving.value) { pending = true; return inFlight; }
+  if (inFlight) { pending = true; return inFlight; }
   const owner = accountId.value; const token = generation; loading.value = true; error.value = ''; deviceError.value = ''; now.value = Date.now();
   inFlight = (async () => {
     try {
@@ -277,52 +277,7 @@ async function endRound(detail = null) {
     if (current(token, owner)) closing.value = false;
   }
 }
-// 删除改为归档（027）：物理删除会级联清空喂养/观察与设备关联历史，数据库也不授予 delete 权限。
-// 无历史的酵种归档后从列表消失；有历史的归档后历史全部保留，因此这里不再拒绝任何酵种。
-function archiveNote(item) {
-  return item.latest || item.feeding || item.observation || item.hasLinkHistory
-    ? '该酵种有喂养/观察记录或设备关联历史；归档后入口会收起，历史记录、曲线与关联时段全部保留。'
-    : '这个酵种还没有喂养、观察或设备关联历史，归档后会从列表移除。';
-}
-async function removeStarter() {
-  const item = starterPendingDelete.value;
-  starterPendingDelete.value = null;
-  if (!item || saving.value) return;
-  const owner = accountId.value; const token = generation; const wasSelected = starterId.value === item.id;
-  saving.value = true; mutationError.value = '';
-  let archived = false;
-  try {
-    const result = await archiveStarter(item.id);
-    if (!current(token, owner)) return;
-    archived = true;
-    starters.value = starters.value.filter((row) => row.id !== item.id);
-    allLinks.value = allLinks.value.filter((row) => row.starter_id !== item.id);
-    showToast(result.hasHistory ? '已归档，历史记录已保留' : '已归档');
-  } catch (cause) {
-    if (current(token, owner)) mutationError.value = cause?.message || '归档失败，请重试。';
-  } finally {
-    if (current(token, owner)) saving.value = false;
-  }
-  // 归档时服务端已关闭该酵种的活跃关联：重新读取关联与列表，避免首页继续展示旧设备。
-  if (archived && !disposed) {
-    if (wasSelected) { starterId.value = ''; explicitStarter.value = false; }
-    void refresh();
-  }
-}
-async function addStarter() {
-  if (saving.value || !accountId.value || !newName.value.trim()) return;
-  const owner = accountId.value; const token = generation; const mutationToken = ++mutationGeneration; saving.value = true; error.value = '';
-  try {
-    const created = await createStarter(newName.value.trim());
-    if (!current(token, owner)) return;
-    starters.value.unshift({ ...created, link: null });
-    explicitStarter.value = true; starterId.value = created.id; deviceId.value = ''; mutationError.value = ''; clearSelected();
-    newName.value = ''; newStarterOpen.value = false;
-    pending = true;
-  } catch (cause) { if (current(token, owner)) error.value = cause?.message || '新建酵种失败，请重试。'; }
-  finally { if (mutationToken === mutationGeneration) { saving.value = false; if (pending) { pending = false; void refresh(); } } }
-}
-watch(accountId, () => { generation++; mutationGeneration++; saving.value = false; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; newName.value = ''; newStarterOpen.value = false; starterOpen.value = false; contextOpen.value = false; mutationError.value = ''; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
+watch(accountId, () => { generation++; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; contextOpen.value = false; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
 // 记录页读取同一偏好作为默认酵种，切回设备页时两处看到的是同一罐。
 watch(starterId, (id) => { if (id) rememberSelectedStarter(accountId.value, id); });
 useVisiblePolling(refresh, 60000);
@@ -361,29 +316,24 @@ onScopeDispose(() => { disposed = true; generation++; });
           </button>
           <section v-if="contextOpen" class="picker-row" role="dialog" aria-label="选择酵种">
             <div class="sheet-head"><strong>选择酵种</strong><button type="button" class="sheet-close" aria-label="收起" @click="contextOpen = false">收起</button></div>
-            <details class="picker" :open="starterOpen" @toggle="starterOpen = $event.target.open">
-              <summary><span class="picker-label">酵种</span><span class="picker-value">{{ starter?.name || '未选择' }}</span></summary>
-              <div class="picker-menu starter-menu">
-                <div v-for="item in starters" :key="item.id" class="starter-choice">
-                  <button type="button" :class="{ active: item.id === starterId }" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? `已关联 ${devices.find(device => device.device_id === item.link.device_id)?.name || item.link.device_id}` : '未关联设备 · 仅查看记录' }}</small></button>
-                  <button type="button" class="starter-archive" :disabled="saving" @click="starterPendingDelete = item">归档</button>
-                </div>
-                <button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button>
-                <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建酵种' }}</button></form>
-                <RouterLink class="menu-action" :to="deviceId ? `/me/devices/${encodeURIComponent(deviceId)}` : '/me/devices'">在设备设置中管理关联</RouterLink>
+            <div class="picker-menu starter-menu">
+              <div v-for="item in starters" :key="item.id" class="starter-choice">
+                <button type="button" :class="{ active: item.id === starterId }" :aria-pressed="item.id === starterId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? `已关联 ${devices.find(device => device.device_id === item.link.device_id)?.name || item.link.device_id}` : '未关联设备 · 仅查看记录' }}</small></button>
               </div>
-            </details>
+              <p v-if="!starters.length" class="starter-empty">暂无酵种，请前往酵种管理新增。</p>
+              <RouterLink class="menu-action starter-management" to="/me/devices">酵种管理 <span aria-hidden="true">›</span></RouterLink>
+            </div>
           </section>
         </div>
       </header>
       <p class="jar-status" :data-tone="jarStatus.tone">
         <span class="jar-dot" aria-hidden="true"></span><span class="jar-label">{{ jarStatus.label }}</span>
-        <button type="button" class="jar-refresh" :class="{ spinning: loading }" :disabled="loading || saving" :aria-label="loading ? '正在刷新' : '刷新'" @click="refreshNow">
+        <button type="button" class="jar-refresh" :class="{ spinning: loading }" :disabled="loading" :aria-label="loading ? '正在刷新' : '刷新'" @click="refreshNow">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 0 1-14.6 5.9L4 16" /><path d="M3.5 12A8.5 8.5 0 0 1 18.1 6.1L20 8" /><path d="M20 3.6V8h-4.4" /><path d="M4 20.4V16h4.4" /></svg>
         </button>
       </p>
-      <p v-if="error || mutationError || deviceError" class="m-error" role="alert">{{ error || mutationError || deviceError }}</p>
-      <p v-if="localLinkNotice && !mutationError" class="m-muted" role="status">{{ localLinkNotice }}</p>
+      <p v-if="error || deviceError" class="m-error" role="alert">{{ error || deviceError }}</p>
+      <p v-if="localLinkNotice" class="m-muted" role="status">{{ localLinkNotice }}</p>
 
       <div class="jar-preview">
         <div class="jar-figure" role="img" :aria-label="`酵种状态：${jarMoodLabel}`">
@@ -437,7 +387,6 @@ onScopeDispose(() => { disposed = true; generation++; });
 
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/diary/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
 
-      <MConfirmDialog :open="!!starterPendingDelete" danger title="归档酵种" :message="archiveNote(starterPendingDelete || {})" confirm-label="归档" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
       <MConfirmDialog :open="confirmOpen" danger title="结束当前发酵？" message="结束后，本次发酵将停止记录。你可以开始下一次喂养。" :confirm-label="closing ? '正在结束…' : '确认结束'" cancel-label="继续发酵" @cancel="confirmOpen = false" @confirm="endRound(null)" />
 
       <MToast :open="!!toast" :message="toast" subtitle="本次发酵已结束" tone="success" @close="toast = ''" />
@@ -527,32 +476,19 @@ onScopeDispose(() => { disposed = true; generation++; });
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sheet-head strong{font-size:16px;font-weight:500}
 .sheet-close{min-height:32px;padding:0 8px;border:0;background:none;color:var(--brand-action);font:inherit;font-size:13px;cursor:pointer}
-.picker{position:relative;min-width:0;border:1px solid var(--border-subtle);border-radius:var(--radius-control)}
-.picker summary{display:flex;align-items:center;gap:6px;min-height:48px;padding:0 12px;cursor:pointer;list-style:none}
-.picker summary::-webkit-details-marker{display:none}
-.picker-label{flex:none;font-size:12px;color:var(--text-secondary)}
-.picker-value{flex:1;min-width:0;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.picker summary::after{content:'▾';margin-left:auto;padding-left:8px;color:var(--text-secondary)}
-.picker[open] summary::after{content:'▴'}
-.picker-menu{display:grid;gap:4px;padding:6px;border-top:1px solid var(--border-subtle)}
+.picker-menu{display:grid;gap:4px;padding:0}
 .picker-menu button,.picker-menu a{display:grid;gap:2px;width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface-input);color:inherit;font:inherit;font-size:14px;text-align:left;text-decoration:none;cursor:pointer}
 .picker-menu button.active{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action)}
 .picker-menu button:disabled{opacity:.55;cursor:not-allowed}
-/* 弹层只有 280 宽，左侧按钮必须能收缩：flex 子项默认 min-width 是内容宽度，
-   长酵种名加长注解会把文字挤成一字一行竖排。.starter-choice 自身是 .picker-menu
-   的 grid 子项，同样要吃 min-width:0，否则整行按内容宽度撑开、往外横向溢出。 */
-.starter-choice{display:flex;align-items:center;gap:8px;min-width:0}
+/* 选择器只展示真实酵种；长名称与关联说明在 280px 浮层内换行，不挤破布局。 */
+.starter-choice{display:flex;align-items:center;min-width:0}
 .starter-choice > button:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
 .starter-choice small{display:block;margin-top:2px;overflow-wrap:anywhere}
-/* 上面 .picker-menu button 的 width:100% 也会命中删除键（0,1,1 压过 0,1,0 的 flex:none），
-   删除键会占满整行、把名字顶成 22px 竖排。这里提权并还原成内容宽度。 */
-.starter-choice .starter-archive{flex:none;width:auto;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
 .picker-menu small{font-size:11px;color:var(--text-secondary)}
+.starter-empty{margin:0;padding:8px 10px;color:var(--text-secondary);font-size:12px;line-height:18px}
 .menu-action{color:var(--brand-action)!important}
-.new-starter{display:grid;gap:8px;margin-top:4px}
-/* 同理：iOS 对 <16px 的输入框 focus 会放大视口，这处新建酵种输入框必须保持 16px。 */
-.new-starter input{min-height:44px;padding:8px 10px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:16px;background:var(--surface-input);color:var(--text-primary)}
-.new-starter .m-primary{width:100%;min-height:44px;font-size:14px}
+.starter-management{display:flex!important;align-items:center;justify-content:space-between;gap:8px!important}
+.starter-management span{font-size:18px;line-height:1}
 /* 游客引导整块交给 MGuestNotice 的 hero 形态，这里不再保留一份重复的插画与按钮样式。 */
 @media (max-width:360px){.metric{padding:10px}.metric strong{font-size:16px}.feed-cell{padding:0 12px}}
 </style>

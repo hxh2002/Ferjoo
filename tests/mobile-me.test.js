@@ -234,6 +234,14 @@ assert.match(devices, /@close="closeStarterSheet"/);
 assert.match(devices, /<template #footer>[\s\S]*class="rename-cancel"[\s\S]*@click="closeRename"[\s\S]*class="rename-save"[\s\S]*@click="saveRename"/);
 assert.match(devices, /<MSheet :open="renameOpen" title="修改设备名称" @close="closeRename">/);
 assert.match(devices, /async function saveRename\(\)[\s\S]*rename\(\)[\s\S]*renameOpen\.value = false/);
+// 关联面板内完成新增，创建后自动进入草稿选择，不另开路由或绕过关联确认。
+assert.match(devices, /class="starter-create-entry"[^>]*@click="openStarterCreate"[\s\S]*新增酵种/);
+assert.match(devices, /<MSheet :open="starterCreateOpen" title="新增酵种"[^>]*@close="closeStarterCreate"/);
+assert.match(devices, /<form class="starter-create-form" @submit\.prevent="addStarter">/);
+assert.match(devices, /id="new-starter-error" class="m-error" role="alert"/);
+assert.match(devices, /class="starter-create-cancel"[^>]*@click="closeStarterCreate"/);
+assert.match(devices, /class="starter-create-save"[^>]*@click="addStarter"/);
+assert.match(devices, /import \{ archiveStarter, createStarter, listStarters \} from '\.\.\/\.\.\/services\/care\.service\.js'/);
 
 // 执行真实的 script setup，确保选择只是草稿，关闭不保存，确认成功后才提交并收起弹层。
 async function starterSheetHarness() {
@@ -244,10 +252,13 @@ async function starterSheetHarness() {
     return `const ${bindings.trim()} = modules[${JSON.stringify(path)}];`;
   }).replace('export default', 'return');
   const user = Vue.ref(null);
-  const state = { calls: [], renames: [], fail: false, gate: null, links: [
+  const state = { calls: [], renames: [], creates: [], archives: [], fail: false, gate: null, createFail: false, createGate: null, archiveFail: false,
+    starters: [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }, { id: 's3', name: '三号' }],
+    links: [
     { starter_id: 's1', device_id: 'd1', active_from: '2026-01-01T00:00:00Z', active_to: null },
     { starter_id: 's3', device_id: 'd2', active_from: '2026-01-01T00:00:00Z', active_to: null }
   ] };
+  const route = Vue.reactive({ params: { deviceId: 'd1' }, query: {}, fullPath: '/me/devices/d1' });
   const service = {
     getDevice: async () => ({ device_id: 'd1', name: '设备一', my_role: 'owner', last_seen_at: new Date().toISOString() }),
     rename: async (deviceId, next) => { state.renames.push([deviceId, next]); return { name: next }; },
@@ -255,9 +266,26 @@ async function starterSheetHarness() {
   };
   const modules = {
     vue: { ...Vue, onMounted() {}, onBeforeUnmount() {} },
-    'vue-router': { useRoute: () => ({ params: { deviceId: 'd1' }, query: {}, fullPath: '/me/devices/d1' }), useRouter: () => ({ push() {}, replace() {} }) },
+    'vue-router': { useRoute: () => route, useRouter: () => ({ push() {}, replace() {} }) },
     '../../composables/useAuth.js': { useAuth: () => ({ user, profile: Vue.ref(null), init() {} }) },
-    '../../services/care.service.js': { listStarters: async () => [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }, { id: 's3', name: '三号' }] },
+    '../../services/care.service.js': {
+      listStarters: async () => state.starters.slice(),
+      createStarter: async (name) => {
+        state.creates.push(name);
+        if (state.createGate) await state.createGate;
+        if (state.createFail) throw new Error('create failed');
+        const created = { id: `created-${state.creates.length}`, name };
+        state.starters.unshift(created);
+        return created;
+      },
+      archiveStarter: async (id) => {
+        state.archives.push(id);
+        if (state.archiveFail) throw new Error('archive failed');
+        state.starters = state.starters.filter((item) => item.id !== id);
+        for (const link of state.links) if (link.starter_id === id && link.active_to == null) link.active_to = new Date().toISOString();
+        return { hasHistory: true };
+      }
+    },
     '../../lib/link-change.js': linkChange,
     '../../lib/read-cache.js': { invalidateReadCache() {} },
     '../../services/starter-device.service.js': {
@@ -280,7 +308,7 @@ async function starterSheetHarness() {
   const vm = Vue.proxyRefs(scope.run(() => component.setup({}, { expose() {} })));
   user.value = { id: 'u1' };
   for (let i = 0; i < 12; i++) await Promise.resolve();
-  return { state, vm, stop: () => scope.stop() };
+  return { state, vm, route, stop: () => scope.stop() };
 }
 const starterSheet = await starterSheetHarness();
 assert.deepEqual(starterSheet.vm.savedStarters, ['s1']);
@@ -361,16 +389,65 @@ await starterSheet.vm.saveRename();
 assert.equal(starterSheet.vm.renameOpen, true, 'an invalid name keeps the sheet open');
 assert.equal(starterSheet.vm.error, '设备名称须为一至八十个字符。');
 starterSheet.vm.closeRename();
+
+// 新增酵种仍留在设备设置模块：成功进入草稿选择，确认时才关联当前设备。
+starterSheet.vm.openStarterSheet();
+starterSheet.vm.openStarterCreate();
+assert.equal(starterSheet.vm.starterCreateOpen, true);
+starterSheet.vm.newStarterName = '   ';
+await starterSheet.vm.addStarter();
+assert.match(starterSheet.vm.starterCreateError, /1 至 80/);
+assert.equal(starterSheet.state.creates.length, 0, 'an empty starter name never reaches the API');
+starterSheet.vm.newStarterName = '新酵种';
+starterSheet.state.createFail = true;
+await starterSheet.vm.addStarter();
+assert.equal(starterSheet.vm.starterCreateOpen, true, 'failed creation preserves the form');
+assert.equal(starterSheet.vm.newStarterName, '新酵种');
+assert.match(starterSheet.vm.starterCreateError, /create failed/);
+starterSheet.state.createFail = false;
+await starterSheet.vm.addStarter();
+assert.equal(starterSheet.vm.starterCreateOpen, false);
+assert.ok(starterSheet.vm.linkedStarters.includes('created-2'), 'created starter is immediately selected');
+assert.equal(starterSheet.vm.savedStarters.includes('created-2'), false, 'creation does not bypass association confirmation');
+await starterSheet.vm.saveLink();
+assert.deepEqual(starterSheet.state.calls.at(-1), { userId: 'u1', starterId: 'created-2', deviceId: 'd1' });
+assert.ok(starterSheet.vm.savedStarters.includes('created-2'));
+
+// 归档留在设置页，必须显式确认；失败保留列表，成功同时更新关联显示。
+starterSheet.vm.openStarterSheet();
+starterSheet.vm.openStarterManage();
+assert.equal(starterSheet.vm.starterManageOpen, true);
+starterSheet.vm.askArchiveStarter(starterSheet.vm.starters.find(item => item.id === 's2'));
+assert.equal(starterSheet.vm.starterPendingDelete.id, 's2');
+starterSheet.vm.starterPendingDelete = null;
+assert.equal(starterSheet.state.archives.length, 0, 'cancel never archives');
+starterSheet.vm.askArchiveStarter(starterSheet.vm.starters.find(item => item.id === 's2'));
+starterSheet.state.archiveFail = true;
+await starterSheet.vm.removeStarter();
+assert.ok(starterSheet.vm.starters.some(item => item.id === 's2'), 'failed archive preserves starter');
+assert.match(starterSheet.vm.error, /archive failed/);
+starterSheet.vm.askArchiveStarter(starterSheet.vm.starters.find(item => item.id === 's2'));
+starterSheet.state.archiveFail = false;
+await starterSheet.vm.removeStarter();
+assert.equal(starterSheet.vm.starterPendingDelete, null);
+assert.ok(!starterSheet.vm.starters.some(item => item.id === 's2'));
+assert.ok(!starterSheet.vm.savedStarters.includes('s2'));
+starterSheet.vm.closeStarterManage();
+assert.equal(starterSheet.vm.starterManageOpen, false);
+assert.equal(starterSheet.vm.starterOpen, true, 'management returns to association sheet');
+starterSheet.vm.closeStarterSheet();
 starterSheet.stop();
-console.log('mobile devices: starter draft, cancel, confirm, failure and duplicate-save behavior passed');
+console.log('mobile devices: starter draft, create, archive, cancel, confirm, failure and duplicate-save behavior passed');
 
 const home = compile('src/views/mobile/MobileDeviceHome.vue');
-assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*归档酵种/);
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*结束当前发酵？/);
-assert.match(home, /archiveStarter/);
-assert.doesNotMatch(home, /from\('starters'\)\.delete\(\)/, 'starters are never physically deleted');
-assert.match(home, /class="starter-archive"/, 'every starter offers archive instead of a conditional delete');
-assert.match(home, /有喂养\/观察记录或设备关联历史；归档后入口会收起/, 'archive explains that history is retained');
+assert.doesNotMatch(home, /archiveStarter|createStarter|新增酵种|starter-archive/, 'home has no starter management actions');
+assert.match(home, /酵种管理[\s\S]*\/me\/devices|\/me\/devices[\s\S]*酵种管理/, 'home delegates starter management to settings');
+assert.match(devices, /<MConfirmDialog[\s\S]*danger[\s\S]*归档酵种/);
+assert.match(devices, /archiveStarter/);
+assert.doesNotMatch(devices, /from\('starters'\)\.delete\(\)/, 'starters are never physically deleted');
+assert.match(devices, /class="m-text-action starter-archive"/, 'every starter can be archived from settings');
+assert.match(devices, /历史喂养、观察与设备读数会保留/, 'archive explains that history is retained');
 
 const add = compile('src/views/mobile/MobileDeviceAdd.vue');
 const emptyAt = add.indexOf('请输入设备编号。');

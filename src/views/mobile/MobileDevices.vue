@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
-import { listStarters } from '../../services/care.service.js';
+import { archiveStarter, createStarter, listStarters } from '../../services/care.service.js';
 import { LOCAL_LINK_NOTICE } from '../../lib/link-change.js';
 import { linkStarterDevice, listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { invalidateReadCache } from '../../lib/read-cache.js';
@@ -15,7 +15,7 @@ const linkedStarters = ref([]);
 const savedStarters = ref([]);
 const savedStarterNames = computed(() => savedStarters.value.map((id) => starters.value.find((item) => item.id === id)?.name).filter(Boolean));
 async function saveLink() {
-  if (saving.value) return;
+  if (saving.value || creatingStarter.value) return;
   const c = context();
   const selected = new Set(linkedStarters.value);
   const previous = new Set(savedStarters.value);
@@ -68,6 +68,12 @@ const toast = ref('');
 const toastTone = ref('success');
 const renameOpen = ref(false);
 const starterOpen = ref(false);
+const starterManageOpen = ref(false);
+const starterCreateOpen = ref(false);
+const newStarterName = ref('');
+const creatingStarter = ref(false);
+const starterCreateError = ref('');
+const starterPendingDelete = ref(null);
 const unbindTarget = ref(null);
 let version = 0;
 const userId = computed(() => auth.user.value?.id || '');
@@ -222,19 +228,100 @@ async function refreshDevice() {
 }
 function openStarterSheet() {
   linkedStarters.value = [...savedStarters.value];
+  starterManageOpen.value = false;
+  starterCreateOpen.value = false;
+  newStarterName.value = '';
+  starterCreateError.value = '';
   starterOpen.value = true;
 }
 function closeStarterSheet() {
-  // 保存请求进行中不允许把关闭误认为取消；其余关闭方式都只丢弃未确认选择。
-  if (saving.value) return;
+  // 请求进行中不允许把关闭误认为取消；其余关闭方式都只丢弃未确认选择。
+  if (saving.value || creatingStarter.value) return;
   starterOpen.value = false;
+  starterManageOpen.value = false;
+  starterCreateOpen.value = false;
+  newStarterName.value = '';
+  starterCreateError.value = '';
   linkedStarters.value = [...savedStarters.value];
 }
+function openStarterManage() {
+  if (saving.value || creatingStarter.value) return;
+  starterManageOpen.value = true;
+  starterCreateOpen.value = false;
+  newStarterName.value = '';
+  starterCreateError.value = '';
+}
+function closeStarterManage() {
+  if (saving.value || creatingStarter.value) return;
+  starterManageOpen.value = false;
+}
+function openStarterCreate() {
+  if (saving.value || creatingStarter.value) return;
+  newStarterName.value = '';
+  starterCreateError.value = '';
+  starterCreateOpen.value = true;
+}
+function closeStarterCreate() {
+  if (creatingStarter.value) return;
+  starterCreateOpen.value = false;
+  newStarterName.value = '';
+  starterCreateError.value = '';
+}
+async function addStarter() {
+  const name = newStarterName.value.trim();
+  if (!name || name.length > 80) { starterCreateError.value = '酵种名称需为 1 至 80 个字符。'; return; }
+  if (creatingStarter.value || saving.value || !deviceId.value) return;
+  const c = context();
+  creatingStarter.value = true;
+  starterCreateError.value = '';
+  try {
+    const created = await createStarter(name);
+    if (!current(c)) return;
+    // createStarter 已使酵种列表缓存失效；直接写入返回行即可立即选择，无需离开设备设置或重新拉取。
+    if (!starters.value.some((item) => item.id === created.id)) starters.value.unshift(created);
+    starterLinks.value = { ...starterLinks.value, [created.id]: '' };
+    if (!linkedStarters.value.includes(created.id)) linkedStarters.value = [...linkedStarters.value, created.id];
+    starterCreateOpen.value = false;
+    newStarterName.value = '';
+  } catch (cause) {
+    if (current(c)) starterCreateError.value = mobileError(cause) || '新建酵种失败，请重试。';
+  } finally {
+    // 切换账号 / 设备时 watcher 已复位，不让旧请求结束新页面上的创建状态。
+    if (c.version === version) creatingStarter.value = false;
+  }
+}
 function chooseStarter(id) {
-  if (saving.value) return;
+  if (saving.value || creatingStarter.value) return;
   linkedStarters.value = linkedStarters.value.includes(id)
     ? linkedStarters.value.filter((item) => item !== id)
     : [...linkedStarters.value, id];
+}
+function askArchiveStarter(item) {
+  if (saving.value || creatingStarter.value) return;
+  starterPendingDelete.value = item;
+}
+// 软删除保留喂养、观察与关联时段；服务端在同一事务关闭活跃设备关联。
+async function removeStarter() {
+  const item = starterPendingDelete.value;
+  starterPendingDelete.value = null;
+  if (!item || saving.value || creatingStarter.value) return;
+  const c = context();
+  saving.value = true;
+  error.value = '';
+  try {
+    const result = await archiveStarter(item.id);
+    if (!current(c)) return;
+    starters.value = starters.value.filter((row) => row.id !== item.id);
+    const { [item.id]: removed, ...remainingLinks } = starterLinks.value;
+    starterLinks.value = remainingLinks;
+    linkedStarters.value = linkedStarters.value.filter((id) => id !== item.id);
+    savedStarters.value = savedStarters.value.filter((id) => id !== item.id);
+    showToast(result.hasHistory ? '已归档，历史记录已保留' : '已归档');
+  } catch (cause) {
+    if (current(c)) error.value = mobileError(cause) || '归档失败，请重试。';
+  } finally {
+    if (c.version === version) saving.value = false;
+  }
 }
 // 只提示新增关联会结束该酵种在另一台设备上的活跃关联；其他已选酵种保持不变。
 const movedStarters = computed(() => starters.value.filter((item) => linkedStarters.value.includes(item.id)
@@ -243,7 +330,7 @@ watch([userId, deviceId], () => {
   version += 1; devices.value = []; device.value = null; members.value = [];
   code.value = ''; confirmed.value = false; name.value = ''; target.value = '';
   showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; starterLinks.value = {}; linkedStarters.value = []; savedStarters.value = [];
-  starterOpen.value = false;
+  starterOpen.value = false; starterManageOpen.value = false; starterCreateOpen.value = false; newStarterName.value = ''; creatingStarter.value = false; starterCreateError.value = ''; starterPendingDelete.value = null;
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
   if (userId.value) load();
 }, { immediate: true, flush: 'sync' });
@@ -334,10 +421,11 @@ onBeforeUnmount(() => { version += 1; });
         </div>
       </template>
     </MSheet>
-    <MSheet :open="starterOpen" title="关联酵种" @close="closeStarterSheet">
+    <MSheet :open="starterOpen && !starterManageOpen && !starterCreateOpen" title="关联酵种" @close="closeStarterSheet">
       <p v-if="error" class="m-error" role="alert">{{ error }}</p>
-      <p v-if="!linkableStarters.length" class="m-muted">还没有可关联的酵种。</p>
-      <div v-else class="starter-options" role="group" aria-label="选择要关联的酵种，可多选">
+      <p v-if="!linkableStarters.length" class="m-muted">还没有酵种，先新增一个即可关联。</p>
+      <button type="button" class="starter-create-entry" :disabled="saving || creatingStarter" @click="openStarterCreate"><span aria-hidden="true">＋</span>新增酵种</button>
+      <div v-if="linkableStarters.length" class="starter-options" role="group" aria-label="选择要关联的酵种，可多选">
         <button
           v-for="item in linkableStarters"
           :key="item.id"
@@ -345,13 +433,39 @@ onBeforeUnmount(() => { version += 1; });
           class="settings-row starter-option"
           :class="{ 'is-selected': linkedStarters.includes(item.id) }"
           :aria-pressed="linkedStarters.includes(item.id)"
-          :disabled="saving"
+          :disabled="saving || creatingStarter"
           @click="chooseStarter(item.id)"
         ><span class="starter-option-name">{{ item.name }}<small v-if="starterLinks[item.id] && starterLinks[item.id] !== deviceId">已关联其他设备</small></span><span aria-hidden="true">{{ linkedStarters.includes(item.id) ? '✓' : '' }}</span></button>
       </div>
       <p v-if="movedStarters.length" class="m-error link-change" role="alert">{{ movedStarters.map(item => `「${item.name}」目前关联着另一台设备，保存后会结束那段关联；历史记录会保留。`).join('\n') }}</p>
       <template #footer>
-        <button type="button" class="starter-save" :disabled="saving" @click="saveLink">{{ saving ? '保存中…' : movedStarters.length ? '确认更换' : '确认' }}</button>
+        <button type="button" class="starter-manage-entry" :disabled="saving || creatingStarter" @click="openStarterManage">酵种管理<span aria-hidden="true">›</span></button>
+        <button type="button" class="starter-save" :disabled="saving || creatingStarter" @click="saveLink">{{ saving ? '保存中…' : movedStarters.length ? '确认更换' : '确认' }}</button>
+      </template>
+    </MSheet>
+    <MSheet :open="starterOpen && starterManageOpen && !starterCreateOpen" title="酵种管理" description="新增或归档酵种；关联设备请返回上一面板。" @close="closeStarterManage">
+      <button type="button" class="starter-create-entry" :disabled="saving || creatingStarter" @click="openStarterCreate"><span aria-hidden="true">＋</span>新增酵种</button>
+      <div v-if="linkableStarters.length" class="starter-options">
+        <div v-for="item in linkableStarters" :key="item.id" class="starter-manage-row">
+          <span class="starter-option-name">{{ item.name }}<small v-if="starterLinks[item.id] === deviceId">已关联当前设备</small><small v-else-if="starterLinks[item.id]">已关联其他设备</small></span>
+          <button type="button" class="m-text-action starter-archive" :disabled="saving || creatingStarter" @click="askArchiveStarter(item)">归档</button>
+        </div>
+      </div>
+      <p v-else class="m-muted">暂无酵种，请先新增。</p>
+      <template #footer><button type="button" class="starter-save" :disabled="saving || creatingStarter" @click="closeStarterManage">返回关联酵种</button></template>
+    </MSheet>
+    <MConfirmDialog :open="!!starterPendingDelete" danger title="归档酵种" :message="starterPendingDelete ? `归档「${starterPendingDelete.name}」后将无法继续选择，历史喂养、观察与设备读数会保留。` : ''" :confirm-label="saving ? '归档中…' : '确认归档'" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
+    <MSheet :open="starterCreateOpen" title="新增酵种" description="创建后即可选择并关联当前设备。" @close="closeStarterCreate">
+      <form class="starter-create-form" @submit.prevent="addStarter">
+        <label for="new-starter-name">酵种名称</label>
+        <input id="new-starter-name" v-model="newStarterName" autocomplete="off" maxlength="80" placeholder="请输入酵种名称" :disabled="creatingStarter" :aria-invalid="!!starterCreateError" :aria-describedby="starterCreateError ? 'new-starter-error' : undefined">
+        <p v-if="starterCreateError" id="new-starter-error" class="m-error" role="alert">{{ starterCreateError }}</p>
+      </form>
+      <template #footer>
+        <div class="starter-create-actions">
+          <button type="button" class="starter-create-cancel" :disabled="creatingStarter" @click="closeStarterCreate">取消</button>
+          <button type="button" class="starter-create-save" :disabled="creatingStarter" @click="addStarter">{{ creatingStarter ? '创建中…' : '创建' }}</button>
+        </div>
       </template>
     </MSheet>
     <MConfirmDialog :open="!!unbindTarget" danger title="解除绑定" :message="unbindTarget?.self ? '解绑后会同时结束你名下酵种与这台设备的关联；关联期间已产生的历史读数仍保留，并可在对应酵种的历史里查看。重新加入后需重新关联酵种，退出到重新关联之间的数据归属不明，不会计入任何酵种。' : '该成员将失去设备访问权限，并结束其名下酵种与这台设备的关联；其关联期间的历史读数仍归其酵种。'" confirm-label="解除绑定" @cancel="unbindTarget = null" @confirm="confirmRemove" />
@@ -412,9 +526,14 @@ onBeforeUnmount(() => { version += 1; });
 .offline-banner{display:flex;align-items:center;gap:12px;margin:0;padding:12px 16px;border-radius:var(--radius-control);background:var(--warning-bg);color:var(--warning-text);font-size:14px;line-height:21px}
 .offline-banner button{min-height:32px;padding:0 12px;border:0;border-radius:16px;background:var(--brand-light);color:var(--text-primary)}
 .offline-note{margin:0;color:var(--text-secondary);font-size:14px;line-height:21px}
-.rename-form{display:grid;gap:16px;width:min(327px,100%)}
-.rename-field{display:grid;gap:8px;font-size:var(--text-sm);font-weight:500}
-.rename-field input{width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md)}
+.rename-form,.starter-create-form{display:grid;gap:8px;width:min(327px,100%)}
+.rename-field,.starter-create-form label{display:grid;gap:8px;font-size:var(--text-sm);font-weight:500}
+.rename-field input,.starter-create-form input{width:100%;height:64px;min-height:64px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-input);color:var(--text-primary);font:inherit;font-size:var(--text-md)}
+.starter-create-form .m-error{margin:4px 0 0}
+.starter-create-entry{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:56px;margin:0 0 12px;padding:0 16px;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--brand-action);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
+.starter-create-entry:disabled{cursor:not-allowed;opacity:.6}
+.starter-manage-entry{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;margin:0 0 8px;padding:0 4px;border:0;background:transparent;color:var(--brand-action);font:inherit;font-size:var(--text-sm);text-align:left;cursor:pointer}
+.starter-manage-entry span{font-size:20px}
 .starter-options{display:grid;gap:8px}
 .link-change{white-space:pre-line;margin:12px 0 0}
 .starter-option{min-height:56px;padding:0 16px;border-radius:var(--radius-control);cursor:pointer}
@@ -423,10 +542,11 @@ onBeforeUnmount(() => { version += 1; });
 .starter-option-name{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
 .starter-option-name small{margin:0;color:var(--text-secondary);font-size:12px;line-height:18px}
 .starter-option:disabled{cursor:not-allowed;opacity:.6}
-.rename-save,.starter-save{display:flex;align-items:center;justify-content:center;width:100%;height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
-.rename-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.rename-actions > button{height:48px;min-height:48px;border-radius:var(--m-radius-button);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
-.rename-cancel{border:1px solid var(--border-warm);background:var(--surface-card);color:var(--text-primary)}
-.rename-save:disabled{cursor:not-allowed;opacity:.6}
-.starter-save:disabled{cursor:not-allowed;opacity:.6}
+.starter-manage-row{display:flex;align-items:center;gap:12px;min-height:56px;padding:0 16px;border-radius:var(--radius-control);background:var(--surface-card)}
+.starter-manage-row .starter-archive{flex:none;min-height:44px;color:var(--danger-text)}
+.rename-save,.starter-save,.starter-create-save{display:flex;align-items:center;justify-content:center;width:100%;height:60px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
+.rename-actions,.starter-create-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rename-actions > button,.starter-create-actions > button{height:48px;min-height:48px;border-radius:var(--m-radius-button);font:inherit;font-size:var(--text-md);font-weight:500;cursor:pointer}
+.rename-cancel,.starter-create-cancel{border:1px solid var(--border-warm);background:var(--surface-card);color:var(--text-primary)}
+.rename-save:disabled,.starter-save:disabled,.starter-create-save:disabled,.starter-create-cancel:disabled{cursor:not-allowed;opacity:.6}
 </style>

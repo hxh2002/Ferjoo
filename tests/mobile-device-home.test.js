@@ -33,18 +33,16 @@ assert.match(source, /fermentation-window\.service\.js/);
 assert.match(source, /结束当前发酵/);
 assert.match(source, /确认结束/);
 assert.match(source, /历史记录已保存/);
-assert.match(source, /在设备设置中管理关联/);
-assert.match(source, /\/me\/devices\/\$\{encodeURIComponent\(deviceId\)\}/);
+assert.match(source, /酵种管理/);
+assert.match(source, /to="\/me\/devices"/);
+assert.doesNotMatch(source, /createStarter|archiveStarter|新增酵种|starter-archive/, 'home only selects starters; all management lives in settings');
 assert.doesNotMatch(source, /诊断本轮|诊断需 3 步/, 'diagnosis stays in diary flows rather than the home CTA');
 assert.match(source, /listStarterDeviceLinks/);
 assert.doesNotMatch(source, /linkStarterDevice/, 'home never mutates device associations');
 assert.doesNotMatch(source, /SeriesChart/, 'charts move to the detail page, not the device home');
-// 酵种弹层只有 280px：.starter-choice 既是 grid 子项又是 flex 容器，两层都要 min-width:0
-// 才能让长酵种名收缩换行；删除键还要压过 .picker-menu button 的 width:100%（0,1,1），
-// 否则会占满整行、把名字挤成一字一行的竖排。
+// 酵种弹层只有 280px：长名称在按钮内收缩换行；新增、归档均只在设置页提供。
 assert.match(source, /\.starter-choice\{[^}]*min-width:0/, '.starter-choice must shrink inside the grid popover');
 assert.match(source, /\.starter-choice > button:first-child\{[^}]*min-width:0/, 'starter name button must shrink inside the flex row');
-assert.match(source, /\.starter-choice \.starter-archive\{[^}]*flex:none;width:auto/, 'archive button keeps its intrinsic width despite .picker-menu button{width:100%}');
 assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
 const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'device-home-test', compilerOptions: { bindingMetadata: compiled.bindings } });
 assert.deepEqual(template.errors, []);
@@ -77,15 +75,14 @@ const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(
 const drain = async () => { for (let i = 0; i < 8; i++) await settle(); };
 function harness() {
   const user = Vue.ref(null);
-  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }], selection: [], links: [link, { starter_id: 's2', device_id: 'd2', active_from: iso(80), active_to: null }], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null, createGate: null, linkGate: null, linkFailure: false };
+  const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }], selection: [], links: [link, { starter_id: 's2', device_id: 'd2', active_from: iso(80), active_to: null }], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null };
   const api = {
     async listStarters({ userId }) { state.calls.push(userId); if (state.starterGate) return state.starterGate.promise; if (state.fail === 'starter') throw new Error('starter down'); return state.starters.slice(); },
     async listCareRecords({ starterId, kind }) {
       if (kind === 'observation') return [];
       const rows = kind === 'feeding' ? (state.feedings || [state.feeding]) : [state.feeding];
       return rows.filter((row) => row && starterId === row.starter_id);
-    },
-    async createStarter(name) { if (state.createGate) return state.createGate.promise; if (state.fail === 'create') throw new Error('create down'); const created = { id: 'created', name }; state.starters.push(created); return created; }
+    }
   };
   const modules = {
     vue: { ...Vue, onMounted: () => {}, onActivated: () => {}, onDeactivated: () => {}, onScopeDispose: () => {} },
@@ -120,8 +117,7 @@ function harness() {
     '../../services/device.service.js': { listMeasurementsRange: async () => state.rows },
     '../../services/mobile-device.service.js': { mobileDeviceService: async () => ({ listDevices: async () => { if (state.fail === 'device') throw new Error('device down'); return state.devices.slice(); } }) },
     '../../services/starter-device.service.js': {
-      listStarterDeviceLinks: async () => { if (state.fail === 'link') throw new Error('link down'); return state.links.slice(); },
-      linkStarterDevice: async (args) => { if (state.linkGate) await state.linkGate.promise; if (state.linkFailure) throw new Error('link down'); state.links.push({ ...link, starter_id: args.starterId, device_id: args.deviceId }); }
+      listStarterDeviceLinks: async () => { if (state.fail === 'link') throw new Error('link down'); return state.links.slice(); }
     },
     '../../services/feeding-analysis.service.js': { summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
     '../../services/fermentation-window.service.js': {
@@ -204,9 +200,10 @@ assert.doesNotMatch(feedingSource, /mode: 'diagnosis'/, 'diagnosis stays on the 
 
 h.vm.contextOpen = true;
 const pickerHtml = await h.html();
-assert.doesNotMatch(pickerHtml, /酵种罐|仅查看设备数据|新增\/连接酵种罐/, 'the home sheet contains only starter choices');
+assert.doesNotMatch(pickerHtml, /酵种罐|仅查看设备数据|新增\/连接酵种罐|新增酵种|>归档</, 'the home sheet contains only starter choices');
 assert.match(pickerHtml, /已关联其他设备|已关联 d2/, 'a starter on another device stays selectable');
-assert.match(pickerHtml, /在设备设置中管理关联/);
+assert.match(pickerHtml, /酵种管理/);
+assert.match(pickerHtml, /href="\/me\/devices"/);
 h.vm.contextOpen = false;
 {
   // 同一轮继续采样：上涨 → 停涨在高位 → 回落，罐子依次变成吃饭 / Peak / 饿了，并在回落后留下峰值痕迹。
@@ -265,8 +262,8 @@ assert.doesNotMatch(unlinkedHtml, /picker-row/, 'the starter picker stays collap
 h.vm.contextOpen = true;
 const expandedHtml = await h.html();
 assert.match(expandedHtml, /picker-row/, 'opening the starter switch reveals only the starter picker');
-assert.match(expandedHtml, /在设备设置中管理关联/, 'association management is delegated to settings');
-assert.doesNotMatch(expandedHtml, /关联当前设备|酵种罐/);
+assert.match(expandedHtml, /酵种管理/, 'association and starter management are delegated to settings');
+assert.doesNotMatch(expandedHtml, /关联当前设备|酵种罐|新增酵种|>归档</);
 h.vm.contextOpen = false;
 assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
 // 结束流程先是确认弹层，确认后才写入并给出保存提示。
@@ -288,20 +285,7 @@ assert.match(closedHtml, /class="device-cta"/);
 assert.doesNotMatch(closedHtml, /结束当前发酵/, 'closed round no longer offers manual end');
 assert.match(closedHtml, />喂养</, 'a closed round offers the next feeding instead');
 h.state.links = [link]; await h.vm.refresh(); await drain();
-h.vm.newName = '新酵种'; h.vm.newStarterOpen = true;
-await h.vm.addStarter(); await settle(); await drain();
-assert.equal(h.vm.starterId, 'created');
-assert.equal(h.vm.link, null, 'creating on the home page does not silently create an association');
-assert.equal(h.vm.deviceId, '');
-assert.equal(h.vm.newName, ''); assert.equal(h.vm.newStarterOpen, false);
 h.stop();
-
-const failed = harness(); await login(failed);
-failed.state.fail = 'create'; failed.vm.newName = '仍在编辑'; failed.vm.newStarterOpen = true;
-await failed.vm.addStarter(); await settle();
-assert.equal(failed.vm.newName, '仍在编辑'); assert.equal(failed.vm.newStarterOpen, true);
-assert.match(failed.vm.error, /create down/);
-failed.stop();
 
 const serial = harness(); await login(serial);
 const gate = deferred(); serial.state.starterGate = gate;
@@ -315,27 +299,16 @@ serial.stop();
 
 const switched = harness(); const stale = deferred(); switched.state.starterGate = stale;
 await login(switched, 'old');
-switched.vm.newName = '旧账号名字'; switched.vm.newStarterOpen = true; switched.vm.starterOpen = true; switched.vm.mutationError = '旧错误';
+switched.vm.contextOpen = true;
 switched.user.value = { id: 'new' };
-assert.equal(switched.vm.newName, ''); assert.equal(switched.vm.newStarterOpen, false);
-assert.equal(switched.vm.starterOpen, false); assert.equal(switched.vm.mutationError, '');
+assert.equal(switched.vm.contextOpen, false);
 assert.deepEqual(switched.vm.starters, []);
 switched.state.starters = [{ id: 'new-starter', name: '新账号' }]; switched.state.links = [];
 switched.state.starterGate = null; stale.resolve([{ id: 'old-starter', name: '旧账号' }]); await settle();
 assert.deepEqual(switched.vm.starters.map(item => item.id), ['new-starter'], 'stale account response is discarded and current account loads');
 assert.deepEqual(switched.state.calls, ['old', 'new']); switched.stop();
 
-const mutation = harness(); await login(mutation);
-const createGate = deferred(); mutation.state.createGate = createGate; mutation.vm.newName = '旧账号创建';
-const oldCreation = mutation.vm.addStarter();
-mutation.user.value = { id: 'new' }; await settle();
-mutation.state.createGate = null; mutation.vm.newName = '新账号未提交';
-createGate.resolve({ id: 'old-created', name: '旧账号创建' }); await oldCreation; await settle();
-assert.equal(mutation.vm.newName, '新账号未提交');
-assert.ok(!mutation.vm.starters.some(item => item.id === 'old-created'), 'old mutation cannot populate a new account');
-assert.equal(mutation.vm.saving, false); mutation.stop();
-
-console.log('mobile device home: starter-only picker, linked-device switching, account isolation, serialized refresh, create outcomes, API failures, stale evidence, confirm/end flow and toast passed');
+console.log('mobile device home: starter-only picker, management navigation, linked-device switching, account isolation, serialized refresh, API failures, stale evidence, confirm/end flow and toast passed');
 
 // 膨胀率/发酵倍速统一一位小数：曾出现过 108.20189274447944% 这种原始浮点，
 // 以及 .toFixed(0) 把 310.9% 显示成 311% 的不一致。
