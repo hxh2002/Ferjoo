@@ -34,6 +34,9 @@ const props = defineProps({
   interactive: { type: Boolean, default: false },
   bubble: { type: Boolean, default: true },
   highlight: { type: Boolean, default: false },
+  // 移动端详情：气泡固定在绘图区上方预留的一行里，只水平跟随竖线，不随数据点高度移动；
+  // 同时不再绘制横向参考线、纵坐标值标签和底部时间游标标签。默认关闭，桌面端行为不变。
+  fixedTip: { type: Boolean, default: false },
   // 详情页把「当前 / 最高 / 平均」放在数值前；不传时标题行保持原样。
   caption: { type: String, default: '' }
 });
@@ -221,6 +224,29 @@ const tipStyle = computed(() => {
   if (!p) return {};
   return { left: `${(p.x / W) * 100}%`, top: `${(p.y / H) * 100}%` };
 });
+
+// 固定气泡行：测量行宽与气泡宽，把气泡中心限制在 [半宽, 行宽 - 半宽]，防止溢出卡片。
+// 竖线本身仍落在真实 x 上；夹紧后竖线一定还在气泡水平范围内，所以视觉上始终从气泡底部伸出。
+const tipRowRef = ref(null);
+const fixedTipRef = ref(null);
+const tipRowWidth = ref(0);
+const tipWidth = ref(0);
+function measureFixedTip() {
+  tipRowWidth.value = tipRowRef.value?.clientWidth || 0;
+  tipWidth.value = fixedTipRef.value?.offsetWidth || 0;
+}
+// post：等 DOM 按新内容渲染完再测量，仍在同一帧绘制前完成，不会闪烁。
+watch(hoverIdx, () => { if (props.fixedTip) measureFixedTip(); }, { flush: 'post' });
+const fixedTipStyle = computed(() => {
+  const p = hoverPoint.value;
+  if (!p) return {};
+  if (!tipRowWidth.value) return { left: `${(p.x / W) * 100}%` };
+  const half = tipWidth.value / 2;
+  const x = (p.x / W) * tipRowWidth.value;
+  const center = Math.min(Math.max(x, half), Math.max(half, tipRowWidth.value - half));
+  return { left: `${center}px` };
+});
+const fixedStemStyle = computed(() => (hoverPoint.value ? { left: `${(hoverPoint.value.x / W) * 100}%` } : {}));
 
 function selectAt(ratio) {
   const index = nearestSampleIndex(coords.value, ratio);
@@ -427,7 +453,19 @@ const bandBadges = computed(() => {
       </div>
     </div>
     <div v-if="series.length" class="series-body">
-      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-releasing': releasing }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="canInteract ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
+      <!-- 固定高度的气泡行：始终预留空间，选点前后布局不抖动；位于绘图区之外，不会盖住曲线与标签。 -->
+      <div v-if="fixedTip" ref="tipRowRef" class="series-tip-row" :class="{ 'is-releasing': releasing }" :aria-live="canInteract ? 'polite' : undefined">
+        <template v-if="bubble && hoverPoint">
+          <span class="series-tip-stem" :style="fixedStemStyle"></span>
+          <div ref="fixedTipRef" class="series-fixed-tip" :style="fixedTipStyle">
+            <slot name="tip" :point="hoverPoint">
+              <strong>{{ fmt(hoverPoint.v) }}</strong>
+              <span>{{ fmtTime(hoverPoint.t) }}</span>
+            </slot>
+          </div>
+        </template>
+      </div>
+      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-releasing': releasing, 'is-fixed-tip': fixedTip }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="canInteract ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <!-- iOS 对渐变里的 CSS 变量 / 内部 url(#id) 可能回退成黑色；stop 只接收计算后的具体颜色。 -->
@@ -503,7 +541,7 @@ const bandBadges = computed(() => {
             :y2="H"
           />
           <line
-            v-if="highlight && hoverPoint"
+            v-if="highlight && hoverPoint && !fixedTip"
             class="series-guide-y"
             :x1="PAD_X"
             :x2="hoverPoint.x"
@@ -540,12 +578,12 @@ const bandBadges = computed(() => {
           :style="{ left: `${(hoverPoint.x / W) * 100}%`, top: `${(hoverPoint.y / H) * 100}%`, background: color }"
         ></span>
         <span
-          v-if="highlight && hoverPoint"
+          v-if="highlight && hoverPoint && !fixedTip"
           class="series-value-label"
           :style="{ top: `${(hoverPoint.y / H) * 100}%` }"
         >{{ fmt(hoverPoint.v) }}</span>
         <span
-          v-if="highlight && hoverPoint"
+          v-if="highlight && hoverPoint && !fixedTip"
           class="series-time-label"
           :style="{ left: `${(hoverPoint.x / W) * 100}%` }"
         >{{ fmtTime(hoverPoint.t) }}</span>
@@ -555,7 +593,7 @@ const bandBadges = computed(() => {
           :style="{ left: `${(coords.at(-1).x / W) * 100}%`, top: `${(coords.at(-1).y / H) * 100}%` }"
         >当前</span>
         <div
-          v-if="bubble && hoverPoint"
+          v-if="bubble && hoverPoint && !fixedTip"
           class="series-tip"
           :style="tipStyle"
         >
@@ -595,6 +633,18 @@ const bandBadges = computed(() => {
 .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: opacity 240ms linear; }
 .series-plot.is-releasing :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { opacity: 0; }
 .series-plot { position: relative; min-height: 44px; }
+/* 固定气泡行：高度写死（气泡 28 + 竖线接头 8），内容变化与有无选点都不影响布局。 */
+.series-tip-row { position: relative; height: 36px; pointer-events: none; }
+.series-fixed-tip { position: absolute; top: 0; z-index: 2; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; height: 28px; max-width: 100%; padding: 0 12px; transform: translateX(-50%); border: 1px solid var(--m-chart-line, #f0c7a6); border-radius: 14px; background: var(--surface-card, #fff); color: var(--text-primary); box-shadow: var(--m-shadow-tip, 0 2px 8px rgba(77, 51, 36, .1)); font-size: 12px; line-height: 26px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.series-fixed-tip span { color: var(--text-secondary); font-size: 11px; }
+.series-fixed-tip strong { color: var(--text-primary); font-size: 13px; font-weight: 500; }
+/* 竖线接头：从气泡底部接到绘图区顶端，和 SVG 里的竖线连成一条贯穿线。 */
+.series-tip-stem { position: absolute; top: 28px; bottom: 0; width: 0; border-left: 1px dashed var(--text-secondary, #75665b); }
+.series-tip-row.is-releasing :is(.series-fixed-tip, .series-tip-stem) { opacity: 0; }
+.series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: opacity 240ms linear; }
+/* 横向拖动归图表处理，纵向仍交给页面滚动。 */
+.series-plot.is-fixed-tip { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) { .series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: none; } }
 .series-plot:is(.is-sticky, .is-interactive):focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: none; }

@@ -2,6 +2,9 @@ import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
 import { READ_TTL, cachedRead, invalidateReadCache, readCacheKey } from '../lib/read-cache.js';
 
 const RECORD_FIELDS = 'id, kind, starter_id, occurred_at, input, result, ratio';
+const STARTER_FIELDS = 'id, name, created_at, archived_at';
+// 027 之前的库没有 archived_at：该错误码表示列不存在，列表需要回退到「不过滤归档」。
+const MISSING_COLUMN_CODES = ['42703', 'PGRST204'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function requireClient() {
@@ -45,6 +48,7 @@ function mapError(error) {
   }
   if (error?.code === '42501' || /permission denied|JWT/i.test(message)) return new Error('当前账号没有访问这份记录的权限。');
   if (message.includes('REQUEST_ID_CONFLICT')) return new Error('请求编号已用于另一条记录，原记录不会被覆盖。');
+  if (message.includes('STARTER_ARCHIVED')) return new Error('这个酵种已归档，不能再关联设备；历史记录仍可查看。');
   if (message.includes('STARTER_NOT_FOUND')) return new Error('找不到这份酵种，可能已被移除。');
   if (message.includes('AUTH_REQUIRED')) return new Error('请先登录后再保存记录。');
   return error;
@@ -70,40 +74,56 @@ function record(row) {
   };
 }
 
-export function listStarters({ userId } = {}) {
-  const key = readCacheKey(['care', 'starters', userId ?? 'all']);
+export function listStarters({ userId, includeArchived = false } = {}) {
+  const key = readCacheKey(['care', 'starters', userId ?? 'all', includeArchived ? 'all' : 'active']);
   return cachedRead(key, () => run(async () => {
-    let query = requireClient().from('starters').select('id, name, created_at').order('created_at', { ascending: false });
-    if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
-    const { data, error } = await query;
+    const client = requireClient();
+    const select = async (fields, filterArchived) => {
+      let query = client.from('starters').select(fields).order('created_at', { ascending: false });
+      if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
+      if (filterArchived && !includeArchived) query = query.is('archived_at', null);
+      return query;
+    };
+    let { data, error } = await select(STARTER_FIELDS, true);
+    // 027 未执行时没有 archived_at：回退到不带归档字段、也不带归档过滤的原查询，历史口径保持不变。
+    if (error && MISSING_COLUMN_CODES.includes(error.code)) ({ data, error } = await select('id, name, created_at', false));
     if (error) throw error;
-    return (data || []).map(({ id, name, created_at }) => ({ id, name, created_at }));
+    return (data || []).map(({ id, name, created_at, archived_at }) => ({
+      id, name, created_at, archived: !!archived_at, archived_at: archived_at ?? null
+    }));
   }), { ttl: READ_TTL.starter });
 }
 
-// 酵种的喂养/观察记录与设备关联历史是回看历史曲线、基线和轮次证据的唯一依据：
-// 有任何记录或关联历史的酵种不允许删除（数据库本身也没有授予 starters 的 delete 权限，删除会级联清空这些历史）。
-export function deleteStarter(starterId) {
+// 归档（软删除）：starters 永远没有 delete 授权，物理删除会级联清空 care_records / feed_events /
+// starter_device_links。archive_starter（027）只写 archived_at，同一事务关闭活跃关联，历史全部保留。
+// 有喂养/观察记录或设备关联历史的酵种同样允许归档，返回值区分 hasHistory 供界面说明历史仍在。
+export function archiveStarter(starterId) {
   return run(async () => {
     const id = requiredUuid(starterId, '酵种 ID');
     const client = requireClient();
-    const [records, links] = await Promise.all([
-      client.from('care_records').select('id').eq('starter_id', id).limit(1),
-      client.from('starter_device_links').select('id').eq('starter_id', id).limit(1)
-    ]);
-    if (records.error) throw records.error;
-    // 关联表尚未迁移时视为没有关联历史；其余错误如实抛出。
-    if (links.error && !['42P01', 'PGRST205'].includes(links.error.code)) throw links.error;
-    if (records.data?.length) fail('这个酵种有喂养或观察记录，不能删除，以免丢失历史数据。');
-    if (links.data?.length) fail('这个酵种有设备关联历史，不能删除，以免丢失历史曲线。');
-    const { error } = await client.from('starters').delete().eq('id', id);
+    const { data, error } = await client.rpc('archive_starter', { p_starter_id: id });
     if (error) {
-      if (error.code === '42501') fail('当前版本不支持删除酵种，历史数据受保护。');
+      if (['42883', 'PGRST202'].includes(error.code)) fail('归档功能尚未启用，请先执行最新数据库迁移（027_archive_starters.sql）。');
       throw error;
     }
+    const row = Array.isArray(data) ? data[0] : data;
     invalidateReadCache('care:starters');
-    return { id };
+    invalidateReadCache('care:records');
+    invalidateReadCache('links');
+    return {
+      id,
+      archived: true,
+      alreadyArchived: !!row?.already_archived,
+      hasHistory: !!(row?.has_records || row?.has_links),
+      linksClosed: Number(row?.links_closed) || 0
+    };
   });
+}
+
+// 兼容旧调用点：删除语义在 027 之后统一执行归档，绝不物理删除。
+// 保留这个名字只为避免旧页面在升级瞬间报错，新代码请直接用 archiveStarter。
+export function deleteStarter(starterId) {
+  return archiveStarter(starterId);
 }
 
 export function createStarter(name) {
@@ -201,6 +221,25 @@ export function getCareRecord(id, { userId } = {}) {
     if (error) throw error;
     return record(data);
   }), { ttl: READ_TTL.records });
+}
+
+// 删除单条喂养/观察记录：数据库只授予 delete（无 update），RLS 限制到本人行（见 029_care_record_delete.sql）。
+// 依赖表（feed_events / fermentation_window_closures / height_alert_*）靠外键级联一并清理，这里不需要额外调用。
+export function deleteCareRecord(id, { userId } = {}) {
+  return run(async () => {
+    const recordId = requiredUuid(id, '记录 ID');
+    let query = requireClient().from('care_records').delete().eq('id', recordId);
+    // 与 getCareRecord 一致：带上 user_id 让「不是本人的记录」表现为删不到，而不是依赖 RLS 的静默空结果。
+    if (userId !== undefined) query = query.eq('user_id', requiredUuid(userId, '账号 ID'));
+    const { error } = await query;
+    if (error) throw error;
+    // 记录消失会改变当天列表、详情与轮次边界；轮次证据的键是 care:record:evidence:…（feedingEvidenceCacheKey），
+    // 前缀也在 care:record 下，但仍显式清一次，避免今后改键前缀后让已删除轮次的证据继续命中缓存。
+    invalidateReadCache('care:records');
+    invalidateReadCache('care:record');
+    invalidateReadCache('care:record:evidence');
+    return { id: recordId };
+  });
 }
 
 export function listDeviceRoles() {

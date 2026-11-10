@@ -14,6 +14,20 @@ for (const fn of ['listStarters', 'createStarter', 'listCareRecords', 'saveFeedi
   assert.match(service, new RegExp(`export function ${fn}\\(`), `缺少导出：${fn}`);
 }
 
+// 归档（soft delete）：删除语义统一走 archive_starter，starters 永不物理删除。
+for (const fn of ['archiveStarter', 'deleteStarter']) {
+  assert.match(service, new RegExp(`export function ${fn}\\(`), `缺少导出：${fn}`);
+}
+assert.match(service, /rpc\('archive_starter', \{ p_starter_id: id \}\)/);
+assert.match(service, /export function deleteStarter\(starterId\) \{\s*return archiveStarter\(starterId\);\s*\}/, 'deleteStarter must delegate to archiving');
+assert.doesNotMatch(service, /from\('starters'\)\.delete\(\)/, 'no physical starter delete path remains');
+assert.match(service, /archived_at/, 'starter reads expose the archive flag');
+assert.match(service, /\.is\('archived_at', null\)/, 'active starters exclude archived rows');
+assert.match(service, /includeArchived = false/);
+assert.match(service, /归档功能尚未启用，请先执行最新数据库迁移/, 'unmigrated schema gives an actionable message');
+assert.match(service, /alreadyArchived/);
+assert.match(service, /hasHistory/);
+
 // 未迁移/未配置的中文错误提示
 assert.match(service, /记录服务尚未启用/);
 assert.match(service, /请先完成数据库迁移/);

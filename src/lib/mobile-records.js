@@ -97,6 +97,17 @@ export function markReadRange(from, to) {
   return { from: new Date(start).toISOString(), to: new Date(end).toISOString() };
 }
 
+/**
+ * 把历史窗口裁剪到 [from, to) 并给出「每段窗口各读一次」的读取计划。
+ * 空窗期（解绑/换绑之间的缺口）与其间可能属于其他酵种的时段都不会发起读取，
+ * 因此不依赖读到后再过滤，从源头上避免混入别人的读数。
+ */
+export function windowReadPlans(windows, { from, to }) {
+  return clipWindows(windows, from, to)
+    .filter((window) => window.to - window.from >= BUCKET_MS)
+    .map((window) => ({ window, from: new Date(window.from).toISOString(), to: new Date(window.to).toISOString() }));
+}
+
 export function createRecordsLoader(api) {
   const days = new Map();
   const marks = new Map();
@@ -210,38 +221,70 @@ export function createRecordsLoader(api) {
       const state = entry(day, [...starterIds].sort().join(','));
       if (!state.devices) state.devices = (async () => {
         const range = recordDayRange(day); const notices = [];
-        // 先读取当天上下文及相邻轮次，设备数据按完整轮次而非设置页的共享关联裁剪。
-        const context = await this.context(userId, day, starterIds[0] || '', current);
-        const feedings = context.feedings;
-        const results = await Promise.allSettled(starterIds.map(starterId => api.listStarterDeviceLinks({ userId, starterId })));
-        const links = results.flatMap((result, index) => {
-          if (result.status === 'rejected') { notices.push('部分设备关联读取失败，其他记录不受影响。'); return []; }
-          return result.value.map(link => ({ ...link, starter_id: starterIds[index] })).filter(link => Date.parse(link.active_from) < Date.parse(range.to) && (!link.active_to || Date.parse(link.active_to) > Date.parse(range.from)));
-        });
+        // 与日历采样标记（marks）同一口径：账号全部关联 + 全部喂养 + 手动结束，按轮次归属裁剪到当天。
+        // 这样重绑后的每一段历史窗口都会被读到，空窗期和别的酵种占用的时段既不读取也不计入摘要。
+        const listFeedings = async () => {
+          const rows = [];
+          for (let offset = 0; current(); offset += 200) {
+            const batch = await api.listCareRecords({ userId, kind: 'feeding', limit: 200, offset, ascending: true });
+            rows.push(...batch);
+            if (batch.length < 200) break;
+          }
+          return rows;
+        };
+        const [linkResult, feedingResult] = await Promise.allSettled([
+          api.listStarterDeviceLinks({ userId }),
+          listFeedings()
+        ]);
         if (!current()) return { links: [], samples: [], summaries: [], notices };
-        const attributedLinks = starterIds.flatMap((starterId) => starterRoundDeviceWindows(links, {
-          starterId, feedings, closures: context.closures || []
-        }));
-        const deviceIds = [...new Set(attributedLinks.map(link => link.device_id))];
+        const links = linkResult.status === 'fulfilled' ? linkResult.value : [];
+        if (linkResult.status === 'rejected') notices.push('设备关联读取失败，日记的设备摘要暂不可用。');
+        if (feedingResult.status === 'rejected') notices.push('喂养索引读取失败，日记的设备摘要暂不可用。');
+        if (linkResult.status === 'rejected' || feedingResult.status === 'rejected') {
+          return { links, samples: [], summaries: [], notices };
+        }
+        const feedings = feedingResult.value;
+        let closures = [];
+        try { closures = await api.loadWindowClosures(userId, feedings.map(row => row.id)); }
+        catch { notices.push('手动结束信息暂不可用，设备摘要可能包含已结束轮次的读数。'); }
+        if (!current()) return { links, samples: [], summaries: [], notices };
+        const plans = starterIds.flatMap((starterId) => windowReadPlans(
+          starterRoundDeviceWindows(links, { starterId, feedings, closures }),
+          { from: Date.parse(range.from), to: Date.parse(range.to) }
+        ).map((plan) => ({ ...plan, starterId })));
         const samples = []; const summaries = [];
-        if (!deviceIds.length) return { links, samples, summaries, notices };
+        if (!plans.length) return { links, samples, summaries, notices };
         const service = await api.mobileDeviceService();
-        await Promise.all(deviceIds.map(async deviceId => {
-          const to = new Date(Math.min(Date.parse(range.to), Date.now())).toISOString();
-          if (Date.parse(to) - Date.parse(range.from) < 600000) { notices.push('当日设备时间范围不足十分钟，暂无法读取曲线摘要。'); return; }
-          try {
-            const result = await service.range(deviceId, { from: range.from, to });
-            if (!current()) return;
-            // 登录过期 / 无权限 / 空数据是三种不同情况：不能都说成「没有数据」。
-            if (result.error) notices.push(result.errorKind === 'auth' ? READ_MESSAGES.authExpired : result.errorKind === 'denied' ? READ_MESSAGES.deniedHistory : '部分设备数据读取失败，喂养与观察记录不受影响。');
-            else if (!result.complete) notices.push('部分设备采样未完整加载，摘要仅代表已读取数据。');
-            for (const starterId of [...new Set(attributedLinks.filter(link => link.deviceId === deviceId).map(link => link.starterId))]) {
-              const related = attributedLinks.filter(link => link.deviceId === deviceId && link.starterId === starterId);
-              const rows = result.rows.filter(row => (!row.device_id || row.device_id === deviceId) && Date.parse(row.recorded_at) >= Date.parse(range.from) && Date.parse(row.recorded_at) < Date.parse(to) && rowInWindows({ ...row, device_id: deviceId }, related));
-              samples.push(...rows.map(row => ({ ...row, device_id: deviceId, starter_id: starterId })));
-              summaries.push({ id: `device:${starterId}:${deviceId}:${day}`, kind: 'device', starter_id: starterId, device_id: deviceId, day, samples: rows, partial: !result.complete });
-            }
-          } catch { notices.push('部分设备数据读取失败，喂养与观察记录不受影响。'); }
+        const byDevice = new Map();
+        for (const plan of plans) {
+          if (!byDevice.has(plan.window.deviceId)) byDevice.set(plan.window.deviceId, []);
+          byDevice.get(plan.window.deviceId).push(plan);
+        }
+        // 同一台设备的多段窗口共用一条读取通道，逐段串行读取（每段至少十分钟才发起请求）。
+        await Promise.all([...byDevice].map(async ([deviceId, devicePlans]) => {
+          for (const plan of devicePlans) {
+            const planTo = new Date(Math.min(Date.parse(plan.to), Date.now())).toISOString();
+            if (Date.parse(planTo) - Date.parse(plan.from) < BUCKET_MS) continue;
+            try {
+              // 只读该酵种自己的时段；RPC 回退继续限定 starterId，别的酵种窗口内的读数不会返回。
+              const result = await service.range(deviceId, { from: plan.from, to: planTo, starterId: plan.starterId });
+              if (!current()) return;
+              // 登录过期 / 无权限 / 空数据是三种不同情况：不能都说成「没有数据」。
+              if (result.error) {
+                notices.push(result.errorKind === 'auth' ? READ_MESSAGES.authExpired : result.errorKind === 'denied' ? READ_MESSAGES.deniedHistory : '部分设备数据读取失败，喂养与观察记录不受影响。');
+                continue;
+              }
+              if (!result.complete) notices.push('部分设备采样未完整加载，摘要仅代表已读取数据。');
+              const windows = clipWindows([plan.window], Date.parse(plan.from), Date.parse(planTo));
+              const rows = result.rows.filter(row => (!row.device_id || row.device_id === deviceId) && rowInWindows({ ...row, device_id: deviceId }, windows));
+              if (!rows.length) continue;
+              const key = `device:${plan.starterId}:${deviceId}:${day}`;
+              const existing = summaries.find(row => row.id === key);
+              if (existing) { existing.samples.push(...rows); existing.partial ||= !result.complete; }
+              else summaries.push({ id: key, kind: 'device', starter_id: plan.starterId, device_id: deviceId, day, samples: rows, partial: !result.complete });
+              samples.push(...rows.map(row => ({ ...row, device_id: deviceId, starter_id: plan.starterId })));
+            } catch { notices.push('部分设备数据读取失败，喂养与观察记录不受影响。'); }
+          }
         }));
         return { links, samples, summaries, notices: [...new Set(notices)] };
       })();

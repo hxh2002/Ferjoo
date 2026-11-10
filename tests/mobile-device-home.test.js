@@ -44,7 +44,7 @@ assert.doesNotMatch(source, /SeriesChart/, 'charts move to the detail page, not 
 // 否则会占满整行、把名字挤成一字一行的竖排。
 assert.match(source, /\.starter-choice\{[^}]*min-width:0/, '.starter-choice must shrink inside the grid popover');
 assert.match(source, /\.starter-choice > button:first-child\{[^}]*min-width:0/, 'starter name button must shrink inside the flex row');
-assert.match(source, /\.starter-choice \.starter-delete\{[^}]*flex:none;width:auto/, 'delete button keeps its intrinsic width despite .picker-menu button{width:100%}');
+assert.match(source, /\.starter-choice \.starter-archive\{[^}]*flex:none;width:auto/, 'archive button keeps its intrinsic width despite .picker-menu button{width:100%}');
 assert.doesNotMatch(source, /readDraft|hasDraft|继续本次观察|记录观察/);
 const template = compileTemplate({ source: descriptor.template.content, filename: 'MobileDeviceHome.vue', id: 'device-home-test', compilerOptions: { bindingMetadata: compiled.bindings } });
 assert.deepEqual(template.errors, []);
@@ -111,6 +111,10 @@ function harness() {
       props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'],
       setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', props.confirmLabel)]) : null; }
     },
+    '../../components/mobile/MToast.vue': {
+      props: ['open', 'message', 'subtitle', 'tone'],
+      setup(props) { return () => props.open ? Vue.h('div', { class: 'm-toast', role: 'status' }, [Vue.h('strong', props.message), props.subtitle ? Vue.h('small', props.subtitle) : null]) : null; }
+    },
     '../../composables/useVisiblePolling.js': { useVisiblePolling() {} },
     '../../services/care.service.js': api,
     '../../services/device.service.js': { listMeasurementsRange: async () => state.rows },
@@ -149,6 +153,7 @@ function harness() {
     app.component('RouterLink', { props: ['to'], setup: ({ to }, { slots }) => () => Vue.h('a', { href: typeof to === 'string' ? to : to.path }, slots.default?.()) });
     app.component('MStarterJar', modules['../../components/mobile/MStarterJar.vue']);
     app.component('MGuestNotice', { props: ['title', 'description', 'action', 'loginTo', 'registerTo', 'register', 'hero', 'compact', 'eyebrow'], setup: (props) => () => Vue.h('section', { 'data-testid': 'guest-notice' }, [Vue.h('strong', props.title), Vue.h('p', props.description), Vue.h('a', { href: '/login' }, props.action || '去登录')]) });
+    app.component('MToast', modules['../../components/mobile/MToast.vue']);
     app.component('MConfirmDialog', { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', { class: props.danger ? 'is-danger' : '' }, props.confirmLabel)]) : null; } });
     return renderToString(app);
   }

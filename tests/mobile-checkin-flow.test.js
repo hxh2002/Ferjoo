@@ -76,7 +76,7 @@ const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^
 const flow = await import('../src/lib/checkin-flow.js');
 
 let counter = 0;
-function mount(query = {}, nameState = {}) {
+function mount(query = {}, nameState = {}, evidenceResult = null) {
   const account = `checkin-flow-${++counter}`;
   const user = Vue.ref({ id: account });
   const pushed = [];
@@ -87,7 +87,10 @@ function mount(query = {}, nameState = {}) {
     '../../composables/useAuth.js': { useAuth: () => ({ user }) },
     '../../composables/useCheckinDraft.js': { useCheckinDraft },
     '../../services/mobile-diagnosis.service.js': diagnosis,
-    '../../services/feeding-analysis.service.js': { loadFeedingEvidence: async () => { throw new Error('unused'); } },
+    '../../services/feeding-analysis.service.js': { loadFeedingEvidence: async (owner, starterId, feedingId) => {
+      if (!evidenceResult) throw new Error('unused');
+      return typeof evidenceResult === 'function' ? evidenceResult(owner, starterId, feedingId) : evidenceResult;
+    } },
     '../../lib/height-band.js': { heightBand },
     '../../composables/useStarterName.js': { useStarterName: () => ({ starterName: Vue.ref(nameState.name ?? '一号'), starterNameLoading: Vue.ref(!!nameState.loading) }) },
     '../../lib/checkin-flow.js': flow,
@@ -186,7 +189,33 @@ function mount(query = {}, nameState = {}) {
   page.stop();
 }
 
-// ---------- 酵种名称徽标：加载中不显示占位文案 ----------
+// 诊断模式的证据提示：覆盖不足 / 部分时段无权读取与轮次详情页同一口径。
+{
+  const summaryBase = {
+    baselineHeightMm: 30, currentHeightMm: 60, baselineStatus: 'established', baselineSource: 'device',
+    expansionPercent: 100, historicalRound: false, windowTo: '2026-01-01T04:00:00Z', heightStale: false, temperatureStale: false,
+    measurementCount: 20, temperatureCount: 20
+  };
+  const evidence = (summary, extra = {}) => ({
+    feeding: { id: 'f1', starter_id: 's1', kind: 'feeding', occurred_at: '2026-01-01T00:00:00Z', ratio: '1:2:2' },
+    summary: { ...summaryBase, ...summary }, measurements: [], now: Date.parse('2026-01-01T04:00:00Z'), ...extra
+  });
+  const check = async (payload, expected) => {
+    const page = mount({ mode: 'diagnosis', feeding: 'f1', starter: 's1' }, {}, payload);
+    const started = Date.now();
+    while (!page.vm.feedingEvidence && Date.now() - started < 1000) await Vue.nextTick();
+    await Vue.nextTick();
+    assert.equal(page.vm.evidenceHint, expected);
+    page.stop();
+  };
+  await check(evidence({ coverageStartsLate: true }), '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀率仅供参考。');
+  await check(evidence({ coverageBroken: true }), '本轮中间有一段时间设备未关联（换绑空窗期），这段时间的读数未计入。');
+  await check(evidence({}, { readNotice: '部分关联时段的设备读数无权读取，曲线只包含已读到的时段。' }), '部分关联时段的设备读数无权读取，曲线只包含已读到的时段。');
+  await check(evidence({}, { unavailableReason: '本轮没有可核实的设备归属，未使用其他酵种轮次的读数。' }), '本轮没有可核实的设备归属，未使用其他酵种轮次的读数。');
+  await check(evidence({}), '');
+}
+assert.ok(source.includes('role="status"') && source.includes('evidenceHint'), 'the hint is announced in the diagnosis card');
+
 assert.match(source, /v-if="draft\.starterId && !\(diagnosisMode && step === 3\) && !starterNameLoading" class="checkin-starter"/);
 // 组合式本身：加载中 starterNameLoading=true，读到名称 / 失败后为 false（失败文案保留给徽标显示）。
 {

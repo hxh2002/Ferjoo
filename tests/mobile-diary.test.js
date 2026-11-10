@@ -158,14 +158,15 @@ const dayStart = new Date(`${deviceDay}T00:00:00`);
 const sampleAt = new Date(dayStart.getTime() + 3600000).toISOString();
 const activeFrom = new Date(dayStart.getTime() - 86400000).toISOString();
 const failingLoader = createRecordsLoader({
-  listStarterDeviceLinks: async ({starterId}) => [{starter_id:starterId,device_id:starterId,active_from:activeFrom,active_to:null}],
+  listStarterDeviceLinks: async () => ['ok', 'broken'].map((id) => ({ starter_id: id, device_id: id, active_from: activeFrom, active_to: null })),
   mobileDeviceService: async () => ({ range: async (deviceId) => { if (deviceId === 'broken') throw new Error('offline'); return { complete:true, rows:[{id:'sample',device_id:deviceId,recorded_at:sampleAt,mode:'fer',sensor_error:false,height_mm:30}] }; } }),
   // 设备采样按喂养轮次归属：每个酵种在当天之前有一次喂养，轮次延续到当天。
-  // 当天索引里带出另一个酵种 broken，使其也能按轮次读取设备数据。
+  // 整天索引（无 from/to）返回全部喂养，让摘要与日历标记使用同一套轮次边界。
   listCareRecords: async ({ starterId, from, to }) => {
     const feed = (id) => ({ id: `feed-${id}`, starter_id: id, kind: 'feeding', occurred_at: activeFrom, input: {}, ratio: '1:2:2' });
     if (from && to) return starterId === 'ok' ? [feed('broken')] : [];
-    return starterId && to ? [feed(starterId)] : [];
+    if (starterId && to) return [feed(starterId)];
+    return [feed('ok'), feed('broken')];
   },
   loadWindowClosures: async () => []
 });
@@ -173,6 +174,40 @@ const partial = await failingLoader.devices('u1',deviceDay,['ok','broken']);
 assert.equal(partial.summaries.length,1,'one device failure does not prevent the working linked device summary');
 assert.ok(partial.notices.some(value => value.includes('设备数据读取失败')));
 assert.equal(partial.samples[0].device_id,'ok','only linked device sample is used');
+
+// 日记的设备摘要与日历采样标记同一口径：按全部历史轮次窗口读取，空窗期不读、也不混入别的酵种时段。
+{
+  const day = (d) => recordDayRange(d).from;
+  const noon = new Date(`${'2026-10-21'}T12:00:00`).toISOString();
+  const evening = new Date(`${'2026-10-21'}T18:00:00`).toISOString();
+  const history = [
+    { starter_id: 's1', device_id: 'd1', active_from: day('2026-10-19'), active_to: noon },
+    { starter_id: 's1', device_id: 'd1', active_from: evening, active_to: null }
+  ];
+  const roundFeed = { id: 'f1', starter_id: 's1', kind: 'feeding', occurred_at: day('2026-10-18'), input: {}, ratio: '1:2:2' };
+  const reads = [];
+  const rowAt = (hour) => ({ device_id: 'd1', recorded_at: `2026-10-21T${String(hour).padStart(2, '0')}:00:00`, mode: 'fer', sensor_error: false });
+  const loader = createRecordsLoader({
+    // 关联按账号整体读取（与 marks 一致），因此不依赖 starterId 参数。
+    listStarterDeviceLinks: async () => history,
+    listCareRecords: async ({ kind }) => kind === 'feeding' ? [roundFeed] : [],
+    loadWindowClosures: async () => [],
+    mobileDeviceService: async () => ({ range: async (deviceId, range) => {
+      reads.push({ deviceId, from: range.from, to: range.to, starterId: range.starterId });
+      return { complete: true, rows: [rowAt(8), rowAt(15), rowAt(20)] };
+    } })
+  });
+  const summary = await loader.devices('u1', '2026-10-21', ['s1']);
+  assert.equal(reads.length, 2, 'one read per historical window instead of one read for the whole day');
+  assert.deepEqual(reads.map((read) => [read.from, read.to]), [
+    [day('2026-10-21'), noon],
+    [evening, new Date(recordDayRange('2026-10-22').from).toISOString()]
+  ], 'reads stop at each window edge; the unbound gap is never requested');
+  assert.ok(reads.every((read) => read.starterId === 's1'), 'every read is scoped to the starter');
+  const hours = summary.samples.map((row) => new Date(row.recorded_at).getHours()).sort((a, b) => a - b);
+  assert.deepEqual(hours, [8, 20], 'the sample inside the unbound gap is not attributed to the starter');
+  assert.equal(summary.summaries.length, 1, 'both windows share one daily device summary');
+}
 
 // 日期圆形背景只代表当前酵种关联时段内的正式采样，休眠、故障及其他设备不算。
 assert.doesNotMatch(source, /cell-data-dot|name="date-mark"/);

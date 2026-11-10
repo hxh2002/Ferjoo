@@ -3,8 +3,9 @@ import { computed, onMounted, onScopeDispose, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useVisiblePolling } from '../../composables/useVisiblePolling.js';
-import { createStarter, deleteStarter, listCareRecords, listStarters } from '../../services/care.service.js';
+import { archiveStarter, createStarter, listCareRecords, listStarters } from '../../services/care.service.js';
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
+import MToast from '../../components/mobile/MToast.vue';
 import { listMeasurementsRange } from '../../services/device.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
@@ -29,6 +30,8 @@ import iconChartUp from '../../assets/device/icon-chart-up.svg';
 import iconScales from '../../assets/device/icon-scales.svg';
 import iconTimer from '../../assets/device/icon-timer.svg';
 import iconChevron from '../../assets/device/icon-chevron-down.svg';
+// 与日记页「酵种医生 ›」同一个右向箭头，两处文字入口的箭头形状与间距保持一致。
+import iconChevronRight from '../../assets/icons/diary-chevron.svg';
 import iconJar from '../../assets/device/icon-jar.svg';
 
 defineOptions({ name: 'MobileDeviceHome' });
@@ -44,7 +47,6 @@ const evidence = ref(null); const mutationError = ref(''); const allLinks = ref(
 const nextFeedingAt = ref(null); const closure = ref(null);
 const closing = ref(false); const closeError = ref('');
 const confirmOpen = ref(false); const toast = ref(''); const starterPendingDelete = ref(null);
-let toastTimer;
 let generation = 0; let disposed = false; let inFlight = null; let pending = false; let mutationGeneration = 0;
 // 与 feeding-analysis 的新鲜度窗口保持一致，仅用于「数据是否还新鲜」的提示。
 const FRESH_MS = 40 * 60000;
@@ -259,11 +261,6 @@ async function refresh() {
   })();
   try { await inFlight; } finally { inFlight = null; loading.value = false; if (pending && !disposed) { pending = false; void refresh(); } }
 }
-function showToast(text) {
-  toast.value = text;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value = ''; }, 2600);
-}
 async function endRound(detail = null) {
   if (closing.value || !feeding.value || !summary.value?.windowActive) return;
   const owner = accountId.value; const token = generation; const feedingId = feeding.value.id;
@@ -272,35 +269,41 @@ async function endRound(detail = null) {
     const saved = await closeFeedingWindow({ feedingId, endedAt: new Date().toISOString(), detail });
     if (!current(token, owner)) return;
     closure.value = saved; confirmOpen.value = false; now.value = Date.now();
-    showToast('历史记录已保存');
+    toast.value = '历史记录已保存';
   } catch (cause) {
     if (current(token, owner)) closeError.value = cause?.message || '结束本轮失败，请重试。';
   } finally {
     if (current(token, owner)) closing.value = false;
   }
 }
-// 有任何关联历史或喂养/观察记录的酵种不能删除：历史曲线、基线、轮次证据都靠这些记录定位。
-function deleteGuard(item) {
-  if (item.link) return '已关联设备的酵种不能删除。';
-  if (item.hasLinkHistory) return '该酵种有设备关联历史，不能删除。';
-  if (item.latest || item.feeding || item.observation) return '该酵种有喂养或观察记录，不能删除。';
-  return '';
+// 删除改为归档（027）：物理删除会级联清空喂养/观察与设备关联历史，数据库也不授予 delete 权限。
+// 无历史的酵种归档后从列表消失；有历史的归档后历史全部保留，因此这里不再拒绝任何酵种。
+function archiveNote(item) {
+  return item.latest || item.feeding || item.observation || item.hasLinkHistory
+    ? '该酵种有喂养/观察记录或设备关联历史；归档后入口会收起，历史记录、曲线与关联时段全部保留。'
+    : '这个酵种还没有喂养、观察或设备关联历史，归档后会从列表移除。';
 }
 async function removeStarter() {
   const item = starterPendingDelete.value;
   starterPendingDelete.value = null;
-  if (!item || deleteGuard(item) || saving.value) return;
-  const owner = accountId.value; const token = generation; saving.value = true; mutationError.value = '';
+  if (!item || saving.value) return;
+  const owner = accountId.value; const token = generation; const wasSelected = starterId.value === item.id;
+  saving.value = true; mutationError.value = '';
+  let archived = false;
   try {
-    await deleteStarter(item.id);
+    const result = await archiveStarter(item.id);
     if (!current(token, owner)) return;
+    archived = true;
     starters.value = starters.value.filter((row) => row.id !== item.id);
-    if (starterId.value === item.id) selectStarter('');
+    allLinks.value = allLinks.value.filter((row) => row.starter_id !== item.id);
+    showToast(result.hasHistory ? '已归档，历史记录已保留' : '已归档');
   } catch (cause) {
-    if (current(token, owner)) mutationError.value = cause?.message || '删除失败，请重试。';
+    if (current(token, owner)) mutationError.value = cause?.message || '归档失败，请重试。';
   } finally {
     if (current(token, owner)) saving.value = false;
   }
+  // 归档时服务端已关闭该酵种的活跃关联：重新读取关联与列表，避免首页继续展示旧设备。
+  if (archived && !disposed) selectStarter(wasSelected ? '' : starterId.value);
 }
 async function addStarter() {
   if (saving.value || !accountId.value || !newName.value.trim()) return;
@@ -320,7 +323,7 @@ watch(accountId, () => { generation++; mutationGeneration++; saving.value = fals
 watch(starterId, (id) => { if (id) rememberSelectedStarter(accountId.value, id); });
 useVisiblePolling(refresh, 60000);
 onMounted(() => auth.init());
-onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); });
+onScopeDispose(() => { disposed = true; generation++; });
 </script>
 
 <template>
@@ -359,7 +362,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
               <div class="picker-menu starter-menu">
                 <div v-for="item in starters" :key="item.id" class="starter-choice">
                   <button type="button" :class="{ active: item.id === starterId }" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? `已关联 ${devices.find(device => device.device_id === item.link.device_id)?.name || item.link.device_id}` : '未关联设备 · 仅查看记录' }}</small></button>
-                  <button v-if="!deleteGuard(item)" type="button" class="starter-delete" :disabled="saving" @click="starterPendingDelete = item">删除</button>
+                  <button type="button" class="starter-archive" :disabled="saving" @click="starterPendingDelete = item">归档</button>
                 </div>
                 <button class="menu-action" type="button" @click="newStarterOpen = !newStarterOpen">+ 新增酵种</button>
                 <form v-if="newStarterOpen" class="new-starter" @submit.prevent="addStarter"><input v-model="newName" maxlength="80" placeholder="酵种名称" :disabled="saving"><button class="m-primary" type="submit" :disabled="saving || !newName.trim()">{{ saving ? '保存中…' : '新建酵种' }}</button></form>
@@ -404,7 +407,7 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
       </section>
       <div class="section-head">
         <p class="section-label">当前数据</p>
-        <RouterLink v-if="deviceId" class="detail-link" :to="detailTarget">详情</RouterLink>
+        <RouterLink v-if="deviceId" class="detail-link" :to="detailTarget"><span>详情</span><img :src="iconChevronRight" alt="" width="14" height="14" /></RouterLink>
       </div>
       <section class="metric-row" aria-label="当前数据">
         <article class="metric" data-level="1">
@@ -424,19 +427,16 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
         </article>
       </section>
       <p v-if="closeError" class="m-error" role="alert">{{ closeError }}</p>
-      <button v-if="windowActive" type="button" class="device-cta" :disabled="closing" @click="confirmOpen = true">结束当前发酵</button>
+      <button v-if="windowActive" type="button" class="device-cta is-soft" :disabled="closing" @click="confirmOpen = true">结束当前发酵</button>
       <RouterLink v-else class="device-cta" :to="feedTarget">喂养</RouterLink>
       <p v-if="!feeding" class="cta-note"><span>记录喂养后，本轮发酵会自动开始计时。</span></p>
 
       <div v-if="riskAdvice" class="risk-banner" role="alert"><strong>上次风险结果：{{ lastAdvice.result.title }}</strong><RouterLink :to="lastAdvice.savedId ? `/diary/records/${lastAdvice.savedId}` : '/reports/session'">查看结果</RouterLink></div>
 
-      <MConfirmDialog :open="!!starterPendingDelete" danger title="删除酵种" :message="`删除「${starterPendingDelete?.name || ''}」后，这个酵种的入口会消失。有喂养/观察记录或设备关联历史的酵种不会提供删除，以免丢失历史数据。`" confirm-label="删除" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
+      <MConfirmDialog :open="!!starterPendingDelete" danger title="归档酵种" :message="archiveNote(starterPendingDelete || {})" confirm-label="归档" @cancel="starterPendingDelete = null" @confirm="removeStarter" />
       <MConfirmDialog :open="confirmOpen" danger title="结束当前发酵？" message="结束后，本次发酵将停止记录。你可以开始下一次喂养。" :confirm-label="closing ? '正在结束…' : '确认结束'" cancel-label="继续发酵" @cancel="confirmOpen = false" @confirm="endRound(null)" />
 
-      <div v-if="toast" class="saved-toast" role="status">
-        <span class="toast-disc" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></span>
-        <span class="toast-copy"><strong>{{ toast }}</strong><small>本次发酵已结束</small></span>
-      </div>
+      <MToast :open="!!toast" :message="toast" subtitle="本次发酵已结束" tone="success" @close="toast = ''" />
     </template>
   </main>
 </template>
@@ -481,7 +481,10 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .mobile-area .mobile-main .m-page.device-page > .section-label{margin-block:28px 9px}
 .mobile-area .mobile-main .m-page.device-page > .section-head{margin-block:14px 3px}
 .mobile-area .mobile-main .m-page.device-page > .metric-row{margin-block:0}
-.mobile-area .mobile-main .m-page.device-page > .device-cta{margin-block:14px 0}.detail-link{font-size:14px;font-weight:500;line-height:21px;color:var(--brand-accent);text-decoration:none}
+.mobile-area .mobile-main .m-page.device-page > .device-cta{margin-block:14px 0}
+/* 与日记页「酵种医生 ›」同款文字入口：13/20 的 --m-text-doctor、14px 箭头、6px 间距、32 高。 */
+.detail-link{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:32px;color:var(--m-text-doctor);font-size:13px;line-height:20px;font-weight:500;text-decoration:none}
+.detail-link img{display:block;flex:none}
 .feed-summary{position:relative;display:grid;grid-template-columns:1fr 1fr;min-height:76px;margin:0;padding:8px 0;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:0 4px 18px rgba(48,37,31,.07);color:inherit;text-decoration:none}
 .feed-cell{display:grid;gap:4px;align-content:start;min-width:0;padding:0 18px}
 .feed-cell+.feed-cell{border-left:1px solid var(--border-default)}
@@ -507,6 +510,12 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .metric-label{font-size:14px;line-height:21px;color:var(--text-secondary)}
 .device-cta{display:flex;align-items:center;justify-content:center;width:100%;height:60px;min-height:60px;margin:14px 0 0;padding:0 16px;border:0;border-radius:var(--m-radius-button);background:var(--brand-light);color:var(--text-primary);font:inherit;font-size:16px;font-weight:500;text-decoration:none;cursor:pointer}
 .device-cta:active:not(:disabled){background:var(--brand-accent)}
+/* 「结束当前发酵」是收尾动作，不是这一屏要做的事：退成日记页「本日全部数据」同款柔和胶囊
+   （--m-disc 底 + --m-text-link 橙字 + --m-chart-line 细边框），仍保持整宽与 60 高可点区域。
+   只加修饰类，不动 .device-cta 本身，「喂养」在无进行中轮次时仍是醒目的主按钮。
+   按下只加深边框：16px 字在 --m-disc 上是 4.52:1，换成更深的 --m-date-mark 会掉到 4.16:1。 */
+.device-cta.is-soft{border:1px solid var(--m-chart-line);background:var(--m-disc);color:var(--m-text-link)}
+.device-cta.is-soft:active:not(:disabled){background:var(--m-disc);border-color:var(--brand-accent);color:var(--m-text-link)}
 .device-cta:disabled{opacity:.6;cursor:not-allowed}
 .cta-note{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;margin:10px 0 0;font-size:12px;line-height:18px;color:var(--text-secondary)}.risk-banner{margin-top:16px;padding:12px;border-left:3px solid var(--danger-text);background:var(--danger-bg);color:var(--danger-text);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .risk-banner a{color:inherit;font-weight:600}
@@ -533,23 +542,13 @@ onScopeDispose(() => { disposed = true; generation++; clearTimeout(toastTimer); 
 .starter-choice small{display:block;margin-top:2px;overflow-wrap:anywhere}
 /* 上面 .picker-menu button 的 width:100% 也会命中删除键（0,1,1 压过 0,1,0 的 flex:none），
    删除键会占满整行、把名字顶成 22px 竖排。这里提权并还原成内容宽度。 */
-.starter-choice .starter-delete{flex:none;width:auto;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
+.starter-choice .starter-archive{flex:none;width:auto;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--danger-text);font:inherit}
 .picker-menu small{font-size:11px;color:var(--text-secondary)}
 .menu-action{color:var(--brand-action)!important}
 .new-starter{display:grid;gap:8px;margin-top:4px}
 /* 同理：iOS 对 <16px 的输入框 focus 会放大视口，这处新建酵种输入框必须保持 16px。 */
 .new-starter input{min-height:44px;padding:8px 10px;border:1px solid var(--border-input);border-radius:10px;font:inherit;font-size:16px;background:var(--surface-input);color:var(--text-primary)}
 .new-starter .m-primary{width:100%;min-height:44px;font-size:14px}
-/* 原本写死 220ms + ease-out，与全局的 --motion-base / --ease-standard 各差一档；
-   同页的其它按压、弹层都走令牌，两条相邻动效会读出不同的「手感」。 */
-.saved-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 87px);z-index:var(--m-z-modal);display:flex;align-items:center;gap:12px;width:280px;max-width:calc(100vw - 48px);min-height:68px;padding:13px;border:1px solid var(--brand-light);border-radius:var(--m-radius-toast);background:var(--surface-card);box-shadow:0 5px 18px rgba(48,37,31,.14);transform:translateX(-50%);animation:toast-in var(--motion-base) var(--ease-standard)}
-.toast-disc{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:rgba(255,176,90,.16);color:var(--brand-action)}
-.toast-disc svg{width:20px;height:20px}
-.toast-copy{display:grid;gap:2px;min-width:0}
-.toast-copy strong{font-size:16px;line-height:20px;font-weight:500;color:var(--text-primary)}
-.toast-copy small{font-size:12px;line-height:18px;color:var(--text-secondary)}
-@keyframes toast-in{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 /* 游客引导整块交给 MGuestNotice 的 hero 形态，这里不再保留一份重复的插画与按钮样式。 */
-@media (prefers-reduced-motion:reduce){.saved-toast{animation:none}}
 @media (max-width:360px){.metric{padding:10px}.metric strong{font-size:16px}.feed-cell{padding:0 12px}}
 </style>

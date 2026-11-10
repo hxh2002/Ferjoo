@@ -93,9 +93,6 @@
 body.mobile-mode { margin: 0; min-width: 320px; min-height: 100vh; background: transparent; font-size: 16px; isolation: isolate;
   /* 横屏时 iOS 会把正文字号自动放大，配合 100vh 造成版面跳动；锁住自动缩放，字号只按设计值走。 */
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body.mobile-mode .m-draggable-chart .series-tip { width: 104px; min-height: 38px; max-width: 104px; padding: 2px 8px; border: 1px solid var(--m-chart-line); border-radius: var(--m-radius-bubble); background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow-tip); white-space: normal; font-size: 10px; line-height: 14px; }
-body.mobile-mode .m-draggable-chart .series-tip span { display: block; color: var(--text-secondary); font-size: 10px; line-height: 14px; opacity: 1; white-space: normal; }
-body.mobile-mode .m-draggable-chart .series-tip strong { color: var(--text-primary); font-size: 15px; font-weight: 500; line-height: 20px; white-space: normal; }
 body.mobile-mode::before { content: ''; display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #FFF9F3; }
 body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-sizing: border-box; }
 .mobile-area { min-height: 100vh; min-height: 100dvh; color: var(--text-primary); overflow-wrap: anywhere; background: transparent; }

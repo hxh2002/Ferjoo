@@ -20,8 +20,14 @@ assert.match(source, />当前</);
 assert.match(source, /interactive: \{ type: Boolean, default: false \}/);
 assert.match(source, /bubble: \{ type: Boolean, default: true \}/);
 assert.match(source, /highlight: \{ type: Boolean, default: false \}/);
-assert.match(source, /v-if="highlight && hoverPoint"/);
-assert.match(source, /v-if="bubble && hoverPoint"/);
+assert.match(source, /v-if="highlight && hoverPoint && !fixedTip"/);
+assert.match(source, /v-if="bubble && hoverPoint && !fixedTip"/);
+assert.match(source, /fixedTip: \{ type: Boolean, default: false \}/, 'desktop keeps the floating tip unless fixedTip is requested');
+// 固定气泡行：高度写死，气泡只水平移动并做边界夹紧，竖线从气泡底部接到绘图区。
+assert.match(source, /\.series-tip-row \{[^}]*height: 36px/);
+assert.match(source, /\.series-fixed-tip \{[^}]*top: 0/);
+assert.match(source, /\.series-tip-stem \{[^}]*top: 28px/);
+assert.match(source, /Math\.min\(Math\.max\(x, half\)/, 'bubble centre is clamped inside the row');
 assert.match(source, /chartSegments\(/);
 
 const trend = readFileSync(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8');
@@ -43,10 +49,9 @@ assert.match(detail, /结束原因：\{\{ endReasonText \}\}/);
 assert.match(chart, /:interactive="interactive"/);
 assert.match(chart, /:bubble="bubble"/);
 assert.match(chart, /:highlight="highlight"/);
-assert.match(chart, /width: 104px/);
-assert.match(chart, /min-height: 38px/);
-assert.match(chart, /white-space: normal/);
-assert.match(mobileCss, /body\.mobile-mode \.m-draggable-chart \.series-tip \{[^}]*width: 104px/);
+assert.match(chart, /:fixed-tip="fixedTip"/);
+assert.match(chart, /fixedTip: \{ type: Boolean, default: true \}/);
+assert.doesNotMatch(mobileCss, /\.m-draggable-chart \.series-tip/, 'the old floating three-field bubble styles are gone');
 
 const t = (minutes, v) => ({ t: new Date(Date.UTC(2026, 10, 6, 0, minutes)).toISOString(), v });
 const broken = chartSegments([t(0, 10), t(10, null), t(20, 30)]);
@@ -137,4 +142,10 @@ assert.match(gradient.html, /class="series-area"/, 'the area keeps its own segme
 // 移动端不加载 main.css，所以这条必须由组件自己的样式保证。
 assert.match(source, /\.series-line \{[^}]*fill:\s*none/, 'the polyline must opt out of SVG default black fill');
 assert.match(source, /\.series-area \{[^}]*stroke:\s*none/, 'the area fill must not inherit a stroke');
+// 固定气泡行：有数据时始终预留（布局不抖动），且不再渲染纵坐标值标签 / 时间游标标签。
+const fixed = await draw([at(0, 30), at(10, 35)], { fixedTip: true });
+assert.match(fixed.html, /class="series-tip-row/, 'the fixed bubble row is always reserved');
+assert.doesNotMatch(fixed.html, /series-value-label|series-time-label|series-guide-y/);
+const floating = await draw([at(0, 30), at(10, 35)]);
+assert.doesNotMatch(floating.html, /series-tip-row/, 'the default chart has no reserved bubble row');
 console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');

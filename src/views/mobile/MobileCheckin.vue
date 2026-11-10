@@ -66,6 +66,22 @@ const autoHeight = computed(() => {
   return summary ? heightBand(summary.baselineHeightMm, summary.currentHeightMm) : null;
 });
 const heightOverridden = computed(() => !!autoHeight.value && draft.value.height !== autoHeight.value.value);
+// 与轮次详情页同一口径：覆盖不足与「部分时段无权读取」必须说清，不能把设备问题读成发酵结论。
+const evidenceHint = computed(() => {
+  const proof = feedingEvidence.value;
+  const summary = proof?.summary;
+  if (!proof) return '';
+  if (proof.unavailableReason) return proof.unavailableReason;
+  if (!summary) return '';
+  if (summary.baselineStatus === 'pending') return '基线计算中…';
+  if (summary.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀率。';
+  if (summary.coverageStartsLate) return '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀率仅供参考。';
+  if (summary.coverageBroken) return '本轮中间有一段时间设备未关联（换绑空窗期），这段时间的读数未计入。';
+  if (proof.readNotice) return proof.readNotice;
+  if (summary.heightStale) return '设备数据已中断，膨胀率沿用上次读数。';
+  if (summary.baselineIncomplete) return '基线采样未满，膨胀率仅供参考。';
+  return '';
+});
 const reviewKeys = computed(() => diagnosisMode.value ? ['color', 'smell', 'height', 'ratio', 'elapsedHours'] : Object.keys(fieldLabels));
 const diagnosisReviewLabels = { color: '颜色 / 霉斑', smell: '气味', height: '涨幅表现', ratio: '喂养比例', elapsedHours: '喂养后经过' };
 const summaryKeys = computed(() => ['color', 'smell', ...Object.keys(fieldLabels).filter((key) => !['color', 'smell'].includes(key) && draft.value[key] !== '' && draft.value[key] != null)]);
@@ -238,7 +254,7 @@ function applyPending(key) {
     />
     <section v-if="diagnosisMode && feedingEvidence" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
-      <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p></template>
+      <template v-if="feedingEvidence"><p v-if="feedingEvidence.unavailableReason" class="m-muted">{{ feedingEvidence.unavailableReason }}</p><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p><p v-if="evidenceHint" class="m-context" role="status">{{ evidenceHint }}</p></template>
       <p v-if="notice" role="status">{{ notice }}</p>
     </section>
     <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，关闭页面可能丢失草稿。</p>

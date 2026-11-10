@@ -692,7 +692,13 @@ onUnmounted(() => {
 .record-group{display:grid;gap:8px;margin-top:16px;min-width:0}
 .record-group-title{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--text-sm);line-height:21px;font-weight:500;color:var(--text-secondary)}
 .day-data-group{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.day-data-pill{display:inline-flex;align-items:center;min-height:32px;padding:0 14px;border-radius:var(--radius-pill);background:var(--m-disc);color:var(--m-text-link);font-size:13px;line-height:20px;font-weight:500;text-decoration:none}
+.day-data-pill{display:inline-flex;align-items:center;min-height:32px;padding:0 14px;border:1px solid var(--m-chart-line);border-radius:var(--radius-pill);background:var(--m-disc);color:var(--m-text-link);font-size:13px;line-height:20px;font-weight:500;text-decoration:none;transition:background-color var(--motion-fast) var(--ease-standard),border-color var(--motion-fast) var(--ease-standard)}
+/* 文字与末尾的 › 同属 currentColor：淡橙底 + 一个橙色字 + 更浅的暖橙发丝边框，
+   与「酵种医生 ›」「详情 ›」这些文字入口读同一套橙色系。
+   按下/悬停只加深边框、不加深底色：底色再深一档（--m-date-mark）时 13px 橙字只有 4.16:1，
+   留在 --m-disc 上是 4.52:1，小字仍达标。 */
+.day-data-pill:active{border-color:var(--brand-accent)}
+@media (hover: hover){.day-data-pill:hover{border-color:var(--brand-accent)}}
 .day-data-note{min-width:0;font-size:var(--text-xs);line-height:18px;color:var(--text-secondary)}
 .group-mark{width:3px;height:12px;border-radius:2px;background:var(--brand-action);flex:none}
 .observation-mark{background:var(--chart-humidity)}

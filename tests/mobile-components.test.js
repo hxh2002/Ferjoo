@@ -62,15 +62,32 @@ assert.match(calendar, /aria-pressed/);
 
 const toast = compile('src/components/mobile/MToast.vue');
 assert.match(toast, /width: min\(280px/);
+assert.match(toast, /top: calc\(env\(safe-area-inset-top\) \+ 87px\)/, 'toast position follows the device home saved toast');
+assert.match(toast, /min-height: 68px/);
+assert.match(toast, /border: 1px solid var\(--brand-light\)/);
 assert.match(toast, /border-radius: var\(--m-radius-toast\)/);
+assert.match(toast, /box-shadow: 0 5px 18px rgba\(48, 37, 31, \.14\)/);
 assert.match(toast, /duration: \{ type: Number, default: 2600 \}/);
-assert.match(toast, /is-success/);
-assert.match(toast, /is-error/);
-assert.match(toast, /is-neutral/);
+assert.match(toast, /subtitle/);
+assert.match(toast, /m-toast-disc/);
+assert.match(toast, /claimToastSlot/, 'only one toast may be visible at a time');
+assert.match(toast, /tone: \{ type: String, default: 'success'/);
+for (const tone of ['info', 'warning', 'error']) assert.match(toast, new RegExp(`is-${tone}`));
 assert.match(toast, /\.m-toast \{[^}]*transform: translateX\(-50%\)/, 'toast stays centered outside transition states');
 assert.match(toast, /max-width: calc\(100vw - 48px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)/);
 assert.match(toast, /box-sizing: border-box/);
-assert.match(toast, /\.m-toast-enter-from, \.m-toast-leave-to \{ opacity: 0; transform: translate\(-50%, 8px\); \}/);
+assert.match(toast, /\.m-toast-enter-from, \.m-toast-leave-to \{ opacity: 0; transform: translate\(-50%, -8px\); \}/);
+{
+  const { claimToastSlot } = await import('../src/components/mobile/toast-slot.js');
+  const closed = [];
+  const releaseA = claimToastSlot(() => closed.push('a'));
+  const releaseB = claimToastSlot(() => closed.push('b'));
+  assert.deepEqual(closed, ['a'], 'a new toast closes the previous one');
+  releaseA(); assert.deepEqual(closed, ['a'], 'a stale release does not touch the active toast');
+  claimToastSlot(() => closed.push('c'));
+  assert.deepEqual(closed, ['a', 'b']);
+  releaseB();
+}
 
 const confirm = compile('src/components/mobile/MConfirmDialog.vue');
 assert.match(confirm, /width: min\(327px, 100%\)/);
@@ -85,15 +102,15 @@ assert.match(chart, /interactive: \{ type: Boolean, default: true \}/);
 assert.match(chart, /bubble: \{ type: Boolean, default: true \}/);
 assert.match(chart, /highlight: \{ type: Boolean, default: true \}/);
 assert.match(chart, /:sticky="sticky"/);
-assert.match(chart, /width: 104px/);
+assert.match(chart, /fixedTip: \{ type: Boolean, default: true \}/);
 assert.match(chart, /11px/);
 const series = compile('src/components/SeriesChart.vue');
 assert.match(series, /series-value-label/);
 assert.match(series, /interactive: \{ type: Boolean, default: false \}/);
 assert.match(series, /bubble: \{ type: Boolean, default: true \}/);
 assert.match(series, /highlight: \{ type: Boolean, default: false \}/);
-assert.match(series, /v-if="highlight && hoverPoint"/);
-assert.match(series, /v-if="bubble && hoverPoint"/);
+assert.match(series, /v-if="highlight && hoverPoint && !fixedTip"/);
+assert.match(series, /v-if="bubble && hoverPoint && !fixedTip"/);
 compile('src/components/mobile/MIconDisc.vue');
 compile('src/views/mobile/MobileFeeding.vue');
 

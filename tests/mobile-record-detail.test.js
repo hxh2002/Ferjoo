@@ -72,26 +72,45 @@ const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^
 const libs = await import('../src/lib/record-detail.js');
 const diagnosis = await import('../src/services/mobile-diagnosis.service.js');
 
-async function mount(evidence) {
+async function mount(evidence, options = {}) {
+  const navigations = [];
+  const calls = [];
+  const router = options.router || { replace: async (to) => { navigations.push(to); } };
+  const route = options.route || { params: { id: 'f1' }, query: {} };
+  const fetchRecord = options.record || (async () => record);
   const modules = {
     vue: { ...Vue, inject: () => null },
     '../../assets/device/icon-scales.svg': { default: '' },
     '../../assets/device/icon-timer.svg': { default: '' },
-    'vue-router': { useRoute: () => ({ params: { id: 'f1' }, query: {} }), useRouter: () => ({ replace: async () => {} }) },
+    'vue-router': { useRoute: () => route, useRouter: () => router },
     '../../composables/useAuth.js': { useAuth: () => ({ user: Vue.ref({ id: 'u1' }) }) },
-    '../../services/care.service.js': { getCareRecord: async () => record, listStarters: async () => [{ id: 's1', name: '一号' }] },
+    '../../services/care.service.js': {
+      getCareRecord: async (id) => (typeof fetchRecord === 'function' ? fetchRecord(id) : fetchRecord),
+      listStarters: async () => [{ id: 's1', name: '一号' }],
+      deleteCareRecord: async (id, args) => {
+        calls.push({ id, args });
+        if (options.remove) return options.remove(id, args);
+        return { id };
+      }
+    },
     '../../services/feeding-analysis.service.js': { expansionSeries, loadFeedingEvidence: async () => evidence },
     '../../services/mobile-diagnosis.service.js': diagnosis,
     '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState },
     '../../lib/read-cache.js': { READ_TTL: { records: 0 }, cachedRead: (_key, load) => load() },
     '../../lib/record-detail.js': libs,
-    '../../components/mobile/MDraggableChart.vue': {}
+    '../../components/mobile/MDraggableChart.vue': {},
+    // 弹窗只做结构占位：这里断言的是页面传给它的 props 与 confirm/cancel 的接线。
+    '../../components/mobile/MConfirmDialog.vue': { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], emits: ['confirm', 'cancel'] }
   };
   const component = new Function('modules', setupCode)(modules);
   const scope = Vue.effectScope();
   const vm = Vue.proxyRefs(scope.run(() => component.setup({}, { expose() {} })));
-  for (let i = 0; i < 10; i++) await Promise.resolve();
-  return { vm, stop: () => scope.stop() };
+  await flush();
+  return { vm, stop: () => scope.stop(), navigations, calls };
+}
+
+async function flush() {
+  for (let i = 0; i < 12; i++) await Promise.resolve();
 }
 
 // 解绑场景：详情页的已发酵 / 历时 = 87 小时 32 分钟，而不是 0 分钟；诊断预填用的 elapsedHours 保持不动。
@@ -144,6 +163,136 @@ assert.equal((descriptor.template.content.match(/class="window-hint"/g) || []).l
 assert.doesNotMatch(descriptor.template.content, /\{\{ hint \}\}/, 'details section no longer repeats the hint');
 assert.match(descriptor.template.content, /\{\{ curveText\.emptyMessage \}\}/);
 
+// ---------- 删除记录：按钮 / 二次确认 / 服务调用 / 返回日记 ----------
+const detailTemplate = descriptor.template.content;
+assert.match(detailTemplate, /<button type="button" class="m-secondary m-danger" :disabled="deleting" @click="deleteOpen = true">/, '删除键是 button，删除期间禁用');
+assert.match(detailTemplate, /基于这次喂养记录做诊断<\/RouterLink>\s*<button type="button" class="m-secondary m-danger"/, '删除键排在诊断链接之后（同一行的右侧）');
+assert.match(detailTemplate, /<div class="card-actions">/, '诊断与删除同处一个 flex 行');
+assert.match(detailTemplate, /<MConfirmDialog :open="deleteOpen" danger title="删除记录"/);
+assert.match(detailTemplate, /confirm-label="删除" cancel-label="取消"/);
+assert.match(detailTemplate, /@cancel="deleteOpen = false" @confirm="removeRecord"/);
+assert.match(source, /\.card-actions\{display:flex;align-items:stretch;flex-wrap:wrap;gap:\.5rem\}/, '诊断与删除同处一个 flex 行');
+assert.match(source, /\.card-actions \.m-danger\{[^}]*margin-left:auto/, '删除键靠右');
+assert.match(source, /\.card-actions \.m-danger\{[^}]*var\(--danger-text\)/);
+assert.match(source, /\.card-actions \.m-secondary\{[^}]*min-height|\.m-secondary\{display:inline-flex;align-items:center;min-height:48px/, '保留 48px 点击高度');
+
+{
+  // 成功：按 record.id + 当前账号删除，然后 replace 回日记（而不是 push，返回键不会回到已删除记录）。
+  const page = await mount({ feeding: record, measurements: [], summary: closed });
+  page.vm.deleteOpen = true;
+  await page.vm.removeRecord();
+  await flush();
+  assert.deepEqual(page.calls, [{ id: 'f1', args: { userId: 'u1' } }]);
+  assert.equal(page.vm.deleteOpen, false);
+  assert.equal(page.vm.deleting, false);
+  assert.equal(page.vm.error, '', '成功时不留下错误文案');
+  assert.deepEqual(page.navigations, ['/diary'], '删除后回到日记页');
+  page.stop();
+}
+{
+  // returnTo 规范化后带着查询串返回原筛选（returnTo 依赖 window.location.origin，Node 里补一个最小桩）。
+  globalThis.window = { location: { origin: 'http://localhost:5173' } };
+  const page = await mount({ feeding: record, measurements: [], summary: closed }, {
+    route: { params: { id: 'f1' }, query: { returnTo: '/diary?from=2026-10-25&to=2026-10-25&starter=s1' } }
+  });
+  await page.vm.removeRecord();
+  await flush();
+  assert.deepEqual(page.navigations, ['/diary?from=2026-10-25&to=2026-10-25&starter=s1']);
+  page.stop();
+  delete globalThis.window;
+}
+{
+  // 非 /diary 的 returnTo 被丢弃，仍回日记首页（防止被外部链接带去任意页面）。
+  globalThis.window = { location: { origin: 'http://localhost:5173' } };
+  const page = await mount({ feeding: record, measurements: [], summary: closed }, {
+    route: { params: { id: 'f1' }, query: { returnTo: 'https://evil.example/diary' } }
+  });
+  await page.vm.removeRecord();
+  await flush();
+  assert.deepEqual(page.navigations, ['/diary']);
+  page.stop();
+  delete globalThis.window;
+}
+{
+  // 失败：关闭弹窗、保留页面并展示服务层的中文错误，不跳转。
+  const page = await mount({ feeding: record, measurements: [], summary: closed }, {
+    remove: async () => { throw new Error('当前账号没有访问这份记录的权限。'); }
+  });
+  page.vm.deleteOpen = true;
+  await page.vm.removeRecord();
+  await flush();
+  assert.equal(page.vm.deleteOpen, false, '失败后关闭确认框');
+  assert.equal(page.vm.error, '当前账号没有访问这份记录的权限。');
+  assert.equal(page.vm.deleting, false, '失败后恢复按钮');
+  assert.deepEqual(page.navigations, [], '失败不离开详情页');
+  page.stop();
+}
+{
+  // 防重复提交：提交中再点一次不会发出第二个请求。
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const page = await mount({ feeding: record, measurements: [], summary: closed }, {
+    remove: async (id) => { await gate; return { id }; }
+  });
+  const first = page.vm.removeRecord();
+  await flush();
+  assert.equal(page.vm.deleting, true, '提交期间按钮禁用');
+  await page.vm.removeRecord();
+  assert.equal(page.calls.length, 1, '第二次点击被防抖拦截');
+  release();
+  await first;
+  await flush();
+  assert.deepEqual(page.navigations, ['/diary']);
+  page.stop();
+}
+{
+  // 过期请求：删除期间切到了另一条记录（generation 变化），旧请求成功后不得把用户带走。
+  const route = Vue.reactive({ params: { id: 'f1' }, query: {} });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const page = await mount({ feeding: record, measurements: [], summary: closed }, {
+    route,
+    remove: async (id) => { await gate; return { id }; }
+  });
+  const pending = page.vm.removeRecord();
+  await flush();
+  route.params.id = 'f2';
+  await flush();
+  release();
+  await pending;
+  await flush();
+  assert.deepEqual(page.navigations, [], '过期删除不触发跳转');
+  page.stop();
+}
+
+// ---------- care.service.deleteCareRecord 契约 ----------
+{
+  const service = await readFile(new URL('../src/services/care.service.js', import.meta.url), 'utf8');
+  assert.match(service, /export function deleteCareRecord\(id, \{ userId \} = \{\}\)/, '导出 deleteCareRecord(id, { userId })');
+  const body = service.slice(service.indexOf('export function deleteCareRecord'));
+  const scoped = body.slice(0, body.indexOf('export function listDeviceRoles'));
+  assert.match(scoped, /requiredUuid\(id, '记录 ID'\)/);
+  assert.match(scoped, /requireClient\(\)\.from\('care_records'\)\.delete\(\)/, '删除走 care_records 表 delete');
+  assert.match(scoped, /query = query\.eq\('user_id', requiredUuid\(userId, '账号 ID'\)\)/, '带 userId 时同时过滤归属');
+  assert.match(scoped, /if \(error\) throw error/, '失败向上抛出，交给 run/mapError 转中文');
+  assert.match(scoped, /invalidateReadCache\('care:records'\)/);
+  assert.match(scoped, /invalidateReadCache\('care:record'\)/);
+  assert.match(scoped, /invalidateReadCache\('care:record:evidence'\)/, '轮次证据缓存同批失效');
+  assert.match(scoped, /return \{ id: recordId \}/);
+}
+
+// ---------- 029 迁移：只加 delete，不加 update ----------
+{
+  const migration = await readFile(new URL('../supabase/migrations/029_care_record_delete.sql', import.meta.url), 'utf8');
+  assert.match(migration, /grant delete on public\.care_records to authenticated/);
+  assert.ok(!/grant[^;]*update[^;]*on public\.care_records/i.test(migration), '不授予 update');
+  assert.ok(!/grant[^;]*truncate[^;]*on public\.care_records/i.test(migration), '不授予 truncate');
+  assert.match(migration, /revoke update, truncate on public\.care_records from public, anon, authenticated/);
+  assert.match(migration, /drop policy if exists care_records_delete_own on public\.care_records/);
+  assert.match(migration, /create policy care_records_delete_own on public\.care_records\s*\n\s*for delete to authenticated using \(user_id = \(select auth\.uid\(\)\)\)/);
+  assert.ok(!/grant[^;]*delete[^;]*on public\.(feed_events|fermentation_window_closures)/i.test(migration), '依赖表靠外键级联，不需要额外授权');
+}
+
 // ---------- 同名酵种的辅助区分（通知设置页） ----------
 assert.equal(starterDisambiguation([{ id: 'a', name: '一号' }, { id: 'b', name: '二号' }]).size, 0, 'unique names stay clean');
 const dup = starterDisambiguation([
@@ -164,6 +313,8 @@ const notifications = await readFile(new URL('../src/views/mobile/MobileNotifica
 assert.doesNotMatch(notifications, /每个提醒倍数每轮喂养只提醒一次/, 'the duplicate sentence is removed');
 assert.match(notifications, /每轮每个倍数只提醒一次，下次喂养后重新计数。/, 'the once-per-round explanation stays under trigger conditions');
 assert.match(notifications, /v-if="starterNotes\.get\(row\.id\)" class="starter-note"/);
-assert.match(await readFile(new URL('../src/services/care.service.js', import.meta.url), 'utf8'), /select\('id, name, created_at'\)/, 'listStarters exposes created_at');
+const starterService = await readFile(new URL('../src/services/care.service.js', import.meta.url), 'utf8');
+assert.match(starterService, /const STARTER_FIELDS = 'id, name, created_at, archived_at'/, 'listStarters exposes created_at');
+assert.match(starterService, /\.select\(fields\)/, 'listStarters selects the shared STARTER_FIELDS');
 
 console.log('mobile record detail: window duration, clipped curves, empty-state copy and starter disambiguation passed');

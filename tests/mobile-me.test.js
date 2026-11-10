@@ -365,11 +365,12 @@ starterSheet.stop();
 console.log('mobile devices: starter draft, cancel, confirm, failure and duplicate-save behavior passed');
 
 const home = compile('src/views/mobile/MobileDeviceHome.vue');
-assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*删除酵种/);
+assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*归档酵种/);
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*结束当前发酵？/);
-assert.match(home, /deleteStarter/);
-assert.match(home, /v-if="!deleteGuard\(item\)"/, 'delete is only offered for starters without link history or records');
-assert.match(home, /item\.hasLinkHistory[\s\S]*设备关联历史，不能删除/);
+assert.match(home, /archiveStarter/);
+assert.doesNotMatch(home, /from\('starters'\)\.delete\(\)/, 'starters are never physically deleted');
+assert.match(home, /class="starter-archive"/, 'every starter offers archive instead of a conditional delete');
+assert.match(home, /有喂养\/观察记录或设备关联历史；归档后入口会收起/, 'archive explains that history is retained');
 
 const add = compile('src/views/mobile/MobileDeviceAdd.vue');
 const emptyAt = add.indexOf('请输入设备编号。');

@@ -23,6 +23,8 @@ const props = defineProps({
   interactive: { type: Boolean, default: true },
   bubble: { type: Boolean, default: true },
   highlight: { type: Boolean, default: true },
+  // 详情气泡固定在图表上方一行，只水平跟随竖线；所有移动端图表统一使用。
+  fixedTip: { type: Boolean, default: true },
   sticky: { type: Boolean, default: true },
   caption: { type: String, default: '' },
   valueText: { type: String, default: '' }
@@ -49,6 +51,7 @@ function elapsedCaption(point) {
     :interactive="interactive"
     :bubble="bubble"
     :highlight="highlight"
+    :fixed-tip="fixedTip"
     :sticky="sticky"
     :style="chartStyle"
     :label="label"
@@ -70,8 +73,5 @@ function elapsedCaption(point) {
 <style scoped>
 .m-draggable-chart { min-height: var(--m-chart-height, 126px); }
 .m-draggable-chart :deep(.series-body svg) { height: var(--m-chart-height, 126px); }
-.m-draggable-chart :deep(.series-tip) { width: 104px; min-height: 38px; padding: 2px 8px; border: 1px solid var(--m-chart-line); border-radius: var(--m-radius-bubble); background: var(--surface-card); color: var(--text-primary); box-shadow: var(--m-shadow-tip); white-space: normal; }
-.m-draggable-chart :deep(.series-tip span) { display: block; color: var(--text-secondary); font-size: 10px; line-height: 14px; opacity: 1; white-space: normal; }
-.m-draggable-chart :deep(.series-tip strong) { color: var(--text-primary); font-size: 15px; font-weight: 500; line-height: 20px; white-space: normal; }
 .m-draggable-chart :deep(.series-hover-dot) { width: 11px; height: 11px; border: 0; border-radius: 50%; }
 </style>

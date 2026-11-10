@@ -4,13 +4,14 @@ import iconScales from '../../assets/device/icon-scales.svg';
 import iconTimer from '../../assets/device/icon-timer.svg';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
-import { getCareRecord, listStarters } from '../../services/care.service.js';
+import { deleteCareRecord, getCareRecord, listStarters } from '../../services/care.service.js';
 import { expansionSeries, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { describeField } from '../../services/mobile-diagnosis.service.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead } from '../../lib/read-cache.js';
 import { NO_SAMPLE_HINT, clipRoundMeasurements, curveCopy, roundDurationText, roundWindow } from '../../lib/record-detail.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
+import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -22,6 +23,8 @@ const evidenceError = ref('');
 const name = ref('名称不可用');
 const error = ref('');
 const loading = ref(false);
+const deleteOpen = ref(false);
+const deleting = ref(false);
 const summary = computed(() => evidence.value?.summary || null);
 const state = computed(() => summary.value ? roundState(summary.value) : null);
 const returnTo = computed(() => {
@@ -155,6 +158,7 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
   const token = ++generation;
   record.value = null; evidence.value = null; evidenceError.value = '';
   name.value = '名称不可用'; error.value = ''; loading.value = false;
+  deleteOpen.value = false; deleting.value = false;
   if (!userId) { error.value = '请登录后查看云端记录。'; return; }
   loading.value = true;
   try {
@@ -183,6 +187,29 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
   } catch (cause) { if (token === generation) error.value = cause.message || '记录加载失败。'; }
   finally { if (token === generation) loading.value = false; }
 }, { immediate: true });
+// 删除是硬删除（见 029_care_record_delete.sql）：先二次确认，再按当前记录/账号提交；
+// 提交期间禁用按钮并复用 generation 防止「切到另一条记录后旧请求才返回」把用户带走。
+async function removeRecord() {
+  const target = record.value;
+  const userId = user.value?.id;
+  if (!target || !userId || deleting.value) return;
+  const token = generation;
+  deleting.value = true;
+  error.value = '';
+  try {
+    await deleteCareRecord(target.id, { userId });
+    deleteOpen.value = false;
+    if (token !== generation) return;
+    // 回到日记（returnTo 已在 computed 里校验为 /diary 路径），用 replace 让返回键不再回到已删除的记录。
+    await router.replace(returnTo.value);
+  } catch (cause) {
+    if (token !== generation) return;
+    deleteOpen.value = false;
+    error.value = cause?.message || '删除记录失败，请重试。';
+  } finally {
+    if (token === generation) deleting.value = false;
+  }
+}
 onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; });
 </script>
 
@@ -247,8 +274,12 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
     </details>
     <section v-if="record" class="m-card">
       <template v-if="weights"><h2>投喂重量</h2><p>{{ weights }}</p></template>
-      <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
+      <div class="card-actions">
+        <RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: record.starter_id, feeding: record.id, mode: 'diagnosis' } }">基于这次喂养记录做诊断</RouterLink>
+        <button type="button" class="m-secondary m-danger" :disabled="deleting" @click="deleteOpen = true">{{ deleting ? '正在删除…' : '删除记录' }}</button>
+      </div>
     </section>
+    <MConfirmDialog :open="deleteOpen" danger title="删除记录" message="删除后，这次喂养记录以及本轮的设备证据与曲线都会一并移除，且无法恢复。相邻两轮会按剩余的记录重新计算。" confirm-label="删除" cancel-label="取消" @cancel="deleteOpen = false" @confirm="removeRecord" />
   </main>
 </template>
 
@@ -306,5 +337,11 @@ header p{margin:.25rem 0 0;font-size:.8rem}
 .metric-chart :deep(.series-plot){height:var(--m-chart-height,126px)}
 .metric-chart :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
 .m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid var(--border-input);color:inherit;text-decoration:none}
+/* 诊断入口在左、删除在右；窄屏放不下时删除键换到下一行并靠右，不把诊断文字挤成竖排。 */
+.card-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:.5rem}
+.card-actions .m-secondary{flex:1 1 auto;min-width:0}
+.card-actions .m-danger{flex:0 0 auto;margin-left:auto;padding:0 .85rem;border-color:var(--border-input);color:var(--danger-text)}
+.card-actions .m-danger:active:not(:disabled){background:var(--danger-bg)}
+.card-actions .m-danger:disabled{opacity:.55;cursor:not-allowed}
 .m-error{color:var(--danger-text)}
 </style>
