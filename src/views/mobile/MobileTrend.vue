@@ -251,7 +251,7 @@ onBeforeUnmount(() => {
             </tbody>
           </table>
         </div>
-        <p class="table-note">休眠、传感器故障或模式异常的采样仍保留在明细中，但不参与膨胀率计算。</p>
+        <p class="table-note">休眠、传感器故障或模式异常的采样仍保留在明细中，但不参与膨胀倍数计算。</p>
       </details>
     </section>
     </template>

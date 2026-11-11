@@ -3,7 +3,7 @@ import { parse, compileScript } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { readFile } from 'node:fs/promises';
 import { EMPTY_CURVE_COPY, NO_SAMPLE_HINT, clipRoundMeasurements, curveCopy, formatRoundDuration, roundDurationText, roundWindow } from '../src/lib/record-detail.js';
-import { expansionSeries } from '../src/services/feeding-analysis.service.js';
+import { expansionSeries, formatExpansionMultiple } from '../src/services/feeding-analysis.service.js';
 import { starterDisambiguation } from '../src/lib/starter-labels.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../src/lib/mobile-records.js';
 
@@ -58,7 +58,7 @@ assert.ok(!copyOf({ evidence: { unavailableReason }, hint: unavailableReason }).
 assert.deepEqual(copyOf({ evidenceError: '读取失败', hint: '读取失败' }), { hint: '', emptyMessage: '读取失败' });
 assert.deepEqual(copyOf({ evidence: {}, hint: NO_SAMPLE_HINT }), { hint: '', emptyMessage: EMPTY_CURVE_COPY }, 'generic empty copy does not repeat the no-sample hint');
 assert.deepEqual(copyOf({ evidence: {}, hint: '基线计算中…' }), { hint: '基线计算中…', emptyMessage: EMPTY_CURVE_COPY });
-assert.deepEqual(copyOf({ evidence: {}, hint: '基线采样未满，膨胀率仅供参考。', hasCharts: true }), { hint: '基线采样未满，膨胀率仅供参考。', emptyMessage: '' });
+assert.deepEqual(copyOf({ evidence: {}, hint: '基线采样未满，膨胀倍数仅供参考。', hasCharts: true }), { hint: '基线采样未满，膨胀倍数仅供参考。', emptyMessage: '' });
 
 // ---------- 执行真实的 MobileRecordDetail script setup ----------
 const source = await readFile(new URL('../src/views/mobile/MobileRecordDetail.vue', import.meta.url), 'utf8');
@@ -93,7 +93,7 @@ async function mount(evidence, options = {}) {
         return { id };
       }
     },
-    '../../services/feeding-analysis.service.js': { expansionSeries, loadFeedingEvidence: async () => evidence },
+    '../../services/feeding-analysis.service.js': { expansionSeries, formatExpansionMultiple, loadFeedingEvidence: async () => evidence },
     '../../services/mobile-diagnosis.service.js': diagnosis,
     '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState },
     '../../lib/read-cache.js': { READ_TTL: { records: 0 }, cachedRead: (_key, load) => load() },
@@ -143,7 +143,8 @@ async function flush() {
   assert.equal(charts.temperature.length, 2, 'only the two valid in-window points remain');
   assert.deepEqual(charts.temperature.map((point) => point.v), [24, 26]);
   assert.equal(charts.to, '2026-10-25T09:00:00.000Z', 'curve ends at the last in-window point, not now');
-  assert.equal(charts.expansion.at(-1).v, 50);
+  assert.equal(charts.expansion.at(-1).v, 1.5);
+  assert.equal(page.vm.peakExpansion, '1.50');
   assert.equal(page.vm.durationText, '10 小时');
   assert.equal(page.vm.curveText.emptyMessage, '');
   page.stop();

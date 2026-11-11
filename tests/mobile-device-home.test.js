@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
-import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
+import { formatExpansionMultiple, summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
 import { CLOSE_REASON_LABELS, roundState } from '../src/lib/mobile-records.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 import * as starterJar from '../src/components/mobile/MStarterJar.js';
@@ -21,7 +21,7 @@ assert.match(source, /defineOptions\(\{ name: 'MobileDeviceHome' \}\)/);
 // 设备页是「喂养摘要 + 三色数据块 + 单一主按钮」，图表下放到数据详情。
 assert.match(source, /本次喂养/);
 assert.match(source, /当前数据/);
-assert.match(source, /膨胀率/);
+assert.match(source, /膨胀倍数/);
 assert.match(source, /metric-row/);
 assert.match(source, /feed-summary/);
 assert.match(source, /device-cta/);
@@ -119,7 +119,7 @@ function harness() {
     '../../services/starter-device.service.js': {
       listStarterDeviceLinks: async () => { if (state.fail === 'link') throw new Error('link down'); return state.links.slice(); }
     },
-    '../../services/feeding-analysis.service.js': { summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
+    '../../services/feeding-analysis.service.js': { formatExpansionMultiple, summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
     '../../services/fermentation-window.service.js': {
       loadWindowClosure: async () => state.closure,
       closeFeedingWindow: async (args) => {
@@ -162,7 +162,8 @@ assert.match(await h.html(), /连接设备，开始记录/);
 await login(h);
 const home = await h.html();
 assert.match(home, /我的设备/);
-assert.match(home, /膨胀率/);
+assert.match(home, /膨胀倍数/);
+assert.match(home, />1\.20</, '20% growth is displayed as a 1.20 multiple');
 assert.match(home, /本次喂养/);
 assert.match(home, /当前数据/);
 assert.match(home, /1 : 2 : 2/, 'feed summary restates the ratio');
@@ -177,7 +178,7 @@ assert.match(source, /jarMoodFor\(\{ active: !!summary\.value\?\.windowActive, p
 assert.match(source, /risePhase === 'fallen' \? levelFor\(summary\.value\.peakHeightMm/, 'the peak trace only appears after a real fall');
 assert.match(home, /jar-status/, 'jar state is rendered as a compact status line');
 assert.match(home, /传感器异常/, 'the latest sensor-error sample is surfaced as an explicit jar state');
-assert.doesNotMatch(home, /未计入膨胀率|段超过 40 分钟无采样/, 'technical sample-quality details stay off the home page');
+assert.doesNotMatch(home, /未计入膨胀倍数|段超过 40 分钟无采样/, 'technical sample-quality details stay off the home page');
 assert.doesNotMatch(home, /高度预约/, 'height alert entry is no longer on the home page');
 assert.doesNotMatch(home, /\/me\/notifications/, 'device home no longer carries notification settings links');
 assert.doesNotMatch(home, /开启云端推送/, 'device home no longer embeds push setup');
@@ -213,7 +214,7 @@ h.vm.contextOpen = false;
   h.state.rows = track([...base, 26, 32, 38]); await h.vm.refresh(); await drain();
   assert.equal(h.vm.jarMood, 'eating'); assert.match(h.vm.jarMoodLabel, /正在上涨/); assert.equal(h.vm.jarPeakLevel, null);
   const risingLevel = h.vm.jarLevel;
-  // 起点 20mm，涨到 2 倍（40mm，膨胀率 +100%）才进入 pre-peak，仍是「吃饭」。
+  // 起点 20mm，涨到 2 倍（40mm，膨胀倍数 2.00）才进入 pre-peak，仍是「吃饭」。
   h.state.rows = track([...base, 26, 32, 38, 40]); await h.vm.refresh(); await drain();
   assert.equal(h.vm.summary.risePhase, 'pre-peak'); assert.equal(h.vm.jarMood, 'eating'); assert.match(h.vm.jarMoodLabel, /接近高点/);
   h.state.rows = track([...base, 26, 32, 38, 42, 46, 45, 44]); await h.vm.refresh(); await drain();
@@ -310,8 +311,7 @@ assert.deepEqual(switched.state.calls, ['old', 'new']); switched.stop();
 
 console.log('mobile device home: starter-only picker, management navigation, linked-device switching, account isolation, serialized refresh, API failures, stale evidence, confirm/end flow and toast passed');
 
-// 膨胀率/发酵倍速统一一位小数：曾出现过 108.20189274447944% 这种原始浮点，
-// 以及 .toFixed(0) 把 310.9% 显示成 311% 的不一致。
+// 膨胀倍数统一两位小数：50.0% 显示为 1.50，曲线与卡片使用同一口径。
 {
   const fs = await import('node:fs');
   const read = (p) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -319,12 +319,16 @@ console.log('mobile device home: starter-only picker, management navigation, lin
   const detail = read('../src/views/mobile/MobileRecordDetail.vue');
   const diary = read('../src/views/mobile/MobileDiary.vue');
   const draggable = read('../src/components/mobile/MDraggableChart.vue');
-  assert.match(home, /expansionPercent\.toFixed\(1\)/, 'device home shows expansion with one decimal');
+  assert.equal(formatExpansionMultiple(50), '1.50');
+  assert.equal(formatExpansionMultiple(0), '1.00');
+  assert.equal(formatExpansionMultiple(null), '—');
+  assert.match(home, /formatExpansionMultiple\(summary\.value\?\.expansionPercent\)/, 'device home formats the percent as a multiple');
   assert.doesNotMatch(home, /可手动诊断/, 'home has no diagnosis entry, so the evidence error never suggests one');
   assert.match(home, /本轮设备证据读取失败，请刷新重试。/);
-  assert.match(detail, /Math\.max\(\.\.\.values\)\.toFixed\(1\)/, 'record detail peak keeps one decimal');
-  assert.match(diary, /metricText\(peak, '%', 1\)/, 'diary peak keeps one decimal');
-  assert.match(draggable, /toFixed\(1\)/, 'the chart tooltip rounds to one decimal');
+  assert.match(detail, /Math\.max\(\.\.\.values\)\.toFixed\(2\)/, 'record detail peak keeps two decimals');
+  assert.match(detail, /:digits="2"/, 'record detail chart tooltip keeps two decimals');
+  assert.match(diary, /metricText\(peak, '', 2\)/, 'diary peak keeps two decimals');
+  assert.match(draggable, /toFixed\(props\.digits\)/, 'the chart tooltip uses the requested precision');
   assert.doesNotMatch(draggable, /<strong>\{\{ point\.v \}\}/, 'the tooltip never prints the raw sample value');
 }
-console.log('expansion percent: one decimal everywhere');
+console.log('expansion multiple: two decimals everywhere');

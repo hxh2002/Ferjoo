@@ -4,7 +4,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { mobileOptions, fieldLabels, describeField, describeSource, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport, loadObservationContext, emptyCheckin } from '../../services/mobile-diagnosis.service.js';
-import { loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { formatExpansionMultiple, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
 import { locateErrors, observationReady as flowObservationReady, planBack, planNext, skipsBackground as flowSkipsBackground } from '../../lib/checkin-flow.js';
@@ -74,12 +74,12 @@ const evidenceHint = computed(() => {
   if (proof.unavailableReason) return proof.unavailableReason;
   if (!summary) return '';
   if (summary.baselineStatus === 'pending') return '基线计算中…';
-  if (summary.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀率。';
-  if (summary.coverageStartsLate) return '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀率仅供参考。';
+  if (summary.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀倍数。';
+  if (summary.coverageStartsLate) return '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀倍数仅供参考。';
   if (summary.coverageBroken) return '本轮中间有一段时间设备未关联（换绑空窗期），这段时间的读数未计入。';
   if (proof.readNotice) return proof.readNotice;
-  if (summary.heightStale) return '设备数据已中断，膨胀率沿用上次读数。';
-  if (summary.baselineIncomplete) return '基线采样未满，膨胀率仅供参考。';
+  if (summary.heightStale) return '设备数据已中断，膨胀倍数沿用上次读数。';
+  if (summary.baselineIncomplete) return '基线采样未满，膨胀倍数仅供参考。';
   return '';
 });
 const reviewKeys = computed(() => diagnosisMode.value ? ['color', 'smell', 'height', 'ratio', 'elapsedHours'] : Object.keys(fieldLabels));
@@ -254,7 +254,7 @@ function applyPending(key) {
     />
     <section v-if="diagnosisMode && feedingEvidence" class="m-card">
       <p>传感器不能判断颜色、气味或食品安全，请手动确认。</p>
-      <template v-if="feedingEvidence"><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀率：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : `${feedingEvidence.summary.expansionPercent.toFixed(1)}%` }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p><p v-if="evidenceHint" class="m-context" role="status">{{ evidenceHint }}</p></template>
+      <template v-if="feedingEvidence"><p class="m-muted">{{ feedingEvidence.summary.historicalRound ? `历史轮次，截点为下一次喂养 ${feedingEvidence.summary.windowTo}` : '当前轮次' }} · 起始高度：{{ feedingEvidence.summary.baselineHeightMm == null ? '样本不足' : `${feedingEvidence.summary.baselineHeightMm.toFixed(1)} mm` }} · {{ feedingEvidence.summary.baselinePending ? '暂定' : '窗口已结束' }} · {{ feedingEvidence.summary.baselineSource === 'manual' ? '手工修正' : '传感器窗口' }}</p><p class="m-muted">膨胀倍数：{{ feedingEvidence.summary.expansionPercent == null ? '证据不足' : formatExpansionMultiple(feedingEvidence.summary.expansionPercent) }}。温度取本轮有效采样均值。{{ feedingEvidence.summary.heightStale || feedingEvidence.summary.temperatureStale ? '最新证据超过 40 分钟，未预填。' : '' }}</p><p v-if="evidenceHint" class="m-context" role="status">{{ evidenceHint }}</p></template>
       <p v-if="notice" role="status">{{ notice }}</p>
     </section>
     <p v-if="!storageAvailable" class="m-error" role="status">本机存储不可用，关闭页面可能丢失草稿。</p>

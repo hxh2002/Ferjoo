@@ -12,7 +12,7 @@ import { listStarterDeviceLinks } from '../../services/starter-device.service.js
 import { clipWindows, filterRowsByWindows } from '../../lib/starter-link-windows.js';
 import { roundDeviceWindows } from '../../lib/round-device-attribution.js';
 import { LOCAL_LINK_NOTICE } from '../../lib/link-change.js';
-import { loadFeedingEvidence, summarizeFeedingMeasurements } from '../../services/feeding-analysis.service.js';
+import { formatExpansionMultiple, loadFeedingEvidence, summarizeFeedingMeasurements } from '../../services/feeding-analysis.service.js';
 import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentation-window.service.js';
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
@@ -94,9 +94,9 @@ const chartFrom = computed(() => {
   return new Date(Math.min(Date.parse(base), earliest - 10 * 60000)).toISOString();
 });
 const chartTo = computed(() => to.value);
-const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '—');
+const expansionText = computed(() => formatExpansionMultiple(summary.value?.expansionPercent));
 // 罐子只做定性展示：液面跟平滑后的实测高度走，表情跟本轮的上涨/到顶/回落阶段走，
-// 回落后在峰值处留一道痕迹。具体数值仍看下方膨胀率与详情曲线。
+// 回落后在峰值处留一道痕迹。具体数值仍看下方膨胀倍数与详情曲线。
 const jarLevel = computed(() => levelFor(summary.value?.trendHeightMm, summary.value?.baselineHeightMm));
 const jarPeakLevel = computed(() => (summary.value?.risePhase === 'fallen' ? levelFor(summary.value.peakHeightMm, summary.value.baselineHeightMm) : null));
 const jarMood = computed(() => jarMoodFor({ active: !!summary.value?.windowActive, phase: summary.value?.risePhase }));
@@ -297,7 +297,7 @@ onScopeDispose(() => { disposed = true; generation++; });
         hero
         eyebrow="设备"
         title="连接设备，开始记录"
-        description="登录后可查看酵种罐的实时温度、湿度与膨胀率。"
+        description="登录后可查看酵种罐的实时温度、湿度与膨胀倍数。"
         action="登录后开始"
         :login-to="guestLoginTarget(route)"
         :register-to="guestRegisterTarget(route)"
@@ -367,7 +367,7 @@ onScopeDispose(() => { disposed = true; generation++; });
         <article class="metric" data-level="1">
           <span class="disc"><img :src="iconChartUp" alt="" width="18" height="18" /></span>
           <strong>{{ expansionText }}</strong>
-          <span class="metric-label">膨胀率</span>
+          <span class="metric-label">膨胀倍数</span>
         </article>
         <article class="metric" data-level="2">
           <span class="disc"><img :src="iconThermometer" alt="" width="18" height="18" /></span>

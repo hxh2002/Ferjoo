@@ -65,7 +65,7 @@ assert.doesNotMatch(source.match(/\.day-data-pill\{[^}]*\}/)[0], /#[0-9a-f]{3,8}
 assert.match(source, /\.month-wheels\{--m-wheel-fade-bg:var\(--surface-card\);[^}]*isolation:isolate/);
 assert.match(source, /\.month-wheel-done\{position:relative;z-index:3;grid-column:1 \/ -1;justify-self:end/);
 assert.match(await readFile(new URL('../src/components/mobile/MWheelPicker.vue', import.meta.url), 'utf8'), /\.m-wheel-fade-top \{[^}]*var\(--m-wheel-fade-bg, var\(--surface-page\)\)/);
-assert.match(source, /最高膨胀率/);
+assert.match(source, /最高膨胀倍数/);
 assert.match(source, /平均温度/);
 assert.match(source, /平均湿度/);
 // 轮次卡片是当天的主线，「本日全部数据」胶囊排在卡片之后、观察记录之前。

@@ -14,6 +14,7 @@ import doctorChevron from '../../assets/icons/diary-chevron.svg';
 import calendarIcon from '../../assets/icons/diary-calendar.svg';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
+import { expansionMultipleFrom } from '../../services/feeding-analysis.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { loadWindowClosures, persistAutoClosure } from '../../services/fermentation-window.service.js';
 import {
@@ -204,7 +205,7 @@ function roundItem(row, carried, now) {
 }
 // 涨跌只在证据有效时显示；缺测原因用一句话说明，不把设备问题说成发酵结束。
 function roundHint(summary, linked, boundaryPending) {
-  const hint = !linked ? '未关联设备，无法计算膨胀率'
+  const hint = !linked ? '未关联设备，无法计算膨胀倍数'
     : summary.baselineStatus === 'pending' ? '基线计算中'
       : summary.baselineStatus === 'insufficient' ? '基线采样不足'
         : summary.heightStale ? '数据偏旧，沿用上次读数'
@@ -257,10 +258,10 @@ function meanOf(values) {
 }
 function metricText(value, suffix, digits = 0) {
   if (value == null || !Number.isFinite(value)) return '—';
-  // 膨胀率/发酵倍速统一保留一位小数，温度和湿度按原设计取整。
+  // 膨胀倍数保留两位小数，温度和湿度按原设计取整。
   return `${digits ? Number(value).toFixed(digits) : Math.round(value)}${suffix}`;
 }
-// 卡片上的三项来自本轮实测：最高膨胀率取窗口内最高高度，温度优先用采样均值。
+// 卡片上的三项来自本轮实测：最高膨胀倍数取窗口内最高高度，温度优先用采样均值。
 function roundMetrics(item) {
   const samples = item.deviceId ? deviceSamples.value.get(item.deviceId) || [] : [];
   const rows = samples.filter((row) => {
@@ -269,10 +270,11 @@ function roundMetrics(item) {
   });
   const heights = rows.map((row) => Number(row.height_mm)).filter((value) => value > 0);
   let peak = item.expansion;
-  if (item.baseline > 0 && heights.length) peak = ((Math.max(...heights) - item.baseline) / item.baseline) * 100;
+  if (item.baseline > 0 && heights.length) peak = expansionMultipleFrom(Math.max(...heights), item.baseline);
+  else if (peak != null) peak = 1 + peak / 100;
   const temp = meanOf(rows.map((row) => Number(row.temperature_c))) ?? item.meanTemp;
   const humidity = meanOf(rows.map((row) => Number(row.humidity_percent)));
-  return { peak: metricText(peak, '%', 1), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
+  return { peak: metricText(peak, '', 2), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
 }
 const roundCards = computed(() => roundItems.value.map((item) => ({ ...item, metrics: roundMetrics(item) })));
 
@@ -582,7 +584,7 @@ onUnmounted(() => {
               </span>
               <span class="feed-card-sub">喂养比例 {{ item.ratioLabel }} · 发酵 {{ item.durationLabel }}</span>
               <span class="feed-metrics">
-                <span><strong>{{ item.metrics.peak }}</strong><small>最高膨胀率</small></span>
+                <span><strong>{{ item.metrics.peak }}</strong><small>最高膨胀倍数</small></span>
                 <span><strong>{{ item.metrics.temp }}</strong><small>平均温度</small></span>
                 <span><strong>{{ item.metrics.humidity }}</strong><small>平均湿度</small></span>
               </span>

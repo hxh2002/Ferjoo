@@ -5,7 +5,7 @@ import iconTimer from '../../assets/device/icon-timer.svg';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { deleteCareRecord, getCareRecord, listStarters } from '../../services/care.service.js';
-import { expansionSeries, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { expansionSeries, formatExpansionMultiple, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { describeField } from '../../services/mobile-diagnosis.service.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead } from '../../lib/read-cache.js';
@@ -41,7 +41,7 @@ const baseline = computed(() => summary.value?.baselineHeightMm ?? record.value?
 const baselineSource = computed(() => summary.value?.baselineSource ?? record.value?.input?.baseline_source ?? record.value?.feed_event?.baseline_source);
 const baselineSourceText = computed(() => ({ manual: '手工记录', 'sensor-mean': '设备自动', 'sensor-min': '设备自动', device: '设备读取' }[baselineSource.value] || '来源未记录'));
 const currentHeight = computed(() => Number.isFinite(summary.value?.currentHeightMm) ? summary.value.currentHeightMm : null);
-const expansionText = computed(() => Number.isFinite(summary.value?.expansionPercent) ? `${summary.value.expansionPercent.toFixed(1)}%` : '—');
+const expansionText = computed(() => formatExpansionMultiple(summary.value?.expansionPercent));
 const endReasonText = computed(() => {
   const value = summary.value;
   if (value?.windowStatus !== 'closed') return '';
@@ -118,7 +118,7 @@ const roundCharts = computed(() => {
 });
 const peakExpansion = computed(() => {
   const values = (roundCharts.value?.expansion || []).map((point) => point.v).filter((value) => Number.isFinite(value));
-  return values.length ? Math.max(...values).toFixed(1) : '';
+  return values.length ? Math.max(...values).toFixed(2) : '';
 });
 const deviceTrendTarget = computed(() => {
   const deviceId = evidence.value?.link?.device_id;
@@ -143,12 +143,12 @@ const hint = computed(() => {
   if (evidence.value.unavailableReason) return evidence.value.unavailableReason;
   if (!value) return '';
   if (value.baselineStatus === 'pending') return '基线计算中…';
-  if (value.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀率。';
-  if (value.coverageStartsLate) return '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀率仅供参考。';
+  if (value.baselineStatus === 'insufficient') return '基线采样不足，暂无法计算膨胀倍数。';
+  if (value.coverageStartsLate) return '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀倍数仅供参考。';
   if (value.coverageBroken) return '本轮中间有一段时间设备未关联（换绑空窗期），这段时间的读数未计入。';
   if (evidence.value.readNotice) return evidence.value.readNotice;
-  if (value.heightStale) return '设备数据已中断，膨胀率沿用上次读数。';
-  if (value.baselineIncomplete) return '基线采样未满，膨胀率仅供参考。';
+  if (value.heightStale) return '设备数据已中断，膨胀倍数沿用上次读数。';
+  if (value.baselineIncomplete) return '基线采样未满，膨胀倍数仅供参考。';
   if (!value.measurementCount) return NO_SAMPLE_HINT;
   return '';
 });
@@ -234,7 +234,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
       <p v-if="curveText.hint" class="window-hint">{{ curveText.hint }}</p>
       <div v-if="roundCharts" class="metric-stack">
         <div v-if="roundCharts.expansion" class="metric-chart is-rise">
-        <MDraggableChart label="膨胀率" caption="最高" :value-text="peakExpansion ? `${peakExpansion}%` : ''" unit="%" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
+        <MDraggableChart label="膨胀倍数" caption="最高" :value-text="peakExpansion" :digits="2" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
       </div>
       <div v-if="roundCharts.temperature" class="metric-chart is-temp">
         <MDraggableChart label="温度" caption="平均" :value-text="averageText(roundCharts.temperature, 1, '°C')" unit="°C" color="var(--brand-primary)" :height="126" :points="roundCharts.temperature" :from="roundCharts.from" :to="roundCharts.to" />
@@ -267,7 +267,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
       <div class="measure-grid">
         <div><span>起始高度</span><strong>{{ baseline == null ? '—' : `${Number(baseline).toFixed(1)} mm` }}</strong><small>{{ baselineSourceText }}</small></div>
         <div><span>{{ summary?.windowClosed ? '结束高度' : '当前高度' }}</span><strong>{{ currentHeight == null ? '—' : `${currentHeight.toFixed(1)} mm` }}</strong></div>
-        <div><span>膨胀率</span><strong>{{ expansionText }}</strong></div>
+        <div><span>膨胀倍数</span><strong>{{ expansionText }}</strong></div>
       </div>
       <p v-if="temperatureText" class="window-meta">轮次均温 {{ temperatureText }}</p>
       <!-- 提示只在「本轮曲线」里说一次，这里不再重复。 -->

@@ -17,8 +17,19 @@ export function expansionPercentFrom(heightMm, baselineMm) {
   const baseline = Number(baselineMm);
   return baseline > 0 && height > 0 ? (height / baseline - 1) * 100 : null;
 }
+// 内部百分比字段保持兼容，界面统一展示“当前高度 / 基线”的膨胀倍数。
+export function formatExpansionMultiple(expansionPercent) {
+  if (expansionPercent == null || expansionPercent === '') return '—';
+  const percent = Number(expansionPercent);
+  return Number.isFinite(percent) ? (1 + percent / 100).toFixed(2) : '—';
+}
+export function expansionMultipleFrom(heightMm, baselineMm) {
+  const height = Number(heightMm);
+  const baseline = Number(baselineMm);
+  return baseline > 0 && height > 0 ? height / baseline : null;
+}
 export function expansionSeries(points, baselineMm) {
-  return (points || []).map((point) => ({ t: point.t, v: expansionPercentFrom(point.v, baselineMm) }));
+  return (points || []).map((point) => ({ t: point.t, v: expansionMultipleFrom(point.v, baselineMm) }));
 }
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
@@ -86,7 +97,7 @@ function buildSummary({ measurements = [], feeding, link, links, now = Date.now(
   const unlinkedAt = Number.isFinite(lastWindowEnd) ? lastWindowEnd : NaN;
   const end = Math.min(currentTime, Number.isFinite(closedAt) ? closedAt : Infinity, Number.isFinite(unlinkedAt) ? unlinkedAt : Infinity);
   const coverage = matches ? coverageGaps(windows, fedAt, end) : { gaps: [], gapMs: 0, firstCoveredAt: null };
-  // 第一段关联晚于喂养超过 40 分钟：起始高度已不是真实起点，膨胀率只能参考。
+  // 第一段关联晚于喂养超过 40 分钟：起始高度已不是真实起点，膨胀倍数只能参考。
   const coverageStartsLate = matches && Number.isFinite(coverage.firstCoveredAt) && coverage.firstCoveredAt - fedAt > FRESH_MS;
   const coverageBroken = matches && coverage.gapMs > FRESH_MS;
   const inWindow = (row) => {
@@ -131,7 +142,7 @@ function buildSummary({ measurements = [], feeding, link, links, now = Date.now(
     && (!Number.isFinite(manualEnd) || currentTime < manualEnd);
   const baselineIncomplete = !(manualBaseline > 0) && automaticBaseline != null
     && (!scanComplete || baselineFallback || coverageStartsLate);
-  // 当前高度取最近一次有效读数：首个基线点即为 0%，之后缺测也沿用上一个点算出的膨胀率。
+  // 当前高度取最近一次有效读数：首个基线点对应 1.00 倍，之后缺测也沿用上一个点算出的膨胀倍数。
   const freshest = heights.at(-1);
   const freshestAt = time(freshest?.recorded_at);
   const historicalRound = windowClosed;

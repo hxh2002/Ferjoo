@@ -87,7 +87,7 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
     '../../composables/useAuth.js': { useAuth: () => ({ user }) },
     '../../composables/useCheckinDraft.js': { useCheckinDraft },
     '../../services/mobile-diagnosis.service.js': diagnosis,
-    '../../services/feeding-analysis.service.js': { loadFeedingEvidence: async (owner, starterId, feedingId) => {
+    '../../services/feeding-analysis.service.js': { formatExpansionMultiple: (value) => (1 + Number(value) / 100).toFixed(2), loadFeedingEvidence: async (owner, starterId, feedingId) => {
       if (!evidenceResult) throw new Error('unused');
       return typeof evidenceResult === 'function' ? evidenceResult(owner, starterId, feedingId) : evidenceResult;
     } },
@@ -208,7 +208,7 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
     assert.equal(page.vm.evidenceHint, expected);
     page.stop();
   };
-  await check(evidence({ coverageStartsLate: true }), '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀率仅供参考。');
+  await check(evidence({ coverageStartsLate: true }), '设备关联晚于本轮喂养开始，起始高度不是真实起点，膨胀倍数仅供参考。');
   await check(evidence({ coverageBroken: true }), '本轮中间有一段时间设备未关联（换绑空窗期），这段时间的读数未计入。');
   await check(evidence({}, { readNotice: '部分关联时段的设备读数无权读取，曲线只包含已读到的时段。' }), '部分关联时段的设备读数无权读取，曲线只包含已读到的时段。');
   await check(evidence({}, { unavailableReason: '本轮没有可核实的设备归属，未使用其他酵种轮次的读数。' }), '本轮没有可核实的设备归属，未使用其他酵种轮次的读数。');

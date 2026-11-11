@@ -5,7 +5,7 @@ import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.s
 const minute = 60000;
 const series = (values, step = 10) => values.map((v, index) => ({ t: index * step * minute, v }));
 const phase = (values) => risePhase(series(values), 20).phase;
-// 起点 20mm：2 倍即 40mm（界面膨胀率 +100%）。
+// 起点 20mm：2 倍即 40mm（界面膨胀倍数 2.00）。
 const climb = [20, 25, 30, 35];
 
 assert.deepEqual(risePhase([], 20), { phase: null, trendHeightMm: null, highHeightMm: null, peakHeightMm: null, peakAt: null });

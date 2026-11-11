@@ -2,19 +2,20 @@
 import { computed } from 'vue';
 import SeriesChart from '../SeriesChart.vue';
 
-// 选点气泡直接显示原始读数时会出现 108.20189274447944% 这种长浮点。
-// 这里统一收口：数值一律保留一位小数，非有限值给出占位符，避免 NaN%。
+// 选点气泡统一收口，避免原始浮点和 NaN 直接进入界面；膨胀倍数使用两位小数。
 function tipValue(point) {
   const value = Number(point?.v);
   if (!Number.isFinite(value)) return '—';
-  // 四舍五入后可能得到 -0.0，显示成 0.0 更符合直觉。
-  const rounded = Math.round(value * 10) / 10 || 0;
-  return rounded.toFixed(1);
+  const factor = 10 ** props.digits;
+  // 四舍五入后可能得到 -0.0，显示成 0 更符合直觉。
+  const rounded = Math.round(value * factor) / factor || 0;
+  return rounded.toFixed(props.digits);
 }
 
 const props = defineProps({
   label: { type: String, required: true },
   unit: { type: String, default: '' },
+  digits: { type: Number, default: 1 },
   color: { type: String, default: 'var(--brand-action)' },
   points: { type: Array, default: () => [] },
   from: { type: String, default: '' },

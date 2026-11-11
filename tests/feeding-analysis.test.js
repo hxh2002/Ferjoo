@@ -171,7 +171,7 @@ result = summarize(normal, { now: Date.parse(at(120)) });
 assert.equal(result.staleEvidence, true);
 assert.equal(result.heightStale, true);
 assert.equal(result.temperatureStale, true);
-assert.equal(result.currentHeightMm, 150, '缺测时沿用上一个点的膨胀率');
+assert.equal(result.currentHeightMm, 150, '缺测时沿用上一个点的膨胀倍数');
 assert.equal(result.expansionPercent > 49, true);
 assert.equal(result.height, 'slight');
 assert.equal(result.tempC, null);

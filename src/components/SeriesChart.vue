@@ -24,7 +24,7 @@ const props = defineProps({
   bands: { type: Array, default: () => [] }, // [{ from, to, label, active }]
   // 序号只画在最能代表时间线的图上，其余图表仅保留区间底色。
   bandLabels: { type: Boolean, default: false },
-  // 主数值与极值标签允许换成换算后的文案（如高度换算膨胀率），绘图用的仍是原始数值。
+  // 主数值与极值标签允许换成换算后的文案（如高度换算膨胀倍数），绘图用的仍是原始数值。
   valueText: { type: String, default: '' },
   minText: { type: String, default: '' },
   maxText: { type: String, default: '' },

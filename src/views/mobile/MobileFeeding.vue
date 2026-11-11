@@ -422,7 +422,7 @@ async function save() {
         <label class="m-field">
           <span class="field-label">手动修正起始高度（mm）</span>
           <input v-model="draft.baselineHeightMm" type="number" min="0" step="any" inputmode="decimal" :disabled="inputsLocked" @input="draft.baselineSource = 'manual'" />
-          <span class="m-muted">可留空；填写后按此值计算膨胀率。</span>
+          <span class="m-muted">可留空；填写后按此值计算膨胀倍数。</span>
         </label>
       </details>
 
