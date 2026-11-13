@@ -80,6 +80,7 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
   const account = `checkin-flow-${++counter}`;
   const user = Vue.ref({ id: account });
   const pushed = [];
+  const tracked = [];
   const route = { query, path: '/checkin' };
   const modules = {
     vue: { ...Vue, inject: () => null },
@@ -95,13 +96,15 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
     '../../composables/useStarterName.js': { useStarterName: () => ({ starterName: Vue.ref(nameState.name ?? '一号'), starterNameLoading: Vue.ref(!!nameState.loading) }) },
     '../../lib/checkin-flow.js': flow,
     '../../lib/mobile-guest.js': { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest },
+    // 埋点只做副作用，测试用桩记录调用，避免真实服务在 node 环境触碰 Supabase 配置。
+    '../../services/analytics.service.js': { trackEvent: (name, properties, options) => { tracked.push({ name, properties, options }); return Promise.resolve({ recorded: true }); } },
     '../../components/mobile/MRadioCard.vue': {},
     '../../components/mobile/MGuestNotice.vue': {}
   };
   const component = new Function('modules', setupCode)(modules);
   const scope = Vue.effectScope();
   const vm = Vue.proxyRefs(scope.run(() => component.setup({}, { expose() {} })));
-  return { vm, pushed, account, stop: () => scope.stop() };
+  return { vm, pushed, tracked, account, stop: () => scope.stop() };
 }
 
 // 观察模式：颜色「不确定」、气味从未回答。
@@ -186,6 +189,7 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
   assert.deepEqual({ ...page.vm.errors }, {});
   page.vm.generate();
   assert.equal(loadSessionReport(page.account).result.status, 'needs-check');
+  assert.equal(page.tracked.at(-1)?.name, 'doctor_diagnosis_generated', 'only the doctor-rounds flow counts as a diagnosis usage');
   page.stop();
 }
 

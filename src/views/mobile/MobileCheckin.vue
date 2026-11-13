@@ -5,6 +5,7 @@ import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { mobileOptions, fieldLabels, describeField, describeSource, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport, loadObservationContext, emptyCheckin } from '../../services/mobile-diagnosis.service.js';
 import { formatExpansionMultiple, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { trackEvent } from '../../services/analytics.service.js';
 import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
 import { locateErrors, observationReady as flowObservationReady, planBack, planNext, skipsBackground as flowSkipsBackground } from '../../lib/checkin-flow.js';
@@ -212,6 +213,10 @@ function generate() {
       return showErrors(invalid);
     }
     storeSessionReport(accountId.value, report);
+    if (diagnosisMode.value) trackEvent('doctor_diagnosis_generated', {
+      starter_id: report.starterId || null, feeding_id: report.input?.feedingId || null,
+      result_status: report.result?.status || null, source: 'doctor_rounds'
+    }, { page: 'doctor_checkin', eventId: report.requestId });
     router.push('/reports/session');
   } catch (cause) { fatal.value = cause.message || '生成建议失败，请稍后重试。'; }
 }

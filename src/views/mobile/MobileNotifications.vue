@@ -8,6 +8,7 @@ import { HEIGHT_ALERT_TARGETS, enableSystemNotification, notificationPermission 
 import {
   hasCloudPushSubscription, loadHeightTargets, removeHeightPush, saveHeightTargets, subscribeHeightPush, webPushAvailable
 } from '../../services/web-push.service.js';
+import { trackEvent } from '../../services/analytics.service.js';
 
 defineOptions({ name: 'MobileNotifications' });
 const auth = useAuth();
@@ -81,6 +82,7 @@ async function enable() {
       return;
     }
     await subscribeHeightPush();
+    trackEvent('height_alert_push_changed', { enabled: true }, { page: 'notifications' });
     subscribed.value = true;
     notice.value = '已开启。达到所选倍数时会推送到本机。';
   } catch (cause) {
@@ -95,6 +97,7 @@ async function disable() {
   busy.value = 'push'; notice.value = ''; error.value = '';
   try {
     await removeHeightPush();
+    trackEvent('height_alert_push_changed', { enabled: false }, { page: 'notifications' });
     subscribed.value = false;
     notice.value = '已关闭本机推送订阅，服务器不再向本机发送提醒。';
   } catch (cause) {
@@ -112,6 +115,10 @@ async function toggle(row, target) {
   busy.value = row.id; error.value = ''; notice.value = '';
   try {
     await saveHeightTargets(row.id, targets);
+    trackEvent('height_alert_targets_saved', {
+      starter_id: row.id, targets, enabled: targets.length > 0,
+      selected_target: target, selected: targets.includes(target), source: 'notifications'
+    }, { page: 'notifications' });
     row.targets = targets;
     notice.value = targets.length ? `「${row.name}」阈值已保存。` : `「${row.name}」的高度提醒已关闭。`;
   } catch (cause) {

@@ -15,6 +15,7 @@ import calendarIcon from '../../assets/icons/diary-calendar.svg';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { expansionMultipleFrom } from '../../services/feeding-analysis.service.js';
+import { trackEvent } from '../../services/analytics.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { loadWindowClosures, persistAutoClosure } from '../../services/fermentation-window.service.js';
 import {
@@ -351,8 +352,12 @@ async function loadMarks() {
   }
 }
 
-function selectDay(value) {
+function selectDay(value, source = 'date_grid') {
   if (!validLocalDay(value) || value > todayKey.value) return;
+  trackEvent('diary_date_selected', {
+    day: value, previous_day: selectedDay.value, source,
+    expanded: calendarOpen.value, starter_id: selectedStarterId.value || null
+  }, { page: 'diary' });
   if (calendarOpen.value) toggleCalendar();
   listPositions.delete(positionKey());
   router.replace({ path: '/diary', query: { ...query.value, from: value, to: value, page: '1', scroll: '0' } });
@@ -364,11 +369,11 @@ function selectStarter(id) {
   router.replace({ path: '/diary', query: { from: selectedDay.value, to: selectedDay.value, page: '1', starter: id, scroll: '0' } });
 }
 function toToday() {
-  selectDay(todayKey.value);
+  selectDay(todayKey.value, 'today_button');
 }
 function shiftWeek(amount) {
   const next = shiftDate(selectedDay.value, amount * 7);
-  selectDay(next > todayKey.value ? todayKey.value : next);
+  selectDay(next > todayKey.value ? todayKey.value : next, 'week_swipe');
 }
 let weekSwipeX = 0;
 function onWeekPointerDown(event) {
@@ -395,6 +400,10 @@ async function toggleCalendar() {
   const fromHeight = panel.getBoundingClientRect().height;
   if (!calendarOpen.value) calendarMonth.value = new Date(`${selectedDay.value}T00:00:00`).getTime();
   calendarOpen.value = !calendarOpen.value;
+  trackEvent('diary_calendar_toggled', {
+    expanded: calendarOpen.value, selected_day: selectedDay.value,
+    starter_id: selectedStarterId.value || null
+  }, { page: 'diary' });
   await nextTick();
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const easing = 'cubic-bezier(.22,.8,.24,1)';
@@ -422,9 +431,29 @@ async function toggleCalendar() {
     panelAnimation = panel.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], { duration: 360, easing });
   }
 }
+// 滚轮每次滚动都会触发，只在最终年月真正变化时埋点一次，避免把同一选择刷成多条事件。
+let reportedMonth = '';
+function emitMonthChange(date, navigation) {
+  const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+  if (key === reportedMonth) return;
+  reportedMonth = key;
+  trackEvent('diary_month_changed', {
+    year: date.getFullYear(), month: date.getMonth() + 1, navigation
+  }, { page: 'diary' });
+}
+function openMonthPicker() {
+  monthPicker.value = true;
+  trackEvent('diary_month_picker_opened', {
+    selected_day: selectedDay.value,
+    displayed_year: Number(shownYear.value),
+    displayed_month: Number(shownMonth.value)
+  }, { page: 'diary' });
+}
 function changeMonth(delta) {
   const date = new Date(calendarMonth.value);
-  calendarMonth.value = delta === 0 ? Date.now() : new Date(date.getFullYear(), date.getMonth() + delta, 1).getTime();
+  const next = delta === 0 ? new Date(`${todayKey.value}T00:00:00`) : new Date(date.getFullYear(), date.getMonth() + delta, 1);
+  calendarMonth.value = next.getTime();
+  emitMonthChange(next, delta === 0 ? 'today' : delta < 0 ? 'previous' : 'next');
 }
 const shownYear = computed(() => String(new Date(calendarMonth.value).getFullYear()));
 const shownMonth = computed(() => String(new Date(calendarMonth.value).getMonth() + 1).padStart(2, '0'));
@@ -437,6 +466,7 @@ const yearOptions = computed(() => {
   });
 });
 const monthWheelOptions = Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1).padStart(2, '0'), label: `${index + 1} 月` }));
+// 未来月份统一夹回今天所在的月份，滚轮不会把日历推到没有记录的将来。
 function chooseCalendarMonth(year = shownYear.value, month = shownMonth.value) {
   const today = new Date(`${todayKey.value}T12:00:00`);
   let nextYear = Number(year);
@@ -445,7 +475,9 @@ function chooseCalendarMonth(year = shownYear.value, month = shownMonth.value) {
     nextYear = today.getFullYear();
     nextMonth = today.getMonth() + 1;
   }
-  calendarMonth.value = new Date(nextYear, nextMonth - 1, 1).getTime();
+  const next = new Date(nextYear, nextMonth - 1, 1);
+  calendarMonth.value = next.getTime();
+  emitMonthChange(next, 'picker');
 }
 
 async function restoreScroll(token) {
@@ -514,7 +546,7 @@ onUnmounted(() => {
         <div class="month-card">
           <header v-if="calendarOpen" class="month-card-head">
             <button type="button" class="month-step month-step-prev" aria-label="上个月" @click="changeMonth(-1)">‹</button>
-            <button type="button" class="month-card-title" aria-label="选择年月" :aria-expanded="monthPicker" @click="monthPicker = true">{{ calendarTitle }}</button>
+            <button type="button" class="month-card-title" aria-label="选择年月" :aria-expanded="monthPicker" @click="openMonthPicker">{{ calendarTitle }}</button>
             <button type="button" class="month-step month-step-next" aria-label="下个月" @click="changeMonth(1)">›</button>
           </header>
           <div ref="weekStripRef" class="weekday-row weekday-row-shared" aria-hidden="true">

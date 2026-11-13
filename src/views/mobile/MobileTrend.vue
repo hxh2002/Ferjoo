@@ -9,6 +9,7 @@ import { clipWindows, filterRowsByWindows } from '../../lib/starter-link-windows
 import { starterRoundDeviceWindows } from '../../lib/round-device-attribution.js';
 import { listCareRecords } from '../../services/care.service.js';
 import { loadWindowClosures } from '../../services/fermentation-window.service.js';
+import { createForegroundTimer, trackEvent } from '../../services/analytics.service.js';
 import { READ_TTL, cachedRead, invalidateReadCache, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
@@ -45,6 +46,19 @@ const headerTone = inject('mobileHeaderTone', null);
 const guest = computed(() => isGuest(auth));
 const authPending = computed(() => isAuthPending(auth));
 let version = 0; let hidden = false;
+const foregroundTimer = createForegroundTimer();
+function flushPageDuration(reason) {
+  const durationMs = foregroundTimer.flush();
+  if (!auth.user.value || !deviceId.value || durationMs < 1) return;
+  trackEvent('trend_page_view', {
+    device_id: deviceId.value, starter_id: starterId.value || null,
+    day: day.value, duration_ms: durationMs, duration_seconds: Number((durationMs / 1000).toFixed(2)), exit_reason: reason
+  }, { page: 'device_trend' });
+}
+function toggleCalendar() {
+  calendarOpen.value = !calendarOpen.value;
+  trackEvent('trend_calendar_toggled', { expanded: calendarOpen.value, day: day.value }, { page: 'device_trend' });
+}
 
 const isToday = computed(() => day.value === todayValue.value);
 const rangeText = computed(() => isToday.value ? '今天 00:00 – 现在' : `${formatDayLabel(day.value)} 00:00 – 24:00`);
@@ -84,6 +98,11 @@ function formatClock(value) {
 }
 function changeDay(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > todayValue.value) return;
+  const previous = day.value;
+  if (value === previous) return;
+  trackEvent('trend_day_selected', {
+    day: value, previous_day: previous, is_today: value === todayValue.value
+  }, { page: 'device_trend' });
   calendarOpen.value = false;
   router.replace({ path: route.path, query: { ...route.query, day: value } });
 }
@@ -158,19 +177,27 @@ async function fetchSnapshot(owner, id) {
   return { info, rows: measured, complete };
 }
 
-function onVisibility() { hidden = document.hidden; if (!hidden) load(); }
+function onVisibility() {
+  hidden = document.hidden;
+  if (hidden) flushPageDuration('background');
+  else { foregroundTimer.resume(); load(); }
+}
+function onPageHide() { flushPageDuration('pagehide'); }
 watch(() => auth.user.value?.id, (next, old) => { if (next !== old) { version++; rows.value = []; device.value = null; loading.value = false; if (next) load(); } });
 watch([deviceId, starterId, day], load);
 watch(showEmpty, syncHeader);
 onMounted(async () => {
   await auth.init();
   document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pagehide', onPageHide);
   if (auth.user.value) await load();
   syncHeader();
 });
 onBeforeUnmount(() => {
   version++;
+  flushPageDuration('route');
   document.removeEventListener('visibilitychange', onVisibility);
+  window.removeEventListener('pagehide', onPageHide);
   if (headerTitle) headerTitle.value = '';
   if (headerTone) headerTone.value = '';
 });
@@ -193,11 +220,11 @@ onBeforeUnmount(() => {
         <strong>{{ device.name || '设备' }}</strong>
         <p>设备编号 {{ device.device_id }}</p>
       </div>
-      <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="calendarOpen = !calendarOpen">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
+      <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="toggleCalendar">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
     </header>
     <header v-else class="trend-head">
       <p class="m-muted">{{ device?.name || '设备' }} · {{ summaryText }}</p>
-      <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="calendarOpen = !calendarOpen">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
+      <button type="button" class="day-picker" :aria-expanded="calendarOpen" @click="toggleCalendar">{{ isToday ? '今天' : formatDayLabel(day) }}</button>
     </header>
     <!-- 游客 / 会话恢复中不渲染任何图表与明细，避免把「没有数据」显示成设备空态。 -->
     <template v-if="!guest && !authPending">

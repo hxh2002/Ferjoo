@@ -224,6 +224,8 @@ insert into private.height_push_config(name, value) values
 
 迁移 `021_device_ingest_upsert.sql` 只调整设备批量上传函数：同一 `(device_id, recorded_at)` 已存在即跳过，重放同一批数据幂等；不删除、不覆盖既有读数，也不新增唯一约束（数据库层自 013 起保持追加语义，十分钟桶去重在查询层完成）。
 
+迁移 `031_analytics_events.sql` 新增产品行为埋点表 `analytics_events`（只追加）：`(user_id, client_event_id)` 唯一保证重试幂等，客户端只能读写自己的事件，敏感信息不入库。详细列、校验与索引见「数据库设计」。
+
 Auth 提供商、邮件、回跳地址及平台集成等设置需在对应控制台单独核对，不能把迁移成功等同于所有平台配置已同步。
 
 ## 用户系统
@@ -367,6 +369,22 @@ where system_user_id = 'U26090001';
 - 与手动结束共用 `(user_id, feeding_id)` 唯一约束：先写入者生效，之后的请求原样返回已有记录，手动结束不会被自动结束覆盖。
 - 归档前（或迁移未执行时）界面仍按读数实时算出“自动结束”。
 
+### analytics_events（迁移 `031`）
+
+产品行为埋点表，只追加：一次交互一行，用于统计页面选择、日历切换、高度提醒与酵种医生等真实使用情况。
+
+- `id uuid`：主键，默认 `gen_random_uuid()`。
+- `user_id uuid not null`：默认 `auth.uid()`，外键指向 `auth.users(id)`，随账号删除级联清理。
+- `client_event_id uuid not null`：客户端生成的幂等编号，同一次操作的安全重试不会写入第二行。
+- `event_name varchar(80)`：事件名，校验 `^[a-z][a-z0-9_]{1,79}$`。
+- `session_id uuid not null`：一次前台会话共用的编号。
+- `page varchar(80)`：来源页面，校验 `^[a-z][a-z0-9_/-]{0,79}$`。
+- `properties jsonb not null default '{}'`：业务字段，必须是 JSON 对象且 `pg_column_size` 不超过 8192 字节。
+- `occurred_at timestamptz not null`：事件发生时间，须在 `2026-01-01` 之后且不晚于当前时间 + 5 分钟。
+- `created_at timestamptz not null default now()`：入库时间。
+
+幂等性由 `unique (user_id, client_event_id)` 保证。查询走两个索引：`analytics_events_user_time_idx (user_id, occurred_at desc)` 和 `analytics_events_event_time_idx (event_name, occurred_at desc)`。
+
 ### 数据分辨率
 
 `device_measurements.recorded_at` 保存采样时间，数据库按原始数据逐条存储，不做时间分辨率分割。10 分钟展示桶在 Web 查询时计算：每个 10 分钟区间自动选取 `recorded_at` 最新的一条用于曲线和表格展示。
@@ -377,6 +395,8 @@ where system_user_id = 'U26090001';
 - `anon` 无表权限。
 - `authenticated` 只有业务需要的权限。
 - 历史数据默认 append-only：客户端只有 `SELECT/INSERT`，没有 UPDATE/DELETE。
+- 行为埋点（`analytics_events`）同样按账号隔离：普通用户只能读取和插入自己的事件（`user_id = auth.uid()`），不能更新或删除历史；更新与删除仅限管理角色（`private.is_admin()`）。
+- 埋点不采集敏感数据：不记录密码、令牌、邀请码、诊断自由文本，也不记录传感器原始数据。
 
 ### 数据可见性
 
@@ -471,12 +491,12 @@ import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 ## 测试
 
 ```bash
-npm test           # 24 个测试脚本 + 2,016 场景自检（与 CI 同一条命令）
+npm test           # 28 个测试脚本 + 2,016 场景自检（与 CI 同一条命令）
 npm run audit      # 仅运行 2,016 场景枚举自检
 npm run build      # Vite 生产构建
 ```
 
-`npm test` 覆盖：诊断行为、架构边界与迁移契约、本地缓存与草稿、手机端观察流程与决策（`mobile-checkin-flow`）、手机端外壳隔离与基础组件、设备首页、喂养页、日记、酵种医生轮次、记录详情（`mobile-record-detail`）、我的与设备设置、曲线交互与颜色、喂养幂等、基线与膨胀倍数、高度区间、喂养比例换算、高度提醒与 Web Push 策略、意见反馈，末尾串行执行 2,016 场景自检。脚本是显式命令链而非通配扫描，新增测试文件必须追加到 `package.json` 的 `test`。`.github/workflows/ci.yml` 的 `test-and-build` 使用同一命令。
+`npm test` 覆盖：诊断行为、架构边界与迁移契约、本地缓存与草稿、手机端观察流程与决策（`mobile-checkin-flow`）、手机端外壳隔离与基础组件、设备首页、喂养页、日记、酵种医生轮次、记录详情（`mobile-record-detail`）、我的与设备设置、曲线交互与颜色、喂养幂等、基线与膨胀倍数、高度区间、喂养比例换算、高度提醒与 Web Push 策略、意见反馈、行为埋点（`analytics`：迁移契约、载荷校验、会话绑定写入与前台计时），末尾串行执行 2,016 场景自检。脚本是显式命令链而非通配扫描，新增测试文件必须追加到 `package.json` 的 `test`。`.github/workflows/ci.yml` 的 `test-and-build` 使用同一命令。
 
 最新主流程修复已验证构建、诊断测试、手机养护契约和设备服务测试；另验证了 `Asia/Singapore` / `America/New_York` 本地时间往返、夏令时跳过时段拒绝及游客观察到本地报告流程。这些结果不代表已经完成真实账号或生产环境端到端验收。
 
@@ -540,7 +560,7 @@ GitHub `hxh2002/Ferjoo` 的 `main` 是生产环境唯一发布入口。默认流
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前仓库包含 `001`～`023` 范围内的 22 个迁移（`005` 是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
+当前仓库包含 `001`～`031` 范围内的 30 个迁移（`005` 是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp

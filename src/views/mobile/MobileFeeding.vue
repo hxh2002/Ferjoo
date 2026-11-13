@@ -10,6 +10,7 @@ import { localDateTimeValue, parseLocalDateTime } from '../../lib/localDateTime.
 import { computeWeights, ratioParts, weightFields } from '../../lib/feeding-weights.js';
 import { HEIGHT_ALERT_TARGETS } from '../../services/height-alert.service.js';
 import { loadHeightTargets, saveHeightTargets } from '../../services/web-push.service.js';
+import { trackEvent } from '../../services/analytics.service.js';
 import MRecordCard from '../../components/mobile/MRecordCard.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
@@ -180,6 +181,10 @@ async function chooseHeightAlert(value) {
     const retained = current.filter((target) => String(target) !== String(previous));
     const next = value === '' ? retained : [...new Set([...retained, Number(value)])].sort((a, b) => a - b);
     await saveHeightTargets(draft.value.starterId, next);
+    trackEvent('height_alert_targets_saved', {
+      starter_id: draft.value.starterId, targets: next, enabled: next.length > 0,
+      selected_target: value === '' ? null : Number(value), source: 'feeding'
+    }, { page: 'feeding' });
     alertNotice.value = value === '' ? '已关闭这罐酵种的高度提醒。' : `高度提醒已设为 ${value}×。`;
   } catch (cause) {
     draft.value.heightAlert = previous;
@@ -313,6 +318,11 @@ async function save() {
     const result = await saveFeeding(payload);
     if (!current()) return;
     if (!result?.id && result?.saved !== true) throw new Error('未收到云端保存确认。');
+    trackEvent('feeding_saved', {
+      record_id: result.id || null, starter_id: payload.starterId, occurred_at: payload.occurredAt,
+      ratio: payload.ratio, has_baseline: payload.input.baseline_height_mm != null,
+      has_weights: payload.input.total_g != null
+    }, { page: 'feeding', eventId: payload.requestId });
     draft.value.confirmed = true;
     persist();
     status.value = '已云端保存喂养记录。';

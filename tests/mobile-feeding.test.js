@@ -44,6 +44,7 @@ const route = { query: {} };
 let routeUpdateHook = null;
 let mountedHook = null;
 const navigations = [];
+const tracked = [];
 const modules = {
   vue: { ...Vue, onMounted: (hook) => { mountedHook = hook; } },
   'vue-router': {
@@ -61,6 +62,8 @@ const modules = {
   '../../lib/feeding-weights.js': { computeWeights, ratioParts, weightFields },
   '../../services/height-alert.service.js': { HEIGHT_ALERT_TARGETS: [2, 2.5, 3] },
   '../../services/web-push.service.js': { loadHeightTargets: async () => [], saveHeightTargets: async () => {} },
+  // 埋点只做副作用，测试用桩捕获调用，避免真实服务在 node 环境触碰 Supabase 配置。
+  '../../services/analytics.service.js': { trackEvent: (name, properties, options) => { tracked.push({ name, properties, options }); return Promise.resolve({ recorded: true }); } },
   '../../components/mobile/MRecordCard.vue': {},
   '../../components/mobile/MCalendar.vue': {},
   '../../components/mobile/MWheelPicker.vue': {}
@@ -119,6 +122,12 @@ await Vue.nextTick();
 assert.equal(saved.vm.draft.confirmed, true, 'a saved feeding stays confirmed in the persisted draft');
 assert.equal(saved.vm.error, '');
 assert.deepEqual(navigations, ['/device'], 'a confirmed save returns straight to the device home');
+assert.deepEqual({ ...tracked.at(-1), properties: { ...tracked.at(-1).properties, occurred_at: undefined } }, {
+  name: 'feeding_saved',
+  properties: { record_id: 'saved-id', starter_id: STARTER, occurred_at: undefined, ratio: '1:1:1', has_baseline: false, has_weights: false },
+  options: { page: 'feeding', eventId: saved.vm.draft.requestId }
+}, 'a confirmed cloud save reports feeding_saved with the request id as the idempotency key');
+assert.equal(tracked.at(-1).properties.occurred_at, parseLocalDateTime(saved.vm.draft.occurredAt).toISOString(), 'the reported time is the confirmed save time, not a later read');
 saved.vm.startNext(saved.vm.draft.starterId);
 assert.equal(saved.vm.draft.confirmed, false, 'starting the next feeding clears the confirmation');
 assert.equal(saved.vm.draft.ratio, '', 'starting the next feeding clears the ratio');
