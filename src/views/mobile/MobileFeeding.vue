@@ -76,26 +76,41 @@ const ratioPresets = [
 const customRatio = computed(() => Boolean(draft.value.ratio) && draft.value.ratio !== 'deep_reset' && !ratioPresets.some((item) => item.value === draft.value.ratio));
 const ratioMode = ref('preset');
 const showCustom = computed(() => ratioMode.value === 'custom' || customRatio.value);
-// 自定义比例改成三条滑块，比例值仍然是 draft.ratio 这一个来源；滑块只是它的编辑面。
+// 自定义比例改成三个可自由输入的数字框：支持小数（0.5、1.5），也不再要求水粉比是整数。
+// draft.ratio 仍是唯一权威值，输入框只是它的编辑面；三项都能解析成大于 0 的数才写回。
+const ratioFields = ['starter', 'water', 'flour'];
 const CUSTOM_FALLBACK = { starter: 1, water: 1, flour: 1 };
-const customSliders = [
-  { field: 'starter', min: 1, max: 5 },
-  { field: 'water', min: 1, max: 10 },
-  { field: 'flour', min: 1, max: 10 }
-];
-const customParts = computed(() => {
-  const parts = ratioParts(draft.value.ratio);
-  return parts ? { starter: parts.starter, water: parts.water, flour: parts.flour } : CUSTOM_FALLBACK;
-});
-const customRatioLabel = computed(() => ['starter', 'water', 'flour'].map((field) => partText(customParts.value[field])).join(' : '));
-function partText(value) {
-  return String(Math.round(Number(value) * 10) / 10);
+// 把比例字符串拆成三份「可继续编辑」的输入文本；无法解析时退回 1 : 1 : 1 起点。
+// 直接取解析后的数值文本，保留 2.25 这类多位小数（不做一位小数四舍五入）。
+function ratioText(ratio) {
+  const parts = ratioParts(ratio);
+  return Object.fromEntries(ratioFields.map((field) => [field, String(parts ? parts[field] : CUSTOM_FALLBACK[field])]));
 }
-function sliderProgress(item) {
-  const span = item.max - item.min;
-  const step = span ? (customParts.value[item.field] - item.min) / span : 0;
-  return `${Math.min(1, Math.max(0, step)) * 100}%`;
+const customText = ref(ratioText(draft.value.ratio));
+// 只接受「大于 0 的有限数」，小数照收；空白 / 0 / 负数 / 文本都判为未填。
+function parsePart(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
+const customParts = computed(() => Object.fromEntries(ratioFields.map((field) => [field, parsePart(customText.value[field])])));
+const customValid = computed(() => ratioFields.every((field) => customParts.value[field] !== null));
+const customRatioLabel = computed(() => ratioFields.map((field) => String(customText.value[field] ?? '').trim() || '—').join(' : '));
+// 三项都合法才写回 draft.ratio，并去掉多余小数位（1.50 → 1.5）；任一项非法就清空，交由校验拦住保存。
+function syncRatioFromCustom() {
+  if (!customValid.value) { draft.value.ratio = ''; return; }
+  draft.value.ratio = ratioFields.map((field) => String(customParts.value[field])).join(':');
+}
+// 进入自定义（含从草稿恢复的非预设比例）时回填当前比例；输入过程中的改动不会触发回填。
+// 旧草稿里若留了无法解析的比例（如 1:2），按起点 1 : 1 : 1 复位，保证输入框始终可用。
+watch(showCustom, (visible) => {
+  if (!visible) return;
+  customText.value = ratioText(draft.value.ratio);
+  if (draft.value.ratio && !ratioParts(draft.value.ratio)) {
+    draft.value.ratio = ratioFields.map((field) => String(CUSTOM_FALLBACK[field])).join(':');
+  }
+}, { immediate: true });
 const hourOptions = Array.from({ length: 24 }, (_, hour) => ({ value: String(hour).padStart(2, '0'), label: `${String(hour).padStart(2, '0')} 时` }));
 const minuteOptions = Array.from({ length: 60 }, (_, minute) => ({ value: String(minute).padStart(2, '0'), label: `${String(minute).padStart(2, '0')} 分` }));
 const alertOptions = [{ value: '', label: '不提醒' }, ...HEIGHT_ALERT_TARGETS.map((target) => ({ value: String(target), label: `${target}×` }))];
@@ -155,21 +170,21 @@ function selectRatio(value) {
 function selectCustom() {
   if (inputsLocked.value) return;
   ratioMode.value = 'custom';
-  // 首次进入自定义时把滑块落到一份可用的起点，避免三条滑块都停在 0 无法保存。
+  // 首次进入自定义时给一份可用起点（1 : 1 : 1），避免三项都空着；已有比例则保留原值。
   if (!ratioParts(draft.value.ratio)) {
-    draft.value.ratio = ['starter', 'water', 'flour'].map((field) => partText(CUSTOM_FALLBACK[field])).join(':');
+    customText.value = ratioText('');
+    draft.value.ratio = ratioFields.map((field) => String(CUSTOM_FALLBACK[field])).join(':');
     draft.value.weightField = '';
     draft.value.weightValue = '';
+  } else {
+    customText.value = ratioText(draft.value.ratio);
   }
 }
-function setCustomSlider(field, raw) {
-  if (inputsLocked.value) return;
-  const item = customSliders.find((slider) => slider.field === field);
-  const value = Number(raw);
-  if (!item || !Number.isFinite(value)) return;
-  const parts = { ...customParts.value, [field]: Math.min(item.max, Math.max(item.min, value)) };
+function setCustomPart(field, raw) {
+  if (inputsLocked.value || !ratioFields.includes(field)) return;
+  customText.value = { ...customText.value, [field]: raw };
   ratioMode.value = 'custom';
-  draft.value.ratio = ['starter', 'water', 'flour'].map((key) => partText(parts[key])).join(':');
+  syncRatioFromCustom();
 }
 async function chooseHeightAlert(value) {
   const previous = draft.value.heightAlert;
@@ -390,24 +405,24 @@ async function save() {
           <button type="button" class="custom-ratio" :class="{ 'is-selected': showCustom }" :disabled="inputsLocked" :aria-pressed="showCustom" @click="selectCustom">自定义</button>
         </div>
         <div v-if="showCustom" class="custom-ratio-panel">
-          <p v-if="!canConvert" class="custom-ratio-hint">这次草稿里的旧比例已不再提供，请重新选择或点「自定义」重新设置。</p>
-          <template v-else>
-            <p class="custom-ratio-value">当前比例 {{ customRatioLabel }}</p>
-            <label v-for="item in customSliders" :key="item.field" class="custom-slider">
-              <span class="custom-slider-head">{{ weightLabels[item.field] }}<strong>{{ partText(customParts[item.field]) }}</strong></span>
+          <p class="custom-ratio-value">当前比例 {{ customRatioLabel }}</p>
+          <div class="custom-fields">
+            <label v-for="field in ratioFields" :key="field" class="custom-field">
+              <span class="custom-field-head">{{ weightLabels[field] }}</span>
               <input
-                type="range"
-                :min="item.min"
-                :max="item.max"
-                step="1"
-                :value="customParts[item.field]"
+                type="number"
+                min="0"
+                step="any"
+                inputmode="decimal"
+                :value="customText[field]"
                 :disabled="inputsLocked"
-                :style="{ '--slider-progress': sliderProgress(item) }"
-                :aria-label="`${weightLabels[item.field]}份数`"
-                @input="setCustomSlider(item.field, $event.target.value)"
+                :aria-invalid="customParts[field] === null"
+                :aria-label="`${weightLabels[field]}份数`"
+                @input="setCustomPart(field, $event.target.value)"
               />
             </label>
-          </template>
+          </div>
+          <p v-if="!customValid" class="custom-ratio-hint">三项都需要填写大于 0 的数值，支持小数（如 0.5）。</p>
         </div>
         <fieldset v-if="draft.ratio && canConvert" class="weight-fields" :disabled="inputsLocked">
           <legend>投喂重量（g，可选）</legend>
@@ -489,19 +504,12 @@ async function save() {
 .custom-ratio-panel{margin-top:12px;padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-control);background:var(--surface-warm)}
 .custom-ratio-value{margin:0 0 10px;color:var(--text-primary);font-size:var(--text-sm);font-variant-numeric:tabular-nums}
 .custom-ratio-hint{margin:0;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
-.custom-slider{display:block;margin-bottom:12px}
-.custom-slider:last-child{margin-bottom:0}
-.custom-slider-head{display:flex;align-items:baseline;justify-content:space-between;color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
-.custom-slider-head strong{color:var(--brand-action);font-size:var(--text-md);font-weight:500;font-variant-numeric:tabular-nums}
-/* 滑块只改自己的轨道和滑块尺寸，不继承 .feeding-form input 的输入框描边与高度；
-   带 .feeding-form 前缀是为了稳稳压过 mobile.css 里 `.mobile-area :is(input…)` 的输入框样式。 */
-.feeding-form .custom-slider input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;min-height:28px;height:28px;margin:4px 0 0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;cursor:pointer}
-.feeding-form .custom-slider input[type="range"]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--brand-action) var(--slider-progress,50%),var(--border-warm) var(--slider-progress,50%))}
-.feeding-form .custom-slider input[type="range"]::-moz-range-track{height:4px;border-radius:2px;background:var(--border-warm)}
-.feeding-form .custom-slider input[type="range"]::-moz-range-progress{height:4px;border-radius:2px;background:var(--brand-action)}
-.feeding-form .custom-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;margin-top:-10px;border:0;border-radius:50%;background:var(--brand-action);box-shadow:0 1px 4px rgba(48,37,31,.24)}
-.feeding-form .custom-slider input[type="range"]::-moz-range-thumb{width:24px;height:24px;border:0;border-radius:50%;background:var(--brand-action);box-shadow:0 1px 4px rgba(48,37,31,.24)}
-.feeding-form .custom-slider input[type="range"]:disabled{cursor:not-allowed;opacity:.55}
+.custom-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.custom-field{display:grid;gap:4px;min-width:0}
+.custom-field-head{color:var(--text-secondary);font-size:var(--text-sm);line-height:21px}
+/* 自定义比例的数字框沿用 .feeding-form input 的 16px 底子，只收紧内边距并让数字等宽。 */
+.feeding-form .custom-field input{min-height:44px;padding:8px 10px;font-variant-numeric:tabular-nums;text-align:center}
+.feeding-form .custom-field input[aria-invalid="true"]{border-color:var(--danger-text)}
 .alert-wheel{max-width:295px}
 .alert-settings{display:inline-flex;align-items:center;min-height:44px;color:var(--brand-action);font-size:var(--text-sm);font-weight:500;text-decoration:none}
 .field-label{display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
