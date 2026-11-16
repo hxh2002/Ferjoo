@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 import { summarizeFeedingMeasurements } from '../../../src/services/feeding-analysis.service.js';
-import { eligibleRatio, retryDelay, safePushEndpoint, validInternalSecret } from './policy.js';
+import { alertPayload, eligiblePeak, eligibleRatio, retryDelay, safePushEndpoint, validInternalSecret } from './policy.js';
 
 const cors = { 'Access-Control-Allow-Origin': 'null', 'Access-Control-Allow-Headers': 'content-type,x-height-push-secret', 'Access-Control-Allow-Methods': 'POST,OPTIONS' };
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -32,6 +32,8 @@ Deno.serve(async (request) => {
     let p_link_id = null;
     let p_measurement_at = null;
     let p_ratio = null;
+    let p_peak_at = null;
+    let p_peak_ratio = null;
     try {
       const now = Date.now();
       const { data: event, error: eventError } = await db.from('feed_events').select('*')
@@ -65,14 +67,19 @@ Deno.serve(async (request) => {
           const summary = summarizeFeedingMeasurements({ measurements: rows, feeding, link, now });
           p_ratio = eligibleRatio(summary);
           p_measurement_at = summary.latestMeasurementAt;
+          const peak = eligiblePeak(summary);
+          p_peak_at = peak?.peakAt ?? null;
+          p_peak_ratio = peak?.peakRatio ?? null;
         }
       }
     } catch {
       p_ratio = null;
+      p_peak_at = null;
+      p_peak_ratio = null;
       console.error('height evaluation failed');
     }
     const completed = await db.rpc('complete_height_evaluation', {
-      p_user_id, p_starter_id, p_token, p_feeding_id, p_link_id, p_measurement_at, p_ratio,
+      p_user_id, p_starter_id, p_token, p_feeding_id, p_link_id, p_measurement_at, p_ratio, p_peak_at, p_peak_ratio,
     });
     if (completed.error) console.error('height evaluation commit failed', completed.error.message);
     evaluations += 1;
@@ -89,17 +96,12 @@ Deno.serve(async (request) => {
     };
     try {
       const [{ data: event, error: eventError }, { data: subscription, error: subscriptionError }] = await Promise.all([
-        db.from('height_alert_events').select('target,ratio,feeding_id,starter_id,user_id').eq('id', delivery.event_id).maybeSingle(),
+        db.from('height_alert_events').select('kind,target,ratio,peak_ratio,peak_at,feeding_id,starter_id,user_id').eq('id', delivery.event_id).maybeSingle(),
         db.from('push_subscriptions').select('id,endpoint,p256dh,auth').eq('id', delivery.subscription_id).maybeSingle(),
       ]);
       if (eventError || subscriptionError) throw eventError || subscriptionError;
       if (!event || !subscription || !safePushEndpoint(subscription.endpoint)) { await finish(404); continue; }
-      const payload = JSON.stringify({
-        title: `高度已达基线的 ${event.target} 倍`,
-        body: `当前高度约为基线的 ${Number(event.ratio).toFixed(2)} 倍，可回到今日页查看本轮喂养情况。`,
-        tag: `ferjoo-height-${event.feeding_id}-${event.target}`,
-        url: `/device?starter=${encodeURIComponent(event.starter_id)}`,
-      });
+      const payload = JSON.stringify(alertPayload(event));
       try {
         await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 600, timeout: 10000 });
         await finish(201);

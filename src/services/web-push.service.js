@@ -56,6 +56,20 @@ export async function loadHeightTargets(starterId) {
   return data?.targets || [];
 }
 
+export async function savePeakAlert(starterId, enabled) {
+  const client = requireClient();
+  const { error } = await client.rpc('set_peak_alert', { p_starter_id: starterId, p_enabled: Boolean(enabled) });
+  if (error) throw new Error('过峰提醒保存失败，请重试。');
+}
+
+export async function loadPeakAlert(starterId) {
+  if (!starterId) return false;
+  const client = requireClient();
+  const { data, error } = await client.from('height_alert_settings').select('peak_alert').eq('starter_id', starterId).maybeSingle();
+  if (error) throw new Error('过峰提醒读取失败。');
+  return Boolean(data?.peak_alert);
+}
+
 export async function removeHeightPush(scope = globalThis) {
   const registration = await scope.navigator?.serviceWorker?.getRegistration?.('/');
   const subscription = await registration?.pushManager?.getSubscription?.();

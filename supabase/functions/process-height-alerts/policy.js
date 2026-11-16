@@ -27,3 +27,30 @@ export function eligibleRatio(summary) {
   const ratio = summary.currentHeightMm / summary.baselineHeightMm;
   return Number.isFinite(ratio) ? ratio : null;
 }
+
+// Peak 只在 rise-phase 锁定后出现（峰后已连续回落），所以过峰提醒必然晚于实际峰值。
+export function eligiblePeak(summary) {
+  if (eligibleRatio(summary) == null || !summary.peakAt || !(summary.peakHeightMm > 0)) return null;
+  const peakRatio = summary.peakHeightMm / summary.baselineHeightMm;
+  return Number.isFinite(peakRatio) && Number.isFinite(Date.parse(summary.peakAt)) ? { peakAt: summary.peakAt, peakRatio } : null;
+}
+
+export function alertPayload(event, now = Date.now()) {
+  const url = `/device?starter=${encodeURIComponent(event.starter_id)}`;
+  const current = Number(event.ratio).toFixed(2);
+  if (event.kind === 'peak') {
+    const minutes = Math.max(0, Math.round((now - Date.parse(event.peak_at)) / 60000));
+    return {
+      title: '酵种已过 Peak',
+      body: `约 ${minutes} 分钟前到达 Peak，膨胀至基线的 ${Number(event.peak_ratio).toFixed(2)} 倍；目前为 ${current} 倍，已开始回落。`,
+      tag: `ferjoo-peak-${event.feeding_id}`,
+      url,
+    };
+  }
+  return {
+    title: `高度已达基线的 ${event.target} 倍`,
+    body: `当前高度约为基线的 ${current} 倍，可回到今日页查看本轮喂养情况。`,
+    tag: `ferjoo-height-${event.feeding_id}-${event.target}`,
+    url,
+  };
+}

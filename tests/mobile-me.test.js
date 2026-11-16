@@ -194,6 +194,8 @@ assert.match(read('src/router/index.js'), /name: 'mobile-profile-edit'.*title: '
 const notifications = compile('src/views/mobile/MobileNotifications.vue');
 assert.match(notifications, /提醒倍数 <span class="label-sub">以喂养后高度为 1×，可多选<\/span>/);
 assert.match(notifications, /起始高度的 \$\{target\} 倍/);
+assert.match(notifications, /过 Peak 后提醒`[\s\S]*aria-pressed="row\.peak"[\s\S]*togglePeak\(row\)[\s\S]*>Peak</);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /await savePeakAlert\(row\.id, enabled\)/);
 
 const toasts = {
   'src/views/mobile/MobileProfileEdit.vue': '资料已保存',

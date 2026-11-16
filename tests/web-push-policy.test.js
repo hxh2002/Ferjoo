@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { eligibleRatio, retryDelay, safePushEndpoint, validInternalSecret } from '../supabase/functions/process-height-alerts/policy.js';
+import { alertPayload, eligiblePeak, eligibleRatio, retryDelay, safePushEndpoint, validInternalSecret } from '../supabase/functions/process-height-alerts/policy.js';
+import { summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
 
 assert.equal(safePushEndpoint('https://fcm.googleapis.com/fcm/send/abc'), true);
 assert.equal(safePushEndpoint('https://updates.push.services.mozilla.com/wpush/v2/abc'), true);
@@ -19,6 +20,40 @@ assert.equal(retryDelay(2, 'Sun, 06 Nov 1994 08:49:37 GMT', Date.parse('Sun, 06 
 assert.equal(retryDelay(9, null), 3600);
 assert.equal(eligibleRatio({ baselineHeightMm: 100, currentHeightMm: 200 }), 2);
 for (const summary of [null, { baselinePending: true, baselineHeightMm: 100, currentHeightMm: 200 }, { historicalRound: true, baselineHeightMm: 100, currentHeightMm: 200 }, { heightStale: true, baselineHeightMm: 100, currentHeightMm: 200 }, { baselineHeightMm: 0, currentHeightMm: 200 }, { baselineHeightMm: 100, currentHeightMm: 0 }]) assert.equal(eligibleRatio(summary), null);
+
+// 过峰：服务端用同一份 summary 判定，Peak 锁定前（仍在上涨或刚回落一个点）不提醒。
+{
+  const at = (minutes) => new Date(Date.UTC(2026, 0, 1, 0, minutes)).toISOString();
+  const feeding = { id: 'f1', kind: 'feeding', starter_id: 's1', occurred_at: at(0), input: {} };
+  const link = { starter_id: 's1', device_id: 'd1', active_from: at(-10), active_to: null };
+  const row = (minutes, height) => ({ device_id: 'd1', recorded_at: at(minutes), mode: 'fer', sensor_error: false, height_mm: height, temperature_c: 26 });
+  const rows = [5, 15, 25, 35, 45].map((m) => row(m, 100)).concat([row(55, 150), row(65, 190), row(75, 210), row(85, 230), row(95, 225), row(105, 220)]);
+  const summary = (count, minute) => summarizeFeedingMeasurements({ feeding, link, measurements: rows.slice(0, count), now: Date.parse(at(minute)) });
+  assert.equal(eligiblePeak(summary(9, 86)), null, 'still rising');
+  assert.equal(eligiblePeak(summary(10, 96)), null, 'one drop is not a peak yet');
+  const peak = eligiblePeak(summary(11, 106));
+  assert.deepEqual(peak, { peakAt: at(85), peakRatio: 2.3 });
+  assert.equal(eligiblePeak({ ...summary(11, 106), historicalRound: true }), null, 'closed rounds never alert');
+  assert.equal(eligiblePeak({ ...summary(11, 106), heightStale: true }), null);
+
+  const message = alertPayload({ kind: 'peak', ratio: 2.2, peak_ratio: peak.peakRatio, peak_at: peak.peakAt, feeding_id: 'e1', starter_id: 's 1' }, Date.parse(at(106)));
+  assert.equal(message.title, '酵种已过 Peak');
+  assert.equal(message.body, '约 21 分钟前到达 Peak，膨胀至基线的 2.30 倍；目前为 2.20 倍，已开始回落。');
+  assert.equal(message.tag, 'ferjoo-peak-e1');
+  assert.equal(message.url, '/device?starter=s%201');
+  assert.deepEqual(alertPayload({ kind: 'ratio', target: 2, ratio: 2.137, feeding_id: 'e1', starter_id: 's1' }), {
+    title: '高度已达基线的 2 倍', body: '当前高度约为基线的 2.14 倍，可回到今日页查看本轮喂养情况。', tag: 'ferjoo-height-e1-2', url: '/device?starter=s1',
+  }, 'ratio alerts keep their original copy');
+}
+
+const peakMigration = await readFile(new URL('../supabase/migrations/032_peak_alert.sql', import.meta.url), 'utf8');
+assert.match(peakMigration, /unique nulls not distinct \(user_id, starter_id, feeding_id, kind, target\)/, 'one peak event per round');
+assert.match(peakMigration, /\(cardinality\(targets\) > 0 or peak_alert\)/, 'peak-only settings are still evaluated');
+assert.match(peakMigration, /\(e\.kind = 'peak' and s\.peak_alert\)/, 'peak deliveries survive the dead-letter sweep');
+assert.match(peakMigration, /p_peak_at >= now\(\) - interval '90 minutes'/, 'stale peaks are not announced');
+assert.match(peakMigration, /grant execute on function public\.set_peak_alert\(uuid, boolean\) to authenticated/);
+assert.doesNotMatch(peakMigration, /complete_height_evaluation\([^)]*\) to authenticated/);
+assert.doesNotMatch(peakMigration, /^create function/m, 'replayable: every function uses create or replace');
 
 const migration = await readFile(new URL('../supabase/migrations/020_height_web_push.sql', import.meta.url), 'utf8');
 const configMigration = await readFile(new URL('../supabase/migrations/022_height_push_config.sql', import.meta.url), 'utf8');

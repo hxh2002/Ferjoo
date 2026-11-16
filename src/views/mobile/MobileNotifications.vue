@@ -6,7 +6,7 @@ import { starterDisambiguation } from '../../lib/starter-labels.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { HEIGHT_ALERT_TARGETS, enableSystemNotification, notificationPermission } from '../../services/height-alert.service.js';
 import {
-  hasCloudPushSubscription, loadHeightTargets, removeHeightPush, saveHeightTargets, subscribeHeightPush, webPushAvailable
+  hasCloudPushSubscription, loadHeightTargets, loadPeakAlert, removeHeightPush, saveHeightTargets, savePeakAlert, subscribeHeightPush, webPushAvailable
 } from '../../services/web-push.service.js';
 import { trackEvent } from '../../services/analytics.service.js';
 
@@ -39,7 +39,8 @@ async function load() {
     const linked = new Set(activeLinks.map((row) => row.starter_id));
     const deviceOf = new Map(activeLinks.map((row) => [row.starter_id, row.device_id]));
     const detailed = await Promise.all(rows.map(async (row) => ({
-      ...row, linked: linked.has(row.id), deviceId: deviceOf.get(row.id) || '', targets: await loadHeightTargets(row.id).catch(() => [])
+      ...row, linked: linked.has(row.id), deviceId: deviceOf.get(row.id) || '',
+      targets: await loadHeightTargets(row.id).catch(() => []), peak: await loadPeakAlert(row.id).catch(() => false)
     })));
     subscribed.value = subscribedNow;
     starters.value = detailed;
@@ -84,7 +85,7 @@ async function enable() {
     await subscribeHeightPush();
     trackEvent('height_alert_push_changed', { enabled: true }, { page: 'notifications' });
     subscribed.value = true;
-    notice.value = '已开启。达到所选倍数时会推送到本机。';
+    notice.value = '已开启。达到所选倍数或过 Peak 时会推送到本机。';
   } catch (cause) {
     error.value = cause?.message || '开启失败，请重试。';
   } finally {
@@ -128,6 +129,22 @@ async function toggle(row, target) {
   }
 }
 
+async function togglePeak(row) {
+  if (busy.value || !row.id) return;
+  const enabled = !row.peak;
+  busy.value = row.id; error.value = ''; notice.value = '';
+  try {
+    await savePeakAlert(row.id, enabled);
+    trackEvent('height_alert_peak_saved', { starter_id: row.id, enabled, source: 'notifications' }, { page: 'notifications' });
+    row.peak = enabled;
+    notice.value = enabled ? `「${row.name}」过 Peak 后会提醒。` : `「${row.name}」的过峰提醒已关闭。`;
+  } catch (cause) {
+    error.value = cause?.message || '保存失败，请重试。';
+  } finally {
+    busy.value = '';
+  }
+}
+
 onMounted(() => auth.init().then(load));
 </script>
 
@@ -146,7 +163,7 @@ onMounted(() => auth.init().then(load));
     <div class="switch-row">
       <span class="switch-copy">
         <strong>高度提醒</strong>
-        <small>达到你设置的高度时提醒</small>
+        <small>达到你设置的高度或过 Peak 时提醒</small>
       </span>
       <button type="button" class="m-switch" role="switch" :aria-label="`高度提醒${subscribed ? '已开启' : '已关闭'}`" :aria-checked="subscribed" :disabled="busy === 'push' || loading" @click="subscribed ? disable() : enable()"><span></span></button>
     </div>
@@ -166,6 +183,7 @@ onMounted(() => auth.init().then(load));
       </div>
       <div class="targets" role="group" :aria-label="`${row.name} 起始高度提醒倍数`">
         <button v-for="target in HEIGHT_ALERT_TARGETS" :key="target" type="button" class="target" :aria-label="`${row.name} 起始高度的 ${target} 倍`" :class="{ active: row.targets.includes(target) }" :aria-pressed="row.targets.includes(target)" :disabled="busy === row.id" @click="toggle(row, target)">{{ target }}×</button>
+        <button type="button" class="target" :aria-label="`${row.name} 过 Peak 后提醒`" :class="{ active: row.peak }" :aria-pressed="row.peak" :disabled="busy === row.id" @click="togglePeak(row)">Peak</button>
       </div>
     </div>
   </section>
@@ -175,6 +193,7 @@ onMounted(() => auth.init().then(load));
     <ul class="rules">
       <li>酵种已关联在线设备，且有喂养记录。</li>
       <li>每轮每个倍数只提醒一次，下次喂养后重新计数。</li>
+      <li>Peak 需先膨胀到 2 倍以上，并在峰后连续回落确认，约比实际峰值晚 20 分钟；每轮只提醒一次，附 Peak 与当前膨胀倍数。</li>
     </ul>
   </section>
 
