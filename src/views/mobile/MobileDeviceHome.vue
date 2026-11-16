@@ -17,7 +17,7 @@ import { closeFeedingWindow, loadWindowClosure } from '../../services/fermentati
 import { loadSessionReport } from '../../services/mobile-diagnosis.service.js';
 import { rememberSelectedStarter } from '../../lib/mobile-selection.js';
 import { feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
-import { READ_TTL, cachedRead, invalidateReadCache } from '../../lib/read-cache.js';
+import { READ_TTL, cachedRead, invalidateReadCache, peekReadCache, primeReadCache, readCacheKey } from '../../lib/read-cache.js';
 
 import { guestLoginTarget, guestRegisterTarget, isAuthPending } from '../../lib/mobile-guest.js';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
@@ -52,17 +52,8 @@ let generation = 0; let disposed = false; let inFlight = null; let pending = fal
 const FRESH_MS = 40 * 60000;
 // 迁移未执行时关联只存在于本机浏览器：明确告知，避免用户以为已经同步到云端。
 const localLinkNotice = computed(() => allLinks.value.some((row) => row.local_only) ? LOCAL_LINK_NOTICE : '');
-const activeDevice = computed(() => devices.value.find((item) => item.device_id === deviceId.value));
 const starter = computed(() => starters.value.find((item) => item.id === starterId.value));
 const feeding = computed(() => records.value.find((item) => item.kind === 'feeding') || null);
-const roundWindows = computed(() => roundDeviceWindows(allLinks.value, {
-  feeding: feeding.value,
-  // 每个酵种最新一次喂养足以决定它当前是否接管某台共享设备。
-  feedings: starters.value.map((item) => item.feeding).filter(Boolean),
-  nextFeedingAt: nextFeedingAt.value,
-  windowEndedAt: closure.value?.ended_at,
-  now: now.value
-}));
 const observation = computed(() => records.value.find((item) => item.kind === 'observation') || null);
 const report = ref(null);
 const lastAdvice = computed(() => {
@@ -70,8 +61,6 @@ const lastAdvice = computed(() => {
   return report.value && (!saved || Date.parse(report.value.occurredAt) >= Date.parse(saved.occurredAt)) ? report.value : saved;
 });
 const riskAdvice = computed(() => ['discard', 'needs-check'].includes(lastAdvice.value?.result?.status));
-const from = computed(() => new Date(now.value - 24 * 3600000).toISOString());
-const to = computed(() => new Date(now.value).toISOString());
 const summary = computed(() => feeding.value ? summarizeFeedingMeasurements({
   measurements: evidence.value || measurements.value,
   feeding: feeding.value,
@@ -85,15 +74,6 @@ const summary = computed(() => feeding.value ? summarizeFeedingMeasurements({
 }) : null);
 // measurements 已在读取时按该酵种全部历史窗口过滤；这里只排序。
 const chartRows = computed(() => measurements.value.slice().sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at)));
-
-// 本轮喂养时间确定时，读取窗口从起始前 10 分钟开始；没有确定起点才回退到最近 24 小时。
-const chartFrom = computed(() => {
-  const earliest = Date.parse(feeding.value?.occurred_at);
-  const base = from.value;
-  if (!Number.isFinite(earliest)) return base;
-  return new Date(Math.min(Date.parse(base), earliest - 10 * 60000)).toISOString();
-});
-const chartTo = computed(() => to.value);
 const expansionText = computed(() => formatExpansionMultiple(summary.value?.expansionPercent));
 // 罐子只做定性展示：液面跟平滑后的实测高度走，表情跟本轮的上涨/到顶/回落阶段走，
 // 回落后在峰值处留一道痕迹。具体数值仍看下方膨胀倍数与详情曲线。
@@ -178,16 +158,39 @@ function selectStarter(id) {
 }
 function openPicker() { contextOpen.value = !contextOpen.value; }
 
+// 首页快照：上次完整读到的页面状态按账号写入本地，冷启动或长时间后返回时先画出来，再在后台刷新。
+// 它只用于先行展示，从不代替云端读取。
+const SNAPSHOT_FIELDS = ['devices', 'starters', 'starterId', 'deviceId', 'link', 'allLinks', 'records', 'previousFeeding', 'evidence', 'nextFeedingAt', 'closure', 'measurements'];
+const snapshotKey = (owner) => readCacheKey(['view', 'device-home', owner]);
+function applyView(view) {
+  devices.value = view.devices; starters.value = view.starters;
+  starterId.value = view.starterId; deviceId.value = view.deviceId;
+  link.value = view.link; allLinks.value = view.allLinks;
+  records.value = view.records; previousFeeding.value = view.previousFeeding;
+  evidence.value = view.evidence; nextFeedingAt.value = view.nextFeedingAt; closure.value = view.closure;
+  measurements.value = view.measurements;
+}
+function restoreSnapshot(owner) {
+  const saved = peekReadCache(snapshotKey(owner), { stale: true });
+  if (!saved || SNAPSHOT_FIELDS.some((field) => !(field in saved))) return;
+  applyView(saved);
+  const session = loadSessionReport(owner);
+  report.value = session?.accountId === owner && session.starterId === saved.starterId ? session : null;
+}
+
 // 手动刷新必须绕过缓存重新向云端确认；自动轮询仍可复用刚读到的数据。
 function refreshNow() {
   invalidateReadCache();
   void refresh();
 }
+// 先把这一轮要展示的全部数据读完，再一次性替换页面状态：中途不清空证据、不分批落地，
+// 罐子液面、状态行和三块指标不会在读取过程中来回跳动。
 async function refresh() {
   if (disposed || !accountId.value) return;
   if (inFlight) { pending = true; return inFlight; }
-  const owner = accountId.value; const token = generation; loading.value = true; error.value = ''; deviceError.value = ''; now.value = Date.now();
+  const owner = accountId.value; const token = generation; loading.value = true;
   inFlight = (async () => {
+    const at = Date.now();
     try {
       const [starterResult, deviceResult, linkResult] = await Promise.all([
         listStarters({ userId: owner }).then(value => ({ value }), cause => ({ cause })),
@@ -195,9 +198,9 @@ async function refresh() {
         listStarterDeviceLinks({ userId: owner }).then(value => ({ value }), cause => ({ cause }))
       ]);
       if (!current(token, owner)) return;
-      if (starterResult.cause) { error.value = '酵种列表读取失败，请重试。'; return; }
-      if (deviceResult.cause) { deviceError.value = '设备列表读取失败，请刷新后重试。'; return; }
-      if (linkResult.cause) { error.value = '设备关联读取失败，请刷新重试；暂不展示酵种数据。'; return; }
+      if (starterResult.cause) { error.value = '酵种列表读取失败，请重试。'; deviceError.value = ''; return; }
+      if (deviceResult.cause) { error.value = ''; deviceError.value = '设备列表读取失败，请刷新后重试。'; return; }
+      if (linkResult.cause) { error.value = '设备关联读取失败，请刷新重试；暂不展示酵种数据。'; deviceError.value = ''; return; }
       const loadedLinks = linkResult.value || []; const linkMap = new Map();
       for (const row of loadedLinks) if (row.active_to == null && !linkMap.has(row.starter_id)) linkMap.set(row.starter_id, row);
       const rows = starterResult.value || [];
@@ -211,53 +214,84 @@ async function refresh() {
       }));
       if (!current(token, owner)) return;
       contexts.sort((a, b) => (Date.parse(b.latest?.occurred_at) || 0) - (Date.parse(a.latest?.occurred_at) || 0));
-      devices.value = deviceResult.value || []; starters.value = contexts;
       let selected = contexts.find(row => row.id === starterId.value);
       if (!selected && !explicitStarter.value) selected = contexts.find(row => row.link) || null;
-      starterId.value = selected?.id || '';
+      const selectedId = selected?.id || '';
       // 设备由所选酵种的活跃关联决定；一台设备可同时服务多个酵种，首页只切换酵种。
-      deviceId.value = selected?.link?.device_id || '';
-      link.value = selected?.link || null; allLinks.value = loadedLinks;
-      records.value = [selected?.feeding, selected?.observation].filter(Boolean).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
-      previousFeeding.value = selected?.previousFeeding || null;
-      const session = loadSessionReport(owner);
-      report.value = session?.accountId === owner && session.starterId === starterId.value ? session : null;
-      evidence.value = []; nextFeedingAt.value = null; closure.value = null;
-      if (feeding.value) {
+      const view = {
+        devices: deviceResult.value || [], starters: contexts,
+        starterId: selectedId, deviceId: selected?.link?.device_id || '',
+        link: selected?.link || null, allLinks: loadedLinks,
+        records: [selected?.feeding, selected?.observation].filter(Boolean).sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)),
+        previousFeeding: selected?.previousFeeding || null,
+        evidence: [], nextFeedingAt: null, closure: null, measurements: []
+      };
+      let nextError = '';
+      const currentFeeding = selected?.feeding || null;
+      if (currentFeeding) {
         // 证据读取较重，短时间内与轮次详情页共用同一份缓存。
         const [loadedResult, closureResult] = await Promise.all([
           cachedRead(
-            feedingEvidenceCacheKey(owner, starterId.value, feeding.value.id),
-            () => loadFeedingEvidence(owner, starterId.value, feeding.value.id),
+            feedingEvidenceCacheKey(owner, selectedId, currentFeeding.id),
+            () => loadFeedingEvidence(owner, selectedId, currentFeeding.id),
             { ttl: READ_TTL.records }
           ).then(value => ({ value }), cause => ({ cause })),
-          loadWindowClosure(owner, feeding.value.id).then(value => ({ value }), cause => ({ cause }))
+          loadWindowClosure(owner, currentFeeding.id).then(value => ({ value }), cause => ({ cause }))
         ]);
         if (!current(token, owner)) return;
-        if (loadedResult.cause) error.value = loadedResult.cause?.message || '本轮设备证据读取失败，请刷新重试。';
-        else {
+        if (loadedResult.cause) {
+          nextError = loadedResult.cause?.message || '本轮设备证据读取失败，请刷新重试。';
+          if (feeding.value?.id === currentFeeding.id) {
+            view.evidence = evidence.value;
+            view.nextFeedingAt = nextFeedingAt.value;
+            view.closure = closureResult.value || closure.value;
+          }
+        } else {
           const loaded = loadedResult.value;
-          nextFeedingAt.value = loaded?.nextFeedingAt || null;
+          view.nextFeedingAt = loaded?.nextFeedingAt || null;
           // 证据已按该酵种全部历史窗口读取并过滤（含已关闭窗口），不要求与当前活跃关联一致。
-          evidence.value = loaded?.link ? loaded.measurements : [];
-          if (loaded?.unavailableReason && loaded?.link) error.value = loaded.unavailableReason;
+          view.evidence = loaded?.link ? loaded.measurements : [];
+          if (loaded?.unavailableReason && loaded?.link) nextError = loaded.unavailableReason;
         }
-        closure.value = closureResult.value || null;
+        view.closure = closureResult.value || null;
       }
-      if (!current(token, owner)) return;
       // 选了酵种时，只在它于这台设备上有过关联窗口（含已关闭窗口）时才读取，并按窗口并集过滤。
       // 首页的实时数据只来自当前酵种本轮实际归属，不能共享给同时关联的其他酵种。
-      const windows = feeding.value ? roundWindows.value.filter((window) => window.deviceId === deviceId.value) : [];
-      if (!deviceId.value || !windows.length) { measurements.value = []; return; }
-      const rangeFrom = chartFrom.value;
-      const measuredRows = await listMeasurementsRange(deviceId.value, { from: rangeFrom, to: to.value, bucketed: false, starterId: starterId.value });
+      const windows = currentFeeding ? roundDeviceWindows(loadedLinks, {
+        feeding: currentFeeding,
+        feedings: contexts.map((item) => item.feeding).filter(Boolean),
+        nextFeedingAt: view.nextFeedingAt,
+        windowEndedAt: view.closure?.ended_at,
+        now: at
+      }).filter((window) => window.deviceId === view.deviceId) : [];
+      if (view.deviceId && windows.length) {
+        // 本轮喂养时间确定时，读取窗口从起始前 10 分钟开始；没有确定起点才回退到最近 24 小时。
+        const fedAt = Date.parse(currentFeeding.occurred_at);
+        const fromMs = Number.isFinite(fedAt) ? Math.min(at - 24 * 3600000, fedAt - 10 * 60000) : at - 24 * 3600000;
+        const rangeFrom = new Date(fromMs).toISOString();
+        try {
+          const measuredRows = await listMeasurementsRange(view.deviceId, { from: rangeFrom, to: new Date(at).toISOString(), bucketed: false, starterId: selectedId });
+          if (!current(token, owner)) return;
+          const inRange = measuredRows.filter(row => {
+            const time = Date.parse(row.recorded_at);
+            return time >= fromMs && time <= at && (!row.device_id || row.device_id === view.deviceId);
+          });
+          const scoped = filterRowsByWindows(inRange.map(row => ({ ...row, device_id: row.device_id || view.deviceId })), clipWindows(windows, fromMs, at + 1));
+          view.measurements = scoped.map(row => ({ ...row, height_mm: Number(row.height_mm) > 0 ? Number(row.height_mm) : null }));
+        } catch (cause) {
+          if (!current(token, owner)) return;
+          nextError = cause?.message || '读取失败，请稍后重试。';
+          // 采样读取失败时保留同一酵种上次的曲线读数，不把罐子清空成「暂无数据」。
+          if (selectedId === starterId.value && view.deviceId === deviceId.value) view.measurements = measurements.value;
+        }
+      }
       if (!current(token, owner)) return;
-      const inRange = measuredRows.filter(row => {
-        const at = Date.parse(row.recorded_at);
-        return at >= Date.parse(rangeFrom) && at <= now.value && (!row.device_id || row.device_id === deviceId.value);
-      });
-      const scoped = windows ? filterRowsByWindows(inRange.map(row => ({ ...row, device_id: row.device_id || deviceId.value })), clipWindows(windows, Date.parse(rangeFrom), now.value + 1)) : inRange;
-      measurements.value = scoped.map(row => ({ ...row, height_mm: Number(row.height_mm) > 0 ? Number(row.height_mm) : null }));
+      now.value = at;
+      applyView(view);
+      error.value = nextError; deviceError.value = '';
+      const session = loadSessionReport(owner);
+      report.value = session?.accountId === owner && session.starterId === selectedId ? session : null;
+      primeReadCache(snapshotKey(owner), view, { persist: true });
     } catch (cause) { if (current(token, owner)) error.value = cause?.message || '读取失败，请稍后重试。'; }
   })();
   try { await inFlight; } finally { inFlight = null; loading.value = false; if (pending && !disposed) { pending = false; void refresh(); } }
@@ -277,7 +311,13 @@ async function endRound(detail = null) {
     if (current(token, owner)) closing.value = false;
   }
 }
-watch(accountId, () => { generation++; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; contextOpen.value = false; clearSelected(); error.value = ''; deviceError.value = ''; if (accountId.value) void refresh(); }, { immediate: true, flush: 'sync' });
+watch(accountId, () => {
+  generation++; deviceId.value = ''; starterId.value = ''; explicitStarter.value = false; devices.value = []; starters.value = []; contextOpen.value = false; clearSelected(); error.value = ''; deviceError.value = '';
+  if (!accountId.value) return;
+  now.value = Date.now();
+  restoreSnapshot(accountId.value);
+  void refresh();
+}, { immediate: true, flush: 'sync' });
 // 记录页读取同一偏好作为默认酵种，切回设备页时两处看到的是同一罐。
 watch(starterId, (id) => { if (id) rememberSelectedStarter(accountId.value, id); });
 useVisiblePolling(refresh, 60000);

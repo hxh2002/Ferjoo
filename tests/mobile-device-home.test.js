@@ -73,7 +73,7 @@ const deferred = () => { let resolve; let reject; const promise = new Promise((y
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); await Vue.nextTick(); };
 // 刷新的排队批次在上一批结束后才继续，单次 settle 不足以等到它落地。
 const drain = async () => { for (let i = 0; i < 8; i++) await settle(); };
-function harness() {
+function harness(snapshots = new Map()) {
   const user = Vue.ref(null);
   const state = { devices: [{ device_id: 'd2', created_at: iso(2) }, { device_id: 'd1', created_at: iso(100) }], starters: [{ id: 's1', name: '一号' }, { id: 's2', name: '二号' }], selection: [], links: [link, { starter_id: 's2', device_id: 'd2', active_from: iso(80), active_to: null }], feeding, rows, closure: null, closed: null, fail: '', calls: [], starterGate: null };
   const api = {
@@ -135,7 +135,12 @@ function harness() {
     '../../lib/round-device-attribution.js': roundAttribution,
     '../../lib/mobile-selection.js': { rememberSelectedStarter: (owner, id) => state.selection.push([owner, id]) },
     '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, roundState, feedingEvidenceCacheKey: () => 'evidence' },
-    '../../lib/read-cache.js': { invalidateReadCache: () => {}, cachedRead: (key, loader) => loader(), READ_TTL: { records: 0 } }
+    '../../lib/read-cache.js': {
+      invalidateReadCache: () => {}, cachedRead: (key, loader) => state.fail === 'evidence' ? Promise.reject(new Error('evidence down')) : loader(), READ_TTL: { records: 0 },
+      readCacheKey: (parts) => parts.join(':'),
+      peekReadCache: (key) => snapshots.get(key),
+      primeReadCache: (key, value) => snapshots.set(key, value)
+    }
   };
   // 图标与插画是构建期资源，测试里用空串占位，断言只关心结构与文案。
   for (const asset of ['icon-thermometer', 'icon-drop', 'icon-chart-up', 'icon-scales', 'icon-timer', 'icon-chevron-down', 'icon-jar']) {
@@ -153,7 +158,7 @@ function harness() {
     app.component('MConfirmDialog', { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], setup(props) { return () => props.open ? Vue.h('section', [Vue.h('h2', props.title), Vue.h('p', props.message), Vue.h('button', props.cancelLabel), Vue.h('button', { class: props.danger ? 'is-danger' : '' }, props.confirmLabel)]) : null; } });
     return renderToString(app);
   }
-  return { state, user, vm: Vue.proxyRefs(bindings), html, stop: () => scope.stop() };
+  return { state, user, snapshots, vm: Vue.proxyRefs(bindings), html, stop: () => scope.stop() };
 }
 async function login(h, id = 'a') { h.user.value = { id }; await settle(); }
 
@@ -238,7 +243,16 @@ for (const fail of ['starter', 'device', 'link']) {
   assert.equal(h.vm.starterId, before.selected);
   assert.equal(h.vm.evidence, before.evidence);
 }
-h.state.fail = '';
+{
+  const before = { devices: h.vm.devices, starters: h.vm.starters, selected: h.vm.starterId, evidence: h.vm.evidence };
+  h.state.fail = 'evidence'; await h.vm.refresh(); await drain();
+  assert.deepEqual(h.vm.devices, before.devices, 'evidence failure retains device list');
+  assert.deepEqual(h.vm.starters, before.starters, 'evidence failure retains starter list');
+  assert.equal(h.vm.starterId, before.selected);
+  assert.equal(h.vm.evidence, before.evidence, 'evidence failure retains the last complete evidence');
+  assert.equal(h.vm.error, 'evidence down');
+}
+h.state.fail = ''; await h.vm.refresh(); await drain();
 h.vm.selectStarter(''); await settle(); await h.vm.refresh();
 assert.equal(h.vm.starterId, '', 'explicit empty starter survives polling');
 h.vm.selectStarter('s2'); await settle(); await drain();
@@ -307,7 +321,45 @@ assert.deepEqual(switched.vm.starters, []);
 switched.state.starters = [{ id: 'new-starter', name: '新账号' }]; switched.state.links = [];
 switched.state.starterGate = null; stale.resolve([{ id: 'old-starter', name: '旧账号' }]); await settle();
 assert.deepEqual(switched.vm.starters.map(item => item.id), ['new-starter'], 'stale account response is discarded and current account loads');
-assert.deepEqual(switched.state.calls, ['old', 'new']); switched.stop();
+assert.deepEqual(switched.state.calls, ['old', 'new']);
+assert.deepEqual([...switched.snapshots.keys()], ['view:device-home:new'], 'stale account work cannot write a snapshot');
+switched.stop();
+
+{
+  // 冷启动：上次的首页快照在云端读取返回前就画出来；读取期间页面状态保持不变，读完一次性替换并写回快照。
+  const first = harness(); await login(first, 'cold'); await drain();
+  const saved = first.snapshots.get('view:device-home:cold');
+  assert.deepEqual([...first.snapshots.keys()], ['view:device-home:cold'], 'only the active account receives a home snapshot');
+  assert.ok(saved, 'a completed refresh stores the home snapshot for the account');
+  assert.equal(saved.starterId, 's1');
+  assert.equal(saved.evidence.length, rows.length);
+  first.stop();
+
+  const next = harness(new Map([['view:device-home:cold', saved]]));
+  const gate = deferred(); next.state.starterGate = gate;
+  await login(next, 'cold');
+  assert.equal(next.vm.starterId, 's1', 'the snapshot selects the last viewed starter before the network answers');
+  assert.equal(next.vm.evidence.length, rows.length, 'snapshot evidence renders the jar immediately');
+  assert.match(await next.html(), /1 : 2 : 2/, 'the feeding summary is painted from the snapshot');
+  assert.equal(next.vm.loading, true, 'the refresh indicator shows a background refresh is running');
+  next.state.starterGate = null; gate.resolve(next.state.starters.slice()); await drain();
+  assert.equal(next.vm.loading, false);
+  assert.equal(next.vm.starterId, 's1');
+
+  // 刷新进行中不能把证据清空：首页在整轮读取结束前一直显示上一份完整状态。
+  const evidenceBefore = next.vm.evidence;
+  const slow = deferred(); next.state.starterGate = slow;
+  const running = next.vm.refresh(); await settle();
+  assert.equal(next.vm.evidence, evidenceBefore, 'evidence is not reset while a refresh is in flight');
+  next.state.starterGate = null; slow.resolve(next.state.starters.slice()); await running; await drain();
+  next.stop();
+
+  const other = harness(new Map([['view:device-home:cold', saved]]));
+  await login(other, 'someone-else');
+  assert.notEqual(other.snapshots.get('view:device-home:someone-else'), saved, 'snapshots are scoped per account');
+  other.stop();
+}
+console.log('mobile device home: per-account snapshot hydration and single-commit refresh passed');
 
 console.log('mobile device home: starter-only picker, management navigation, linked-device switching, account isolation, serialized refresh, API failures, stale evidence, confirm/end flow and toast passed');
 

@@ -10,7 +10,7 @@ import { starterRoundDeviceWindows } from '../../lib/round-device-attribution.js
 import { listCareRecords } from '../../services/care.service.js';
 import { loadWindowClosures } from '../../services/fermentation-window.service.js';
 import { createForegroundTimer, trackEvent } from '../../services/analytics.service.js';
-import { READ_TTL, cachedRead, invalidateReadCache, peekReadCache, readCacheKey } from '../../lib/read-cache.js';
+import { READ_TTL, cachedRead, peekReadCache, readCacheKey, refreshReadCache } from '../../lib/read-cache.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
@@ -115,7 +115,7 @@ function syncHeader() {
 }
 async function refresh() {
   refreshing.value = true;
-  invalidateReadCache('device:trend');
+  refreshReadCache('device:trend');
   try { await load(); } finally { refreshing.value = false; }
 }
 
@@ -124,8 +124,8 @@ async function load() {
   error.value = '';
   if (!owner || !id) { rows.value = []; device.value = null; completeness.value = ''; loading.value = false; return; }
   const key = snapshotKey.value;
-  // 再次进入同一天时先用缓存立即渲染，避免整页先清空再出现。
-  const cached = peekReadCache(key);
+  // 再次进入同一天时先用缓存立即渲染（过期的也先画），新结果到了再替换，避免整页先清空再出现。
+  const cached = peekReadCache(key, { stale: true });
   if (cached) {
     device.value = cached.info;
     rows.value = cached.rows;
