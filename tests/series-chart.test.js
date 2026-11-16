@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
-import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
+import { chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
 import { concreteColor, readConcreteColor } from '../src/lib/chart-color.js';
 
 const source = readFileSync(new URL('../src/components/SeriesChart.vue', import.meta.url), 'utf8');
@@ -11,12 +11,12 @@ const script = compileScript(descriptor, { id: 'series-chart-test' });
 const template = compileTemplate({ source: descriptor.template.content, filename: 'SeriesChart.vue', id: 'series-chart-test', compilerOptions: { bindingMetadata: script.bindings } });
 assert.deepEqual(template.errors, []);
 
-assert.equal(CHART_RELEASE_MS, 1200);
-assert.match(source, /CHART_RELEASE_MS/);
-assert.match(source, /releasing\.value = true/);
-assert.match(source, /is-releasing/);
+assert.match(source, /initialSelection: \{ type: String, default: '' \}/);
+assert.match(source, /initialSelection: \{ type: String, default: '' \}/);
+assert.doesNotMatch(source, /releasing|releaseTimer|@blur/, 'a persistent selection has no fading release state');
 assert.match(source, /width: 48px;\s*height: 20px/);
-assert.match(source, />当前</);
+assert.match(source, />\{\{ nowLabel \}\}</);
+assert.match(source, /nowLabel: \{ type: String, default: '当前' \}/);
 assert.match(source, /interactive: \{ type: Boolean, default: false \}/);
 assert.match(source, /bubble: \{ type: Boolean, default: true \}/);
 assert.match(source, /highlight: \{ type: Boolean, default: false \}/);
@@ -28,6 +28,8 @@ assert.match(source, /\.series-tip-row \{[^}]*height: 36px/);
 assert.match(source, /\.series-fixed-tip \{[^}]*top: 0/);
 assert.match(source, /\.series-tip-stem \{[^}]*top: 28px/);
 assert.match(source, /Math\.min\(Math\.max\(x, half\)/, 'bubble centre is clamped inside the row');
+assert.match(source, /Math\.abs\(center - half\) < 1\) return \{ left: '0px', transform: 'none' \}/, 'fractional left-edge positions snap inside the card');
+assert.match(source, /Math\.abs\(center - \(tipRowWidth\.value - half\)\) < 1\) return \{ left: '100%', transform: 'translateX\(-100%\)' \}/, 'fractional right-edge positions snap inside the card');
 assert.match(source, /chartSegments\(/);
 
 const trend = readFileSync(new URL('../src/views/mobile/MobileTrend.vue', import.meta.url), 'utf8');
@@ -72,7 +74,7 @@ assert.equal(moveSampleIndex(0, samples.length, 'ArrowRight'), 1);
 assert.equal(moveSampleIndex(0, samples.length, 'ArrowLeft'), 0);
 assert.equal(moveSampleIndex(2, samples.length, 'ArrowRight'), 2);
 
-console.log('series chart: segments, snap, keyboard and 1.2s release passed');
+console.log('series chart: segments, snap, keyboard and persistent selection passed');
 
 // --- 边界回归：空数据 / 单点 / 平线 / 重复时间戳 / 极短跨度都不能产出 NaN 坐标 ---
 import * as Vue from 'vue';
@@ -85,7 +87,7 @@ const renderCode = template.code.replace(/import \{([^}]+)\} from "vue"/, (_, bi
 const render = new Function('Vue', `${renderCode}; return render;`)(Vue);
 const component = new Function('modules', setupCode)({
   vue: { ...Vue, useId: () => 'gradient-1' },
-  '../lib/chart-selection.js': { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex },
+  '../lib/chart-selection.js': { chartSegments, moveSampleIndex, nearestSampleIndex },
   '../lib/chart-color.js': { concreteColor, readConcreteColor }
 });
 const at = (minute, v) => ({ t: new Date(Date.UTC(2026, 10, 7, 1, minute)).toISOString(), v });
@@ -117,8 +119,16 @@ async function drawTip(points, selectedIndex = 0, extra = {}) {
   const html = await renderToString(app);
   return html.match(/<div[^>]*class="series-fixed-tip"[^>]*>([\s\S]*?)<\/div>/)?.[1] || '';
 }
-async function draw(points, extra = {}) {
-  const app = Vue.createSSRApp({ render: () => Vue.h(chartComponent, { label: '高度', unit: 'mm', points, interactive: true, highlight: true, sticky: true, ...extra }) });
+async function draw(points, { selectedIndex, ...extra } = {}) {
+  const selectedSeries = selectedIndex == null ? chartComponent : {
+    ...chartComponent,
+    setup(props, context) {
+      const state = component.setup(props, context);
+      state.hoverIdx.value = selectedIndex;
+      return state;
+    }
+  };
+  const app = Vue.createSSRApp({ render: () => Vue.h(selectedSeries, { label: '高度', unit: 'mm', points, interactive: true, highlight: true, sticky: true, ...extra }) });
   const html = await renderToString(app);
   const paths = [...html.matchAll(/<path[^>]*class="series-(line|area)"[^>]*d="([^"]*)"/g)];
   return {
@@ -167,13 +177,34 @@ assert.match(gradient.html, /class="series-area"/, 'the area keeps its own segme
 // 移动端不加载 main.css，所以这条必须由组件自己的样式保证。
 assert.match(source, /\.series-line \{[^}]*fill:\s*none/, 'the polyline must opt out of SVG default black fill');
 assert.match(source, /\.series-guide \{[^}]*fill:\s*none/, 'the vertical selection guide must not become a filled black column on mobile');
-assert.match(source, /\.series-guide \{[^}]*stroke:\s*rgba\(42,29,23,\.38\)/, 'the guide keeps its own stroke without relying on desktop CSS');
+assert.match(source, /\.series-guide \{[^}]*stroke:\s*var\(--series-guide-color, rgba\(42,29,23,\.38\)\)/, 'the guide keeps its own stroke without relying on desktop CSS');
+assert.match(source, /\.series-guide \{[^}]*stroke-width:\s*var\(--series-guide-width, 1px\)/, 'the guide width comes from the shared variable');
+assert.match(source, /\.series-tip-stem \{[^}]*width:\s*var\(--series-guide-width, 1px\)/, 'the stem reuses the guide width so both halves match');
+assert.match(source, /\.series-tip-stem \{[^}]*var\(--series-guide-color, rgba\(42,29,23,\.38\)\)/, 'the stem reuses the guide colour so both halves match');
+assert.match(source, /\.series-tip-stem \{[^}]*repeating-linear-gradient\(to bottom,[\s\S]{0,90}0 2px, transparent 2px 4px\)/, 'the stem dash period matches the SVG 2 2 pattern');
+assert.match(source, /\.series-tip-stem \{[^}]*transform:\s*translateX\(-50%\)/, 'the stem stays centred on the sample x');
+assert.doesNotMatch(source, /\.series-tip-stem \{[^}]*border-left/, 'the stem no longer draws its own independent 1px border');
 assert.match(source, /\.series-guide \{[^}]*stroke-dasharray:\s*2 2/, 'the plot guide continues the dashed stem from the tooltip');
 assert.match(source, /\.series-area \{[^}]*stroke:\s*none/, 'the area fill must not inherit a stroke');
 // 固定气泡行：有数据时始终预留（布局不抖动），且不再渲染纵坐标值标签 / 时间游标标签。
 const fixed = await draw([at(0, 30), at(10, 35)], { fixedTip: true });
 assert.match(fixed.html, /class="series-tip-row/, 'the fixed bubble row is always reserved');
 assert.doesNotMatch(fixed.html, /series-value-label|series-time-label|series-guide-y/);
+const oldest = await draw([at(20, 32), at(0, 30), at(10, 31)], { fixedTip: true, initialSelection: 'oldest' });
+assert.match(oldest.html, /class="series-guide"[^>]*x1="5"/, 'the oldest valid sample gets a guide before any gesture');
+assert.match(oldest.html, /class="series-hover-dot"[^>]*left:5%/, 'the default selected dot matches the guide');
+assert.match(oldest.html, /class="series-fixed-tip"[^>]*transform:none/, 'the initial left-edge bubble is inset before DOM measurement');
+assert.match(oldest.html, /<strong>30mm<\/strong><span>\d{2}:\d{2}<\/span>/, 'the bubble uses the oldest sample, not the newest sample');
+const latest = await draw([at(0, 30), at(10, 35)], { fixedTip: true, initialSelection: 'oldest', selectedIndex: 1 });
+assert.match(latest.html, /class="series-guide"[^>]*x1="95"/, 'the last point keeps its own guide position');
+assert.match(latest.html, /class="series-fixed-tip"[^>]*transform:translateX\(-100%\)/, 'the right-edge bubble is inset before DOM measurement');
+const initialEmpty = await draw([], { fixedTip: true, initialSelection: 'oldest' });
+assert.doesNotMatch(initialEmpty.html, /series-guide|series-fixed-tip/, 'empty data never leaves a stale indicator');
+const defaultSingle = await draw([at(0, 30)], { fixedTip: true, initialSelection: 'oldest' });
+assert.match(defaultSingle.html, /class="series-guide"[^>]*x1="50"/, 'a single valid point is selected in the centre');
+assert.match(defaultSingle.html, /class="series-fixed-tip"[^>]*transform:translateX\(-50%\)/, 'a single-point bubble is centred without measurement');
+const initialSkippedNull = await draw([at(0, null), at(10, 31), at(20, 32)], { fixedTip: true, initialSelection: 'oldest' });
+assert.match(initialSkippedNull.html, /class="series-fixed-tip"[\s\S]*?31mm/, 'the default bubble skips invalid readings');
 const floating = await draw([at(0, 30), at(10, 35)]);
 assert.doesNotMatch(floating.html, /series-tip-row/, 'the default chart has no reserved bubble row');
 
@@ -194,5 +225,86 @@ const longTip = await drawTip([
 assert.match(longTip, /11\/11 11:07/, 'spans over twenty hours keep the existing month/date fallback');
 assert.doesNotMatch(chart, /elapsedCaption|发酵 \$\{hours\} 小时/, 'mobile tooltips no longer derive elapsed fermentation hours');
 console.log('series chart: tooltip uses the selected ISO timestamp and value');
+
+// 移动端不加载 main.css：散点 / 选中点的绝对定位、底部行与标题行的 flex 布局都必须由组件自己提供。
+assert.match(source, /\.series-dot, \.series-hover-dot \{[^}]*position: absolute[^}]*transform: translate\(-50%, -50%\)/, 'dots are centred on their sample without desktop CSS');
+assert.match(source, /\.series-hover-dot \{ z-index: 2; \}/, 'the selected dot sits above the max / baseline tags');
+assert.match(source, /\.series-range \{[^}]*display: flex[^}]*justify-content: space-between/, 'the time range stays right-aligned on every page');
+assert.match(source, /\.series-headline \{[^}]*display: flex/, 'caption and value keep their gap on every page');
+assert.doesNotMatch(trend, /:deep\(\.series-hover-dot\)\{position:absolute/, 'the trend page no longer carries its own copy of the dot positioning');
+assert.match(trend, /\.series-grid\)\{[^}]*vector-effect:non-scaling-stroke/, 'grid lines keep 1px regardless of chart height');
+assert.match(trend, /row\[key\] == null \|\| row\[key\] === '' \? null/, 'empty-string readings are gaps, not zero');
+assert.match(trend, /label="湿度"[^>]*:digits="0"/);
+assert.match(trend, /label="电量"[^>]*:digits="0"/);
+assert.match(detail, /label="湿度"[^>]*:digits="0"/);
+
+// 标题值、min/max 标签与气泡同一精度：膨胀倍数两位小数，百分比取整。
+async function drawMobile(points, extra = {}) {
+  const mobileComponent = new Function('modules', mobileSetupCode)({ vue: Vue, '../SeriesChart.vue': chartComponent });
+  const app = Vue.createSSRApp({ render: () => Vue.h({ ...mobileComponent, render: mobileRender }, { label: '膨胀倍数', points, ...extra }) });
+  return renderToString(app);
+}
+const expansionHtml = await drawMobile([at(0, 0.93), at(10, 1.42), at(20, 0.851)], { digits: 2 });
+assert.match(expansionHtml, /max 1\.42</, 'max keeps two decimals');
+assert.match(expansionHtml, /min 0\.85</, 'min keeps two decimals');
+assert.match(expansionHtml, /class="series-value"[^>]*>0\.85</, 'the headline falls back to the latest value with the same precision');
+const percentHtml = await drawMobile([at(0, 100), at(10, null), at(20, 76.5)], { label: '湿度', unit: '%', digits: 0 });
+assert.match(percentHtml, /max 100%</);
+assert.match(percentHtml, /min 77%</);
+assert.doesNotMatch(percentHtml, /100\.0%/, 'integer percentages never show a trailing .0');
+const captioned = await drawMobile([at(0, 0.93), at(10, 1.42)], { digits: 2, valueText: '1.42', caption: '最高' });
+assert.match(captioned, /class="series-value"[^>]*>1\.42</, 'an explicit valueText still wins');
+const emptyMobile = await drawMobile([at(0, null)], { digits: 2 });
+assert.match(emptyMobile, /暂无可绘制的数据/);
+assert.doesNotMatch(emptyMobile, /Infinity|NaN/, 'empty data never formats ±Infinity');
+console.log('series chart: mobile labels share precision and layout without desktop CSS');
+
+// 「当前 / 最新」：趋势页今天显示当前，历史日期显示最新，标题与图内小字同步。
+assert.match(trend, /latestLabel = computed\(\(\) => \(isToday\.value \? '当前' : '最新'\)\)/);
+assert.equal((trend.match(/:caption="latestLabel" :now-label="latestLabel"/g) || []).length, 4, 'all four trend charts follow the selected day');
+assert.doesNotMatch(trend, /caption="当前"/);
+assert.match(await drawMobile([at(0, 30), at(10, 31)], { label: '高度', nowLabel: '最新' }), /class="series-now"[^>]*>最新</);
+assert.match(await drawMobile([at(0, 30), at(10, 31)], { label: '高度' }), /class="series-now"[^>]*>当前</, 'other callers keep 当前');
+
+// 读屏：可见气泡行不再是 live region，播报交给单独的隐藏节点。
+assert.doesNotMatch(source, /class="series-tip-row"[^>]*aria-live/, 'the visible bubble row no longer announces every frame');
+assert.match(source, /class="series-sr-live" aria-live="polite" aria-atomic="true"/);
+const nonInteractive = await draw([at(0, 30)], { interactive: false, sticky: false });
+assert.doesNotMatch(nonInteractive.html, /series-sr-live/, 'static charts have no live region');
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function announcer(extra = {}) {
+  const defaults = Object.fromEntries(Object.entries(component.props).map(([key, def]) => [key, typeof def.default === 'function' && def.type !== Function ? def.default() : def.default]));
+  const props = Vue.reactive({ ...defaults, label: '高度', unit: 'mm', points: [at(0, 30), at(10, 31), at(20, 32)], sticky: true, fixedTip: true, initialSelection: 'oldest', ...extra });
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    return Vue.effectScope().run(() => component.setup(props, { emit() {}, expose() {} }));
+  } finally { console.warn = warn; }
+}
+const target = { getBoundingClientRect: () => ({ left: 0, width: 100 }), setPointerCapture() {} };
+const live = await announcer();
+assert.equal(live.liveText.value, '', 'nothing is announced synchronously');
+await wait(350);
+assert.match(live.liveText.value, /^高度 \d{2}:\d{2} 30mm$/, 'the default oldest selection is announced once with its label');
+live.onPointerDown({ currentTarget: target, clientX: 50, pointerId: 1 });
+await wait(10);
+live.onPointerMove({ currentTarget: target, clientX: 95, buttons: 1 });
+await wait(350);
+assert.match(live.liveText.value, /30mm$/, 'dragging never rewrites the announcement');
+live.onPointerUp();
+await wait(350);
+assert.match(live.liveText.value, /32mm$/, 'releasing announces the settled sample once');
+live.onKey({ key: 'ArrowLeft', preventDefault() {} });
+live.onKey({ key: 'ArrowLeft', preventDefault() {} });
+await wait(100);
+assert.match(live.liveText.value, /32mm$/, 'rapid key presses are debounced');
+await wait(300);
+assert.match(live.liveText.value, /30mm$/, 'the announcement follows the final keyboard selection');
+const formatted = await announcer({ announceValue: (point) => `${point.v.toFixed(2)}x` });
+await wait(350);
+assert.match(formatted.liveText.value, /30\.00x$/, 'callers can match the bubble precision');
+assert.match(chart, /:announce-value="announceValue"/, 'the mobile chart announces with its tooltip precision');
+console.log('series chart: live region announces settled selections only; trend shows 最新 for past days');
 
 console.log('series chart: empty/single/flat/duplicate/tiny-span geometry stays finite');

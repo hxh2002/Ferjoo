@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computed, ref, watch } from 'vue';
-import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
+import { computed, effectScope, nextTick, reactive as VueReactive, ref, watch } from 'vue';
+import { chartSegments, moveSampleIndex, nearestSampleIndex } from '../src/lib/chart-selection.js';
 import { concreteColor, readConcreteColor } from '../src/lib/chart-color.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,9 +38,39 @@ for (const fn of ['getStarterDeviceLink', 'listStarterDeviceLinks', 'linkStarter
 assert.match(service, /local_only: true/);
 assert.match(service, /active_from/);
 const chartScript = chart.split('<script setup>')[1].split('</script>')[0].replace(/^import[^\n]+\n/gm, '').replace("const emit = defineEmits(['select']);", 'const emit = () => {};');
-const renderChartRaw = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', 'onBeforeUnmount', 'onMounted', 'nextTick', 'concreteColor', 'readConcreteColor', 'CHART_RELEASE_MS', 'chartSegments', 'moveSampleIndex', 'nearestSampleIndex', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY };`);
-const renderChart = (defineProps) => renderChartRaw(defineProps, computed, ref, watch, () => 'test', () => {}, () => {}, (fn) => fn(), concreteColor, readConcreteColor, CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex);
+const renderChartRaw = new Function('defineProps', 'computed', 'ref', 'watch', 'useId', 'onBeforeUnmount', 'onMounted', 'nextTick', 'concreteColor', 'readConcreteColor', 'chartSegments', 'moveSampleIndex', 'nearestSampleIndex', `${chartScript}; return { coords, segments, linePaths, areaPaths, dots, hoverIdx, hoverPoint, stats, baselineY, selectAt, clearHover, onPointerUp };`);
+const renderChart = (defineProps) => renderChartRaw(defineProps, computed, ref, watch, () => 'test', () => {}, () => {}, (fn) => fn(), concreteColor, readConcreteColor, chartSegments, moveSampleIndex, nearestSampleIndex);
 const chartGeometry = (label, unit, values, baseline = null) => renderChart(() => ({ label, unit, points: values.map((v, index) => ({ t: `2026-01-01T00:${String(index * 10).padStart(2, '0')}:00Z`, v })), baseline }), computed, ref, watch, () => 'test');
+
+// 在真实 Vue effectScope 中验证默认最旧点、拖动后保留选点、数据刷新与指针取消。
+const selectionProps = VueReactive({ initialSelection: 'oldest', sticky: true, points: [
+  { t: '2026-01-01T00:20:00Z', v: 3 },
+  { t: '2026-01-01T00:00:00Z', v: null },
+  { t: '2026-01-01T00:10:00Z', v: 2 }
+] });
+const selectionScope = effectScope();
+const selection = selectionScope.run(() => renderChartRaw(() => selectionProps, computed, ref, watch, () => 'test', () => {}, () => {}, (fn) => fn(), concreteColor, readConcreteColor, chartSegments, moveSampleIndex, nearestSampleIndex));
+assert.equal(selection.hoverIdx.value, 0, '无序数据到达后默认选最旧的有效点，跳过空值');
+assert.equal(selection.hoverPoint.value.t, '2026-01-01T00:10:00Z');
+selection.selectAt(0.95);
+selection.onPointerUp();
+assert.equal(selection.hoverPoint.value.t, '2026-01-01T00:20:00Z', '松手后保留最后选点');
+selection.clearHover();
+assert.equal(selection.hoverPoint.value.t, '2026-01-01T00:20:00Z', '移出曲线不清除固定选点');
+selectionProps.points = [...selectionProps.points, { t: '2026-01-01T00:30:00Z', v: 4 }];
+await nextTick();
+assert.equal(selection.hoverPoint.value.t, '2026-01-01T00:20:00Z', '后台追加采样不改变用户选点');
+selectionProps.from = '2025-12-31T00:00:00Z';
+selectionProps.to = '2026-01-02T00:00:00Z';
+await nextTick();
+assert.equal(selection.hoverPoint.value.t, '2026-01-01T00:10:00Z', '切换时间窗后回到该图最旧有效点');
+selectionProps.points = [];
+await nextTick();
+assert.equal(selection.hoverPoint.value, null, '空数据不会留下失效选点');
+selectionProps.points = [{ t: '2026-01-01T00:20:00Z', v: 3 }, { t: '2026-01-01T00:00:00Z', v: 1 }];
+await nextTick();
+assert.equal(selection.hoverPoint.value.t, '2026-01-01T00:00:00Z', '异步加载新数据后默认选最旧点');
+selectionScope.stop();
 const points = [
   { t: '2026-01-01T00:00:00Z', v: 1 },
   { t: '2026-01-01T00:10:00Z', v: 2 },

@@ -61,11 +61,13 @@ function toggleCalendar() {
 }
 
 const isToday = computed(() => day.value === todayValue.value);
+// 历史日期的最后一个采样只是当天最新读数，不是此刻的状态。
+const latestLabel = computed(() => (isToday.value ? '当前' : '最新'));
 const rangeText = computed(() => isToday.value ? '今天 00:00 – 现在' : `${formatDayLabel(day.value)} 00:00 – 24:00`);
 // 明细表与桌面版一致，最新采样排在最前。
 const tableRows = computed(() => [...rows.value].reverse().map((row) => ({ ...row, status: deviceStatus(row) })));
 const chartPoints = computed(() => {
-  const points = (key) => rows.value.map((row) => ({ t: row.recorded_at, v: row[key] == null ? null : Number(row[key]) }));
+  const points = (key) => rows.value.map((row) => ({ t: row.recorded_at, v: row[key] == null || row[key] === '' ? null : Number(row[key]) }));
   return {
     height: points('height_mm'), temperature: points('temperature_c'),
     humidity: points('humidity_percent'), battery: points('battery_percent')
@@ -241,10 +243,10 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-else class="metric-stack" aria-label="全天数据">
-      <div class="metric-chart is-rise"><MDraggableChart label="高度" caption="当前" unit=" mm" color="var(--brand-primary)" :height="200" :points="chartPoints.height" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-      <div class="metric-chart is-temp"><MDraggableChart label="温度" caption="当前" unit="°C" color="var(--brand-primary)" :height="126" :points="chartPoints.temperature" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-      <div class="metric-chart is-humidity"><MDraggableChart label="湿度" caption="当前" unit="%" color="var(--brand-primary)" :height="126" :points="chartPoints.humidity" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
-      <div class="metric-chart is-battery"><MDraggableChart label="电量" caption="当前" unit="%" color="var(--chart-battery)" :height="126" :points="chartPoints.battery" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-rise"><MDraggableChart label="高度" :caption="latestLabel" :now-label="latestLabel" unit=" mm" color="var(--brand-primary)" :height="200" :points="chartPoints.height" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-temp"><MDraggableChart label="温度" :caption="latestLabel" :now-label="latestLabel" unit="°C" color="var(--brand-primary)" :height="126" :points="chartPoints.temperature" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-humidity"><MDraggableChart label="湿度" :caption="latestLabel" :now-label="latestLabel" unit="%" :digits="0" color="var(--brand-primary)" :height="126" :points="chartPoints.humidity" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
+      <div class="metric-chart is-battery"><MDraggableChart label="电量" :caption="latestLabel" :now-label="latestLabel" unit="%" :digits="0" color="var(--chart-battery)" :height="126" :points="chartPoints.battery" :from="dayStart.toISOString()" :to="dayEnd.toISOString()" /></div>
     </section>
 
     <section v-if="!showEmpty" class="table-card">
@@ -327,11 +329,9 @@ onBeforeUnmount(() => {
 .metric-chart :deep(.series-plot){position:relative;height:var(--m-chart-height,126px)}
 .metric-chart :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
 .metric-chart :deep(.series-line){fill:none;stroke-width:1.5}
-.metric-chart :deep(.series-grid){stroke:var(--border-subtle);stroke-width:.3;stroke-dasharray:2 2}
-.metric-chart :deep(.series-dot),.metric-chart :deep(.series-hover-dot){position:absolute;transform:translate(-50%,-50%)}
+.metric-chart :deep(.series-grid){stroke:var(--border-subtle);stroke-width:1;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
 .metric-chart :deep(.series-dot){border-radius:0}
 .metric-chart :deep(.series-hover-dot){border-radius:50%}
-.metric-chart :deep(.series-guide){stroke:var(--text-secondary);stroke-width:.5;stroke-dasharray:2 2;vector-effect:non-scaling-stroke}
 .metric-chart :deep(.series-empty){min-height:88px;display:grid;place-items:center;font-size:var(--text-xs);color:var(--text-secondary);background:transparent;border-radius:var(--radius-control)}
 .metric-chart :deep(.series-value){font-size:16px;font-weight:500;line-height:23px;letter-spacing:0;font-variant-numeric:tabular-nums}
 .metric-chart :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:6px}

@@ -1,5 +1,4 @@
 export const CHART_GAP_MS = 30 * 60 * 1000;
-export const CHART_RELEASE_MS = 1200;
 
 // 有限采样按空值和超时断开。调用方传入的空值必须留在序列里，否则短空档仍会被连上。
 export function chartSegments(points, gapMs = CHART_GAP_MS) {

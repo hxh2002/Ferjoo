@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
-import { CHART_RELEASE_MS, chartSegments, moveSampleIndex, nearestSampleIndex } from '../lib/chart-selection.js';
+import { chartSegments, moveSampleIndex, nearestSampleIndex } from '../lib/chart-selection.js';
 import { concreteColor, readConcreteColor } from '../lib/chart-color.js';
 
 const props = defineProps({
@@ -28,9 +28,11 @@ const props = defineProps({
   valueText: { type: String, default: '' },
   minText: { type: String, default: '' },
   maxText: { type: String, default: '' },
-  // 详情页拖动后保留选中点；普通图表仍在指针离开时清除。
+  // sticky 图表始终保留选点；普通图表仍在指针离开时清除。
   sticky: { type: Boolean, default: false },
-  // 三个开关独立于 sticky。sticky 只负责松手后停留再淡出；不传时保持原有悬停提示。
+  // 移动端详情传 oldest：数据到达后立即展示最早的有限采样，不依赖首次触摸。
+  // 普通图表默认不预选，保持桌面端既有行为。
+  initialSelection: { type: String, default: '' },
   interactive: { type: Boolean, default: false },
   bubble: { type: Boolean, default: true },
   highlight: { type: Boolean, default: false },
@@ -38,7 +40,11 @@ const props = defineProps({
   // 同时不再绘制横向参考线、纵坐标值标签和底部时间游标标签。默认关闭，桌面端行为不变。
   fixedTip: { type: Boolean, default: false },
   // 详情页把「当前 / 最高 / 平均」放在数值前；不传时标题行保持原样。
-  caption: { type: String, default: '' }
+  caption: { type: String, default: '' },
+  // 最后一个采样旁的小字；查看历史日期时调用方改传「最新」。
+  nowLabel: { type: String, default: '当前' },
+  // 读屏播报用的数值文案，需与气泡一致（如膨胀倍数两位小数）；不传时沿用 fmt。
+  announceValue: { type: Function, default: null }
 });
 const emit = defineEmits(['select']);
 const canInteract = computed(() => props.interactive || props.sticky);
@@ -207,7 +213,31 @@ const baselineY = computed(() => {
 const baselineBelow = computed(() => baselineY.value != null && baselineY.value < H * 0.25);
 
 const hoverIdx = ref(null);
-watch(() => [props.points, props.label, props.unit, props.from, props.to, props.compactTime], () => { hoverIdx.value = null; });
+const selectedTime = ref(null);
+
+function selectIndex(index) {
+  const point = index == null ? null : coords.value[index];
+  hoverIdx.value = point ? index : null;
+  selectedTime.value = point ? Date.parse(point.t) : null;
+}
+
+// 数据按时间排序并去重后，coords[0] 就是该张卡最早的有效采样。
+// 用采样时间而不是数组下标追踪选择：后台追加 / 补齐历史点时，用户的选点不会跳到别的数据。
+watch(
+  // 把坐标和范围放进同一批更新，避免切日期 / 轮次时误保留旧数据的选点。
+  () => [coords.value, props.label, props.unit, props.from, props.to, props.compactTime, props.initialSelection],
+  (next, previous) => {
+    const datasetChanged = next.slice(1).some((value, index) => value !== previous?.[index + 1]);
+    if (datasetChanged) selectedTime.value = null;
+    const preserved = selectedTime.value == null ? -1
+      : coords.value.findIndex((point) => Date.parse(point.t) === selectedTime.value);
+    if (preserved >= 0) selectIndex(preserved);
+    else if (coords.value.length && props.initialSelection === 'oldest') selectIndex(0);
+    else selectIndex(null);
+  },
+  // pre 让 props / 异步数据先完成同批计算，再于渲染前同步选点，不读到旧坐标。
+  { immediate: true, flush: 'pre' }
+);
 const hoverPoint = computed(() => (hoverIdx.value == null ? null : coords.value[hoverIdx.value]));
 // 只有一个有效采样时才补点；其余点都在折线上，不再额外画散点。
 // 悬停时也必须保留这些孤立点，不能被悬浮指示点替换掉。
@@ -232,18 +262,55 @@ const fixedTipRef = ref(null);
 const tipRowWidth = ref(0);
 const tipWidth = ref(0);
 function measureFixedTip() {
-  tipRowWidth.value = tipRowRef.value?.clientWidth || 0;
-  tipWidth.value = fixedTipRef.value?.offsetWidth || 0;
+  tipRowWidth.value = tipRowRef.value?.getBoundingClientRect().width || tipRowRef.value?.clientWidth || 0;
+  tipWidth.value = fixedTipRef.value?.getBoundingClientRect().width || fixedTipRef.value?.offsetWidth || 0;
 }
 // post：等 DOM 按新内容渲染完再测量，仍在同一帧绘制前完成，不会闪烁。
-watch(hoverIdx, () => { if (props.fixedTip) measureFixedTip(); }, { flush: 'post' });
+watch([hoverPoint, () => props.unit, () => props.fixedTip], () => {
+  if (props.fixedTip) measureFixedTip();
+}, { flush: 'post', immediate: true });
+
+let tipResizeObserver;
+function observeFixedTip() {
+  tipResizeObserver?.disconnect();
+  if (tipRowRef.value) tipResizeObserver?.observe(tipRowRef.value);
+  if (fixedTipRef.value) tipResizeObserver?.observe(fixedTipRef.value);
+}
+onMounted(() => {
+  measureFixedTip();
+  if (typeof ResizeObserver === 'function') {
+    // 容器随旋转 / 分屏 / 卡片尺寸变化时重新夹紧，字体加载导致气泡变宽也能覆盖。
+    tipResizeObserver = new ResizeObserver(() => {
+      measureFixedTip();
+      observeFixedTip();
+    });
+    observeFixedTip();
+  } else {
+    window.addEventListener('resize', measureFixedTip);
+  }
+});
+// bubble 开关或数据为空时会重建气泡节点，补挂尺寸观察。
+watch([tipRowRef, fixedTipRef], observeFixedTip, { flush: 'post' });
+onBeforeUnmount(() => {
+  tipResizeObserver?.disconnect();
+  window.removeEventListener('resize', measureFixedTip);
+});
 const fixedTipStyle = computed(() => {
   const p = hoverPoint.value;
   if (!p) return {};
-  if (!tipRowWidth.value) return { left: `${(p.x / W) * 100}%` };
+  const percent = (p.x / W) * 100;
+  // 首次渲染 / 服务端渲染尚未测量时按半区对齐，避免最旧点的气泡先伸出左边界。
+  if (!tipRowWidth.value || !tipWidth.value) {
+    const align = p.x < W / 2 ? 'none' : p.x > W / 2 ? 'translateX(-100%)' : 'translateX(-50%)';
+    return { left: `${percent}%`, transform: align };
+  }
+  if (tipWidth.value >= tipRowWidth.value) return { left: '0px', transform: 'none' };
   const half = tipWidth.value / 2;
   const x = (p.x / W) * tipRowWidth.value;
-  const center = Math.min(Math.max(x, half), Math.max(half, tipRowWidth.value - half));
+  const center = Math.min(Math.max(x, half), tipRowWidth.value - half);
+  // 贴近边缘时直接对齐容器；整数坐标不会受窄屏小数像素取整影响而溢出。
+  if (Math.abs(center - half) < 1) return { left: '0px', transform: 'none' };
+  if (Math.abs(center - (tipRowWidth.value - half)) < 1) return { left: '100%', transform: 'translateX(-100%)' };
   return { left: `${center}px` };
 });
 const fixedStemStyle = computed(() => (hoverPoint.value ? { left: `${(hoverPoint.value.x / W) * 100}%` } : {}));
@@ -251,7 +318,7 @@ const fixedStemStyle = computed(() => (hoverPoint.value ? { left: `${(hoverPoint
 function selectAt(ratio) {
   const index = nearestSampleIndex(coords.value, ratio);
   if (index == null) return;
-  hoverIdx.value = index;
+  selectIndex(index);
   emit('select', coords.value[index]);
 }
 function onMove(e) {
@@ -259,63 +326,53 @@ function onMove(e) {
   if (!rect.width) return;
   selectAt((e.clientX - rect.left) / rect.width);
 }
-const releasing = ref(false);
 let pointerHeld = false;
-let releaseTimer = 0;
-let clearTimer = 0;
-function cancelRelease() {
-  clearTimeout(releaseTimer);
-  clearTimeout(clearTimer);
-  releaseTimer = 0;
-  clearTimer = 0;
-  releasing.value = false;
-}
-function finishRelease() {
-  hoverIdx.value = null;
-  releasing.value = false;
-  emit('select', null);
-}
-function scheduleRelease() {
-  if (!props.sticky || hoverIdx.value == null) return;
-  cancelRelease();
-  releaseTimer = setTimeout(() => {
-    releasing.value = true;
-    clearTimer = setTimeout(finishRelease, 240);
-  }, CHART_RELEASE_MS);
-}
 function onPointerDown(event) {
-  if (props.sticky) cancelRelease();
   pointerHeld = true;
   event.currentTarget.setPointerCapture?.(event.pointerId);
   onMove(event);
 }
 function onPointerMove(event) {
   if (props.sticky && !pointerHeld && event.buttons === 0) return;
-  if (props.sticky) cancelRelease();
   onMove(event);
 }
 function onPointerUp() {
+  // 松手、移出或取消触摸都不清空 sticky 选点，再次拖动时从最后位置继续。
+  const released = pointerHeld;
   pointerHeld = false;
-  if (props.sticky) scheduleRelease();
+  if (released) scheduleAnnounce();
 }
-onBeforeUnmount(cancelRelease);
+
+// 读屏播报与可见气泡分离：拖动中不更新，松手或选点停稳后才写入一次，
+// 避免逐帧播报；默认选点在数据到达后同样只播报一次。
+const ANNOUNCE_DELAY_MS = 300;
+const liveText = ref('');
+let announceTimer = null;
+function announceNow() {
+  announceTimer = null;
+  const p = hoverPoint.value;
+  liveText.value = p ? `${props.label} ${fmtTime(p.t)} ${props.announceValue ? props.announceValue(p) : fmt(p.v)}` : '';
+}
+function scheduleAnnounce() {
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(announceNow, ANNOUNCE_DELAY_MS);
+}
+watch(hoverPoint, () => {
+  if (canInteract.value && !pointerHeld) scheduleAnnounce();
+}, { immediate: true });
+onBeforeUnmount(() => clearTimeout(announceTimer));
 function onKey(e) {
   if (!canInteract.value || !coords.value.length) return;
   const next = moveSampleIndex(hoverIdx.value, coords.value.length, e.key);
   if (next == null) return;
   e.preventDefault();
-  cancelRelease();
-  hoverIdx.value = next;
+  selectIndex(next);
   emit('select', coords.value[next]);
-}
-function onBlur() {
-  if (props.sticky) scheduleRelease();
 }
 
 function clearHover() {
   if (pointerHeld) return;
-  if (props.sticky) scheduleRelease();
-  else hoverIdx.value = null;
+  if (!props.sticky) selectIndex(null);
 }
 
 const deltaText = computed(() => {
@@ -454,7 +511,8 @@ const bandBadges = computed(() => {
     </div>
     <div v-if="series.length" class="series-body">
       <!-- 固定高度的气泡行：始终预留空间，选点前后布局不抖动；位于绘图区之外，不会盖住曲线与标签。 -->
-      <div v-if="fixedTip" ref="tipRowRef" class="series-tip-row" :class="{ 'is-releasing': releasing }" :aria-live="canInteract ? 'polite' : undefined">
+      <span v-if="canInteract" class="series-sr-live" aria-live="polite" aria-atomic="true">{{ liveText }}</span>
+      <div v-if="fixedTip" ref="tipRowRef" class="series-tip-row">
         <template v-if="bubble && hoverPoint">
           <span class="series-tip-stem" :style="fixedStemStyle"></span>
           <div ref="fixedTipRef" class="series-fixed-tip" :style="fixedTipStyle">
@@ -465,7 +523,7 @@ const bandBadges = computed(() => {
           </div>
         </template>
       </div>
-      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-releasing': releasing, 'is-fixed-tip': fixedTip }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可用左右方向键查看采样点` : undefined" :aria-live="canInteract ? 'polite' : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @pointerleave="clearHover" @keydown="onKey" @blur="onBlur">
+      <div class="series-plot" :class="{ 'is-sticky': sticky, 'is-interactive': canInteract, 'is-fixed-tip': fixedTip }" :tabindex="canInteract ? 0 : undefined" :aria-label="canInteract ? `${label}曲线，可拖动或用左右方向键查看采样点` : undefined" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @lostpointercapture="onPointerUp" @pointerleave="clearHover" @keydown="onKey">
         <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <!-- iOS 对渐变里的 CSS 变量 / 内部 url(#id) 可能回退成黑色；stop 只接收计算后的具体颜色。 -->
@@ -591,7 +649,7 @@ const bandBadges = computed(() => {
           v-if="highlight && coords.length"
           class="series-now"
           :style="{ left: `${(coords.at(-1).x / W) * 100}%`, top: `${(coords.at(-1).y / H) * 100}%` }"
-        >当前</span>
+        >{{ nowLabel }}</span>
         <div
           v-if="bubble && hoverPoint && !fixedTip"
           class="series-tip"
@@ -621,36 +679,35 @@ const bandBadges = computed(() => {
 
 <style scoped>
 .series-color-probe { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.series-sr-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* 折线本身是开放路径，SVG 默认 fill 是黑色：不显式置 none 会把折线自动闭合后填成
    黑色楔形，陡峭段尤其明显。移动端不加载 main.css，所以关键呈现必须由组件自己兜住。 */
 .series-line { fill: none; stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
 .series-area { stroke: none; }
-/* 选点竖线也是开放路径；移动端没有 main.css 兜底时，默认黑色填充会把它变成实色柱。 */
-.series-guide { fill: none; stroke: rgba(42,29,23,.38); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+/* 选点竖线也是开放路径；移动端没有 main.css 兜底时，默认黑色填充会把它变成实色柱。
+   图内竖线与气泡下接头共用 --series-guide-color / --series-guide-width，
+   否则两截各自设宽（stroke 与 border 各写一份）会出现上下粗细、深浅不一致。 */
+.series-guide { fill: none; stroke: var(--series-guide-color, rgba(42,29,23,.38)); stroke-width: var(--series-guide-width, 1px); stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
 .series-baseline { stroke: rgba(42,29,23,.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .series-guide-y { stroke: var(--brand-action); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .series-value-label { position: absolute; left: 0; z-index: 2; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 20px; padding: 0 4px; border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: var(--m-shadow); }
 .series-time-label { position: absolute; bottom: 0; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 20px; transform: translateX(-50%); border-radius: var(--radius-badge); background: var(--surface-card); color: var(--text-primary); font-size: 11px; line-height: 20px; pointer-events: none; }
 .series-now { position: absolute; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 16px; margin-left: 4px; color: var(--text-secondary); font-size: 9px; line-height: 16px; pointer-events: none; }
-.series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: opacity 240ms linear; }
-.series-plot.is-releasing :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { opacity: 0; }
 .series-plot { position: relative; min-height: 44px; }
 /* 固定气泡行：高度写死（气泡 28 + 竖线接头 8），内容变化与有无选点都不影响布局。 */
 .series-tip-row { position: relative; height: 36px; pointer-events: none; }
 .series-fixed-tip { position: absolute; top: 0; z-index: 2; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; height: 28px; max-width: 100%; padding: 0 12px; transform: translateX(-50%); border: 1px solid var(--m-chart-line, #f0c7a6); border-radius: 14px; background: var(--surface-card, #fff); color: var(--text-primary); box-shadow: var(--m-shadow-tip, 0 2px 8px rgba(77, 51, 36, .1)); font-size: 12px; line-height: 26px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .series-fixed-tip span { color: var(--text-secondary); font-size: 11px; }
 .series-fixed-tip strong { color: var(--text-primary); font-size: 13px; font-weight: 500; }
-/* 竖线接头：从气泡底部接到绘图区顶端，和 SVG 里的竖线连成一条贯穿线。 */
-.series-tip-stem { position: absolute; top: 28px; bottom: 0; width: 0; border-left: 1px dashed var(--text-secondary, #75665b); }
-.series-tip-row.is-releasing :is(.series-fixed-tip, .series-tip-stem) { opacity: 0; }
+/* 竖线接头：从气泡底部接到绘图区顶端，和 SVG 里的竖线连成一条贯穿线。
+   宽度、颜色取同一组变量，虚线用显式 2/2 周期（border dashed 的节奏由浏览器决定，无法和 SVG 对齐）；
+   translateX(-50%) 让线段与 SVG 竖线同心地落在采样点 x 上。 */
+.series-tip-stem { position: absolute; top: 28px; bottom: 0; width: var(--series-guide-width, 1px); transform: translateX(-50%); background-image: repeating-linear-gradient(to bottom, var(--series-guide-color, rgba(42,29,23,.38)) 0 2px, transparent 2px 4px); }
 .series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: opacity 240ms linear; }
 /* 横向拖动归图表处理，纵向仍交给页面滚动。 */
 .series-plot.is-fixed-tip { touch-action: pan-y; }
 @media (prefers-reduced-motion: reduce) { .series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: none; } }
 .series-plot:is(.is-sticky, .is-interactive):focus-visible { outline: 2px solid var(--brand-action); outline-offset: 3px; }
-@media (prefers-reduced-motion: reduce) {
-  .series-plot.is-sticky :is(.series-tip, .series-hover-dot, .series-value-label, .series-time-label, .series-guide, .series-guide-y) { transition: none; }
-}
 /* 发酵窗口整段底色：相邻轮次用两种极浅的深浅交替，仍能看出边界。 */
 .series-band { fill: rgba(48, 37, 31, .045); }
 .series-band.alt { fill: rgba(48, 37, 31, .075); }
@@ -721,6 +778,11 @@ const bandBadges = computed(() => {
 .series-marker-label.start { left: 2px; }
 .series-marker-label.end { right: 2px; }
 .series-marker.accent .series-marker-label { color: #a44213; background: rgba(255, 240, 236, .92); }
+/* 散点与选中点按自身中心落在采样坐标上；移动端不加载 main.css，定位必须由组件兜住，
+   否则会退回文档流掉到绘图区下方。 */
+.series-dot, .series-hover-dot { position: absolute; z-index: 1; display: block; transform: translate(-50%, -50%); pointer-events: none; }
+/* 选中点压在角标之上：贴顶的采样（如湿度 100%）不能被 max 标签盖住。 */
+.series-hover-dot { z-index: 2; }
 /* 孤立点沿用折线的方形笔触，尺寸跟随当前图表的折线宽度，大图同步放大。 */
 .series-dot {
   width: calc(var(--series-stroke, 1.8px) * 2.5);
@@ -738,10 +800,10 @@ const bandBadges = computed(() => {
 .series-baseline-tag.below { transform: translateY(8%); }
 /* 数值和时间段保持完整，避免窄卡片把数字拆成多行。 */
 .series-head { min-width: 0; gap: 4px; }
-.series-headline { min-width: 0; flex: 0 1 auto; flex-wrap: nowrap; gap: 4px; }
+.series-headline { display: flex; align-items: baseline; justify-content: flex-end; min-width: 0; flex: 0 1 auto; flex-wrap: nowrap; gap: 4px; }
 .series-caption { color: var(--text-secondary); font-size: 11px; font-weight: 400; line-height: 16px; }
 .series-value, .series-delta { flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.series-range { flex-wrap: nowrap; min-width: 0; gap: 4px; }
+.series-range { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; min-width: 0; gap: 4px; }
 .series-range > :last-child { margin-left: auto; min-width: 0; }
 .series-time-range { display: inline-flex; align-items: center; gap: 2px; }
 .series-time-range .day-offset { display: inline-grid; place-items: center; min-width: 10px; height: 10px; padding: 0 1px; border-radius: var(--radius-badge); background: #f2dcd7; color: #a4524a; font-size: 6.5px; line-height: 1; font-weight: 600; }

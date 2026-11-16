@@ -149,6 +149,20 @@ async function flush() {
   assert.equal(page.vm.curveText.emptyMessage, '');
   page.stop();
 }
+// 缺测值保持为空：默认最旧有效点不能被 Number(null) 造出的零值替代。
+{
+  const summary = { ...closed, baselineHeightMm: 30, measurementCount: 2, heightCount: 1 };
+  const measurements = [
+    at('2026-10-25T00:30:00Z', { height_mm: null, temperature_c: null }),
+    at('2026-10-25T01:00:00Z', { height_mm: 30, temperature_c: 24 })
+  ];
+  const page = await mount({ feeding: record, link: { device_id: 'd1', active_to: null }, measurements, unavailableReason: '', summary });
+  assert.equal(page.vm.roundCharts.temperature[0].v, null, 'a missing temperature remains null');
+  assert.equal(page.vm.roundCharts.temperature[1].v, 24);
+  assert.equal(page.vm.roundCharts.expansion[0].v, null, 'a missing height does not create a zero baseline ratio');
+  page.stop();
+}
+
 // 没有任何有效采样（设备关联有效）：通用空态，且不重复「没有可用采样」提示。
 {
   const summary = { ...closed, measurementCount: 0, baselineStatus: 'insufficient', heightStale: false };

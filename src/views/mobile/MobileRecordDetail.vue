@@ -95,12 +95,13 @@ function averageText(points, digits, suffix) {
 const temperatureText = computed(() => Number.isFinite(summary.value?.tempC) ? `${summary.value.tempC.toFixed(1)} °C` : '');
 function chartSeries(rows, key) {
   return rows.map((row) => {
-    const value = Number(row[key]);
+    // 缺测必须保持为空，不能让 Number(null) 在曲线上伪装成 0。
+    const value = row[key] == null || row[key] === '' ? null : Number(row[key]);
     return { t: row.recorded_at, v: Number.isFinite(value) ? value : null };
   });
 }
 function chartHasValue(points) {
-  return points.some((point) => point.v != null);
+  return points.some((point) => Number.isFinite(point.v));
 }
 const roundCharts = computed(() => {
   const rows = clipRoundMeasurements(evidence.value?.measurements, summary.value, record.value);
@@ -240,7 +241,7 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
         <MDraggableChart label="温度" caption="平均" :value-text="averageText(roundCharts.temperature, 1, '°C')" unit="°C" color="var(--brand-primary)" :height="126" :points="roundCharts.temperature" :from="roundCharts.from" :to="roundCharts.to" />
       </div>
       <div v-if="roundCharts.humidity" class="metric-chart is-humidity">
-        <MDraggableChart label="湿度" caption="平均" :value-text="averageText(roundCharts.humidity, 0, '%')" unit="%" color="var(--brand-primary)" :height="126" :points="roundCharts.humidity" :from="roundCharts.from" :to="roundCharts.to" />
+        <MDraggableChart label="湿度" caption="平均" :value-text="averageText(roundCharts.humidity, 0, '%')" unit="%" :digits="0" color="var(--brand-primary)" :height="126" :points="roundCharts.humidity" :from="roundCharts.from" :to="roundCharts.to" />
       </div>
       </div>
       <div v-else class="curve-empty">
