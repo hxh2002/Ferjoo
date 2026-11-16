@@ -3,7 +3,7 @@ export const JAR_MOODS = Object.freeze(['idle', 'eating', 'peak', 'hungry']);
 export const JAR_MOOD_LABELS = Object.freeze({
   idle: '正常待机',
   eating: '吃饭',
-  peak: 'Peak',
+  peak: '峰值',
   hungry: '饿了'
 });
 

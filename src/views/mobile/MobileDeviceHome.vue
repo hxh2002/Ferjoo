@@ -106,8 +106,8 @@ const jarCaption = computed(() => {
   if (!feeding.value) return '还没开始新一轮';
   if (!s?.windowActive) return '本轮已结束';
   if (s.baselineHeightMm == null) return s.baselinePending ? '刚喂完，正在记录起始高度' : '暂无高度数据';
-  if (s.risePhase === 'fallen') return '已过 Peak 回落，虚线是峰值高度';
-  if (s.risePhase === 'peak') return '到达 Peak，开始回落';
+  if (s.risePhase === 'fallen') return '已过峰值回落，虚线是峰值高度';
+  if (s.risePhase === 'peak') return '到达峰值，开始回落';
   if (s.risePhase === 'pre-peak') return '涨到 2 倍（+100%），接近高点';
   if (s.trendHeightMm / s.baselineHeightMm < 1.1) return '刚喂完，等待起发';
   return s.trendHeightMm < s.highHeightMm ? '涨势放缓' : '正在上涨';

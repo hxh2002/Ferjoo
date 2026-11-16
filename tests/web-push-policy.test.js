@@ -37,8 +37,8 @@ for (const summary of [null, { baselinePending: true, baselineHeightMm: 100, cur
   assert.equal(eligiblePeak({ ...summary(11, 106), heightStale: true }), null);
 
   const message = alertPayload({ kind: 'peak', ratio: 2.2, peak_ratio: peak.peakRatio, peak_at: peak.peakAt, feeding_id: 'e1', starter_id: 's 1' }, Date.parse(at(106)));
-  assert.equal(message.title, '酵种已过 Peak');
-  assert.equal(message.body, '约 21 分钟前到达 Peak，膨胀至基线的 2.30 倍；目前为 2.20 倍，已开始回落。');
+  assert.equal(message.title, '酵种已过峰值');
+  assert.equal(message.body, '约 21 分钟前到达峰值，膨胀至基线的 2.30 倍；目前为 2.20 倍，已开始回落。');
   assert.equal(message.tag, 'ferjoo-peak-e1');
   assert.equal(message.url, '/device?starter=s%201');
   assert.deepEqual(alertPayload({ kind: 'ratio', target: 2, ratio: 2.137, feeding_id: 'e1', starter_id: 's1' }), {

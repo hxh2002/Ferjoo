@@ -41,8 +41,8 @@ export function alertPayload(event, now = Date.now()) {
   if (event.kind === 'peak') {
     const minutes = Math.max(0, Math.round((now - Date.parse(event.peak_at)) / 60000));
     return {
-      title: '酵种已过 Peak',
-      body: `约 ${minutes} 分钟前到达 Peak，膨胀至基线的 ${Number(event.peak_ratio).toFixed(2)} 倍；目前为 ${current} 倍，已开始回落。`,
+      title: '酵种已过峰值',
+      body: `约 ${minutes} 分钟前到达峰值，膨胀至基线的 ${Number(event.peak_ratio).toFixed(2)} 倍；目前为 ${current} 倍，已开始回落。`,
       tag: `ferjoo-peak-${event.feeding_id}`,
       url,
     };
