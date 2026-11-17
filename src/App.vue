@@ -1,30 +1,16 @@
 <script setup>
 import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import AppHeader from './components/AppHeader.vue';
-import MobileShell from './components/MobileShell.vue';
-import { classicAssets } from './constants/classicAssets.js';
-import { isMobilePath, usesMobileAccountLayout } from './lib/accountNavigation.js';
+import { useRoute } from 'vue-router';
+import { isWelcomeRoute } from './lib/site-entry.js';
 
+// 只有 ferjoo.com 欢迎页脱离产品外壳；产品主体的所有路由共用同一个 MobileShell，宽窄屏交给 CSS。
 const route = useRoute();
-const router = useRouter();
-const isMobileAccount = computed(() => usesMobileAccountLayout(route, router));
-const isMobileArea = computed(() => isMobilePath(route.path) || isMobileAccount.value);
+const isWelcome = computed(() => isWelcomeRoute(route));
 </script>
 
 <template>
-  <div v-if="isMobileArea" class="mobile-area">
-    <MobileShell v-if="isMobileAccount"><RouterView /></MobileShell>
-    <RouterView v-else />
-  </div>
-  <div v-else class="page-shell">
-    <AppHeader />
-    <main>
-      <RouterView />
-    </main>
-    <footer class="site-footer">
-      <img :src="classicAssets.logoEnglish" alt="Dr. Ferjoo" />
-      <p>Powered by Ferjoo</p>
-    </footer>
+  <RouterView v-if="isWelcome" />
+  <div v-else class="mobile-area">
+    <RouterView />
   </div>
 </template>

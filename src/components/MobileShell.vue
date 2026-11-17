@@ -1,10 +1,11 @@
 <script setup>
-import { computed, inject, nextTick, onMounted, onBeforeUnmount, provide, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onBeforeUnmount, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
-import { useDesktopLayout } from '../composables/useDesktopLayout.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
-import DesktopShell from './DesktopShell.vue';
+import { pageTitle } from '../lib/page-title.js';
+import DesktopNav from './DesktopNav.vue';
+import DrFerjooMark from './DrFerjooMark.vue';
 
 import navDevice from '../assets/icons/nav-device.svg';
 import navDeviceActive from '../assets/icons/nav-device-active.svg';
@@ -16,7 +17,6 @@ import navMeActive from '../assets/icons/nav-me-active.svg';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
-const { isDesktop } = useDesktopLayout();
 const tabs = [
   { path: '/device', label: '设备', icon: navDevice, activeIcon: navDeviceActive, wide: true },
   { path: '/diary', label: '日记', icon: navDiary, activeIcon: navDiaryActive },
@@ -57,28 +57,13 @@ const isAccount = computed(() => isSharedAccountPage(route));
 // 登录 / 注册的标题由页面自身提供（28 / 500 / 36），顶栏只留返回键，避免同一屏出现两个标题。
 const isAuthPage = computed(() => ['mobile-login', 'mobile-register'].includes(route.name));
 const hideTopbarTitle = computed(() => isAuthPage.value);
-// App.vue 会把共享账号页再包一层 MobileShell；这些页现在也挂在 MobileShell 路由下，
-// 内层实例检测到祖先时只转发路由出口，避免同一屏出现两套顶栏与底栏。
-const shellNested = inject('mobileShellNested', false);
-provide('mobileShellNested', true);
 const headerAside = ref('');
 const headerTitle = ref('');
 const headerTone = ref('');
 provide('mobileHeaderAside', headerAside);
 provide('mobileHeaderTitle', headerTitle);
 provide('mobileHeaderTone', headerTone);
-const title = computed(() => {
-  if (headerTitle.value) return headerTitle.value;
-  if (typeof route.meta.title === 'string') return route.meta.title;
-  if (route.path === '/me/devices/add') return '添加设备';
-  if (/^\/me\/devices\/[^/]+\/info$/.test(route.path)) return '设备信息';
-  if (route.path.startsWith('/devices/')) return '数据详情';
-  if (route.path.startsWith('/doctor/')) return '酵种医生';
-  if (route.path.startsWith('/diary/records/')) return '数据详情';
-  if (route.path.startsWith('/reports/')) return '诊断报告';
-  if (route.path.startsWith('/me/devices/')) return '设备设置';
-  return ({ '/checkin': '诊断记录', '/feeding': '记录喂养', '/reports': '诊断报告', '/me': '我的', '/me/devices': '我的设备', '/me/profile': '个人资料', '/me/profile/edit': '编辑资料', '/me/invite': '我的邀请码', '/me/notifications': '通知设置', '/me/account': '修改密码', '/me/help': '关于与帮助', '/me/help/faq': '常见问题', '/me/help/feedback': '意见反馈', '/me/help/privacy': '隐私与权限', '/login': '登录', '/register': '注册', '/profile': '个人资料', '/claim': '绑定设备' })[route.path] || '养护详情';
-});
+const title = computed(() => headerTitle.value || pageTitle(route));
 const navTone = computed(() => {
   if (headerTone.value) return headerTone.value;
   if (isAuthPage.value) return 'auth';
@@ -148,21 +133,9 @@ function go(path) {
 </script>
 
 <template>
-  <RouterView v-if="shellNested" />
-  <DesktopShell v-else-if="isDesktop">
-    <main class="mobile-main">
-      <slot>
-        <RouterView v-slot="{ Component }">
-          <Transition name="mobile-page">
-            <KeepAlive :include="cachedTabs">
-              <component :is="Component" />
-            </KeepAlive>
-          </Transition>
-        </RouterView>
-      </slot>
-    </main>
-  </DesktopShell>
-  <div v-else class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
+  <!-- 同一套外壳：窄屏显示顶栏与底部标签，≥768px 由 CSS 换成侧栏与桌面顶栏；页面出口只有一个。 -->
+  <div class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
+    <DesktopNav :title="title" />
     <header v-if="!showTabs" class="mobile-topbar mobile-subbar" :class="navTone ? `is-${navTone}` : ''">
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
@@ -170,16 +143,17 @@ function go(path) {
       <h1 v-if="!hideTopbarTitle">{{ title }}</h1>
       <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
     </header>
+    <RouterLink class="mobile-brand" to="/device" aria-label="Dr. Ferjoo">
+      <DrFerjooMark />
+    </RouterLink>
     <main class="mobile-main">
-      <slot>
-        <RouterView v-slot="{ Component }">
-          <Transition name="mobile-page">
-            <KeepAlive :include="cachedTabs">
-              <component :is="Component" />
-            </KeepAlive>
-          </Transition>
-        </RouterView>
-      </slot>
+      <RouterView v-slot="{ Component }">
+        <Transition name="mobile-page">
+          <KeepAlive :include="cachedTabs">
+            <component :is="Component" />
+          </KeepAlive>
+        </Transition>
+      </RouterView>
     </main>
     <nav v-if="showTabs" class="mobile-tabbar" aria-label="主要导航" :style="{ '--slider-position': sliderPosition }">
       <span class="mobile-tab-slider" aria-hidden="true"></span>
@@ -193,6 +167,8 @@ function go(path) {
 
 <style scoped>
 /* 顶栏外观（磨砂玻璃 / 标题 20·500·29 / 44×44 返回键）统一写在 mobile.css；tone 只作语义标记，不再改变外观。 */
+.mobile-brand { display: flex; justify-content: center; max-width: 100%; padding: 8px 16px 2px; }
+.mobile-shell.has-tabs .mobile-brand { padding-top: calc(10px + env(safe-area-inset-top)); }
 .mobile-aside { margin-left: auto; color: var(--text-secondary); font-size: 13px; font-weight: 400; line-height: 22px; white-space: nowrap; }
 .mobile-page-enter-active { animation: mobile-arrive 280ms cubic-bezier(.2, .8, .3, 1); }
 .mobile-shell :deep(details[open] > :not(summary)),

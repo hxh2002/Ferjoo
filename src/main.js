@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router/index.js';
 import { isMobilePath, usesMobileAccountLayout } from './lib/accountNavigation.js';
+import { isWelcomeRoute, productRedirect } from './lib/site-entry.js';
 import './assets/tokens.css';
 import './assets/mobile.css';
 
@@ -24,16 +25,23 @@ async function prepareDesktopStyle() {
 }
 
 router.beforeResolve(async (to) => {
-  if (!isMobileRoute(to)) await prepareDesktopStyle();
+  if (!isMobileRoute(to) && !isWelcomeRoute(to)) await prepareDesktopStyle();
 });
 router.afterEach((to, from, failure) => {
   if (failure) return;
   const mobile = isMobileRoute(to);
-  if (desktopStyle) desktopStyle.media = mobile ? 'not all' : 'all';
+  // 欢迎页自带样式，不启用旧版桌面样式，也不带 mobile-mode。
+  if (desktopStyle) desktopStyle.media = mobile || isWelcomeRoute(to) ? 'not all' : 'all';
   document.documentElement.classList.toggle('mobile-mode', mobile);
   document.body.classList.toggle('mobile-mode', mobile);
 });
 
-const app = createApp(App);
-app.use(router);
-router.isReady().then(() => app.mount('#app'));
+// ferjoo.com 只承载欢迎页根路径；其它路径交给产品域名，不在欢迎域名上挂载应用。
+const redirect = productRedirect();
+if (redirect) {
+  window.location.replace(redirect);
+} else {
+  const app = createApp(App);
+  app.use(router);
+  router.isReady().then(() => app.mount('#app'));
+}

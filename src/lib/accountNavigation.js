@@ -1,5 +1,3 @@
-import { isMobileBrowser } from './device.js';
-
 export function safeRedirect(value, router) {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return '';
   try {
@@ -20,19 +18,16 @@ export function isMobilePath(path) {
 }
 
 export function isSharedAccountPage(route) {
-  return ['login', 'register', 'mobile-login', 'mobile-register', 'profile', 'claim'].includes(route.name);
+  return ['mobile-login', 'mobile-register', 'claim'].includes(route.name);
 }
 
-export function usesMobileAccountLayout(route, router) {
-  // 移动端专用登录/注册路由只存在于 MobileShell 子树里，永远按移动布局渲染。
-  if (['mobile-login', 'mobile-register'].includes(route.name)) return true;
-  return isSharedAccountPage(route)
-    && (isMobileBrowser() || isMobilePath(safeRedirect(route.query.redirect, router)));
+// 登录、注册、绑定设备都在同一个 MobileShell 里，宽窄屏由 CSS 决定，不再按浏览器类型分流。
+export function usesMobileAccountLayout(route) {
+  return isSharedAccountPage(route);
 }
 
 export function accountDestination(route, router) {
-  return safeRedirect(route.query.redirect, router)
-    || (usesMobileAccountLayout(route, router) ? '/device' : '/history');
+  return safeRedirect(route.query.redirect, router) || '/device';
 }
 
 export function authLink(name, route, router) {

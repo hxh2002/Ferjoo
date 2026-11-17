@@ -68,7 +68,6 @@ onMounted(() => auth.init());
         <RouterLink class="m-list-row" to="/me/help"><span class="row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.5 1-1.5 1.9V14" /><path d="M12 17h.01" /></svg></span><span class="row-main"><strong>关于与帮助</strong></span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></RouterLink>
       </nav>
 
-      <p class="desktop-entry"><RouterLink :to="{ path: '/', query: { view: 'desktop' } }">访问电脑端</RouterLink></p>
       <button v-if="auth.user.value" type="button" class="logout-btn" @click="logoutOpen = true">退出登录</button>
     </template>
     <MConfirmDialog :open="logoutOpen" danger title="确认退出登录？" message="尚未同步的观察和喂养草稿会保留在本机当前账号下，不会自动上传。" confirm-label="退出登录" cancel-label="取消" @cancel="logoutOpen = false" @confirm="logout" />
@@ -82,7 +81,6 @@ onMounted(() => auth.init());
 .mobile-area .mobile-main .m-page.mobile-me > .me-head{margin-block:0 14px}
 .mobile-area .mobile-main .m-page.mobile-me > .group-label{margin-block:24px 8px}
 .mobile-area .mobile-main .m-page.mobile-me > .me-head + .group-label{margin-top:0}
-.mobile-area .mobile-main .m-page.mobile-me > .desktop-entry{margin-block:14px 0}
 .mobile-area .mobile-main .m-page.mobile-me > .logout-btn{margin-top:14px}
 /* 卡片自己不留外边距，分区之间统一由 .group-label 的 24 控制，
    避免「卡片 12 + 标签 18」凑出 30、而标签到自己卡片只有 8 的比例失衡。 */
@@ -119,8 +117,6 @@ onMounted(() => auth.init());
 .nav-card .m-list-row{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;padding:0;border-top:0;text-decoration:none;color:inherit}
 .row-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:20px;background:var(--m-disc);color:var(--brand-action)}
 .nav-card .m-list-row + .m-list-row::before{content:'';position:absolute;top:0;left:52px;right:0;height:1px;background:var(--m-row-divider)}
-.desktop-entry{margin:14px 0 0;text-align:center}
-.desktop-entry a{font-size:13px;color:var(--text-secondary);text-underline-offset:3px;text-decoration:none}
 .logout-btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;margin-top:14px;padding:0 16px;border:1px solid var(--border-subtle);border-radius:var(--m-radius-button);background:var(--surface-card);color:var(--danger-text);font:inherit;font-size:15px;font-weight:500;cursor:pointer}
 .text-link{color:var(--brand-action);font-size:13px;font-weight:500;text-decoration:none}
 </style>

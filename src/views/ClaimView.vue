@@ -1,19 +1,16 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import AuthCard from '../components/AuthCard.vue';
 import { useAuth } from '../composables/useAuth.js';
 import { claimDevice } from '../services/device.service.js';
-import { usesMobileAccountLayout } from '../lib/accountNavigation.js';
 
 // 二维码落地页（冗余路径）：扫码打开 /claim?code=XXXX-XXXX 自动绑定；
 // 未登录会先被路由守卫送去登录/注册，成功后带着 redirect 回到本页继续绑定。
 const auth = useAuth();
 const route = useRoute();
 const router = useRouter();
-const mobile = computed(() => usesMobileAccountLayout(route, router));
 const deviceId = ref('');
-const destination = computed(() => !mobile.value ? '/history' : deviceId.value
+const destination = computed(() => deviceId.value
   ? `/me/devices/${encodeURIComponent(deviceId.value)}`
   : '/me/devices');
 
@@ -37,7 +34,7 @@ async function claim(code) {
     const res = await claimDevice(code);
     deviceId.value = res.device_id || '';
     state.value = res.already_mine ? 'already' : 'success';
-    if (mobile.value && deviceId.value) await router.replace(destination.value);
+    if (deviceId.value) await router.replace(destination.value);
   } catch (e) {
     state.value = 'error';
     message.value = e?.message?.includes('INVALID_BIND_CODE')
@@ -59,7 +56,7 @@ function goDevice() {
 </script>
 
 <template>
-  <main v-if="mobile" class="m-page claim-page">
+  <main class="m-page claim-page">
     <section class="m-card">
       <h2>绑定设备</h2>
       <p class="m-muted">绑定后可查看设备全部历史采样。</p>
@@ -96,45 +93,6 @@ function goDevice() {
       </template>
     </section>
   </main>
-
-  <div v-else class="auth-page">
-    <AuthCard eyebrow="DEVICE BINDING" title="绑定设备" description="绑定后可查看设备全部历史采样。">
-      <div v-if="state === 'working'" class="claim-status">
-        <p class="auth-description">正在绑定，请稍候…</p>
-      </div>
-
-      <div v-else-if="state === 'success' || state === 'already'" class="claim-status">
-        <p class="form-success">{{ state === 'already' ? '这台设备已经在你的列表中。' : '绑定成功，设备已加入你的列表。' }}</p>
-        <button class="diagnose-button" type="button" @click="goDevice">
-          <span>{{ mobile ? (deviceId ? '查看设备详情' : '前往我的设备') : '前往数据看板' }}</span>
-          <b>{{ mobile ? 'DEVICE →' : 'HISTORY →' }}</b>
-        </button>
-      </div>
-
-      <template v-else>
-        <p v-if="state === 'error'" class="form-error">{{ message }}</p>
-        <form class="auth-form" @submit.prevent="submitManual">
-          <label>
-            <span>绑定码</span>
-            <input
-              v-model.trim="manualCode"
-              type="text"
-              maxlength="12"
-              placeholder="例如 ABCD-EFGH"
-              autocomplete="off"
-              required
-            />
-          </label>
-          <label><input v-model="confirmed" type="checkbox">我已了解：绑定后可查看设备全部历史采样。</label>
-          <button class="diagnose-button" :disabled="!manualCode.trim() || !confirmed">
-            <span>绑定设备</span>
-            <b>BIND →</b>
-          </button>
-        </form>
-        <p class="auth-switch">绑定码在设备标签或随附卡片上，也可扫码自动填写。</p>
-      </template>
-    </AuthCard>
-  </div>
 </template>
 <style scoped>
 .claim-page .m-card{display:grid;gap:var(--m-module-gap)}

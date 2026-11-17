@@ -52,6 +52,8 @@ const context = vm.createContext({
   createApp: () => ({ use() {}, mount() { mounted = true; } }),
   isMobilePath: (path) => /^\/(device|diary|today|records|me)(\/|$)/.test(path),
   usesMobileAccountLayout: (route) => route.mobileAccount,
+  isWelcomeRoute: (route) => route?.meta?.welcome === true,
+  productRedirect: () => '',
   loadDesktopCss: async () => { imports++; return { default: desktopCss }; }
 });
 const executable = main.replace(/^import .*;\n/gm, '').replace("import('./assets/main.css?inline')", 'loadDesktopCss()');
@@ -78,4 +80,8 @@ await hooks.before({ path: '/' });
 hooks.after({ path: '/' }, {});
 assert.equal(imports, 1, 'desktop CSS must be loaded only once');
 assert.equal(elements[0].media, 'all');
+// The welcome page owns its styles: it neither loads nor enables the legacy desktop CSS.
+hooks.after({ path: '/', meta: { welcome: true } }, {});
+assert.equal(elements[0].media, 'not all', 'welcome route disables legacy desktop CSS');
+assert.ok(!document.body.classList.values.get('mobile-mode'), 'welcome route is outside mobile-mode');
 console.log('ok - isolated style lifecycle, mobile account entry, scoped tokens/mobile CSS and mobile shell compilation');
