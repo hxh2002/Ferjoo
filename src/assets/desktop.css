@@ -241,6 +241,15 @@
   body.mobile-mode .m-toast-enter-to,
   body.mobile-mode .m-toast-leave-from { transform: none; }
   body.mobile-mode .m-sheet .weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* 各页用 gap:0 退出手机端的 flex 间距，这条简写同时把上面的桌面分栏间距清成 0。
+     多一层 .mobile-shell，才能压过组件里的 scoped gap:0。 */
+  .mobile-area .mobile-shell .mobile-main .m-page.mobile-diary { gap: 24px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.mobile-me { gap: 16px 24px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.device-page { column-gap: 24px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.doctor-rounds { gap: 16px 20px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.mobile-me > .m-guest-notice,
+  .mobile-area .mobile-shell .mobile-main .m-page.doctor-rounds > .m-guest-notice { margin-block: 0; }
 }
 
 @media (min-width: 1200px) {
@@ -249,6 +258,8 @@
   .mobile-area .desktop-topbar { padding-inline: 40px; }
   .mobile-area .mobile-main .device-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); column-gap: 32px; }
   .mobile-area .mobile-main .device-page .jar-preview { min-height: 500px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.mobile-diary { gap: 32px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.device-page { column-gap: 32px; }
   .mobile-area .mobile-main .mobile-diary { grid-template-columns: 390px minmax(0, 1fr); gap: 32px; }
   .mobile-area .mobile-main .mobile-diary .date-grid-shared.expanded .date-cell { height: 54px; }
   .mobile-area .mobile-main .mobile-trend > .metric-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -261,6 +272,8 @@
   .mobile-area .mobile-main .device-page .jar-preview { min-height: 450px; }
   .mobile-area .mobile-main .device-page .metric { padding-inline: 8px; }
   .mobile-area .mobile-main .device-page .metric-value { font-size: 19px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.mobile-diary { gap: 20px; }
+  .mobile-area .mobile-shell .mobile-main .m-page.device-page { column-gap: 18px; }
   .mobile-area .mobile-main .mobile-diary { grid-template-columns: 320px minmax(0, 1fr); gap: 20px; }
   .mobile-area .mobile-main .mobile-diary .round-group { grid-template-columns: 1fr; }
   .mobile-area .mobile-main .mobile-feeding .weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

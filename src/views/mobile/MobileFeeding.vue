@@ -473,6 +473,8 @@ async function save() {
 .feeding-section{margin:0 0 9px;color:var(--text-secondary);font-size:var(--text-sm);font-weight:500;line-height:21px}
 /* `.m-page > *` 的全局 margin 归零让上面两条 scoped 间距失效，实测「当前酵种」→「喂养措施」
    与「喂养措施」→ 表单都是 0，标题压在第一张记录卡上；这里用高优先级别名把 12 / 9 写回。 */
+.mobile-area .mobile-main .m-page.mobile-feeding > .phase-chip{margin-block:0 10px}
+.mobile-area .mobile-main .m-page.mobile-feeding > .m-guest-notice{margin-block:0 12px}
 .mobile-area .mobile-main .m-page.mobile-feeding > .m-context{margin-block:0 12px}
 .mobile-area .mobile-main .m-page.mobile-feeding > .feeding-section{margin-block:0 9px}
 .mobile-area .mobile-main .m-page.mobile-feeding > .saved-banner{margin-block:0 14px}

@@ -176,8 +176,12 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 .day-picker,.month-entry,.retry{min-height:34px;padding:0 12px;border:1px solid var(--border-warm);border-radius:17px;background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:14px}
 .day-picker{width:115px;height:34px;padding:0 10px;border:0;border-radius:17px;background:var(--m-date-capsule-bg);color:var(--m-date-capsule-text);font-size:13px}
 .month-entry{margin:8px 0 12px}
+.mobile-area .mobile-main .m-page.doctor-rounds > .month-entry{margin-block:8px 12px}
+.mobile-area .mobile-main .m-page.doctor-rounds > .empty{margin-block:14px 0}
+.mobile-area .mobile-main .m-page.doctor-rounds > .m-guest-notice{margin-block:16px 0}
 /* 370:18946：卡 295×178、圆角 14；与日记页 .month-wheels 逐条同款（渐隐用卡片底色，「完成」在文档流里单独一行、压在渐隐之上）。 */
 .month-wheels{--m-wheel-fade-bg:var(--surface-card);position:relative;isolation:isolate;display:grid;grid-template-columns:1fr 1fr;column-gap:35px;margin:0 0 12px;padding:8px 16px 3px;border-radius:14px;background:var(--surface-card);box-shadow:0 3px 12px rgba(77,46,26,.12)}
+.mobile-area .mobile-main .m-page.doctor-rounds > .month-wheels{margin-block:0 12px}
 .month-wheel{display:grid;gap:0;min-width:0}
 .month-wheel-caption{display:block;height:20px;font-size:12px;line-height:20px;font-weight:400;color:var(--text-secondary);text-align:center}
 .month-wheel :deep(.m-wheel-picker){height:140px}

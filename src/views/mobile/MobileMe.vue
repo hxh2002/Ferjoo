@@ -85,6 +85,7 @@ onMounted(() => auth.init());
 /* 卡片自己不留外边距，分区之间统一由 .group-label 的 24 控制，
    避免「卡片 12 + 标签 18」凑出 30、而标签到自己卡片只有 8 的比例失衡。 */
 .mobile-area .mobile-main .m-page.mobile-me > .m-card{margin-block:0}
+.mobile-area .mobile-main .m-page.mobile-me > .m-guest-notice{margin-block:16px 0}
 .group-label{margin:18px 0 8px;color:var(--text-secondary);font-size:14px;line-height:21px}
 .profile-card,.device-entry{display:flex;align-items:center;gap:12px;min-height:88px;color:inherit;text-decoration:none}
 .device-entry{min-height:76px}
