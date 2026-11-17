@@ -70,6 +70,8 @@ const headText = computed(() => props.valueText || valueLabel(finite.value.at(-1
     :now-label="nowLabel"
     :announce-value="announceValue"
   >
+    <template v-if="$slots.label" #label><slot name="label" /></template>
+    <template v-if="$slots['label-action']" #label-action><slot name="label-action" /></template>
     <template #tip="{ point, timeText }">
       <span>{{ timeText }}</span>
       <strong>{{ tipValue(point) }}{{ unit }}</strong>

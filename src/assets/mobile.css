@@ -37,6 +37,8 @@
   --m-safety-bg: #fff0e1;
   --m-date-capsule-bg: #ffebd9;
   --m-date-capsule-text: #bf4a0f;
+  --m-record-surface: rgba(255, 235, 217, .3);
+  --m-timeline-line: #ebd1c2;
   --m-row-divider: #f1eae4;
   --m-button-disabled: #f3d9c4;
   --m-text-link: #b84f14;

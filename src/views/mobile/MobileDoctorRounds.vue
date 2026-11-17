@@ -10,6 +10,10 @@ import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '.
 import MCalendar from '../../components/mobile/MCalendar.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
+import MToast from '../../components/mobile/MToast.vue';
+import recordsClock from '../../assets/icons/doctor-records-clock.svg';
+import recordsHand from '../../assets/icons/doctor-records-hand.svg';
+import recordsChevron from '../../assets/icons/doctor-records-chevron.svg';
 
 defineOptions({ name: 'MobileDoctorRounds' });
 const route = useRoute();
@@ -23,7 +27,16 @@ const rows = ref([]);
 const loading = ref(false);
 const error = ref('');
 const picker = ref('');
+const savedToast = ref(false);
 let generation = 0;
+const recordsTarget = computed(() => ({ path: '/doctor/records', query: typeof route.query.starter === 'string' ? { starter: route.query.starter } : {} }));
+// 报告页保存成功后带 saved=1 回到这里：只提示一次，随即从地址里去掉，刷新或返回不会重复弹出。
+watch(() => route.query.saved, (value) => {
+  if (value !== '1') return;
+  savedToast.value = true;
+  const { saved, ...query } = route.query;
+  router.replace({ query });
+}, { immediate: true });
 
 function dayFromQuery(value = route.query.date) {
   const today = localDayKey();
@@ -144,6 +157,12 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
       <span><strong>{{ round.title }}</strong><small>{{ round.detail }}</small></span>
       <span class="round-chevron" aria-hidden="true">›</span>
     </RouterLink>
+    <RouterLink v-if="!guest && !authPending" class="records-entry" :to="recordsTarget">
+      <span class="records-icon" aria-hidden="true"><img :src="recordsClock" alt="" width="14" height="14" /><img class="records-hand" :src="recordsHand" alt="" width="4.5" height="7" /></span>
+      <span>诊断记录</span>
+      <img class="records-chevron" :src="recordsChevron" alt="" width="4.55" height="7.35" />
+    </RouterLink>
+    <MToast :open="savedToast" message="诊断记录已保存" subtitle="可在此查看" @close="savedToast = false" />
   </main>
 </template>
 
@@ -173,4 +192,12 @@ onBeforeUnmount(() => { if (headerTone) headerTone.value = ''; });
 .round-card small{color:var(--text-secondary);font-size:var(--text-xs);line-height:17px}
 .round-chevron{align-self:center;display:grid;place-items:center;width:20px;height:31px;color:var(--brand-action);font-size:22px;line-height:1}
 .doctor-rounds .m-calendar{margin:0 0 11px}
+/* 542:732：121×36 胶囊，末张轮次卡底 426 → 464（卡自带 14 下边距，再补 24）；时钟 14 落在 (14, 11)，文字起于 x=36。 */
+.mobile-area .m-page.doctor-rounds .records-entry{position:relative;display:inline-flex;align-items:center;gap:8px;align-self:flex-start;height:36px;box-sizing:border-box;margin:24px 0 0;padding:0 16.5px 0 14px;border-radius:20px;background:var(--m-date-capsule-bg);color:var(--m-date-capsule-text);font-size:14px;line-height:18px;font-weight:500;text-decoration:none}
+/* 视觉保持 36 高的胶囊，触控区上下各外扩 4 到 44。 */
+.records-entry::before{content:'';position:absolute;inset:-4px 0}
+.records-icon{position:relative;flex:none;width:14px;height:14px}
+.records-icon img{display:block}
+.records-icon .records-hand{position:absolute;left:6.25px;top:2.25px}
+.records-chevron{display:block;flex:none}
 </style>

@@ -48,6 +48,9 @@ assert.match(service, /记录时间不能晚于当前时间/);
 assert.match(service, /酵种名称需为 1 至 80 个字符/);
 assert.match(service, /喂养比例不能为空/);
 assert.match(service, /查询开始时间必须早于结束时间/);
+// 已删除 / 非本人的记录：.single() 抛 PGRST116，不能把 PostgREST 英文原文当用户文案。
+assert.match(service, /PGRST116/, 'a missing record maps to actionable copy');
+assert.match(service, /这条记录不存在，可能已被删除或不属于当前账号。/);
 
 // 迁移：表与幂等唯一键
 assert.match(migration, /create table public\.starters \(/);

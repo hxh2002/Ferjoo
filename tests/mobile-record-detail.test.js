@@ -3,7 +3,7 @@ import { parse, compileScript } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { readFile } from 'node:fs/promises';
 import { EMPTY_CURVE_COPY, NO_SAMPLE_HINT, clipRoundMeasurements, curveCopy, formatRoundDuration, roundDurationText, roundWindow } from '../src/lib/record-detail.js';
-import { expansionSeries, formatExpansionMultiple } from '../src/services/feeding-analysis.service.js';
+import { expansionSeries, formatExpansionMultiple, formatExpansionRatio } from '../src/services/feeding-analysis.service.js';
 import { starterDisambiguation } from '../src/lib/starter-labels.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../src/lib/mobile-records.js';
 
@@ -93,14 +93,15 @@ async function mount(evidence, options = {}) {
         return { id };
       }
     },
-    '../../services/feeding-analysis.service.js': { expansionSeries, formatExpansionMultiple, loadFeedingEvidence: async () => evidence },
+    '../../services/feeding-analysis.service.js': { expansionSeries, formatExpansionMultiple, formatExpansionRatio, loadFeedingEvidence: async () => evidence },
     '../../services/mobile-diagnosis.service.js': diagnosis,
     '../../lib/mobile-records.js': { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState },
     '../../lib/read-cache.js': { READ_TTL: { records: 0 }, cachedRead: (_key, load) => load() },
     '../../lib/record-detail.js': libs,
     '../../components/mobile/MDraggableChart.vue': {},
     // 弹窗只做结构占位：这里断言的是页面传给它的 props 与 confirm/cancel 的接线。
-    '../../components/mobile/MConfirmDialog.vue': { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], emits: ['confirm', 'cancel'] }
+    '../../components/mobile/MConfirmDialog.vue': { props: ['open', 'title', 'message', 'confirmLabel', 'cancelLabel', 'danger'], emits: ['confirm', 'cancel'] },
+    '../../components/mobile/MSheet.vue': { props: ['open', 'title', 'description'], emits: ['close'] }
   };
   const component = new Function('modules', setupCode)(modules);
   const scope = Vue.effectScope();
@@ -144,7 +145,7 @@ async function flush() {
   assert.deepEqual(charts.temperature.map((point) => point.v), [24, 26]);
   assert.equal(charts.to, '2026-10-25T09:00:00.000Z', 'curve ends at the last in-window point, not now');
   assert.equal(charts.expansion.at(-1).v, 1.5);
-  assert.equal(page.vm.peakExpansion, '1.50');
+  assert.equal(page.vm.peakExpansion, '1.50倍');
   assert.equal(page.vm.durationText, '10 小时');
   assert.equal(page.vm.curveText.emptyMessage, '');
   page.stop();
@@ -180,6 +181,12 @@ assert.match(descriptor.template.content, /\{\{ curveText\.emptyMessage \}\}/);
 
 // ---------- 删除记录：按钮 / 二次确认 / 服务调用 / 返回日记 ----------
 const detailTemplate = descriptor.template.content;
+assert.match(detailTemplate, /#label-action[\s\S]*?aria-label="了解膨胀倍数如何计算"/, '膨胀倍数标题旁有可访问的提示按钮');
+assert.match(detailTemplate, /<MSheet :open="expansionHelpOpen" title="膨胀倍数怎么算？"/);
+assert.match(detailTemplate, /200 mm ÷ 100 mm = <strong>2\.00倍<\/strong>/, '图文示例与倍数后缀一致');
+assert.match(detailTemplate, /膨胀倍数 = 当前高度 ÷ 起始高度/);
+assert.match(detailTemplate, /:to="deviceTrendTarget" @click="expansionHelpOpen = false">查看原始高度曲线/, '帮助提供对应设备与日期的原始高度曲线入口');
+assert.match(detailTemplate, /展开本页「本轮记录」，可查看起始高度与/);
 assert.match(detailTemplate, /<button type="button" class="m-secondary m-danger" :disabled="deleting" @click="deleteOpen = true">/, '删除键是 button，删除期间禁用');
 assert.match(detailTemplate, /诊断本次喂养<\/RouterLink>\s*<button type="button" class="m-secondary m-danger"/, '删除键排在诊断链接之后（同一行的右侧）');
 assert.doesNotMatch(detailTemplate, /基于这次喂养记录做诊断/, '诊断入口使用精简文案');

@@ -501,7 +501,7 @@ const bandBadges = computed(() => {
     <!-- 只用来把 color 解析成具体色值，不参与布局，也不暴露给读屏。 -->
     <span ref="colorProbe" class="series-color-probe" :style="{ color }" aria-hidden="true"></span>
     <div class="series-head">
-      <span class="series-label"><slot name="label">{{ label }}</slot></span>
+      <span class="series-label"><slot name="label">{{ label }}</slot><slot name="label-action" /></span>
       <div class="series-headline">
         <span v-if="stats" class="series-delta" :class="deltaClass">{{ deltaText }}</span>
         <span v-if="caption" class="series-caption">{{ caption }}</span>

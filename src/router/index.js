@@ -40,6 +40,7 @@ const routes = [
       { path: 'login', name: 'mobile-login', component: () => import('../views/mobile/MobileLogin.vue') },
       { path: 'register', name: 'mobile-register', component: () => import('../views/mobile/MobileRegister.vue') },
       { path: 'doctor/rounds', name: 'doctor-rounds', component: () => import('../views/mobile/MobileDoctorRounds.vue'), meta: { requiresAuth: true, title: '酵种医生' } },
+      { path: 'doctor/records', name: 'doctor-records', component: () => import('../views/mobile/MobileDoctorRecords.vue'), meta: { requiresAuth: true, title: '酵种医生' } },
       { path: 'checkin', name: 'mobile-checkin', component: () => import('../views/mobile/MobileCheckin.vue'), meta: { title: '酵种医生' }, beforeEnter: (to) => (to.query.feeding || to.query.edit === 'session' ? true : { path: '/doctor/rounds', query: to.query, replace: true }) },
       { path: 'feeding', name: 'mobile-feeding', component: () => import('../views/mobile/MobileFeeding.vue'), meta: { requiresAuth: true } },
       { path: 'reports/session', name: 'report-session', component: () => import('../views/mobile/MobileReport.vue'), meta: { title: '酵种医生' } },

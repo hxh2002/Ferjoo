@@ -47,6 +47,9 @@ function mapError(error) {
     return new Error('记录服务尚未启用，请先完成数据库迁移。');
   }
   if (error?.code === '42501' || /permission denied|JWT/i.test(message)) return new Error('当前账号没有访问这份记录的权限。');
+  // .single() 查不到行时 PostgREST 抛 PGRST116（"JSON object requested, multiple (or no) rows returned"）。
+  // 已删除 / 非本人的记录会走到这里，不能把英文原文直接当成用户文案。
+  if (error?.code === 'PGRST116' || /no rows returned|multiple \(or no\) rows/i.test(message)) return new Error('这条记录不存在，可能已被删除或不属于当前账号。');
   if (message.includes('REQUEST_ID_CONFLICT')) return new Error('请求编号已用于另一条记录，原记录不会被覆盖。');
   if (message.includes('STARTER_ARCHIVED')) return new Error('这个酵种已归档，不能再关联设备；历史记录仍可查看。');
   if (message.includes('STARTER_NOT_FOUND')) return new Error('找不到这份酵种，可能已被移除。');
@@ -136,8 +139,8 @@ export function createStarter(name) {
   });
 }
 
-export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, userId, ascending = false } = {}) {
-  const key = readCacheKey(['care', 'records', userId ?? 'all', starterId ?? '', from ?? '', to ?? '', kind ?? '', limit ?? '', offset, ascending === true]);
+export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, userId, ascending = false, diagnosisOnly = false } = {}) {
+  const key = readCacheKey(['care', 'records', userId ?? 'all', starterId ?? '', from ?? '', to ?? '', kind ?? '', limit ?? '', offset, ascending === true, diagnosisOnly === true]);
   return cachedRead(key, () => run(async () => {
     const client = requireClient();
     let query = client.from('care_records').select(RECORD_FIELDS).order('occurred_at', { ascending: ascending === true }).order('id', { ascending: ascending === true });
@@ -150,6 +153,8 @@ export function listCareRecords({ starterId, from, to, kind, limit, offset = 0, 
       if (!['feeding', 'observation'].includes(kind)) fail('记录类型不正确。');
       query = query.eq('kind', kind);
     }
+    // feedingId 只由酵种医生流程写入 input；在库里过滤，分页与条数才对得上，旧版通用观察不会混进诊断记录。
+    if (diagnosisOnly === true) query = query.eq('kind', 'observation').not('input->>feedingId', 'is', null);
     if (!Number.isSafeInteger(offset) || offset < 0) fail('查询偏移量不正确。');
     if (limit !== undefined) {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) fail('每页记录数应为 1 至 200。');

@@ -1,0 +1,318 @@
+/* Desktop is an independent presentation layer. Every rule below is gated at 768px;
+   the mobile shell, mobile tokens and the original business components stay untouched. */
+@media (min-width: 768px) {
+  :root.mobile-mode {
+    --m-page-max: 1440px;
+    --m-page-space: 32px;
+    --m-module-gap: 20px;
+    --m-section-gap: 24px;
+    --m-card-space: 24px;
+    --desktop-sidebar: 252px;
+    --desktop-topbar: 88px;
+  }
+  body.mobile-mode { min-width: 768px; background: #fff9f3; }
+  .mobile-area .mobile-shell { max-width: none; min-height: 100vh; }
+  .mobile-area .mobile-shell > .desktop-shell { position: static; min-height: 0; padding: 0; border: 0; background: transparent; }
+  .mobile-area .mobile-main { flex: 1; min-width: 0; padding: 0 0 48px; }
+  .mobile-area .mobile-main .m-page { max-width: 1280px; padding: 32px; gap: 20px; }
+  .mobile-area .mobile-main .m-page h1 { font-size: 30px; line-height: 40px; }
+  .mobile-area .mobile-main .m-page h2 { font-size: 19px; }
+  .mobile-area .mobile-main .m-page :is(.m-card, .panel, .profile-plate, .round-card, .chart-card, .table-card, .action-card) { border: 1px solid #f1e6dc; box-shadow: 0 6px 24px rgba(76, 46, 24, .045); }
+  .mobile-area :is(button, a) { cursor: pointer; }
+  .mobile-area button:not(:disabled):hover { filter: brightness(.985); }
+  .mobile-area :is(.m-primary, .m-secondary, .device-cta, .feed-empty-action) { min-height: 46px; }
+
+  /* Persistent navigation and workspace. */
+  .mobile-area .desktop-shell { display: block; color: #30251f; font-family: var(--font-sans); }
+  .mobile-area .desktop-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 35; display: flex; flex-direction: column; width: var(--desktop-sidebar); padding: 28px 18px 22px; border-right: 1px solid #f0e3d7; background: #fffdfb; }
+  .mobile-area .desktop-brand { display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 0 10px; color: #30251f; text-decoration: none; }
+  .mobile-area .desktop-brand img { width: 48px; height: 48px; object-fit: contain; }
+  .mobile-area .desktop-brand span { display: grid; gap: 3px; }
+  .mobile-area .desktop-brand strong { font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
+  .mobile-area .desktop-brand small { color: #8c796c; font-size: 11px; letter-spacing: .06em; }
+  .mobile-area .desktop-navigation { display: grid; gap: 24px; margin-top: 38px; overflow-y: auto; }
+  .mobile-area .desktop-nav-group > p { margin: 0 12px 8px; color: #9b8777; font-size: 11px; font-weight: 500; letter-spacing: .1em; }
+  .mobile-area .desktop-nav-group { display: grid; gap: 4px; }
+  .mobile-area .desktop-nav-link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 12px; border-radius: 15px; color: #5e4d42; text-decoration: none; transition: background 160ms ease, color 160ms ease; }
+  .mobile-area .desktop-nav-link:hover { background: #fff3e8; }
+  .mobile-area .desktop-nav-link.is-active { background: #ffead7; color: #b94c13; }
+  .mobile-area .desktop-nav-link.is-active::before { content: ''; position: absolute; left: -18px; width: 3px; height: 28px; border-radius: 0 4px 4px 0; background: #ff6b25; }
+  .mobile-area .desktop-nav-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; }
+  .mobile-area .desktop-nav-icon svg { width: 23px; height: 23px; }
+  .mobile-area .desktop-nav-link > span:last-child { display: grid; gap: 2px; }
+  .mobile-area .desktop-nav-link strong { font-size: 14px; font-weight: 500; }
+  .mobile-area .desktop-nav-link small { color: #9b8777; font-size: 10px; line-height: 15px; }
+  .mobile-area .desktop-nav-link.is-active small { color: #ad6c44; }
+  .mobile-area .desktop-sidebar-footer { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 18px 8px 0; border-top: 1px solid #f2e8df; }
+  .mobile-area .desktop-sidebar-mark { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 10px; background: #fff0e1; color: #ce6d31; font: 600 11px Georgia, serif; }
+  .mobile-area .desktop-sidebar-footer p { display: grid; gap: 4px; margin: 0; }
+  .mobile-area .desktop-sidebar-footer strong { font-size: 11px; font-weight: 500; }
+  .mobile-area .desktop-sidebar-footer small { color: #9b8777; font-size: 9px; line-height: 14px; }
+  .mobile-area .desktop-workspace { min-height: 100vh; margin-left: var(--desktop-sidebar); }
+  .mobile-area .desktop-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; min-height: var(--desktop-topbar); padding: 16px 32px; border-bottom: 1px solid rgba(231, 214, 198, .75); background: rgba(255, 249, 243, .88); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .mobile-area .desktop-breadcrumb { display: grid; gap: 4px; }
+  .mobile-area .desktop-breadcrumb small { color: #978476; font-size: 11px; }
+  .mobile-area .desktop-breadcrumb small span { padding: 0 6px; color: #c1ad9e; }
+  .mobile-area .desktop-breadcrumb strong { font-size: 18px; font-weight: 500; }
+  .mobile-area .desktop-topbar-actions { display: flex; align-items: center; gap: 24px; }
+  .mobile-area .desktop-quick-action { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 13px; border: 1px solid #ead9ca; border-radius: 20px; background: #fffdfb; color: #6e5b4e; font-size: 12px; text-decoration: none; }
+  .mobile-area .desktop-quick-action svg { width: 16px; height: 16px; }
+  .mobile-area .desktop-account { display: flex; align-items: center; gap: 10px; color: #30251f; text-decoration: none; }
+  .mobile-area .desktop-account-avatar { display: grid; place-items: center; width: 40px; height: 40px; overflow: hidden; border: 1px solid #f1d7c0; border-radius: 50%; background: #ffe7ce; color: #a34613; font-size: 15px; font-weight: 600; }
+  .mobile-area .desktop-account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .mobile-area .desktop-account > span:last-child { display: grid; gap: 2px; }
+  .mobile-area .desktop-account strong { max-width: 150px; overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-area .desktop-account small { color: #978476; font-size: 10px; }
+
+  /* Device dashboard: live vessel and summary, metrics and primary action. */
+  .mobile-area .mobile-main .device-page { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); grid-template-rows: auto auto auto minmax(36px, auto) auto auto auto 1fr auto; column-gap: 24px; align-items: start; }
+  .mobile-area .mobile-main .device-page > :is(.device-head, .jar-status, .m-error, .m-muted, .m-skeleton, .m-guest-notice, .risk-banner, .picker-backdrop) { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .device-page .jar-preview { position: relative; grid-column: 1; grid-row: 4 / 9; align-self: stretch; min-height: 470px; margin: 0; border: 1px solid #f4dfcb; border-radius: 28px; background: linear-gradient(145deg, #fff1e2, #ffe8cf); }
+  .mobile-area .mobile-main .device-page .jar-figure { display: grid; place-items: center; height: 390px; }
+  .mobile-area .mobile-main .device-page .jar-stage { width: 180px; height: 180px; transform: scale(1.55); }
+  .mobile-area .mobile-main .device-page .jar-stage :is(svg, .starter-jar, .jar-illustration) { max-height: 100%; }
+  .mobile-area .mobile-main .device-page .jar-caption { position: static; margin: 0; text-align: center; font-size: 17px; }
+  .mobile-area .mobile-main .device-page > .section-label { grid-column: 2; grid-row: 4; align-self: center; min-height: 24px; margin: 0; color: #75665b; font-size: 14px; }
+  .mobile-area .mobile-main .device-page > :is(.feed-summary, .feed-empty) { grid-column: 2; grid-row: 5; min-height: 112px; margin: 0; border: 1px solid #f1e6dc; border-radius: 22px; box-shadow: 0 6px 24px rgba(76, 46, 24, .045); }
+  .mobile-area .mobile-main .device-page .feed-value { font-size: 22px; line-height: 30px; }
+  .mobile-area .mobile-main .device-page > .section-head { grid-column: 2; grid-row: 6; align-self: end; margin: 0; }
+  .mobile-area .mobile-main .device-page > .metric-row { grid-column: 2; grid-row: 7; gap: 12px; }
+  .mobile-area .mobile-main .device-page .metric { min-height: 108px; padding: 16px 12px; border: 1px solid rgba(239, 194, 152, .22); border-radius: 18px; }
+  .mobile-area .mobile-main .device-page .metric-value { font-size: 23px; }
+  .mobile-area .mobile-main .device-page > .device-cta { grid-column: 2; grid-row: 8; align-self: end; min-height: 52px; margin-top: 4px; }
+  .mobile-area .mobile-main .device-page > .cta-note { grid-column: 2; grid-row: 9; }
+  .mobile-area .mobile-main .device-page .device-head { align-items: center; }
+  .mobile-area .mobile-main .device-page .device-head h1 { margin: 0; }
+  .mobile-area .mobile-main .device-page .jar-status { display: flex; width: fit-content; min-width: 240px; margin: -4px 0 4px; }
+  .mobile-area .mobile-main .device-page .starter-switch { min-height: 42px; padding: 0 14px; border: 1px solid #edd9c8; background: #fff; }
+  .mobile-area .mobile-main .device-page .picker-row { max-width: 460px; border-radius: 20px; }
+  .mobile-area .mobile-main .device-page .m-guest-notice { grid-template-columns: 170px minmax(0, 1fr) 190px; padding: 32px; border: 1px solid #f1e6dc; border-radius: 26px; }
+  .mobile-area .mobile-main .device-page .m-guest-notice .guest-mascot { width: 140px; grid-row: 1 / 3; }
+  .mobile-area .mobile-main .device-page .m-guest-notice .guest-actions { grid-column: 3; grid-row: 1 / 3; align-self: center; }
+
+  /* Diary: a real month matrix remains visible beside the selected day's data. */
+  .mobile-area .mobile-main .mobile-diary { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .mobile-area .mobile-main .mobile-diary > :is(.diary-head, .m-error, .m-skeleton, .m-guest-notice) { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .mobile-diary .diary-head h1 { margin: 0; }
+  .mobile-area .mobile-main .mobile-diary > .date-board { position: sticky; top: calc(var(--desktop-topbar) + 24px); grid-column: 1; padding: 20px; border: 1px solid #f1e6dc; border-radius: 24px; box-shadow: 0 6px 24px rgba(76, 46, 24, .045); }
+  .mobile-area .mobile-main .mobile-diary .month-row { min-height: 32px; }
+  .mobile-area .mobile-main .mobile-diary .month-label { font-size: 16px; }
+  .mobile-area .mobile-main .mobile-diary .date-view { overflow: visible; }
+  .mobile-area .mobile-main .mobile-diary .month-card-head { margin: 12px 0; }
+  .mobile-area .mobile-main .mobile-diary :is(.date-grid-shared, .weekday-row-shared) { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .mobile-area .mobile-main .mobile-diary .date-grid-shared.expanded { grid-auto-rows: 54px; row-gap: 4px; }
+  .mobile-area .mobile-main .mobile-diary .date-cell { width: 100%; max-width: 44px; height: 58px; min-height: 44px; margin: 0 auto; border-radius: 13px; }
+  .mobile-area .mobile-main .mobile-diary .date-grid-shared.expanded .date-cell { height: 50px; }
+  .mobile-area .mobile-main .mobile-diary .date-view.expanded .date-cell .cell-day { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; }
+  .mobile-area .mobile-main .mobile-diary .date-cell.active { border-radius: 13px; }
+  .mobile-area .mobile-main .mobile-diary > .day-board { grid-column: 2; min-width: 0; }
+  .mobile-area .mobile-main .mobile-diary .day-summary { min-height: 74px; padding: 0 0 4px; }
+  .mobile-area .mobile-main .mobile-diary .day-title { font-size: 25px; line-height: 34px; }
+  .mobile-area .mobile-main .mobile-diary .day-board .feed-card-title { font-size: 18px; }
+  .mobile-area .mobile-main .mobile-diary > .day-board { display: grid; gap: 20px; }
+  .mobile-area .mobile-main .mobile-diary > .day-board > .m-guest-notice { grid-template-columns: minmax(0, 1fr) 180px; padding: 24px; }
+  .mobile-area .mobile-main .mobile-diary > .day-board > .m-guest-notice .guest-actions { grid-column: 2; grid-row: 1; align-self: center; margin: 0; }
+  .mobile-area .mobile-main .mobile-diary .round-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .mobile-area .mobile-main .mobile-diary .feed-card { min-height: 160px; padding: 20px; border: 1px solid #f1e6dc; border-radius: 20px; box-shadow: 0 6px 24px rgba(76, 46, 24, .045); }
+  .mobile-area .mobile-main .mobile-diary .feed-card-head { align-items: center; }
+  .mobile-area .mobile-main .mobile-diary .feed-card-title { font-size: 18px; }
+  .mobile-area .mobile-main .mobile-diary .feed-metrics { margin-top: 16px; }
+  .mobile-area .mobile-main .mobile-diary .day-data-group { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-top: 4px; }
+  .mobile-area .mobile-main .mobile-diary .day-data-pill { min-height: 72px; padding: 20px; border: 1px solid #f1e6dc; border-radius: 18px; background: #fff; }
+  .mobile-area .mobile-main .mobile-diary .observation-group { display: grid; gap: 10px; }
+  .mobile-area .mobile-main .mobile-diary .observation-row { padding: 16px 20px; border: 1px solid #f1e6dc; border-radius: 16px; background: #fff; }
+  .mobile-area .mobile-main .mobile-diary .records-empty { min-height: 340px; padding: 40px; border: 1px solid #f1e6dc; border-radius: 24px; background: #fff; }
+
+  /* Feeding: fold-out controls become efficient, persistent form regions. */
+  .mobile-area .mobile-main .mobile-feeding { max-width: 1080px; }
+  .mobile-area .mobile-main .mobile-feeding > :is(.phase-chip, .m-context) { max-width: 760px; }
+  .mobile-area .mobile-main .mobile-feeding .feeding-section { margin: 0; font-size: 18px; }
+  .mobile-area .mobile-main .mobile-feeding .feeding-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  .mobile-area .mobile-main .mobile-feeding .feeding-form > :is(.time-record, .baseline-details, .m-error, .m-status, .m-actions) { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .mobile-feeding .feeding-form > .m-record-card { height: 100%; }
+  .mobile-area .mobile-main .mobile-feeding .m-record-card-toggle { min-height: 72px; padding: 18px 20px; }
+  .mobile-area .mobile-main .mobile-feeding .ratio-presets { gap: 10px; }
+  .mobile-area .mobile-main .mobile-feeding .weight-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mobile-area .mobile-main .mobile-feeding .custom-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mobile-area .mobile-main .mobile-feeding .baseline-details { padding: 18px 20px; border: 1px solid #f1e6dc; border-radius: 18px; background: #fff; }
+  .mobile-area .mobile-main .mobile-feeding .baseline-details .m-field { max-width: 520px; }
+  .mobile-area .mobile-main .mobile-feeding .m-actions { position: sticky; bottom: 16px; z-index: 15; padding: 12px; border: 1px solid #f1e6dc; border-radius: 20px; background: rgba(255, 253, 251, .94); box-shadow: 0 8px 28px rgba(76, 46, 24, .08); }
+  .mobile-area .mobile-main .mobile-feeding .m-actions > * { flex: 1; }
+
+  /* Trends and record detail: large charts, dense readable log table. */
+  .mobile-area .mobile-main .mobile-trend { max-width: 1280px; }
+  .mobile-area .mobile-main .mobile-trend :is(.trend-head, .device-row) { padding: 8px 0; }
+  .mobile-area .mobile-main .mobile-trend .trend-head .m-muted { font-size: 15px; }
+  .mobile-area .mobile-main .mobile-trend .day-picker { min-width: 140px; }
+  .mobile-area .mobile-main .mobile-trend .trend-calendar { max-width: 460px; }
+  .mobile-area .mobile-main .mobile-trend > .metric-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .mobile-area .mobile-main .mobile-trend .metric-chart { padding: 20px; border: 1px solid rgba(239, 205, 172, .4); border-radius: 22px; }
+  .mobile-area .mobile-main .mobile-trend .metric-chart.is-rise { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .mobile-trend .metric-chart :deep(.series-plot),
+  .mobile-area .mobile-main .mobile-trend .metric-chart :deep(svg) { height: var(--m-chart-height, 180px); }
+  .mobile-area .mobile-main .mobile-trend .metric-chart.is-rise { --m-chart-height: 260px; }
+  .mobile-area .mobile-main .mobile-trend .metric-chart:not(.is-rise) { --m-chart-height: 190px; }
+  .mobile-area .mobile-main .mobile-trend .table-card { overflow: hidden; padding: 0; }
+  .mobile-area .mobile-main .mobile-trend .table-details > summary { min-height: 64px; padding: 16px 24px; }
+  .mobile-area .mobile-main .mobile-trend .table-wrap { max-height: 540px; overflow: auto; }
+  .mobile-area .mobile-main .mobile-trend table { min-width: 760px; font-size: 13px; }
+  .mobile-area .mobile-main .mobile-trend :is(th, td) { padding: 13px 18px; }
+  .mobile-area .mobile-main .mobile-trend thead { position: sticky; top: 0; z-index: 2; }
+  .mobile-area .mobile-main .mobile-trend .table-note { padding: 0 24px 18px; }
+  .mobile-area .mobile-main .mobile-record-detail { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr); align-items: start; }
+  .mobile-area .mobile-main .mobile-record-detail > :is(.round-meta, .m-error, .m-skeleton) { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .mobile-record-detail > .feed-summary { grid-column: 1 / -1; min-height: 100px; padding: 16px; }
+  .mobile-area .mobile-main .mobile-record-detail > .feed-summary .feed-value { font-size: 24px; }
+  .mobile-area .mobile-main .mobile-record-detail > .round-curves { grid-column: 1; grid-row: 3 / 6; }
+  .mobile-area .mobile-main .mobile-record-detail .metric-chart { padding: 20px; border-radius: 22px; }
+  .mobile-area .mobile-main .mobile-record-detail .metric-chart.is-rise { --m-chart-height: 260px; }
+  .mobile-area .mobile-main .mobile-record-detail > :is(.detail-more, .m-card) { grid-column: 2; margin: 0; padding: 20px; border: 1px solid #f1e6dc; border-radius: 20px; background: #fff; }
+  .mobile-area .mobile-main .mobile-record-detail > .detail-more[open] { grid-row: 3 / 5; }
+  .mobile-area .mobile-main .mobile-record-detail .card-actions { flex-direction: column; }
+  .mobile-area .mobile-main .mobile-record-detail .card-actions .m-secondary { justify-content: center; width: 100%; }
+
+  /* Doctor: round cards are scan-friendly; report content is deliberately narrower. */
+  .mobile-area .mobile-main .doctor-rounds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .mobile-area .mobile-main .doctor-rounds > :is(.doctor-head, .day-row, .month-entry, .month-wheels, .m-error, .m-skeleton, .m-guest-notice, .empty, .records-entry, .m-calendar) { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .doctor-rounds .doctor-head h1 { margin: 0; }
+  .mobile-area .mobile-main .doctor-rounds .day-row { justify-content: space-between; }
+  .mobile-area .mobile-main .doctor-rounds .day-picker { min-width: 130px; }
+  .mobile-area .mobile-main .doctor-rounds .m-calendar { max-width: 480px; }
+  .mobile-area .mobile-main .doctor-rounds > .round-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 130px; padding: 24px; }
+  .mobile-area .mobile-main .doctor-rounds .round-card strong { font-size: 18px; }
+  .mobile-area .mobile-main .doctor-rounds .records-entry { justify-self: end; min-width: 220px; }
+  .mobile-area .mobile-main .mobile-report { max-width: 900px; }
+  .mobile-area .mobile-main .mobile-report > .m-card { padding: 28px; }
+  .mobile-area .mobile-main .mobile-report .result-card { padding: 32px; border-radius: 24px; }
+  .mobile-area .mobile-main .mobile-report .m-actions { position: static; padding: 0; border: 0; background: transparent; backdrop-filter: none; }
+  .mobile-area .mobile-main .mobile-report .m-actions > * { flex: 0 1 320px; }
+  .mobile-area .mobile-main .mobile-report :is(.result-title, .branch-title, .insufficient-title) { font-size: 30px; }
+  .mobile-area .mobile-main .doctor-records { gap: 20px; }
+  .mobile-area .mobile-main .doctor-records > .doctor-head { margin-bottom: 12px; }
+  .mobile-area .mobile-main .doctor-records .doctor-head h1 { font-size: 30px; line-height: 40px; }
+  .mobile-area .mobile-main .doctor-records .record-timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0; }
+  .mobile-area .mobile-main .doctor-records .record-timeline li { padding-left: 0; }
+  .mobile-area .mobile-main .doctor-records .record-timeline li::after,
+  .mobile-area .mobile-main .doctor-records .record-dot { display: none; }
+  .mobile-area .mobile-main .doctor-records .record-card { min-height: 130px; padding: 24px; border: 1px solid #f1e6dc; border-radius: 20px; box-shadow: 0 6px 24px rgba(76, 46, 24, .045); }
+  .mobile-area .mobile-main .mobile-checkin { max-width: 960px; }
+  .mobile-area .mobile-main .mobile-checkin .checkin-head h1 { margin: 0; }
+  .mobile-area .mobile-main .mobile-checkin form { display: grid; gap: 20px; }
+  .mobile-area .mobile-main .mobile-checkin form > :is(.m-card, .observe-step, .review-step) { padding: 28px; border: 1px solid #f1e6dc; border-radius: 24px; background: #fff; box-shadow: 0 6px 24px rgba(76, 46, 24, .045); }
+  .mobile-area .mobile-main .mobile-checkin .m-actions { display: flex; justify-content: flex-end; }
+  .mobile-area .mobile-main .mobile-checkin .m-actions > * { min-width: 180px; }
+  .mobile-area .mobile-main .mobile-checkin .step-track { max-width: 560px; }
+  .mobile-area .mobile-main :is(.profile-page, .mobile-profile, .profile-edit, .notify-page, .account-page, .invite-page) { max-width: 900px; }
+  .mobile-area .mobile-main .profile-edit form,
+  .mobile-area .mobile-main .profile-page form { padding: 28px; border: 1px solid #f1e6dc; border-radius: 24px; background: #fff; }
+  .mobile-area .mobile-main .help-page { max-width: 1000px; }
+  .mobile-area .mobile-main .help-page { gap: 20px; }
+  .mobile-area .mobile-main .help-page .help-links { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px; border: 1px solid #f1e6dc; border-radius: 20px; }
+  .mobile-area .mobile-main .help-page .help-links a { min-height: 80px; padding: 12px; border-radius: 14px; }
+  .mobile-area .mobile-main .help-page .help-links a:hover { background: #fff4e9; }
+  .mobile-area .mobile-main .help-page .help-links a + a::before { display: none; }
+  .mobile-area .mobile-main .faq-page details { padding: 4px 8px; }
+  .mobile-area .mobile-main .faq-page details > summary { min-height: 60px; }
+  .mobile-area .mobile-main .feedback-page { max-width: 840px; }
+  .mobile-area .mobile-main .feedback-page form { padding: 28px; border: 1px solid #f1e6dc; border-radius: 24px; background: #fff; }
+  .mobile-area .mobile-main .privacy-page { max-width: 900px; }
+
+  /* Device management: separate fleet overview from per-device administration. */
+  .mobile-area .mobile-main .devices-page { max-width: 1120px; }
+  .mobile-area .mobile-main .devices-page .device-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .mobile-area .mobile-main .devices-page .device-stack .section-heading { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .devices-page .overview-card-list { min-height: 190px; }
+  .mobile-area .mobile-main .devices-page .overview-title strong { font-size: 19px; }
+  .mobile-area .mobile-main .devices-page .overview-foot { margin-top: 18px; }
+  .mobile-area .mobile-main .devices-page > .detail-overview { padding: 28px; }
+  .mobile-area .mobile-main .devices-page > :is(.settings-card, .m-disclosure, #device-binding) { padding: 24px 28px; }
+  .mobile-area .mobile-main .devices-page .settings-row { min-height: 64px; }
+  .mobile-area .mobile-main .devices-page #device-binding form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; }
+  .mobile-area .mobile-main .devices-page #device-binding .binding-confirm { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .devices-page .m-disclosure form { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+  .mobile-area .mobile-main .device-add-page { max-width: 800px; }
+  .mobile-area .mobile-main .device-info { max-width: 900px; }
+  .mobile-area .mobile-main .device-info .info-card { padding: 12px 28px; border: 1px solid #f1e6dc; }
+  .mobile-area .mobile-main .device-info .info-card li { min-height: 84px; }
+
+  /* Account area: profile/fleet and settings live in two balanced columns. */
+  .mobile-area .mobile-main .mobile-me { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; align-items: start; padding-bottom: 48px; }
+  .mobile-area .mobile-main .mobile-me > * { margin-block: 0; }
+  .mobile-area .mobile-main .mobile-me > .m-guest-notice { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) 300px; padding: 24px; }
+  .mobile-area .mobile-main .mobile-me > .m-guest-notice .guest-actions { grid-column: 2; grid-row: 1; align-self: center; margin: 0; }
+  .mobile-area .mobile-main .mobile-me > :is(.me-head, .m-error, .m-skeleton, .group-label, .desktop-entry, .logout-btn) { grid-column: 1 / -1; }
+  .mobile-area .mobile-main .mobile-me .me-head h1 { margin: 0; }
+  .mobile-area .mobile-main .mobile-me .profile-card,
+  .mobile-area .mobile-main .mobile-me .device-entry { min-height: 122px; padding: 24px; }
+  .mobile-area .mobile-main .mobile-me .nav-card { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+  .mobile-area .mobile-main .mobile-me .nav-card .m-list-row { min-height: 72px; padding: 12px 16px; border: 0; border-radius: 14px; }
+  .mobile-area .mobile-main .mobile-me .nav-card .m-list-row:hover { background: #fff4e9; }
+  .mobile-area .mobile-main .mobile-me .group-label { margin: 12px 0 -4px; }
+  .mobile-area .mobile-main .mobile-me .logout-btn { justify-self: center; width: min(360px, 100%); }
+  .mobile-area .mobile-main .mobile-me .desktop-entry { display: none; }
+  .mobile-area .mobile-main :is(.profile-page, .mobile-profile, .mobile-profile-edit, .mobile-notifications, .mobile-account, .mobile-invite) { max-width: 900px; }
+  .mobile-area .mobile-main .mobile-profile-edit form,
+  .mobile-area .mobile-main .profile-page form { padding: 28px; border: 1px solid #f1e6dc; border-radius: 24px; background: #fff; }
+  .mobile-area .mobile-main .mobile-help { max-width: 1000px; }
+  .mobile-area .mobile-main .mobile-help .nav-card { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 12px; }
+  .mobile-area .mobile-main .mobile-help .nav-card .m-list-row { border: 0; }
+  .mobile-area .mobile-main .mobile-faq details { padding: 4px 8px; }
+  .mobile-area .mobile-main .mobile-faq details > summary { min-height: 60px; }
+  .mobile-area .mobile-main .mobile-feedback { max-width: 840px; }
+  .mobile-area .mobile-main .mobile-feedback form { padding: 28px; border: 1px solid #f1e6dc; border-radius: 24px; background: #fff; }
+  .mobile-area .mobile-main .mobile-privacy { max-width: 900px; }
+  .mobile-area .mobile-main .mobile-login,
+  .mobile-area .mobile-main .mobile-register { max-width: 600px; padding-top: 48px; }
+
+  /* Desktop sheets are centered dialogs, not stretched mobile bottom sheets. */
+  body.mobile-mode .m-sheet-layer { align-items: center; padding: 32px; }
+  body.mobile-mode .m-sheet { width: min(720px, calc(100vw - 64px)); max-height: min(820px, calc(100dvh - 64px)); padding: 20px 28px 28px; border: 1px solid #ead9ca; border-radius: 26px; box-shadow: 0 28px 90px rgba(65, 37, 18, .2); }
+  body.mobile-mode .m-sheet-handle { display: none; }
+  body.mobile-mode .m-sheet-header { margin: 4px 0 24px; }
+  body.mobile-mode .m-sheet-header h2 { font-size: 22px; }
+  body.mobile-mode .m-confirm { width: min(440px, 100%); padding: 28px; border-radius: 24px; }
+  body.mobile-mode .m-toast { top: 24px; left: auto; right: 28px; width: min(380px, calc(100vw - 56px)); transform: none; }
+  body.mobile-mode .m-toast-enter-from,
+  body.mobile-mode .m-toast-leave-to { transform: translateY(-8px); }
+  body.mobile-mode .m-toast-enter-to,
+  body.mobile-mode .m-toast-leave-from { transform: none; }
+  body.mobile-mode .m-sheet .weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1200px) {
+  :root.mobile-mode { --desktop-sidebar: 268px; }
+  .mobile-area .mobile-main .m-page { padding: 36px 40px; }
+  .mobile-area .desktop-topbar { padding-inline: 40px; }
+  .mobile-area .desktop-navigation { gap: 28px; }
+  .mobile-area .desktop-nav-link { min-height: 64px; }
+  .mobile-area .mobile-main .device-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); column-gap: 32px; }
+  .mobile-area .mobile-main .device-page .jar-preview { min-height: 500px; }
+  .mobile-area .mobile-main .mobile-diary { grid-template-columns: 390px minmax(0, 1fr); gap: 32px; }
+  .mobile-area .mobile-main .mobile-diary .date-grid-shared.expanded .date-cell { height: 54px; }
+  .mobile-area .mobile-main .mobile-trend > .metric-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mobile-area .mobile-main .mobile-trend .metric-chart.is-rise { grid-column: 1 / -1; }
+}
+
+@media (min-width: 768px) and (max-width: 1050px) {
+  :root.mobile-mode { --desktop-sidebar: 220px; --m-page-space: 24px; }
+  .mobile-area .desktop-sidebar { padding-inline: 12px; }
+  .mobile-area .desktop-brand { padding-inline: 6px; }
+  .mobile-area .desktop-brand img { width: 40px; }
+  .mobile-area .desktop-brand strong { font-size: 18px; }
+  .mobile-area .desktop-nav-link { padding-inline: 8px; }
+  .mobile-area .desktop-nav-link.is-active::before { left: -12px; }
+  .mobile-area .desktop-sidebar-footer { display: none; }
+  .mobile-area .desktop-topbar { padding-inline: 24px; }
+  .mobile-area .desktop-quick-action { display: none; }
+  .mobile-area .mobile-main .device-page { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); column-gap: 18px; }
+  .mobile-area .mobile-main .device-page .jar-preview { min-height: 450px; }
+  .mobile-area .mobile-main .device-page .metric { padding-inline: 8px; }
+  .mobile-area .mobile-main .device-page .metric-value { font-size: 19px; }
+  .mobile-area .mobile-main .mobile-diary { grid-template-columns: 320px minmax(0, 1fr); gap: 20px; }
+  .mobile-area .mobile-main .mobile-diary .round-group { grid-template-columns: 1fr; }
+  .mobile-area .mobile-main .mobile-feeding .weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mobile-area .mobile-main .mobile-record-detail { grid-template-columns: 1fr; }
+  .mobile-area .mobile-main .mobile-record-detail > :is(.round-curves, .detail-more, .m-card) { grid-column: 1; grid-row: auto; }
+  .mobile-area .mobile-main .mobile-me { grid-template-columns: 1fr; }
+  .mobile-area .mobile-main .mobile-me > * { grid-column: 1; }
+}

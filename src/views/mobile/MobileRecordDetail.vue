@@ -5,13 +5,14 @@ import iconTimer from '../../assets/device/icon-timer.svg';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { deleteCareRecord, getCareRecord, listStarters } from '../../services/care.service.js';
-import { expansionSeries, formatExpansionMultiple, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { expansionSeries, formatExpansionMultiple, formatExpansionRatio, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { describeField } from '../../services/mobile-diagnosis.service.js';
 import { CLOSE_REASON_LABELS, feedingEvidenceCacheKey, roundState } from '../../lib/mobile-records.js';
 import { READ_TTL, cachedRead } from '../../lib/read-cache.js';
 import { NO_SAMPLE_HINT, clipRoundMeasurements, curveCopy, roundDurationText, roundWindow } from '../../lib/record-detail.js';
 import MDraggableChart from '../../components/mobile/MDraggableChart.vue';
 import MConfirmDialog from '../../components/mobile/MConfirmDialog.vue';
+import MSheet from '../../components/mobile/MSheet.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -24,6 +25,7 @@ const name = ref('名称不可用');
 const error = ref('');
 const loading = ref(false);
 const deleteOpen = ref(false);
+const expansionHelpOpen = ref(false);
 const deleting = ref(false);
 const summary = computed(() => evidence.value?.summary || null);
 const state = computed(() => summary.value ? roundState(summary.value) : null);
@@ -119,7 +121,7 @@ const roundCharts = computed(() => {
 });
 const peakExpansion = computed(() => {
   const values = (roundCharts.value?.expansion || []).map((point) => point.v).filter((value) => Number.isFinite(value));
-  return values.length ? Math.max(...values).toFixed(2) : '';
+  return values.length ? formatExpansionRatio(Math.max(...values)) : '';
 });
 const deviceTrendTarget = computed(() => {
   const deviceId = evidence.value?.link?.device_id;
@@ -160,7 +162,7 @@ watch([() => user.value?.id, () => route.params.id], async ([userId, id]) => {
   const token = ++generation;
   record.value = null; evidence.value = null; evidenceError.value = '';
   name.value = '名称不可用'; error.value = ''; loading.value = false;
-  deleteOpen.value = false; deleting.value = false;
+  deleteOpen.value = false; deleting.value = false; expansionHelpOpen.value = false;
   if (!userId) { error.value = '请登录后查看云端记录。'; return; }
   loading.value = true;
   try {
@@ -235,7 +237,13 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
       <p v-if="curveText.hint" class="window-hint">{{ curveText.hint }}</p>
       <div v-if="roundCharts" class="metric-stack">
         <div v-if="roundCharts.expansion" class="metric-chart is-rise">
-        <MDraggableChart label="膨胀倍数" caption="最高" :value-text="peakExpansion" :digits="2" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to" />
+        <MDraggableChart label="膨胀倍数" caption="最高" unit="倍" :value-text="peakExpansion" :digits="2" color="var(--brand-primary)" :height="200" :points="roundCharts.expansion" :from="roundCharts.from" :to="roundCharts.to">
+          <template #label-action>
+            <button type="button" class="expansion-help-trigger" aria-label="了解膨胀倍数如何计算" aria-haspopup="dialog" :aria-expanded="expansionHelpOpen" @click="expansionHelpOpen = true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.5 1-1.5 1.9V14" /><path d="M12 17h.01" /></svg>
+            </button>
+          </template>
+        </MDraggableChart>
       </div>
       <div v-if="roundCharts.temperature" class="metric-chart is-temp">
         <MDraggableChart label="温度" caption="平均" :value-text="averageText(roundCharts.temperature, 1, '°C')" unit="°C" color="var(--brand-primary)" :height="126" :points="roundCharts.temperature" :from="roundCharts.from" :to="roundCharts.to" />
@@ -281,6 +289,42 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
         <button type="button" class="m-secondary m-danger" :disabled="deleting" @click="deleteOpen = true">{{ deleting ? '正在删除…' : '删除记录' }}</button>
       </div>
     </section>
+    <MSheet :open="expansionHelpOpen" title="膨胀倍数怎么算？" description="用高度的变化，直观了解酵种涨到多大。" @close="expansionHelpOpen = false">
+      <div class="expansion-help">
+        <figure class="expansion-help-figure">
+          <svg viewBox="0 0 280 112" role="img" aria-labelledby="expansion-help-figure-title">
+            <title id="expansion-help-figure-title">起始高度 100 毫米，当前高度 200 毫米，200 除以 100 等于 2.00 倍</title>
+            <g fill="none" stroke="var(--text-secondary)" stroke-width="1.4" stroke-linejoin="round">
+              <path d="M50 18h48l-4 82H54z M50 29h48" />
+              <path d="M184 18h48l-4 82h-40z M184 29h48" />
+            </g>
+            <path d="M55 69h38l2 29H54z" fill="var(--m-chart-rise)" stroke="var(--brand-primary)" stroke-width="1.2" stroke-linejoin="round" />
+            <path d="M189 39h38l2 59h-40z" fill="var(--m-chart-rise)" stroke="var(--brand-primary)" stroke-width="1.2" stroke-linejoin="round" />
+            <g stroke="var(--brand-action)" stroke-width="1" stroke-dasharray="3 3">
+              <path d="M100 69h45 M100 100h45 M235 39h30 M235 100h30" />
+            </g>
+            <g fill="var(--brand-primary)"><path d="m112 81 5 5-5 5z M126 81l-5 5 5 5z M247 56l5 5-5 5z M260 56l-5 5 5 5z" /></g>
+            <g fill="var(--text-primary)" font-size="11" text-anchor="middle">
+              <text x="74" y="54">100 mm</text><text x="208" y="29">200 mm</text>
+              <text x="122" y="66" font-size="9">高度</text><text x="253" y="49" font-size="9">高度</text>
+              <text x="74" y="112">起始</text><text x="208" y="112">当前</text>
+            </g>
+          </svg>
+          <figcaption>200 mm ÷ 100 mm = <strong>2.00倍</strong></figcaption>
+        </figure>
+        <p class="expansion-help-formula">膨胀倍数 = 当前高度 ÷ 起始高度</p>
+        <p class="expansion-help-note">起始高度为 1.00倍；涨到原来的两倍高，就是 2.00倍。</p>
+        <div class="expansion-help-heights">
+          <h3>查看原始高度</h3>
+          <p>展开本页「本轮记录」，可查看起始高度与{{ summary?.windowClosed ? '结束' : '当前' }}高度（mm）。</p>
+          <template v-if="deviceTrendTarget">
+            <p>原始高度曲线位于「设备数据」页面，可在上方日期切换历史数据。</p>
+            <RouterLink class="m-secondary expansion-help-link" :to="deviceTrendTarget" @click="expansionHelpOpen = false">查看原始高度曲线<span aria-hidden="true">›</span></RouterLink>
+          </template>
+          <p v-else>本轮没有可查看的设备数据；可在首页关联设备后，进入「详情 → 数据详情」查看「高度」曲线。</p>
+        </div>
+      </div>
+    </MSheet>
     <MConfirmDialog :open="deleteOpen" danger title="删除记录" message="删除后，这次喂养记录以及本轮的设备证据与曲线都会一并移除，且无法恢复。相邻两轮会按剩余的记录重新计算。" confirm-label="删除" cancel-label="取消" @cancel="deleteOpen = false" @confirm="removeRecord" />
   </main>
 </template>
@@ -306,10 +350,25 @@ onScopeDispose(() => { generation++; if (headerAside) headerAside.value = ''; })
 .metric-chart.is-temp{background:var(--m-chart-warm)}
 .metric-chart.is-humidity{background:var(--m-chart-pale)}
 .metric-chart :deep(.series-head){display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
-.metric-chart :deep(.series-label){font-size:14px;font-weight:500;letter-spacing:0;line-height:20px;color:var(--text-primary)}
+.metric-chart :deep(.series-label){display:flex;align-items:center;min-width:0;font-size:14px;font-weight:500;letter-spacing:0;line-height:20px;color:var(--text-primary)}
 .metric-chart :deep(.series-value){font-size:16px;font-weight:500;line-height:23px;color:var(--text-primary)}
 .metric-chart :deep(.series-delta),.metric-chart :deep(.series-now){display:none}
 .metric-chart :deep(.series-value-label),.metric-chart :deep(.series-time-label){color:var(--m-chart-ink);border-radius:6px;font-weight:500;box-shadow:none}
+.expansion-help-trigger{display:grid;place-items:center;flex:none;width:32px;height:32px;min-height:32px;margin:-6px -4px -6px 2px;padding:5px;border:0;border-radius:50%;background:transparent;color:var(--text-secondary);cursor:pointer}
+.expansion-help-trigger svg{display:block;width:18px;height:18px}
+.expansion-help{display:grid;gap:12px;font-size:14px;line-height:21px}
+.expansion-help p,.expansion-help h3,.expansion-help-figure{margin:0}
+.expansion-help-figure{overflow:hidden;border-radius:var(--radius-card);background:var(--m-chart-rise);text-align:center}
+.expansion-help-figure svg{display:block;width:100%;height:auto}
+.expansion-help-figure figcaption{padding:0 12px 14px;font-variant-numeric:tabular-nums}
+.expansion-help-figure strong{font-weight:500;color:var(--brand-action)}
+.expansion-help-formula{text-align:center;font-size:16px;font-weight:500}
+.expansion-help-note{color:var(--text-secondary)}
+.expansion-help-heights{display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--border-warm)}
+.expansion-help-heights h3{font-size:14px;line-height:21px;font-weight:500}
+.expansion-help-heights p{color:var(--text-secondary)}
+.expansion-help-link{justify-content:space-between;width:100%;margin-top:4px;color:var(--brand-action)}
+.expansion-help-link span{font-size:20px;line-height:1}
 .detail-more{border-top:1px solid var(--border-warm);border-bottom:1px solid var(--border-warm)}
 .detail-more summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-size:14px;font-weight:500}
 .m-card{margin:1rem 0;padding:1rem;border:1px solid var(--border-default);background:var(--surface-card)}

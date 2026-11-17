@@ -18,10 +18,15 @@ export function expansionPercentFrom(heightMm, baselineMm) {
   return baseline > 0 && height > 0 ? (height / baseline - 1) * 100 : null;
 }
 // 内部百分比字段保持兼容，界面统一展示“当前高度 / 基线”的膨胀倍数。
+export function formatExpansionRatio(multiple) {
+  if (multiple == null || multiple === '') return '—';
+  const ratio = Number(multiple);
+  return Number.isFinite(ratio) ? `${ratio.toFixed(2)}倍` : '—';
+}
 export function formatExpansionMultiple(expansionPercent) {
   if (expansionPercent == null || expansionPercent === '') return '—';
   const percent = Number(expansionPercent);
-  return Number.isFinite(percent) ? (1 + percent / 100).toFixed(2) : '—';
+  return Number.isFinite(percent) ? formatExpansionRatio(1 + percent / 100) : '—';
 }
 export function expansionMultipleFrom(heightMm, baselineMm) {
   const height = Number(heightMm);

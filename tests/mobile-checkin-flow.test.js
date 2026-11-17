@@ -6,6 +6,7 @@ import { useCheckinDraft } from '../src/composables/useCheckinDraft.js';
 import { emptyCheckin, generateMobileReport, loadSessionReport, mobileOptions, validateCheckin } from '../src/services/mobile-diagnosis.service.js';
 import { planBack, planNext, skipsBackground, locateErrors } from '../src/lib/checkin-flow.js';
 import { heightBand } from '../src/lib/height-band.js';
+import { formatExpansionMultiple, formatExpansionRatio } from '../src/services/feeding-analysis.service.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 
 const draftWith = (extra) => ({ ...emptyCheckin(), ...extra });
@@ -88,7 +89,7 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
     '../../composables/useAuth.js': { useAuth: () => ({ user }) },
     '../../composables/useCheckinDraft.js': { useCheckinDraft },
     '../../services/mobile-diagnosis.service.js': diagnosis,
-    '../../services/feeding-analysis.service.js': { formatExpansionMultiple: (value) => (1 + Number(value) / 100).toFixed(2), loadFeedingEvidence: async (owner, starterId, feedingId) => {
+    '../../services/feeding-analysis.service.js': { formatExpansionMultiple, formatExpansionRatio, loadFeedingEvidence: async (owner, starterId, feedingId) => {
       if (!evidenceResult) throw new Error('unused');
       return typeof evidenceResult === 'function' ? evidenceResult(owner, starterId, feedingId) : evidenceResult;
     } },
@@ -221,6 +222,8 @@ function mount(query = {}, nameState = {}, evidenceResult = null) {
 assert.ok(source.includes('role="status"') && source.includes('evidenceHint'), 'the hint is announced in the diagnosis card');
 
 assert.match(source, /v-if="draft\.starterId && !\(diagnosisMode && step === 3\) && !starterNameLoading" class="checkin-starter"/);
+// 结果页带 redo=1 回来时不能按进入诊断的空表单重置，否则「基于这次输入重新生成」会丢掉上一轮答案。
+assert.match(source, /route\.query\.redo !== '1'/, 'the diagnosis reset keeps a redo draft');
 // 组合式本身：加载中 starterNameLoading=true，读到名称 / 失败后为 false（失败文案保留给徽标显示）。
 {
   const nameSource = await readFile(new URL('../src/composables/useStarterName.js', import.meta.url), 'utf8');

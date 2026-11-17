@@ -2,7 +2,9 @@
 import { computed, inject, nextTick, onMounted, onBeforeUnmount, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
+import { useDesktopLayout } from '../composables/useDesktopLayout.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
+import DesktopShell from './DesktopShell.vue';
 
 import navDevice from '../assets/icons/nav-device.svg';
 import navDeviceActive from '../assets/icons/nav-device-active.svg';
@@ -14,6 +16,7 @@ import navMeActive from '../assets/icons/nav-me-active.svg';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
+const { isDesktop } = useDesktopLayout();
 const tabs = [
   { path: '/device', label: '设备', icon: navDevice, activeIcon: navDeviceActive, wide: true },
   { path: '/diary', label: '日记', icon: navDiary, activeIcon: navDiaryActive },
@@ -102,6 +105,7 @@ const backTarget = computed(() => {
   if (/^\/me\/devices\/[^/]+\/info$/.test(route.path)) return route.path.replace(/\/info$/, '');
   if (route.path.startsWith('/me/')) return '/me';
   if (route.path.startsWith('/devices/')) return '/me/devices';
+  if (route.path === '/doctor/records') return '/doctor/rounds';
   if (route.path.startsWith('/doctor/')) return '/diary';
   if (route.path.startsWith('/diary/records/') || (route.path.startsWith('/reports/') && route.path !== '/reports/session')) return '/diary';
   return '/device';
@@ -145,6 +149,19 @@ function go(path) {
 
 <template>
   <RouterView v-if="shellNested" />
+  <DesktopShell v-else-if="isDesktop">
+    <main class="mobile-main">
+      <slot>
+        <RouterView v-slot="{ Component }">
+          <Transition name="mobile-page">
+            <KeepAlive :include="cachedTabs">
+              <component :is="Component" />
+            </KeepAlive>
+          </Transition>
+        </RouterView>
+      </slot>
+    </main>
+  </DesktopShell>
   <div v-else class="mobile-shell" :class="{ 'mobile-account-shell': isAccount, 'has-tabs': showTabs }">
     <header v-if="!showTabs" class="mobile-topbar mobile-subbar" :class="navTone ? `is-${navTone}` : ''">
       <button type="button" class="mobile-back" aria-label="返回上一页" @click="goBack">

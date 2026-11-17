@@ -110,6 +110,17 @@ export function generateMobileReport(input, accountId) {
   }
   return { report: { schemaVersion: 'mobile-observation-v1', algorithmVersion: 'diagnosis-public-api-v1', accountId: accountId || 'guest', requestId: newRequestId(), starterId: facts.starterId || null, occurredAt: new Date().toISOString(), input: facts, result, savedId: null, source: '本次观察快照；各字段来源见输入摘要' } };
 }
+// 重试必须逐字节复现同一份载荷：save_care_record 对同一 request_id 会比对 occurred_at / input / result，
+// 有任何差异都会按 REQUEST_ID_CONFLICT 拒绝，而不是再插一条。
+export function observationSavePayload(report) {
+  return {
+    requestId: report.requestId,
+    starterId: report.starterId,
+    occurredAt: report.occurredAt,
+    input: { ...snapshot(report.input), algorithmVersion: report.algorithmVersion, schemaVersion: report.schemaVersion },
+    result: snapshot(report.result)
+  };
+}
 const reports = new Map();
 const sessionKey = (accountId) => `ferjoo:mobile:report:${accountId || 'guest'}`;
 export function storeSessionReport(accountId, report) {

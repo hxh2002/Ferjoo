@@ -6,6 +6,7 @@ const listPositions = new Map();
 import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
+import { useDesktopLayout } from '../../composables/useDesktopLayout.js';
 import { listCareRecords, listStarters } from '../../services/care.service.js';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
@@ -14,7 +15,7 @@ import doctorChevron from '../../assets/icons/diary-chevron.svg';
 import calendarIcon from '../../assets/icons/diary-calendar.svg';
 
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
-import { expansionMultipleFrom } from '../../services/feeding-analysis.service.js';
+import { expansionMultipleFrom, formatExpansionRatio } from '../../services/feeding-analysis.service.js';
 import { trackEvent } from '../../services/analytics.service.js';
 import { mobileDeviceService } from '../../services/mobile-device.service.js';
 import { loadWindowClosures, persistAutoClosure } from '../../services/fermentation-window.service.js';
@@ -41,6 +42,8 @@ const hasMore = ref(false);
 const scrollY = ref(0);
 const datePanelRef = ref(null);
 const calendarOpen = ref(false);
+const { isDesktop } = useDesktopLayout();
+watch(isDesktop, (desktop) => { calendarOpen.value = desktop; }, { immediate: true });
 const calendarMonth = ref(Date.now());
 const monthPicker = ref(false);
 
@@ -275,7 +278,7 @@ function roundMetrics(item) {
   else if (peak != null) peak = 1 + peak / 100;
   const temp = meanOf(rows.map((row) => Number(row.temperature_c))) ?? item.meanTemp;
   const humidity = meanOf(rows.map((row) => Number(row.humidity_percent)));
-  return { peak: metricText(peak, '', 2), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
+  return { peak: formatExpansionRatio(peak), temp: metricText(temp, '°C'), humidity: metricText(humidity, '%') };
 }
 const roundCards = computed(() => roundItems.value.map((item) => ({ ...item, metrics: roundMetrics(item) })));
 

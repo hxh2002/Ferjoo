@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import * as Vue from 'vue';
 import { renderToString } from '@vue/server-renderer';
-import { formatExpansionMultiple, summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
+import { formatExpansionMultiple, formatExpansionRatio, summarizeFeedingMeasurements } from '../src/services/feeding-analysis.service.js';
 import { CLOSE_REASON_LABELS, roundState } from '../src/lib/mobile-records.js';
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../src/lib/mobile-guest.js';
 import * as starterJar from '../src/components/mobile/MStarterJar.js';
@@ -119,7 +119,7 @@ function harness(snapshots = new Map()) {
     '../../services/starter-device.service.js': {
       listStarterDeviceLinks: async () => { if (state.fail === 'link') throw new Error('link down'); return state.links.slice(); }
     },
-    '../../services/feeding-analysis.service.js': { formatExpansionMultiple, summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
+    '../../services/feeding-analysis.service.js': { formatExpansionMultiple, formatExpansionRatio, summarizeFeedingMeasurements, loadFeedingEvidence: async () => ({ link: state.links.find(item => item.starter_id === state.feeding?.starter_id), measurements: state.rows }) },
     '../../services/fermentation-window.service.js': {
       loadWindowClosure: async () => state.closure,
       closeFeedingWindow: async (args) => {
@@ -168,7 +168,7 @@ await login(h);
 const home = await h.html();
 assert.match(home, /我的设备/);
 assert.match(home, /膨胀倍数/);
-assert.match(home, />1\.20</, '20% growth is displayed as a 1.20 multiple');
+assert.match(home, />1\.20倍</, '20% growth is displayed as a 1.20倍 multiple');
 assert.match(home, /本次喂养/);
 assert.match(home, /当前数据/);
 assert.match(home, /1 : 2 : 2/, 'feed summary restates the ratio');
@@ -363,7 +363,7 @@ console.log('mobile device home: per-account snapshot hydration and single-commi
 
 console.log('mobile device home: starter-only picker, management navigation, linked-device switching, account isolation, serialized refresh, API failures, stale evidence, confirm/end flow and toast passed');
 
-// 膨胀倍数统一两位小数：50.0% 显示为 1.50，曲线与卡片使用同一口径。
+// 膨胀倍数统一两位小数与「倍」后缀：50.0% 显示为 1.50倍，曲线与卡片使用同一口径。
 {
   const fs = await import('node:fs');
   const read = (p) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -371,15 +371,20 @@ console.log('mobile device home: starter-only picker, management navigation, lin
   const detail = read('../src/views/mobile/MobileRecordDetail.vue');
   const diary = read('../src/views/mobile/MobileDiary.vue');
   const draggable = read('../src/components/mobile/MDraggableChart.vue');
-  assert.equal(formatExpansionMultiple(50), '1.50');
-  assert.equal(formatExpansionMultiple(0), '1.00');
+  assert.equal(formatExpansionMultiple(50), '1.50倍');
+  assert.equal(formatExpansionMultiple(0), '1.00倍');
   assert.equal(formatExpansionMultiple(null), '—');
+  assert.equal(formatExpansionMultiple(''), '—');
+  assert.equal(formatExpansionMultiple('invalid'), '—');
+  assert.equal(formatExpansionRatio(3.214), '3.21倍');
+  assert.equal(formatExpansionRatio(null), '—');
   assert.match(home, /formatExpansionMultiple\(summary\.value\?\.expansionPercent\)/, 'device home formats the percent as a multiple');
   assert.doesNotMatch(home, /可手动诊断/, 'home has no diagnosis entry, so the evidence error never suggests one');
   assert.match(home, /本轮设备证据读取失败，请刷新重试。/);
-  assert.match(detail, /Math\.max\(\.\.\.values\)\.toFixed\(2\)/, 'record detail peak keeps two decimals');
+  assert.match(detail, /formatExpansionRatio\(Math\.max\(\.\.\.values\)\)/, 'record detail peak keeps two decimals and the suffix');
   assert.match(detail, /:digits="2"/, 'record detail chart tooltip keeps two decimals');
-  assert.match(diary, /metricText\(peak, '', 2\)/, 'diary peak keeps two decimals');
+  assert.match(detail, /label="膨胀倍数" caption="最高" unit="倍"/, 'record detail chart heading, extrema and bubble share the suffix');
+  assert.match(diary, /peak: formatExpansionRatio\(peak\)/, 'diary peak keeps two decimals and the suffix');
   assert.match(draggable, /toFixed\(props\.digits\)/, 'the chart tooltip uses the requested precision');
   assert.doesNotMatch(draggable, /<strong>\{\{ point\.v \}\}/, 'the tooltip never prints the raw sample value');
 }

@@ -1,12 +1,12 @@
 <script setup>
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { useAuth } from '../../composables/useAuth.js';
 import { guestLoginTarget, guestRegisterTarget, isGuest } from '../../lib/mobile-guest.js';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
 import { getCareRecord, listStarters, saveObservation } from '../../services/care.service.js';
-import { loadSessionReport, storeSessionReport, snapshot, reportText, fieldLabels, describeField, describeSource } from '../../services/mobile-diagnosis.service.js';
+import { loadSessionReport, storeSessionReport, snapshot, observationSavePayload, reportText, fieldLabels, describeField, describeSource } from '../../services/mobile-diagnosis.service.js';
 
 const route = useRoute();
 const auth = useAuth();
@@ -15,21 +15,31 @@ const accountId = computed(() => user.value?.id || 'guest');
 const router = useRouter();
 // 游客态：不读取云端记录（避免无权查询报错），也不回显上一个账号残留的结果。
 const guest = computed(() => isGuest(auth));
-const { replace: replaceDraft } = useCheckinDraft(accountId);
 const { replace: replaceDiagnosis } = useCheckinDraft(accountId, { kind: 'diagnosis' });
 const risk = computed(() => report.value?.result?.status === 'discard' || [report.value?.input?.color, report.value?.input?.smell].includes('suspicious'));
 const insufficient = computed(() => !risk.value && ['needs-check', 'incomplete'].includes(report.value?.result?.status));
 function regenerate() {
   const feeding = report.value?.input?.feedingId;
   if (feeding) {
-    replaceDraft({ ...snapshot(report.value.input), starterId: report.value.starterId || '', step: 1 });
-    router.push({ path: '/checkin', query: { feeding, starter: report.value.starterId || undefined, mode: 'diagnosis' } });
+    // 诊断结果的重来落在诊断草稿：写进观察草稿会被 MobileCheckin 的 diagnosis 模式忽略，
+    // 反过来还会污染正常的观察流程。redo=1 让核对页保留这份草稿，而不是按进入诊断的空表单重置。
+    replaceDiagnosis({ ...snapshot(report.value.input), starterId: report.value.starterId || '', step: 1 });
+    router.push({ path: '/checkin', query: { feeding, starter: report.value.starterId || undefined, mode: 'diagnosis', redo: '1' } });
     return;
   }
   router.push('/doctor/rounds');
 }
 function finish() {
   router.push('/diary');
+}
+function finishHistory() {
+  if (window.history.state?.back) router.back();
+  else router.replace('/doctor/records');
+}
+async function saveResult() {
+  await save();
+  if (!report.value?.savedId) return;
+  router.push({ path: '/doctor/rounds', query: { saved: '1', ...(report.value.starterId ? { starter: report.value.starterId } : {}) } });
 }
 function backToReview() {
   if (!report.value) return;
@@ -53,6 +63,9 @@ const error = ref('');
 const copyStatus = ref('');
 const readable = ref(false);
 const cloud = computed(() => !!route.params.id && route.params.id !== 'session');
+const canSave = computed(() => !cloud.value && !!user.value && !!report.value?.starterId && !report.value?.savedId);
+const headerTitle = inject('mobileHeaderTitle', null);
+watch(() => cloud.value && report.value?.kind === 'observation', (doctorRecord) => { if (headerTitle) headerTitle.value = doctorRecord ? '酵种医生' : ''; }, { immediate: true });
 const text = computed(() => report.value && report.value.kind !== 'feeding' ? [`酵种：${report.value.starterId ? starterName.value : '未选择'}`, reportText({ ...report.value, occurredAt: formatDate(report.value.occurredAt) })].join('\n') : '');
 let generation = 0;
 let disposed = false;
@@ -110,7 +123,7 @@ async function save() {
   saving.value = true;
   error.value = '';
   try {
-    const saved = await saveObservation({ requestId: original.requestId, starterId: original.starterId, occurredAt: original.occurredAt, input: { ...snapshot(original.input), algorithmVersion: original.algorithmVersion, schemaVersion: original.schemaVersion }, result: snapshot(original.result) });
+    const saved = await saveObservation(observationSavePayload(original));
     if (disposed || token !== generation || report.value !== original) return;
     if (!saved?.id) throw new Error('未收到云端保存确认，请重试（沿用同一请求标识）。');
     const updated = { ...snapshot(original), savedId: saved.id };
@@ -130,12 +143,12 @@ async function copy() {
     copyStatus.value = '无法自动复制。下方已展开可选择文本，请长按选择复制。';
   }
 }
-onUnmounted(() => { disposed = true; generation++; });
+onUnmounted(() => { disposed = true; generation++; if (headerTitle) headerTitle.value = ''; });
 </script>
 
 <template>
   <main class="m-page mobile-report">
-    <header v-if="!report || cloud || report.kind === 'feeding'"><h1>{{ report?.kind === 'feeding' ? '喂养记录（只读）' : cloud ? '观察记录（只读）' : '本次建议' }}</h1></header>
+    <header v-if="!report || report.kind === 'feeding' || (cloud && risk)"><h1>{{ report?.kind === 'feeding' ? '喂养记录（只读）' : cloud ? '观察记录（只读）' : '本次建议' }}</h1></header>
     <div v-if="loading" class="m-skeleton" role="status" aria-label="正在加载云端记录"><span></span><span></span></div><p v-if="error && !guest" class="m-error" role="alert">{{ error }}</p>
     <!-- 游客打开云端观察记录：不请求云端、不显示他人数据，只给登录引导并保留当前记录地址回跳。 -->
     <MGuestNotice
@@ -146,7 +159,7 @@ onUnmounted(() => { disposed = true; generation++; });
       :register-to="guestRegisterTarget(route)"
       register
     />
-    <section v-else-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录不存在、读取失败，或当前账号没有访问权限。' : '本机会话已结束或已切换账号。' }}</p><RouterLink to="/checkin">继续或重新记录观察</RouterLink></section>
+    <section v-else-if="!loading && !report" class="m-card"><h2>当前没有可读取的结果</h2><p>{{ cloud ? '记录不存在、读取失败，或当前账号没有访问权限。' : '本机会话已结束或已切换账号。' }}</p><RouterLink class="m-secondary empty-return" :to="cloud ? '/doctor/records' : '/doctor/rounds'">{{ cloud ? '返回诊断记录' : '重新选择发酵轮次' }}</RouterLink></section>
     <template v-if="report && report.kind === 'feeding'">
       <section class="m-card"><p role="status">已云端保存的事实记录</p><p class="m-muted">喂养时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ starterName }}</p><h2>喂养比例（老种 : 水 : 面粉）</h2><p>{{ report.ratio === 'deep_reset' ? '大比例刷新' : report.ratio || '未记录' }}</p><h2>起始高度</h2><p>{{ report.input?.baseline_height_mm == null ? '未记录' : `${report.input.baseline_height_mm} mm` }}<span v-if="report.input?.baseline_height_mm != null">（{{ report.input.baseline_source === 'device' ? '设备读取' : report.input.baseline_source === 'manual' ? '手工记录' : '来源未记录' }}）</span></p><RouterLink class="m-secondary" :to="{ path: '/checkin', query: { starter: report.starterId, feeding: report.savedId } }">基于这次喂养记录观察</RouterLink></section>
       <details class="m-card"><summary>技术详情</summary><p>记录编号：{{ report.savedId }}<br>酵种编号：{{ report.starterId || '未记录' }}</p></details>
@@ -158,6 +171,8 @@ onUnmounted(() => { disposed = true; generation++; });
           <h2>{{ report.result.title || '请核对颜色与气味' }}</h2>
           <p>{{ report.result.subtitle || '具体提示与后续操作由安全规则返回。' }}</p>
           <ul v-if="report.result.actions?.length"><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul>
+          <!-- 安全结论同样值得留档：丢弃过哪一罐、为什么，是回想时最需要翻的记录。 -->
+          <button v-if="!cloud" type="button" class="save-link" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已保存到诊断记录' : '保存结果' }}</button>
         </section>
       </template>
       <section v-else-if="risk" class="m-card m-risk"><p role="status">食品安全优先</p><h2>请停止使用并丢弃这份酵种</h2><p>不要品尝；清洁接触过的容器与工具。这不是一条普通养护建议。</p></section>
@@ -168,21 +183,19 @@ onUnmounted(() => { disposed = true; generation++; });
           <ul v-if="report.result.reasons?.length"><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul>
           <p v-else>缺少的项目由系统具体提示。</p>
           <ul v-if="report.result.actions?.length"><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul>
-          <button v-if="!cloud" type="button" class="save-link" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已保存到日记' : '保存到日记' }}</button>
+          <button v-if="!cloud" type="button" class="save-link" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已保存到诊断记录' : '保存结果' }}</button>
         </section>
       </template>
-      <template v-else-if="!cloud">
+      <template v-else>
         <h1 class="result-title">诊断结果</h1>
-        <p class="result-caption">结果内容由算法返回</p>
+        <p class="result-caption">{{ cloud ? `${formatDate(report.occurredAt)} · ${report.starterId ? starterName : '未选择酵种'}` : '结果内容由算法返回' }}</p>
         <section class="result-card">
-          <p class="result-status" role="status">{{ report.savedId ? '已保存到日记' : '已生成，尚未保存到日记' }}</p>
+          <p class="result-status" role="status">{{ report.savedId ? '已保存到诊断记录' : '已生成，尚未保存' }}</p>
           <h2>{{ report.result.title }}</h2>
           <p>{{ report.result.subtitle }}</p>
-          <button type="button" class="save-link" :disabled="saving || !!report.savedId || !user || !report.starterId" @click="save">{{ saving ? '保存中…' : report.savedId ? '已保存到日记' : '保存到日记' }}</button>
-          <button type="button" class="save-link" @click="regenerate">重新观察</button>
+          <button v-if="!cloud" type="button" class="save-link" @click="regenerate">重新观察</button>
         </section>
       </template>
-      <section v-else class="m-card"><p role="status">{{ report.savedId ? '已保存到日记' : '已生成，尚未保存到日记' }}</p><p class="m-muted">观察时刻：{{ formatDate(report.occurredAt) }}<br>酵种：{{ report.starterId ? starterName : '未选择，仅生成建议' }}</p><p class="m-muted" role="status">{{ report.result.badge }}</p><h2>{{ report.result.title }}</h2><p>{{ report.result.subtitle }}</p></section>
       <section v-if="!risk && !insufficient" class="m-card"><h2>下一步</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul><h3>为什么</h3><ul><li v-for="reason in report.result.reasons" :key="reason">{{ reason }}</li></ul></section>
       <section v-if="!risk && !insufficient && (report.result.timing || report.result.timingNote || report.result.ph)" class="m-card"><h2>辅助信息</h2><p v-if="report.result.timing">{{ report.result.timing.display }}</p><p class="m-muted">{{ report.result.timingNote }}</p><p v-if="report.result.ph">{{ report.result.ph.label }}<br>{{ report.result.ph.message }}</p></section>
       <section v-if="risk && cloud" class="m-card"><h2>请立即处理</h2><ul><li v-for="action in report.result.actions" :key="action">{{ action }}</li></ul></section>
@@ -196,7 +209,8 @@ onUnmounted(() => { disposed = true; generation++; });
       <button type="button" class="m-secondary" @click="copy">复制建议</button><p role="status">{{ copyStatus }}</p>
       <label v-if="readable" class="m-field">可选择的建议文本<textarea :value="text" readonly rows="12" /></label>
       <div v-if="insufficient || (risk && !cloud)" class="m-actions"><button type="button" class="m-primary review-return" @click="backToReview">返回核对</button></div>
-      <div v-else-if="!cloud" class="m-actions"><button type="button" class="m-primary review-return" @click="finish">完成</button></div>
+      <div v-else-if="cloud" class="m-actions"><button type="button" class="m-primary review-return" @click="finishHistory">完成</button></div>
+      <div v-else class="m-actions"><button type="button" class="m-primary review-return" :disabled="saving" @click="canSave ? saveResult() : finish()">{{ saving ? '保存中…' : canSave ? '保存结果' : '完成' }}</button></div>
     </template>
   </main>
 </template>
@@ -392,6 +406,16 @@ onUnmounted(() => { disposed = true; generation++; });
   height: 56px;
   min-height: 56px;
   border-radius: 28px
+}
+.empty-return {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 18px;
+  border-radius: var(--m-radius-button)
 }
 .save-link {
   display: inline-flex;

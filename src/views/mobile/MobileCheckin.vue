@@ -4,7 +4,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useAuth } from '../../composables/useAuth.js';
 import { useCheckinDraft } from '../../composables/useCheckinDraft.js';
 import { mobileOptions, fieldLabels, describeField, describeSource, parsePendingText, validateCheckin, generateMobileReport, storeSessionReport, loadSessionReport, loadObservationContext, emptyCheckin } from '../../services/mobile-diagnosis.service.js';
-import { formatExpansionMultiple, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
+import { formatExpansionMultiple, formatExpansionRatio, loadFeedingEvidence } from '../../services/feeding-analysis.service.js';
 import { trackEvent } from '../../services/analytics.service.js';
 import { heightBand } from '../../lib/height-band.js';
 import { useStarterName } from '../../composables/useStarterName.js';
@@ -12,6 +12,9 @@ import { locateErrors, observationReady as flowObservationReady, planBack, planN
 import { guestLoginTarget, guestRegisterTarget, isAuthPending, isGuest } from '../../lib/mobile-guest.js';
 import MRadioCard from '../../components/mobile/MRadioCard.vue';
 import MGuestNotice from '../../components/mobile/MGuestNotice.vue';
+import chevronDown from '../../assets/icons/chevron-down-link.svg';
+import chevronUp from '../../assets/icons/chevron-up-link.svg';
+import chevronMuted from '../../assets/icons/chevron-down-muted.svg';
 
 const headerTone = inject('mobileHeaderTone', null);
 const route = useRoute();
@@ -50,6 +53,8 @@ const primaryHeights = computed(() => [
 ]);
 const moreHeights = computed(() => mobileOptions.height.filter((item) => !visibleHeightValues.includes(item.value)));
 const showMoreHeights = computed(() => heightMoreOpen.value || moreHeights.value.some((item) => item.value === draft.value.height));
+// 542:661：展开后按涨幅从低到高排成一张表，「不确定」始终在最后，而不是把其余四项追加在按钮下面。
+const heightOptions = computed(() => showMoreHeights.value ? [...mobileOptions.height, { value: 'unknown', label: '不确定' }] : primaryHeights.value);
 const formElement = ref(null);
 const steps = ['观察', '本轮', '核对'];
 const step = computed(() => [1, 2, 3].includes(draft.value.step) ? draft.value.step : 1);
@@ -87,8 +92,11 @@ const reviewKeys = computed(() => diagnosisMode.value ? ['color', 'smell', 'heig
 const diagnosisReviewLabels = { color: '颜色 / 霉斑', smell: '气味', height: '涨幅表现', ratio: '喂养比例', elapsedHours: '喂养后经过' };
 const summaryKeys = computed(() => ['color', 'smell', ...Object.keys(fieldLabels).filter((key) => !['color', 'smell'].includes(key) && draft.value[key] !== '' && draft.value[key] != null)]);
 const emptySummaryKeys = computed(() => Object.keys(fieldLabels).filter((key) => !summaryKeys.value.includes(key)));
-watch([accountId, () => route.query.starter, () => route.query.mode, () => route.query.feeding], () => {
-  if (diagnosisMode.value && route.query.edit !== 'session') replace({ ...emptyCheckin(), starterId: typeof route.query.starter === 'string' ? route.query.starter : '' });
+// 核对页必须说实话：本轮没填的项列出来并给出补录路径，不能拿设计稿的示例文案顶替。
+const missingReviewKeys = computed(() => reviewKeys.value.filter((key) => draft.value[key] === '' || draft.value[key] == null));
+// 进入诊断默认是空的（同一轮只需要一份答案），只有结果页带 redo=1 回来时才保留刚写入的草稿。
+watch([accountId, () => route.query.starter, () => route.query.mode, () => route.query.feeding, () => route.query.redo], () => {
+  if (diagnosisMode.value && route.query.edit !== 'session' && route.query.redo !== '1') replace({ ...emptyCheckin(), starterId: typeof route.query.starter === 'string' ? route.query.starter : '' });
   if (typeof route.query.starter === 'string' && route.query.starter !== draft.value.starterId) {
     if (draft.value.starterId) replace({ starterId: route.query.starter });
     else draft.value.starterId = route.query.starter;
@@ -127,7 +135,7 @@ watch([accountId, () => draft.value.starterId, () => route.query.feeding, () => 
       if (summary.elapsedHours != null) fill('elapsedHours', Number(summary.elapsedHours.toFixed(1)), summary.historicalRound ? `历史轮次截至下一次喂养 ${summary.windowTo}` : `喂养至测量截点 ${summary.windowTo}`);
       if (summary.height) {
         const band = heightBand(summary.baselineHeightMm, summary.currentHeightMm);
-        fill('height', summary.height, `自动区间计算 · ${band.ratio.toFixed(2)} 倍（${band.range}）· ${summary.historicalRound ? '历史轮次' : '当前轮次'}设备测量 · ${summary.latestMeasurementAt}`);
+        fill('height', summary.height, `自动区间计算 · ${formatExpansionRatio(band.ratio)}（${band.range}）· ${summary.historicalRound ? '历史轮次' : '当前轮次'}设备测量 · ${summary.latestMeasurementAt}`);
       }
       if (summary.heightStale || summary.temperatureStale) notice.value = '最新高度或温度证据已超过 40 分钟，未作为当前值预填；请重新测量或手工确认。';
     } else if (sample?.temperature_c != null) fill('tempC', sample.temperature_c, `设备 Ferjoo Sensor · ${link.device_id} · 采样 ${new Date(sample.recorded_at).toLocaleString('zh-CN')}`);
@@ -148,7 +156,7 @@ function markManual(key) {
 function restoreAutoHeight() {
   if (!autoHeight.value) return;
   draft.value.height = autoHeight.value.value;
-  draft.value.sources.height = `自动区间计算 · ${autoHeight.value.ratio.toFixed(2)} 倍 · 已恢复自动值`;
+  draft.value.sources.height = `自动区间计算 · ${formatExpansionRatio(autoHeight.value.ratio)} · 已恢复自动值`;
 }
 function observationReady(part = observePart.value) {
   return flowObservationReady(draft.value, part);
@@ -204,7 +212,10 @@ function generate() {
   persist();
   fatal.value = '';
   try {
-    const { report, errors: invalid } = generateMobileReport(draft.value, accountId.value);
+    // 证据读取失败时 draft 里不会有 feedingId，但诊断入口的地址里一定带着本轮：
+    // 少了它，结果页「重新观察」回不到这一轮，诊断记录也认不出这是一次诊断。
+    const feedingId = diagnosisMode.value ? draft.value.feedingId || (typeof route.query.feeding === 'string' ? route.query.feeding : undefined) : undefined;
+    const { report, errors: invalid } = generateMobileReport(feedingId ? { ...draft.value, feedingId } : draft.value, accountId.value);
     if (invalid) {
       // 把页面送到真正放着出错控件的那一页，避免报错却看不见。
       const where = locateErrors(invalid);
@@ -271,7 +282,7 @@ function applyPending(key) {
         </template>
         <div v-if="observePart === 1" :aria-invalid="!!errors.color" tabindex="-1">
           <h2>酵种表面看起来怎么样？</h2>
-          <span id="color-help" class="m-muted">看粉红、绿、蓝、黑斑块或绒毛。</span>
+          <span id="color-help" class="m-muted">观察颜色和霉斑，无法判断请选择“不确定”。</span>
           <MRadioCard :model-value="draft.color" :options="safetyOptions.color" label="颜色与霉斑" marker="end" @update:model-value="selectSafety('color', $event)" />
           <span v-if="errors.color" class="m-error">{{ errors.color }}</span>
         </div>
@@ -284,16 +295,15 @@ function applyPending(key) {
         <div v-else :aria-invalid="!!errors.height" tabindex="-1">
           <h2>这次发酵的涨幅如何？</h2>
           <p class="height-note">设备数据可供参考，也可以手动修改。</p>
-          <MRadioCard :model-value="draft.height" :options="primaryHeights" :columns="2" label="主要涨幅表现" marker="plain" @update:model-value="selectHeight" />
-          <button type="button" class="more-heights" :aria-expanded="showMoreHeights" @click="heightMoreOpen = !heightMoreOpen">{{ showMoreHeights ? '收起更多情况' : '查看更多情况' }}</button>
-          <MRadioCard v-if="showMoreHeights" :model-value="draft.height" :options="moreHeights" :columns="2" label="更多涨幅情况" marker="plain" @update:model-value="selectHeight" />
-          <span v-if="autoHeight" class="m-muted">自动：{{ autoHeight.ratio.toFixed(2) }} 倍（{{ autoHeight.baselineHeightMm.toFixed(1) }} → {{ autoHeight.currentHeightMm.toFixed(1) }} mm），落在 {{ autoHeight.range }} 区间。<button v-if="heightOverridden" type="button" class="link-button" @click="restoreAutoHeight">恢复自动值</button></span>
+          <MRadioCard :model-value="draft.height" :options="heightOptions" :columns="2" label="主要涨幅表现" marker="plain" @update:model-value="selectHeight" />
+          <button v-if="!moreHeights.some((item) => item.value === draft.height)" type="button" class="more-heights" :aria-expanded="showMoreHeights" @click="heightMoreOpen = !heightMoreOpen">{{ showMoreHeights ? '收起更多' : '查看更多情况' }}<img :src="showMoreHeights ? chevronUp : chevronDown" alt="" width="11.5" height="6.5" /></button>
+          <span v-if="autoHeight" class="m-muted">自动：{{ formatExpansionRatio(autoHeight.ratio) }}（{{ autoHeight.baselineHeightMm.toFixed(1) }} → {{ autoHeight.currentHeightMm.toFixed(1) }} mm），落在 {{ autoHeight.range }} 区间。<button v-if="heightOverridden" type="button" class="link-button" @click="restoreAutoHeight">恢复自动值</button></span>
           <span v-else-if="diagnosisMode && feedingEvidence" class="m-muted">缺少有效起始高度或最新高度，无法自动计算，请手动选择。</span>
           <span v-if="errors.height" class="m-error">{{ errors.height }}</span>
         </div>
-        <p v-if="observePart === 1" class="safety-note"><strong>请勿品尝生酵种。</strong><span>设备不能判断颜色、气味或食品安全，请逐项确认。</span></p>
+        <p v-if="observePart === 1" class="safety-note"><strong>请勿品尝生酵种。</strong><span>设备不能判断颜色、气味或食品安全。</span></p>
         <p v-if="step === 1 && skipsBackground" class="safety-priority" role="status">安全观察需要优先核对。点「下一步」直接进入安全核对，并跳过本轮背景；已填写的答案会保留。</p>
-        <details><summary>一句话填写（可选）</summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <strong v-if="key === 'color' || key === 'smell'">请在上方重新主动选择；识别未作为答案。</strong><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
+        <details v-if="!diagnosisMode || observePart === 3"><summary>{{ diagnosisMode ? '补充一句话（可选）' : '一句话填写（可选）' }}<img v-if="diagnosisMode" :src="chevronMuted" alt="" width="11.5" height="6.5" /></summary><label class="m-field">原文<textarea v-model="draft.quickText" rows="4" placeholder="如：成熟种，1:2:2，轻微上涨，温度26°C，经过4小时" /></label><button type="button" class="m-secondary" @click="parseText">识别为待确认字段</button><p role="status">{{ notice }}</p><ul><li v-for="(value, key) in pending" :key="key">{{ fieldLabels[key] }}：{{ describeField(key, value) }} <template v-if="key === 'color' || key === 'smell'"><strong>{{ draft[key] && draft[key] !== value ? `与你当前的选择「${reviewValue(key)}」不一致。` : '' }}请在颜色与气味两步主动选择；识别结果未作为答案。</strong><button type="button" class="m-secondary" @click="observePart = key === 'color' ? 1 : 2">返回{{ key === 'color' ? '颜色' : '气味' }}这一步</button></template><button v-else type="button" class="m-secondary" @click="applyPending(key)">确认此字段</button></li></ul></details>
       </section>
       <section v-show="step === 2" class="m-card">
         <h2>{{ diagnosisMode ? '确认诊断背景' : '补充这一轮背景' }}</h2>
@@ -316,7 +326,8 @@ function applyPending(key) {
         <p v-if="skipsBackground" class="skip-note">安全观察将优先处理，已跳过本轮背景；已填写的答案均保留，本次不会生成常规养护结论。</p>
         <dl><template v-for="key in reviewKeys" :key="key"><dt>{{ reviewLabel(key) }}</dt><dd>{{ reviewValue(key) }}<small v-if="!diagnosisMode" class="m-muted"> · 来源：{{ describeSource(draft, key) }}</small></dd></template></dl>
         </div>
-        <p class="sample-note">示例数据 · 可返回修改</p>
+        <p v-if="diagnosisMode" class="review-hint">{{ missingReviewKeys.length ? `本次还缺少${missingReviewKeys.map((key) => reviewLabel(key)).join('、')}，可返回补录后再生成。` : '以上来自你本次的选择与设备测量，可返回修改。' }}</p>
+        <p v-else class="review-hint">以上来自你本轮的选择、手工填写和设备预填，可返回修改。</p>
         <p v-if="draft.quickText" class="note">原始一句话：{{ draft.quickText }}</p>
         <button type="button" class="m-secondary" @click="draft.step = 1; observePart = 1">修改观察</button> <button v-if="!skipsBackground" type="button" class="m-secondary" @click="draft.step = 2">修改背景</button>
       </section>
@@ -453,7 +464,7 @@ function applyPending(key) {
 .mobile-checkin[data-mode="diagnosis"] .review-card dd {
   text-align: left
 }
-.sample-note {
+.review-hint {
   margin: 19px 0 8px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -513,6 +524,7 @@ function applyPending(key) {
   align-items: center;
   justify-content: center;
   width: 100%;
+  gap: 5px;
   min-height: 44px;
   margin: 16px 0;
   padding: 0;
@@ -524,10 +536,29 @@ function applyPending(key) {
   font-weight: 400;
   cursor: pointer
 }
+.more-heights img,
+.observe-step details summary img {
+  display: block;
+  flex: none
+}
+/* 542:603：「补充一句话（可选）」比正文内缩 4，系统三角换成与「查看更多情况」同款的下箭头，展开后翻转。 */
 .observe-step details summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  min-height: 44px;
+  padding-left: 4px;
   color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 400
+  font-weight: 400;
+  list-style: none
+}
+.observe-step details summary::-webkit-details-marker {
+  display: none
+}
+.observe-step details[open] summary img {
+  transform: rotate(180deg)
 }
 .step-track {
   display: flex;

@@ -34,6 +34,28 @@ export function formatDoctorRound(row, { elapsedHours, closed = false } = {}) {
   const duration = Number.isFinite(elapsed) && elapsed >= 0 ? `${elapsed >= 10 ? Math.round(elapsed) : Math.round(elapsed * 10) / 10} 小时` : '';
   return { title: `${clock} 喂养`, detail: [closed ? '已结束' : '喂养记录', ratio, duration].filter(Boolean).join(' · ') };
 }
+function dayClock(time) {
+  const valid = Number.isFinite(time.getTime());
+  return {
+    day: valid ? `${time.getMonth() + 1} 月 ${time.getDate()} 日` : '日期不可用',
+    clock: valid ? `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}` : '--:--'
+  };
+}
+export function formatDiagnosisRecord(row) {
+  // 只有真实存在的喂养窗口才算「喂养时刻」：null / 空串会被 new Date 解析成 1970-01-01，
+  // 那会把诊断记录标成错误日期，宁可退回诊断时刻。
+  const windowFrom = row?.input?.evidenceSnapshot?.windowFrom;
+  const fedAt = new Date(windowFrom);
+  const fed = typeof windowFrom === 'string' && windowFrom.trim() !== '' && Number.isFinite(fedAt.getTime());
+  const diagnosedAt = dayClock(new Date(row?.occurred_at));
+  const shown = fed ? dayClock(fedAt) : diagnosedAt;
+  return {
+    title: row?.result?.title || '诊断结果',
+    detail: `${shown.day} · ${shown.clock} ${fed ? '喂养' : '诊断'}`,
+    // 列表按诊断时刻倒序；同一轮重新观察多次时，靠这一行区分先后。
+    diagnosed: fed ? `诊断于 ${diagnosedAt.day} ${diagnosedAt.clock}` : ''
+  };
+}
 export function recordDayRange(day) {
   const start = new Date(`${day}T00:00:00`);
   const end = new Date(start); end.setDate(end.getDate() + 1);
