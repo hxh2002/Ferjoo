@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
           </button>
           <ul id="welcome-products" class="welcome-products" :class="{ 'is-open': open }" :hidden="!open">
             <li><RouterLink :to="{ path: '/', hash: '#sourmate' }" @click="hide">SourMate</RouterLink></li>
-            <li><a class="welcome-doctor" :href="PRODUCT_ORIGIN" aria-label="Dr. Ferjoo" @click="hide"><DrFerjooMark /></a></li>
+            <li><a class="welcome-doctor" :href="PRODUCT_ORIGIN" aria-label="Dr. Ferjoo" @click="hide"><DrFerjooMark variant="cn" /></a></li>
           </ul>
         </div>
         <RouterLink :to="{ path: '/', hash: '#about' }">关于</RouterLink>
@@ -96,6 +96,7 @@ onBeforeUnmount(() => {
         <p class="welcome-kicker">关于</p>
         <div>
           <h2 id="about-title">Ferjoo</h2>
+          <p class="welcome-cn-mark"><DrFerjooMark variant="cn" /></p>
           <p>我们做的是让发酵更从容的小工具：SourMate 负责记录，Dr. Ferjoo 酵种医生帮你读懂酵种的每一次变化。</p>
           <ul class="welcome-socials" aria-label="关注 Ferjoo">
             <li v-for="social in socials" :key="social.name">
@@ -147,6 +148,7 @@ html { scroll-behavior: smooth; }
 .welcome-kicker { margin: 0; color: var(--brand-action); font-size: 13px; letter-spacing: .08em; }
 .welcome-section h2 { margin: 0 0 12px; font-size: clamp(26px, 4vw, 34px); font-weight: 500; letter-spacing: -.03em; }
 .welcome-section p:not(.welcome-kicker) { margin: 0; color: var(--text-secondary); font-size: 16px; line-height: 1.85; }
+.welcome-section p.welcome-cn-mark { margin: 0 0 16px; }
 .welcome-socials { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 24px 0 0; padding: 0; list-style: none; }
 .welcome-socials a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--text-secondary); font-size: 14px; }
 .welcome-socials a:hover { color: var(--brand-action); }

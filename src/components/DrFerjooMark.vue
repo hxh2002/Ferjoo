@@ -1,14 +1,17 @@
 <script setup>
+import { computed } from 'vue';
 import { classicAssets } from '../constants/classicAssets.js';
 
-// 这两张是仓库里的 Dr. Ferjoo 专用字标（白字、透明底），不是 Ferjoo 通用标志配文字。
-// 底色沿用经典界面的橙色，字标本身不重新上色、不另加可见文字。
+// 英文主标志 logo-df-en.png；中文辅助标志 logo-df-cn.png。白字透明底，底色沿用经典橙色以便在浅色界面上看见。
+const props = defineProps({
+  variant: { type: String, default: 'en' }
+});
+const src = computed(() => (props.variant === 'cn' ? classicAssets.logoChinese : classicAssets.logoEnglish));
 </script>
 
 <template>
   <span class="df-mark">
-    <img :src="classicAssets.logoChinese" alt="" />
-    <img :src="classicAssets.logoEnglish" alt="" />
+    <img :src="src" alt="" />
   </span>
 </template>
 
@@ -17,10 +20,9 @@ import { classicAssets } from '../constants/classicAssets.js';
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   box-sizing: border-box;
   max-width: 100%;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-radius: 12px;
   background: #ff913f;
 }
@@ -28,6 +30,7 @@ import { classicAssets } from '../constants/classicAssets.js';
   display: block;
   height: 28px;
   width: auto;
+  max-width: 100%;
   object-fit: contain;
 }
 </style>

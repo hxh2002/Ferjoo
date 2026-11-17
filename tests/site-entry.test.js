@@ -147,7 +147,7 @@ const menuItems = [...nav.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((match) => matc
 assert.equal(menuItems.length, 2, 'product menu is exactly the two products');
 assert.match(menuItems[0], />SourMate<\/RouterLink>/);
 assert.match(menuItems[1], /aria-label="Dr\. Ferjoo"/);
-assert.match(menuItems[1], /<DrFerjooMark\s*\/>/);
+assert.match(menuItems[1], /<DrFerjooMark variant="cn"\s*\/>/);
 assert.doesNotMatch(menuItems[1], /logo-brand|Ferjoo 通用|>Dr\. Ferjoo/);
 assert.match(nav, /<RouterLink :to="\{ path: '\/', hash: '#sourmate' \}"[^>]*>SourMate<\/RouterLink>/, 'SourMate points to the on-page section, not an invented site');
 assert.match(nav, /<a class="welcome-doctor" :href="PRODUCT_ORIGIN" aria-label="Dr\. Ferjoo"/);
@@ -156,6 +156,10 @@ assert.deepEqual(tabs, ['产品', '关于'], 'only 产品 and 关于 sit in the 
 assert.match(nav, /hash: '#about'/);
 assert.match(welcome.source, /<section id="sourmate"/);
 assert.match(welcome.source, /<section id="about"/);
+assert.match(welcome.source, /class="welcome-cn-mark"><DrFerjooMark variant="cn"\s*\/>/, 'the Chinese about intro uses the Chinese mark');
+assert.doesNotMatch(read('src/components/DesktopNav.vue'), /variant="cn"|logoBrand|logo-brand/, 'product navigation uses the default English mark');
+assert.doesNotMatch(read('src/components/MobileShell.vue'), /variant="cn"|logoBrand|logo-brand/, 'the product shell uses the default English mark');
+assert.match(read('src/components/DrFerjooMark.vue'), /variant === 'cn' \? classicAssets\.logoChinese : classicAssets\.logoEnglish/);
 assert.equal((welcome.source.match(/PRODUCT_ORIGIN/g) || []).length, 1, 'no repeated Dr. Ferjoo calls to action');
 assert.doesNotMatch(welcome.source, /https?:\/\/(?!www\.facebook|www\.instagram|xhslink)/, 'no invented URLs in the template');
 assert.doesNotMatch(welcome.source, /\d+\s*[+%万]|立即|马上|免费|购买|了解更多|Learn more|Get started/, 'no statistics or marketing buttons');
