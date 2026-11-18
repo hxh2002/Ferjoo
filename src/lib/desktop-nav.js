@@ -8,3 +8,13 @@ export const desktopNavItems = [
   { to: '/me/devices', label: '设备绑定', icon: 'device', match: (path) => path.startsWith('/me/devices') || path === '/claim' },
   { to: '/me', label: '我的', icon: 'user', match: (path) => path === '/me' || (path.startsWith('/me/') && !path.startsWith('/me/devices')) }
 ];
+
+// 后台只出现在桌面侧栏，且仅管理员可见。它不是手机底部标签，也不进入上面的产品导航。
+export const adminNavItems = [
+  { to: '/admin', label: '概览', icon: 'overview', match: (path) => path === '/admin' },
+  { to: '/admin/users', label: '用户与权限', icon: 'user', match: (path) => path.startsWith('/admin/users') },
+  { to: '/admin/bindings', label: '绑定关系', icon: 'link', match: (path) => path.startsWith('/admin/bindings') },
+  { to: '/admin/rounds', label: '发酵轮次', icon: 'rounds', match: (path) => path.startsWith('/admin/rounds') },
+  { to: '/admin/devices', label: '设备', icon: 'device', match: (path) => path.startsWith('/admin/devices') },
+  { to: '/admin/care', label: '养护与反馈', icon: 'care', match: (path) => path.startsWith('/admin/care') }
+];

@@ -1,14 +1,12 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import brandLogo from '../assets/about/brand-logo-circle.png';
-import socialFacebook from '../assets/about/social-facebook.svg';
 import socialInstagram from '../assets/about/social-instagram.svg';
 import socialXiaohongshu from '../assets/about/social-xiaohongshu.svg';
 import { PRODUCT_ORIGIN } from '../lib/site-entry.js';
 import DrFerjooMark from '../components/DrFerjooMark.vue';
 
 const socials = [
-  { name: 'Facebook', href: 'https://www.facebook.com/share/18v7fhWTYX/?mibextid=wwXIfr', icon: socialFacebook },
   { name: 'Instagram', href: 'https://www.instagram.com/ferjoooooo/', icon: socialInstagram },
   { name: '小红书', href: 'https://xhslink.cn/o/71W7wzdhmIV', icon: socialXiaohongshu }
 ];

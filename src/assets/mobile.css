@@ -114,7 +114,7 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 .mobile-area .mobile-shell { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 .mobile-area .mobile-topbar { position: sticky; top: 0; z-index: var(--m-z-header); display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: calc(8px + env(safe-area-inset-top)) max(var(--m-page-space), env(safe-area-inset-right)) 8px max(var(--m-page-space), env(safe-area-inset-left)); border-bottom: 0; background: var(--m-topbar-glass); box-shadow: none; -webkit-backdrop-filter: var(--m-topbar-blur); backdrop-filter: var(--m-topbar-blur); }
 .mobile-area .mobile-brand { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; }
-.mobile-area .mobile-brand img { display: block; width: 100px; height: auto; }
+.mobile-area .mobile-brand img { display: block; width: auto; max-width: min(100%, 78vw); }
 .mobile-area :is(.mobile-login, .mobile-account) { display: inline-flex; align-items: center; min-height: 44px; max-width: 52%; font-size: 14px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mobile-area .mobile-account { color: var(--text-secondary); }
 .mobile-area .mobile-login { padding: 0 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: var(--surface-selected); text-decoration: none; }

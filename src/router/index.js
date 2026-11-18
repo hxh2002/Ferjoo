@@ -53,7 +53,20 @@ const routes = [
       { path: 'me/help', name: 'help', component: () => import('../views/mobile/MobileHelp.vue') },
       { path: 'me/account', name: 'account', component: () => import('../views/mobile/MobileAccount.vue'), meta: { requiresAuth: true } },
       { path: 'me/notifications', name: 'notifications', component: () => import('../views/mobile/MobileNotifications.vue'), meta: { requiresAuth: true } },
-      { path: 'claim', name: 'claim', component: () => import('../views/ClaimView.vue'), meta: { requiresAuth: true, title: '绑定设备' } }
+      { path: 'claim', name: 'claim', component: () => import('../views/ClaimView.vue'), meta: { requiresAuth: true, title: '绑定设备' } },
+      {
+        path: 'admin',
+        component: () => import('../views/admin/AdminLayout.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '概览' },
+        children: [
+          { path: '', name: 'admin-overview', component: () => import('../views/admin/AdminOverview.vue'), meta: { title: '概览' } },
+          { path: 'users', name: 'admin-users', component: () => import('../views/admin/AdminUsers.vue'), meta: { title: '用户与权限' } },
+          { path: 'bindings', name: 'admin-bindings', component: () => import('../views/admin/AdminBindings.vue'), meta: { title: '绑定关系' } },
+          { path: 'rounds', name: 'admin-rounds', component: () => import('../views/admin/AdminRounds.vue'), meta: { title: '发酵轮次' } },
+          { path: 'devices', name: 'admin-devices', component: () => import('../views/admin/AdminDevices.vue'), meta: { title: '设备' } },
+          { path: 'care', name: 'admin-care', component: () => import('../views/admin/AdminCare.vue'), meta: { title: '养护与反馈' } }
+        ]
+      }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/' }
@@ -70,7 +83,7 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  if (!to.meta.requiresAuth) return true;
+  if (!to.meta.requiresAuth && !to.meta.requiresAdmin) return true;
   const auth = useAuth();
   await auth.init();
   if (!auth.user.value) {
@@ -78,6 +91,7 @@ router.beforeEach(async (to) => {
     const query = redirect ? { redirect } : {};
     return { name: 'mobile-login', query };
   }
+  if (to.meta.requiresAdmin && auth.profile.value?.role !== 'A') return { path: '/device' };
   return true;
 });
 

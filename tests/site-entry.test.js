@@ -161,7 +161,8 @@ assert.doesNotMatch(read('src/components/DesktopNav.vue'), /variant="cn"|logoBra
 assert.doesNotMatch(read('src/components/MobileShell.vue'), /variant="cn"|logoBrand|logo-brand/, 'the product shell uses the default English mark');
 assert.match(read('src/components/DrFerjooMark.vue'), /variant === 'cn' \? classicAssets\.logoChinese : classicAssets\.logoEnglish/);
 assert.equal((welcome.source.match(/PRODUCT_ORIGIN/g) || []).length, 1, 'no repeated Dr. Ferjoo calls to action');
-assert.doesNotMatch(welcome.source, /https?:\/\/(?!www\.facebook|www\.instagram|xhslink)/, 'no invented URLs in the template');
+assert.doesNotMatch(welcome.source, /https?:\/\/(?!www\.instagram|xhslink)/, 'no invented URLs in the template');
+assert.doesNotMatch(welcome.source, /facebook/i, 'about links are Instagram and 小红书 only');
 assert.doesNotMatch(welcome.source, /\d+\s*[+%万]|立即|马上|免费|购买|了解更多|Learn more|Get started/, 'no statistics or marketing buttons');
 assert.equal((welcome.source.match(/<section/g) || []).length, 3, 'hero, SourMate and about only');
 const menuScript = welcome.script;

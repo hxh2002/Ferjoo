@@ -468,7 +468,10 @@ compile('src/views/mobile/MobileFaq.vue');
 compile('src/views/mobile/MobileFeedback.vue');
 compile('src/views/mobile/MobilePrivacy.vue');
 compile('src/views/mobile/MobileDeviceInfo.vue');
-compile('src/views/mobile/MobileHelp.vue');
+const help = compile('src/views/mobile/MobileHelp.vue');
+assert.match(help, /name: 'Instagram'/);
+assert.match(help, /name: '小红书'/);
+assert.doesNotMatch(help, /facebook/i, 'about links are Instagram and 小红书 only');
 
 console.log('mobile me: sections, empty profile, toasts, danger confirm and device id passed');
 

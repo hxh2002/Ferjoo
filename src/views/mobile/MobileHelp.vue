@@ -1,13 +1,11 @@
 <script setup>
 import { inject, onBeforeUnmount, onMounted } from 'vue';
 import aboutLogo from '../../assets/about/brand-logo-circle.png';
-import socialFacebook from '../../assets/about/social-facebook.svg';
 import socialInstagram from '../../assets/about/social-instagram.svg';
 import socialXiaohongshu from '../../assets/about/social-xiaohongshu.svg';
 
 const headerTone = inject('mobileHeaderTone', null);
 const socials = [
-  { name: 'Facebook', href: 'https://www.facebook.com/share/18v7fhWTYX/?mibextid=wwXIfr', icon: socialFacebook },
   { name: 'Instagram', href: 'https://www.instagram.com/ferjoooooo/', icon: socialInstagram },
   { name: '小红书', href: 'https://xhslink.cn/o/71W7wzdhmIV', icon: socialXiaohongshu }
 ];

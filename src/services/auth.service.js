@@ -1,6 +1,20 @@
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
 
 const AVATAR_BUCKET = 'avatars';
+const PROFILE_COLUMNS = 'id, system_user_id, role, email, display_name, created_at, avatar_url, gender, birth_date, profile_identity, invite_code, invite_quota, invited_count, invited_by';
+
+function missingSuperAdminColumn(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /is_super_admin/i.test(error?.message || '');
+}
+
+async function selectProfile(client, userId) {
+  const extended = await client.from('profiles').select(`${PROFILE_COLUMNS}, is_super_admin`).eq('id', userId).single();
+  if (!extended.error) return extended.data;
+  if (!missingSuperAdminColumn(extended.error)) throw extended.error;
+  const fallback = await client.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).single();
+  if (fallback.error) throw fallback.error;
+  return { ...fallback.data, is_super_admin: false };
+}
 
 function requireClient() {
   if (!hasSupabaseConfig || !supabase) {
@@ -46,18 +60,7 @@ export async function getCurrentSession() {
 }
 
 export async function getProfile(userId) {
-  const client = requireClient();
-  const { data, error } = await client
-    .from('profiles')
-    .select(
-      'id, system_user_id, role, email, display_name, created_at, '
-      + 'avatar_url, gender, birth_date, profile_identity, '
-      + 'invite_code, invite_quota, invited_count, invited_by'
-    )
-    .eq('id', userId)
-    .single();
-  if (error) throw error;
-  return data;
+  return selectProfile(requireClient(), userId);
 }
 
 export async function updateProfile(userId, updates = {}) {
@@ -69,18 +72,9 @@ export async function updateProfile(userId, updates = {}) {
   if ('birthDate' in updates) payload.birth_date = updates.birthDate || null;
   if ('identity' in updates) payload.profile_identity = updates.identity || null;
 
-  const { data, error } = await client
-    .from('profiles')
-    .update(payload)
-    .eq('id', userId)
-    .select(
-      'id, system_user_id, role, email, display_name, created_at, '
-      + 'avatar_url, gender, birth_date, profile_identity, '
-      + 'invite_code, invite_quota, invited_count, invited_by'
-    )
-    .single();
+  const { error } = await client.from('profiles').update(payload).eq('id', userId);
   if (error) throw error;
-  return data;
+  return selectProfile(client, userId);
 }
 
 export async function uploadAvatar(userId, blob) {

@@ -80,6 +80,8 @@ const backTarget = computed(() => {
   const returnTo = safeRedirect(route.query.returnTo, router);
   if (returnTo && router.resolve(returnTo).path === '/diary') return returnTo;
   if (route.path === '/claim') return '/me/devices';
+  if (route.path.startsWith('/admin/') && route.path !== '/admin') return '/admin';
+  if (route.path === '/admin') return '/device';
   if (isAccount.value) {
     const redirect = safeRedirect(route.query.redirect, router);
     return redirect && !router.resolve(redirect).meta.requiresAuth ? redirect : '/me';

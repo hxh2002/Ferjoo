@@ -19,7 +19,13 @@ const exactTitles = {
   '/login': '登录',
   '/register': '注册',
   '/profile': '个人资料',
-  '/claim': '绑定设备'
+  '/claim': '绑定设备',
+  '/admin': '概览',
+  '/admin/users': '用户与权限',
+  '/admin/bindings': '绑定关系',
+  '/admin/rounds': '发酵轮次',
+  '/admin/devices': '设备',
+  '/admin/care': '养护与反馈'
 };
 
 export function pageTitle(route) {
