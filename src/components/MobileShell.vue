@@ -5,7 +5,6 @@ import { useAuth } from '../composables/useAuth.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
 import { pageTitle } from '../lib/page-title.js';
 import DesktopNav from './DesktopNav.vue';
-import DrFerjooMark from './DrFerjooMark.vue';
 
 import navDevice from '../assets/icons/nav-device.svg';
 import navDeviceActive from '../assets/icons/nav-device-active.svg';
@@ -145,9 +144,6 @@ function go(path) {
       <h1 v-if="!hideTopbarTitle">{{ title }}</h1>
       <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
     </header>
-    <RouterLink v-if="showTabs" class="mobile-brand" to="/device" aria-label="Dr. Ferjoo">
-      <DrFerjooMark plain />
-    </RouterLink>
     <main class="mobile-main">
       <RouterView v-slot="{ Component }">
         <Transition name="mobile-page">
@@ -169,8 +165,6 @@ function go(path) {
 
 <style scoped>
 /* 顶栏外观（磨砂玻璃 / 标题 20·500·29 / 44×44 返回键）统一写在 mobile.css；tone 只作语义标记，不再改变外观。 */
-.mobile-brand { display: flex; justify-content: center; max-width: 100%; padding: 8px 16px 2px; }
-.mobile-shell.has-tabs .mobile-brand { padding-top: calc(10px + env(safe-area-inset-top)); }
 .mobile-aside { margin-left: auto; color: var(--text-secondary); font-size: 13px; font-weight: 400; line-height: 22px; white-space: nowrap; }
 .mobile-page-enter-active { animation: mobile-arrive 280ms cubic-bezier(.2, .8, .3, 1); }
 .mobile-shell :deep(details[open] > :not(summary)),

@@ -14,7 +14,7 @@
   }
   body.mobile-mode { background: #fff9f3; }
   .mobile-area .mobile-shell { display: block; max-width: none; min-height: 100vh; padding-left: var(--desktop-sidebar); color: #30251f; font-family: var(--font-sans); }
-  .mobile-area .mobile-shell > :is(.mobile-topbar, .mobile-tabbar, .mobile-brand) { display: none; }
+  .mobile-area .mobile-shell > :is(.mobile-topbar, .mobile-tabbar) { display: none; }
   .mobile-area .mobile-shell > .mobile-main, .mobile-area .mobile-shell.has-tabs > .mobile-main { flex: 1; min-width: 0; padding: 0 0 48px; }
   .mobile-area .mobile-main .m-page { max-width: 1280px; padding: 32px; gap: 20px; }
   .mobile-area .mobile-main .m-page h1 { font-size: 30px; line-height: 40px; }
@@ -27,7 +27,7 @@
   /* Sidebar and topbar: the same destinations as the phone tab bar and page titles. */
   .mobile-area .desktop-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 35; display: flex; flex-direction: column; gap: 28px; width: var(--desktop-sidebar); padding: 24px 16px; border-right: 1px solid #f0e3d7; background: #fffdfb; }
   .mobile-area .desktop-brand { display: flex; align-items: center; min-height: 48px; max-width: 100%; padding: 0; color: #30251f; text-decoration: none; }
-  .mobile-area .desktop-navigation { display: grid; gap: 4px; overflow-y: auto; }
+  .mobile-area .desktop-navigation { display: grid; align-content: start; gap: 4px; overflow-y: auto; }
   .mobile-area .desktop-nav-admin { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0e3d7; }
   .mobile-area .desktop-nav-link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px; border-radius: 14px; color: #5e4d42; font-size: 14px; text-decoration: none; transition: background 160ms ease, color 160ms ease; }
   .mobile-area .desktop-nav-link svg { flex: none; width: 22px; height: 22px; }
@@ -288,7 +288,7 @@
   :root.mobile-mode { --desktop-topbar: 56px; }
   .mobile-area .desktop-sidebar { gap: 12px; padding: 12px 12px 16px; }
   .mobile-area .desktop-brand { min-height: 36px; }
-  .mobile-area .desktop-nav-link { min-height: 40px; }
+  .mobile-area .desktop-nav-link { height: 40px; min-height: 40px; }
   .mobile-area .desktop-topbar { min-height: var(--desktop-topbar); padding-block: 8px; }
   .mobile-area .desktop-account-avatar { width: 32px; height: 32px; }
   .mobile-area .mobile-shell > .mobile-main,

@@ -113,8 +113,6 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 .mobile-area :is(fieldset, .m-page, .m-card, .panel, form, label) { min-width: 0; }
 .mobile-area .mobile-shell { width: 100%; max-width: var(--m-page-max, 42rem); margin-inline: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 .mobile-area .mobile-topbar { position: sticky; top: 0; z-index: var(--m-z-header); display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: calc(8px + env(safe-area-inset-top)) max(var(--m-page-space), env(safe-area-inset-right)) 8px max(var(--m-page-space), env(safe-area-inset-left)); border-bottom: 0; background: var(--m-topbar-glass); box-shadow: none; -webkit-backdrop-filter: var(--m-topbar-blur); backdrop-filter: var(--m-topbar-blur); }
-.mobile-area .mobile-brand { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; }
-.mobile-area .mobile-brand img { display: block; width: auto; max-width: min(100%, 78vw); }
 .mobile-area :is(.mobile-login, .mobile-account) { display: inline-flex; align-items: center; min-height: 44px; max-width: 52%; font-size: 14px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mobile-area .mobile-account { color: var(--text-secondary); }
 .mobile-area .mobile-login { padding: 0 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: var(--surface-selected); text-decoration: none; }
@@ -322,8 +320,6 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
   .mobile-area .mobile-tabbar button { height: 44px; min-height: 44px; margin-top: 4px; }
   .mobile-area .mobile-tab-slider { top: 4px; height: 44px; }
   .mobile-area .mobile-tab-slider::before { width: 44px; height: 44px; }
-  .mobile-area .mobile-shell.has-tabs .mobile-brand { padding: 2px 12px 0; padding-top: calc(2px + env(safe-area-inset-top)); }
-  .mobile-area .mobile-brand img { max-height: 28px; }
   body.mobile-mode .mobile-area .mobile-shell .mobile-main .m-page.device-page { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); column-gap: 16px; align-items: start; padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 12px); }
   body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > :is(.device-head, .jar-status, .m-error, .m-muted, .m-skeleton, .m-guest-notice, .risk-banner, .picker-backdrop) { grid-column: 1 / -1; }
   body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .jar-preview { grid-column: 1; grid-row: 3 / span 6; align-self: center; margin-block: 8px 0; }

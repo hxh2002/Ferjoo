@@ -92,7 +92,7 @@ assert.equal(outsideMedia[0].selector, '.mobile-area .desktop-sidebar, .mobile-a
 assert.deepEqual(outsideMedia[0].nodes.map((decl) => `${decl.prop}:${decl.value}`), ['display:none']);
 assert.ok([...minWidths].every((query) => Number(query.match(/min-width: (\d+)px/)?.[1]) >= 768), 'every desktop query starts at 768px or wider');
 const css = read('src/assets/desktop.css');
-assert.match(css, /\.mobile-area \.mobile-shell > :is\(\.mobile-topbar, \.mobile-tabbar, \.mobile-brand\) \{ display: none; \}/, 'phone chrome yields to desktop chrome at 768px');
+assert.match(css, /\.mobile-area \.mobile-shell > :is\(\.mobile-topbar, \.mobile-tabbar\) \{ display: none; \}/, 'phone chrome yields to desktop chrome at 768px');
 assert.ok(!/@media[^{]*max-width:\s*(?:[1-6]\d\d|7[0-5]\d|76\d)px/.test(css), 'no media query targets the phone range');
 const mobileCss = read('src/assets/mobile.css');
 assert.doesNotMatch(mobileCss, /desktop-sidebar|desktop-topbar|min-width: 768px/, 'mobile stylesheet is unchanged by desktop work');
@@ -161,8 +161,7 @@ assert.match(welcome.source, /class="welcome-about-logo" :src="brandLogo" alt="F
 assert.doesNotMatch(welcome.source, /我们做的是让发酵更从容|welcome-cn-mark|id="about-title"/, 'the about section has no descriptive copy');
 assert.doesNotMatch(read('src/components/DesktopNav.vue'), /variant="cn"|logoBrand|logo-brand/, 'product navigation uses the default English mark');
 assert.match(read('src/components/DesktopNav.vue'), /<DrFerjooMark plain\s*\/>/, 'the sidebar brand is the flat wordmark');
-assert.doesNotMatch(read('src/components/MobileShell.vue'), /variant="cn"|logoBrand|logo-brand/, 'the product shell uses the default English mark');
-assert.match(read('src/components/MobileShell.vue'), /<RouterLink v-if="showTabs" class="mobile-brand"[\s\S]*?<DrFerjooMark plain\s*\/>/, 'the phone brand stays on the three tabs, and is flat');
+assert.doesNotMatch(read('src/components/MobileShell.vue'), /DrFerjooMark|mobile-brand|variant="cn"|logoBrand|logo-brand/, 'the phone shell does not show the Dr. Ferjoo mark');
 assert.match(read('src/components/DrFerjooMark.vue'), /variant === 'cn' \? classicAssets\.logoChinese : classicAssets\.logoEnglish/);
 assert.match(read('src/components/DrFerjooMark.vue'), /v-if="!plain"/, 'the moving field is omitted from the flat wordmark');
 assert.match(read('src/components/DrFerjooMark.vue'), /--brand-primary/, 'the flat wordmark takes the brand orange');
