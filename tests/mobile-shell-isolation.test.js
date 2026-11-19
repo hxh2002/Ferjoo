@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
+import { isMobilePath } from '../src/lib/accountNavigation.js';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const mobileCss = read('src/assets/mobile.css');
@@ -50,7 +51,7 @@ const router = {
 const context = vm.createContext({
   document, router, App: {},
   createApp: () => ({ use() {}, mount() { mounted = true; } }),
-  isMobilePath: (path) => /^\/(device|diary|today|records|me)(\/|$)/.test(path),
+  isMobilePath,
   usesMobileAccountLayout: (route) => route.mobileAccount,
   isWelcomeRoute: (route) => route?.meta?.welcome === true,
   productRedirect: () => '',
@@ -84,4 +85,9 @@ assert.equal(elements[0].media, 'all');
 hooks.after({ path: '/', meta: { welcome: true } }, {});
 assert.equal(elements[0].media, 'not all', 'welcome route disables legacy desktop CSS');
 assert.ok(!document.body.classList.values.get('mobile-mode'), 'welcome route is outside mobile-mode');
+await hooks.before({ path: '/admin/users' });
+hooks.after({ path: '/admin/users' }, {});
+assert.equal(imports, 1, 'admin stays on the product shell and does not load the legacy desktop stylesheet');
+assert.equal(elements[0].media, 'not all', 'admin keeps the legacy desktop stylesheet disabled');
+assert.equal(document.body.classList.values.get('mobile-mode'), true, 'admin uses the same shell mode as the product');
 console.log('ok - isolated style lifecycle, mobile account entry, scoped tokens/mobile CSS and mobile shell compilation');

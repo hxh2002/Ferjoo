@@ -150,7 +150,7 @@ onMounted(load);
             <td><span class="admin-badge" :class="{ 'is-muted': row.role !== 'A' }">{{ roleLabel(row) }}</span></td>
             <td>{{ row.invited_count }} / {{ row.invite_quota }}</td>
             <td>{{ formatAdminTime(row.created_at) }}</td>
-            <td><button type="button" class="m-secondary" @click="openUser(row)">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="openUser(row)">查看</button></td>
           </tr>
         </tbody>
       </table>

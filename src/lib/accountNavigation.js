@@ -12,9 +12,10 @@ export function safeRedirect(value, router) {
   }
 }
 
-// today/records 是迁移前的地址，仍需按移动端渲染以便 redirect 生效。
+// today/records 是迁移前的地址，仍需按产品外壳渲染以便 redirect 生效。
+// admin 同样走这套外壳：宽窄屏只由 CSS 断点决定，不能退回旧的橙色桌面样式。
 export function isMobilePath(path) {
-  return /^\/(device|diary|today|records|checkin|feeding|reports|devices|doctor|me)(\/|$)/.test(path);
+  return /^\/(device|diary|today|records|checkin|feeding|reports|devices|doctor|me|admin)(\/|$)/.test(path);
 }
 
 export function isSharedAccountPage(route) {

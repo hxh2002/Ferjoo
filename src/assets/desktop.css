@@ -278,9 +278,6 @@
   .mobile-area .mobile-main .device-page > :is(.feed-summary, .feed-empty) { min-height: 0; }
   .mobile-area .mobile-main .device-page .metric { min-height: 0; }
   .mobile-area .mobile-main .mobile-trend .table-wrap { max-height: min(360px, 50vh); }
-  .mobile-area .mobile-main .admin-console,
-  .mobile-area .admin-table-wrap { min-width: 0; max-width: 100%; }
-  .mobile-area .admin-drawer { max-height: 100dvh; }
 }
 
 /* 更矮的窗口（手机横过来已进入桌面壳，或把桌面窗口压扁）：再收一档顶栏和图表。 */

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
+import { isMobilePath } from '../src/lib/accountNavigation.js';
 import { adminNavItems, desktopNavItems } from '../src/lib/desktop-nav.js';
 import {
   canChangeRole,
@@ -66,6 +67,9 @@ assert.match(adminErrorMessage({ message: 'EMAIL_TAKEN' }), /已经注册/);
 assert.deepEqual(desktopNavItems.map((item) => item.label), ['设备', '日记', '酵种医生', '诊断记录', '记录喂养', '设备绑定', '我的']);
 assert.equal(desktopNavItems.some((item) => item.label === '后台'), false);
 assert.deepEqual(adminNavItems.map((item) => item.label), ['概览', '用户与权限', '绑定关系', '发酵轮次', '设备', '养护与反馈']);
+assert.equal(isMobilePath('/admin'), true);
+assert.equal(isMobilePath('/admin/users'), true);
+assert.match(read('src/main.js'), /isMobilePath/);
 
 const router = read('src/router/index.js');
 assert.match(router, /requiresAdmin: true/);
@@ -81,6 +85,21 @@ assert.match(nav, /后台/);
 assert.match(nav, /isAdmin && !inAdmin/);
 assert.doesNotMatch(read('src/components/MobileShell.vue'), /后台/);
 assert.doesNotMatch(read('src/views/mobile/MobileMe.vue'), /后台/);
+
+const layout = read('src/views/admin/AdminLayout.vue');
+assert.match(layout, /class="admin-sections"/, 'narrow screens keep section links in the page');
+assert.doesNotMatch(layout, />返回</, 'the page does not repeat the shell back control');
+const adminCss = read('src/assets/admin.css');
+assert.match(adminCss, /\.mobile-area \.admin-console \{[^}]*display: flex/);
+assert.match(adminCss, /min-width: 768px\) \{\s*\.mobile-area \.admin-console \{ max-width: 1280px/);
+assert.match(adminCss, /\.mobile-area \.admin-sections \{ display: none; \}/);
+assert.match(adminCss, /\.mobile-area \.admin-drawer-layer \{ left: var\(--desktop-sidebar\); \}/);
+assert.doesNotMatch(adminCss, /admin-subnav/);
+assert.doesNotMatch(read('src/assets/desktop.css'), /admin-console|admin-drawer|admin-subnav/);
+for (const file of ['src/views/admin/AdminUsers.vue', 'src/views/admin/AdminBindings.vue', 'src/views/admin/AdminRounds.vue', 'src/views/admin/AdminDevices.vue', 'src/views/admin/AdminCare.vue']) {
+  assert.match(read(file), /admin-row-action/, `${file} uses compact row actions`);
+  assert.doesNotMatch(read(file), /class="m-secondary"[^>]*>查看/, `${file} does not put a mobile CTA in the table`);
+}
 
 const migration = read('supabase/migrations/033_admin_console.sql');
 assert.match(migration, /is_super_admin boolean not null default false/);

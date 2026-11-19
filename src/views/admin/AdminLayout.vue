@@ -3,13 +3,13 @@ import '../../assets/admin.css';
 import { useRoute } from 'vue-router';
 import { adminNavItems } from '../../lib/desktop-nav.js';
 
+// 桌面分区在侧栏里。这行链接只给窄屏用，返回仍由外壳的顶栏或侧栏承担。
 const route = useRoute();
 </script>
 
 <template>
   <div class="admin-console">
-    <nav class="admin-subnav" aria-label="后台">
-      <RouterLink to="/device">返回</RouterLink>
+    <nav class="admin-sections" aria-label="后台分区">
       <RouterLink
         v-for="item in adminNavItems"
         :key="item.to"

@@ -99,7 +99,7 @@ onMounted(load);
             <td><span class="admin-badge" :class="{ 'is-live': devicePresence(row.last_seen_at) === 'online', 'is-muted': devicePresence(row.last_seen_at) !== 'online' }">{{ PRESENCE_LABEL[devicePresence(row.last_seen_at)] }}</span></td>
             <td>{{ row.member_count }}</td>
             <td>{{ formatAdminTime(row.last_seen_at) }}</td>
-            <td><button type="button" class="m-secondary" @click="openDevice(row)">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="openDevice(row)">查看</button></td>
           </tr>
         </tbody>
       </table>

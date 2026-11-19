@@ -74,7 +74,7 @@ onMounted(load);
             <td>{{ row.starter_name }}<template v-if="row.starter_archived_at"> · 已归档</template></td>
             <td>{{ formatRatio(row.ratio) }}</td>
             <td><span class="admin-badge" :class="roundStatus(row).key === 'active' ? 'is-live' : 'is-ended'">{{ roundStatus(row).label }}</span></td>
-            <td><button type="button" class="m-secondary" @click="openRound(row)">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="openRound(row)">查看</button></td>
           </tr>
         </tbody>
       </table>

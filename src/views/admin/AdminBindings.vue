@@ -68,7 +68,7 @@ onMounted(load);
             <td>{{ row.device?.name || row.device_id }}<br><span class="admin-note">{{ row.device_id }}</span></td>
             <td><span class="admin-badge" :class="{ 'is-muted': row.role !== 'owner' }">{{ memberRoleLabel(row.role) }}</span></td>
             <td>{{ formatAdminTime(row.created_at) }}</td>
-            <td><button type="button" class="m-secondary" @click="selected = row">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="selected = row">查看</button></td>
           </tr>
         </tbody>
       </table>
@@ -83,7 +83,7 @@ onMounted(load);
             <td>{{ personLabel(row.profile) }}</td>
             <td><span class="admin-badge" :class="row.active_to ? 'is-ended' : 'is-live'">{{ row.active_to ? '已结束' : '关联中' }}</span></td>
             <td>{{ formatAdminTime(row.active_from) }}</td>
-            <td><button type="button" class="m-secondary" @click="selected = row">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="selected = row">查看</button></td>
           </tr>
         </tbody>
       </table>

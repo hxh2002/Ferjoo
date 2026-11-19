@@ -75,7 +75,7 @@ onMounted(load);
             <td>{{ row.device ? (row.device.name || row.device.device_id) : '未关联' }}</td>
             <td><span class="admin-badge" :class="row.archived_at ? 'is-ended' : 'is-live'">{{ row.archived_at ? '已归档' : '在用' }}</span></td>
             <td>{{ formatAdminTime(row.created_at) }}</td>
-            <td><button type="button" class="m-secondary" @click="selected = row">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="selected = row">查看</button></td>
           </tr>
         </tbody>
       </table>
@@ -89,7 +89,7 @@ onMounted(load);
             <td>{{ personLabel(row.profile) }}</td>
             <td>{{ row.starter?.name || '—' }}</td>
             <td>{{ formatAdminTime(row.occurred_at) }}</td>
-            <td><button type="button" class="m-secondary" @click="selected = row">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="selected = row">查看</button></td>
           </tr>
         </tbody>
       </table>
@@ -102,7 +102,7 @@ onMounted(load);
             <td>{{ row.content.slice(0, 48) }}{{ row.content.length > 48 ? '…' : '' }}</td>
             <td>{{ personLabel(row.profile) }}</td>
             <td>{{ formatAdminTime(row.created_at) }}</td>
-            <td><button type="button" class="m-secondary" @click="selected = row">查看</button></td>
+            <td><button type="button" class="admin-row-action" @click="selected = row">查看</button></td>
           </tr>
         </tbody>
       </table>
