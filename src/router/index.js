@@ -64,7 +64,8 @@ const routes = [
           { path: 'bindings', name: 'admin-bindings', component: () => import('../views/admin/AdminBindings.vue'), meta: { title: '绑定关系' } },
           { path: 'rounds', name: 'admin-rounds', component: () => import('../views/admin/AdminRounds.vue'), meta: { title: '发酵轮次' } },
           { path: 'devices', name: 'admin-devices', component: () => import('../views/admin/AdminDevices.vue'), meta: { title: '设备' } },
-          { path: 'care', name: 'admin-care', component: () => import('../views/admin/AdminCare.vue'), meta: { title: '养护与反馈' } }
+          { path: 'care', name: 'admin-care', component: () => import('../views/admin/AdminCare.vue'), meta: { title: '养护与反馈' } },
+          { path: 'analytics', name: 'admin-analytics', component: () => import('../views/admin/AdminAnalytics.vue'), meta: { title: '埋点观察' } }
         ]
       }
     ]

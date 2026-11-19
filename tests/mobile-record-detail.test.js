@@ -182,6 +182,8 @@ assert.match(descriptor.template.content, /\{\{ curveText\.emptyMessage \}\}/);
 // ---------- 删除记录：按钮 / 二次确认 / 服务调用 / 返回日记 ----------
 const detailTemplate = descriptor.template.content;
 assert.match(detailTemplate, /#label-action[\s\S]*?aria-label="了解膨胀倍数如何计算"/, '膨胀倍数标题旁有可访问的提示按钮');
+assert.match(source, /\.expansion-help-trigger svg\{display:block;width:18px;height:18px\}/, '问号图标保持 18px');
+assert.match(source, /\.metric-chart :deep\(\.series-body svg\)\{display:block;width:100%;height:var\(--m-chart-height,126px\)\}/, '曲线尺寸只作用于绘图区 svg，避免把问号拉成图表高度而点不中');
 assert.match(detailTemplate, /<MSheet :open="expansionHelpOpen" title="膨胀倍数怎么算？"/);
 assert.match(detailTemplate, /200 mm ÷ 100 mm = <strong>2\.00倍<\/strong>/, '图文示例与倍数后缀一致');
 assert.match(detailTemplate, /膨胀倍数 = 当前高度 ÷ 起始高度/);

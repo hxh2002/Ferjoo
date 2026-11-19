@@ -16,5 +16,6 @@ export const adminNavItems = [
   { to: '/admin/bindings', label: '绑定关系', icon: 'link', match: (path) => path.startsWith('/admin/bindings') },
   { to: '/admin/rounds', label: '发酵轮次', icon: 'rounds', match: (path) => path.startsWith('/admin/rounds') },
   { to: '/admin/devices', label: '设备', icon: 'device', match: (path) => path.startsWith('/admin/devices') },
-  { to: '/admin/care', label: '养护与反馈', icon: 'care', match: (path) => path.startsWith('/admin/care') }
+  { to: '/admin/care', label: '养护与反馈', icon: 'care', match: (path) => path.startsWith('/admin/care') },
+  { to: '/admin/analytics', label: '埋点观察', icon: 'analytics', match: (path) => path.startsWith('/admin/analytics') }
 ];

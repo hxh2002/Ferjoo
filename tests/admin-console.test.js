@@ -66,7 +66,7 @@ assert.match(adminErrorMessage({ message: 'EMAIL_TAKEN' }), /已经注册/);
 
 assert.deepEqual(desktopNavItems.map((item) => item.label), ['设备', '日记', '酵种医生', '诊断记录', '记录喂养', '设备绑定', '我的']);
 assert.equal(desktopNavItems.some((item) => item.label === '后台'), false);
-assert.deepEqual(adminNavItems.map((item) => item.label), ['概览', '用户与权限', '绑定关系', '发酵轮次', '设备', '养护与反馈']);
+assert.deepEqual(adminNavItems.map((item) => item.label), ['概览', '用户与权限', '绑定关系', '发酵轮次', '设备', '养护与反馈', '埋点观察']);
 assert.equal(isMobilePath('/admin'), true);
 assert.equal(isMobilePath('/admin/users'), true);
 assert.match(read('src/main.js'), /isMobilePath/);
@@ -79,6 +79,7 @@ assert.match(router, /name: 'admin-bindings'/);
 assert.match(router, /name: 'admin-rounds'/);
 assert.match(router, /name: 'admin-devices'/);
 assert.match(router, /name: 'admin-care'/);
+assert.match(router, /name: 'admin-analytics'/);
 const nav = read('src/components/DesktopNav.vue');
 assert.match(nav, /role === 'A'/);
 assert.match(nav, /后台/);
@@ -94,6 +95,8 @@ assert.match(adminCss, /\.mobile-area \.admin-console \{[^}]*display: flex/);
 assert.match(adminCss, /min-width: 768px\) \{\s*\.mobile-area \.admin-console \{ max-width: 1280px/);
 assert.match(adminCss, /\.mobile-area \.admin-sections \{ display: none; \}/);
 assert.match(adminCss, /\.mobile-area \.admin-drawer-layer \{ left: var\(--desktop-sidebar\); \}/);
+assert.match(adminCss, /\.admin-console :is\(button, \.admin-sections a\) \{ white-space: nowrap/, 'admin actions keep their labels on one line');
+assert.match(adminCss, /\.admin-row-action \{[^}]*height: auto/, 'row actions grow with the label instead of clipping it');
 assert.doesNotMatch(adminCss, /admin-subnav/);
 assert.doesNotMatch(read('src/assets/desktop.css'), /admin-console|admin-drawer|admin-subnav/);
 for (const file of ['src/views/admin/AdminUsers.vue', 'src/views/admin/AdminBindings.vue', 'src/views/admin/AdminRounds.vue', 'src/views/admin/AdminDevices.vue', 'src/views/admin/AdminCare.vue']) {
@@ -122,6 +125,7 @@ for (const file of [
   'src/views/admin/AdminRounds.vue',
   'src/views/admin/AdminDevices.vue',
   'src/views/admin/AdminCare.vue',
+  'src/views/admin/AdminAnalytics.vue',
   'src/components/admin/AdminDrawer.vue',
   'src/components/admin/AdminPager.vue',
   'src/components/DesktopNav.vue'
@@ -135,6 +139,10 @@ const service = read('src/services/admin.service.js');
 assert.match(service, /admin_set_role/);
 assert.match(service, /admin_create_account/);
 assert.match(service, /is_super_admin/);
+assert.match(service, /listAnalyticsEvents/);
+assert.match(service, /loadAnalyticsSummary/);
+assert.match(service, /from\('analytics_events'\)/);
+assert.doesNotMatch(read('src/views/admin/AdminAnalytics.vue'), /password|token|invite_code/);
 assert.doesNotMatch(service, /api_key_hash/);
 assert.match(read('src/services/auth.service.js'), /is_super_admin/);
 

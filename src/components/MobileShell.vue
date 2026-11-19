@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { isSharedAccountPage, safeRedirect } from '../lib/accountNavigation.js';
 import { pageTitle } from '../lib/page-title.js';
+import { dwellPageFor } from '../lib/analytics-pages.js';
+import { createForegroundTimer, trackEvent } from '../services/analytics.service.js';
 import DesktopNav from './DesktopNav.vue';
 
 import navDevice from '../assets/icons/nav-device.svg';
@@ -104,24 +106,58 @@ function goBack() {
 }
 const scrollPositions = new Map();
 let frame;
+// 页面停留只记前台可见时间，写入已有的 analytics_events。设备数据页自己结算，这里跳过以免记两次。
+const dwellTimer = createForegroundTimer();
+let dwellPage = '';
+function flushDwell(reason) {
+  const page = dwellPage;
+  dwellPage = '';
+  const durationMs = dwellTimer.flush();
+  if (!page || !auth.user.value || durationMs < 1) return;
+  trackEvent('page_view', {
+    duration_ms: durationMs,
+    duration_seconds: Number((durationMs / 1000).toFixed(2)),
+    exit_reason: reason
+  }, { page });
+}
+function beginDwell() {
+  dwellPage = auth.user.value ? dwellPageFor(route.path) : '';
+  if (dwellPage) dwellTimer.resume();
+}
+function onDwellVisibility() {
+  if (document.hidden) flushDwell('background');
+  else beginDwell();
+}
+function onDwellHide() { flushDwell('pagehide'); }
 const removeGuard = router.beforeEach((to, from) => {
   if (tabs.some((tab) => tab.path === from.path)) scrollPositions.set(from.path, window.scrollY);
 });
 const removeAfter = router.afterEach(async (to, from, failure) => {
   if (failure || to.path === from.path) return;
+  flushDwell('route');
+  beginDwell();
   await nextTick();
   cancelAnimationFrame(frame);
   frame = requestAnimationFrame(() => {
     if (route.fullPath === to.fullPath) window.scrollTo({ top: scrollPositions.get(to.path) || 0, behavior: 'instant' });
   });
 });
+watch(() => auth.user.value?.id, (id, previous) => {
+  if (previous !== undefined) flushDwell(id ? 'account' : 'logout');
+  beginDwell();
+}, { immediate: true });
 onMounted(() => {
   auth.init();
+  document.addEventListener('visibilitychange', onDwellVisibility);
+  window.addEventListener('pagehide', onDwellHide);
   motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
   motionPreference.addEventListener('change', settleSlider);
   settleSlider();
 });
 onBeforeUnmount(() => {
+  flushDwell('route');
+  document.removeEventListener('visibilitychange', onDwellVisibility);
+  window.removeEventListener('pagehide', onDwellHide);
   cancelAnimationFrame(sliderFrame);
   motionPreference?.removeEventListener('change', settleSlider);
   removeGuard();

@@ -134,16 +134,11 @@ const jarStatus = computed(() => {
   if (Number.isFinite(at) && now.value - at <= FRESH_MS) return { tone: 'ok', label: '设备已连接', detail: `最近更新 ${relative(last.recorded_at)}` };
   return { tone: 'warn', label: '断连', detail: `数据延迟 · 保留最后有效读数 · 最近更新 ${relative(last.recorded_at)}` };
 });
-const detailTarget = computed(() => ({
-  path: `/devices/${encodeURIComponent(deviceId.value)}/trend`,
-  query: { ...(starterId.value ? { starter: starterId.value } : {}), day: localDay(now.value) }
-}));
+// 「详情」进入本次喂养对应的发酵阶段，不再打开当日设备曲线。没有喂养记录时不提供入口。
+const detailTarget = computed(() => feeding.value
+  ? { path: `/diary/records/${encodeURIComponent(feeding.value.id)}`, query: { returnTo: '/device' } }
+  : null);
 const feedTarget = computed(() => ({ path: '/feeding', query: starterId.value ? { starter: starterId.value } : {} }));
-
-function localDay(value) {
-  const date = new Date(value);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
 function relative(value) {
   const at = Date.parse(value);
   if (!Number.isFinite(at)) return '暂无记录';
@@ -383,7 +378,7 @@ onScopeDispose(() => { disposed = true; generation++; });
       </div>
 
       <p class="section-label">本次喂养</p>
-      <RouterLink v-if="feeding" class="feed-summary" :to="{ path: `/diary/records/${feeding.id}`, query: { returnTo: '/device' } }">
+      <section v-if="feeding" class="feed-summary" aria-label="本次喂养">
         <span class="feed-cell">
           <span class="feed-head"><span class="disc"><img :src="iconScales" alt="" width="16" height="16" /></span><span class="feed-label">喂养比例</span></span>
           <strong class="feed-value">{{ ratioText }}</strong>
@@ -393,7 +388,7 @@ onScopeDispose(() => { disposed = true; generation++; });
           <strong class="feed-value">{{ roundElapsed }}</strong>
         </span>
         <span v-if="state" class="feed-state" :data-tone="state.tone">{{ state.label }}</span>
-      </RouterLink>
+      </section>
       <section v-else class="feed-empty">
         <img class="jojo-mascot jojo-empty" src="/assets/jojo2.png" alt="Jojo 吉祥物" loading="lazy">
         <div class="feed-empty-copy"><strong>还没有开始新一轮</strong><p>记录一次喂养后，本轮会从喂养时间开始。</p></div>
@@ -401,7 +396,7 @@ onScopeDispose(() => { disposed = true; generation++; });
       </section>
       <div class="section-head">
         <p class="section-label">当前数据</p>
-        <RouterLink v-if="deviceId" class="detail-link" :to="detailTarget"><span>详情</span><img :src="iconChevronRight" alt="" width="14" height="14" /></RouterLink>
+        <RouterLink v-if="detailTarget" class="detail-link" :to="detailTarget"><span>详情</span><img :src="iconChevronRight" alt="" width="14" height="14" /></RouterLink>
       </div>
       <section class="metric-row" aria-label="当前数据">
         <article class="metric" data-level="1">

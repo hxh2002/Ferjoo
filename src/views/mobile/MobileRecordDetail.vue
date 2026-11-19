@@ -396,7 +396,7 @@ header p{margin:.25rem 0 0;font-size:.8rem}
 .window-meta{margin:.6rem 0 0;font-size:.72rem;color:var(--text-secondary)}
 .window-hint{margin:.6rem 0 0;padding:.5rem .6rem;border-radius:var(--radius-control);background:var(--warning-bg);font-size:.72rem;line-height:1.5;color:var(--warning-text)}
 .metric-chart :deep(.series-plot){height:var(--m-chart-height,126px)}
-.metric-chart :deep(svg){display:block;width:100%;height:var(--m-chart-height,126px)}
+.metric-chart :deep(.series-body svg){display:block;width:100%;height:var(--m-chart-height,126px)}
 .m-secondary{display:inline-flex;align-items:center;min-height:48px;padding:0 1rem;border:1px solid var(--border-input);color:inherit;text-decoration:none}
 /* 诊断入口在左、删除在右并始终同一行；空间不足时省略诊断文案，两个标签均不换行。 */
 .card-actions{display:flex;align-items:stretch;flex-wrap:nowrap;gap:.5rem}

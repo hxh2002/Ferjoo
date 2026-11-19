@@ -25,7 +25,8 @@ const exactTitles = {
   '/admin/bindings': '绑定关系',
   '/admin/rounds': '发酵轮次',
   '/admin/devices': '设备',
-  '/admin/care': '养护与反馈'
+  '/admin/care': '养护与反馈',
+  '/admin/analytics': '埋点观察'
 };
 
 export function pageTitle(route) {

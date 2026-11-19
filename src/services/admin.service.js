@@ -1,5 +1,6 @@
 import { hasSupabaseConfig, supabase } from '../lib/supabase.js';
 import { ADMIN_PAGE_SIZE, adminErrorMessage, ilikeTerm } from '../lib/admin-access.js';
+import { ANALYTICS_SUMMARY_LIMIT, analyticsFilter, summarizeAnalytics } from '../lib/analytics-report.js';
 
 const USER_FIELDS = 'id, system_user_id, role, is_super_admin, email, display_name, created_at, invite_quota, invited_count, invited_by, gender, birth_date, profile_identity';
 const DEVICE_FIELDS = 'device_id, name, model, firmware_version, bind_code, last_seen_at, created_at, updated_at';
@@ -432,5 +433,38 @@ export function listFeedback({ query = '', page = 0 } = {}) {
     if (error) throw error;
     const profiles = await profilesByIds(client, (data || []).map((row) => row.user_id));
     return paged((data || []).map((row) => ({ ...row, profile: profiles.get(row.user_id) || null })), count, window.page);
+  });
+}
+
+const ANALYTICS_FIELDS = 'id, user_id, event_name, session_id, page, properties, occurred_at';
+
+export function listAnalyticsEvents({ since, event = '', pageName = '', page = 0 } = {}) {
+  return run(async () => {
+    const client = requireClient();
+    await assertAdmin(client);
+    const window = pageWindow(page);
+    const eventName = analyticsFilter(event, 'event');
+    const pageFilter = analyticsFilter(pageName, 'page');
+    let request = client.from('analytics_events').select(ANALYTICS_FIELDS, { count: 'exact' });
+    if (since) request = request.gte('occurred_at', since);
+    if (eventName) request = request.eq('event_name', eventName);
+    if (pageFilter) request = request.eq('page', pageFilter);
+    const { data, error, count } = await request.order('occurred_at', { ascending: false }).range(window.from, window.to);
+    if (error) throw error;
+    const profiles = await profilesByIds(client, (data || []).map((row) => row.user_id));
+    return paged((data || []).map((row) => ({ ...row, profile: profiles.get(row.user_id) || null })), count, window.page);
+  });
+}
+
+export function loadAnalyticsSummary({ since } = {}) {
+  return run(async () => {
+    const client = requireClient();
+    await assertAdmin(client);
+    let request = client.from('analytics_events').select('user_id, event_name, page, properties, occurred_at');
+    if (since) request = request.gte('occurred_at', since);
+    const { data, error } = await request.order('occurred_at', { ascending: false }).limit(ANALYTICS_SUMMARY_LIMIT);
+    if (error) throw error;
+    const rows = data || [];
+    return { ...summarizeAnalytics(rows), truncated: rows.length >= ANALYTICS_SUMMARY_LIMIT };
   });
 }

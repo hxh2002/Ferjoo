@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { analyticsPayload, createForegroundTimer, recordAnalytics } from '../src/services/analytics.service.js';
+import { analyticsPage, dwellPageFor } from '../src/lib/analytics-pages.js';
+import { analyticsFilter, describeProperties, formatDuration, summarizeAnalytics } from '../src/lib/analytics-report.js';
 
 const sql = await readFile(new URL('../supabase/migrations/031_analytics_events.sql', import.meta.url), 'utf8');
 assert.match(sql, /^begin;/);
@@ -142,5 +144,37 @@ assert.deepEqual(skipped, [], 'a validation failure never reaches the client');
   current = 900;
   assert.equal(timer.flush(), 500);
 }
+
+assert.equal(analyticsPage('/device'), 'device');
+assert.equal(analyticsPage('/devices/ferjoo-1/trend'), 'device_trend');
+assert.equal(analyticsPage('/diary/records/abc'), 'record_detail');
+assert.equal(analyticsPage('/admin/analytics'), 'admin');
+assert.equal(dwellPageFor('/diary'), 'diary');
+assert.equal(dwellPageFor('/devices/ferjoo-1/trend'), '', 'device trend keeps its own dwell event');
+assert.equal(dwellPageFor('/admin/users'), '', 'admin browsing is not mixed into product dwell');
+assert.equal(dwellPageFor('/login'), '');
+assert.equal(analyticsFilter('page_view', 'event'), 'page_view');
+assert.equal(analyticsFilter('drop table', 'event'), '');
+assert.equal(analyticsFilter('device_trend', 'page'), 'device_trend');
+assert.equal(formatDuration(800), '不足 1 秒');
+assert.equal(formatDuration(125000), '2 分 5 秒');
+const summary = summarizeAnalytics([
+  { user_id: 'u1', event_name: 'page_view', page: 'diary', properties: { duration_ms: 60000 } },
+  { user_id: 'u1', event_name: 'page_view', page: 'device', properties: { duration_ms: 30000 } },
+  { user_id: 'u2', event_name: 'trend_page_view', page: 'device_trend', properties: { duration_ms: 90000 } },
+  { user_id: 'u2', event_name: 'feeding_saved', page: 'feeding', properties: { ratio: '1:2:2' } }
+]);
+assert.equal(summary.events, 4);
+assert.equal(summary.users, 2);
+assert.equal(summary.dwellVisits, 3);
+assert.equal(summary.dwellMs, 180000);
+assert.equal(summary.averageMs, 60000);
+assert.deepEqual(summary.pages.map((item) => item.page), ['device_trend', 'diary', 'device']);
+assert.equal(summary.eventCounts.find((item) => item.event === 'feeding_saved').count, 1);
+assert.deepEqual(describeProperties({ duration_ms: 1500, duration_seconds: 1.5, exit_reason: 'route', password: 'nope' }), [
+  { label: '停留', value: '2 秒' },
+  { label: '离开方式', value: '切换页面' }
+]);
+assert.match(await readFile(new URL('../src/components/MobileShell.vue', import.meta.url), 'utf8'), /trackEvent\('page_view'/);
 
 console.log('analytics: append-only migration contract, payload validation, session-bound insert and foreground timing passed');
