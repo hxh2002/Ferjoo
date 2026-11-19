@@ -40,7 +40,7 @@ const paths = {
 <template>
   <aside class="desktop-sidebar">
     <RouterLink class="desktop-brand" to="/device" aria-label="Dr. Ferjoo">
-      <DrFerjooMark />
+      <DrFerjooMark plain />
     </RouterLink>
     <nav class="desktop-navigation" aria-label="主要导航">
       <RouterLink v-if="inAdmin" class="desktop-nav-link desktop-nav-back" to="/device">

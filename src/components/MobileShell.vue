@@ -145,8 +145,8 @@ function go(path) {
       <h1 v-if="!hideTopbarTitle">{{ title }}</h1>
       <span v-if="headerAside" class="mobile-aside">{{ headerAside }}</span>
     </header>
-    <RouterLink class="mobile-brand" to="/device" aria-label="Dr. Ferjoo">
-      <DrFerjooMark />
+    <RouterLink v-if="showTabs" class="mobile-brand" to="/device" aria-label="Dr. Ferjoo">
+      <DrFerjooMark plain />
     </RouterLink>
     <main class="mobile-main">
       <RouterView v-slot="{ Component }">

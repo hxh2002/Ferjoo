@@ -68,7 +68,7 @@ onBeforeUnmount(() => {
           </button>
           <ul id="welcome-products" class="welcome-products" :class="{ 'is-open': open }" :hidden="!open">
             <li><RouterLink :to="{ path: '/', hash: '#sourmate' }" @click="hide">SourMate</RouterLink></li>
-            <li><a class="welcome-doctor" :href="PRODUCT_ORIGIN" aria-label="Dr. Ferjoo" @click="hide"><DrFerjooMark variant="cn" /></a></li>
+            <li><a class="welcome-doctor" :href="PRODUCT_ORIGIN" aria-label="Dr. Ferjoo" @click="hide"><DrFerjooMark variant="cn" plain /></a></li>
           </ul>
         </div>
         <RouterLink :to="{ path: '/', hash: '#about' }">关于</RouterLink>

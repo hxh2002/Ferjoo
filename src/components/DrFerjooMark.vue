@@ -4,10 +4,13 @@ import { classicAssets } from '../constants/classicAssets.js';
 
 // 英文主标志 logo-df-en.png；中文辅助标志 logo-df-cn.png。白字透明底。
 // 托底由几团大小不同的暖色组成。每团从自己周期上的随机一点开始，所以每次打开形状都不一样。
+// plain 去掉光团，把白字染成品牌橙，用在导航这种会反复出现的位置。
 const props = defineProps({
-  variant: { type: String, default: 'en' }
+  variant: { type: String, default: 'en' },
+  plain: { type: Boolean, default: false }
 });
 const src = computed(() => (props.variant === 'cn' ? classicAssets.logoChinese : classicAssets.logoEnglish));
+const plainStyle = computed(() => (props.plain ? { '--df-src': `url("${src.value}")` } : undefined));
 const blobSeconds = [9, 11, 7, 13, 10];
 const blobs = blobSeconds.map((seconds) => ({
   seconds,
@@ -16,8 +19,8 @@ const blobs = blobSeconds.map((seconds) => ({
 </script>
 
 <template>
-  <span class="df-mark">
-    <span class="df-mark-field" aria-hidden="true">
+  <span class="df-mark" :class="{ 'is-plain': plain }" :style="plainStyle">
+    <span v-if="!plain" class="df-mark-field" aria-hidden="true">
       <span v-for="blob in blobs" :key="blob.seconds" :style="{ animationDuration: `${blob.seconds}s`, animationDelay: blob.delay }"></span>
     </span>
     <img :src="src" alt="" />
@@ -102,6 +105,15 @@ const blobs = blobSeconds.map((seconds) => ({
   width: auto;
   max-width: 100%;
   object-fit: contain;
+}
+.df-mark.is-plain {
+  padding: 0;
+  background: var(--brand-primary, #ff6b25);
+  -webkit-mask: var(--df-src) center / contain no-repeat;
+  mask: var(--df-src) center / contain no-repeat;
+}
+.df-mark.is-plain img {
+  opacity: 0;
 }
 @keyframes df-blob-a {
   0% { border-radius: 62% 38% 46% 54% / 42% 66% 34% 58%; transform: translate(0, 0) rotate(-8deg); }
