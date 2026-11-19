@@ -156,7 +156,8 @@ assert.deepEqual(tabs, ['产品', '关于'], 'only 产品 and 关于 sit in the 
 assert.match(nav, /hash: '#about'/);
 assert.match(welcome.source, /<section id="sourmate"/);
 assert.match(welcome.source, /<section id="about"/);
-assert.match(welcome.source, /class="welcome-cn-mark"><DrFerjooMark variant="cn"\s*\/>/, 'the Chinese about intro keeps the animated mark');
+assert.match(welcome.source, /class="welcome-about-logo" :src="brandLogo" alt="Ferjoo"/, 'the about section keeps only the Ferjoo logo');
+assert.doesNotMatch(welcome.source, /我们做的是让发酵更从容|welcome-cn-mark|id="about-title"/, 'the about section has no descriptive copy');
 assert.doesNotMatch(read('src/components/DesktopNav.vue'), /variant="cn"|logoBrand|logo-brand/, 'product navigation uses the default English mark');
 assert.match(read('src/components/DesktopNav.vue'), /<DrFerjooMark plain\s*\/>/, 'the sidebar brand is the flat wordmark');
 assert.doesNotMatch(read('src/components/MobileShell.vue'), /variant="cn"|logoBrand|logo-brand/, 'the product shell uses the default English mark');
