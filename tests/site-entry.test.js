@@ -155,6 +155,7 @@ const tabs = nav.replace(/<ul[\s\S]*?<\/ul>/, '').replace(/<[^>]+>/g, ' ').split
 assert.deepEqual(tabs, ['产品', '关于'], 'only 产品 and 关于 sit in the top bar');
 assert.match(nav, /hash: '#about'/);
 assert.match(welcome.source, /<section id="sourmate"/);
+assert.doesNotMatch(welcome.source, /放在酵种旁/, 'the SourMate section has no descriptive copy');
 assert.match(welcome.source, /<section id="about"/);
 assert.match(welcome.source, /class="welcome-about-logo" :src="brandLogo" alt="Ferjoo"/, 'the about section keeps only the Ferjoo logo');
 assert.doesNotMatch(welcome.source, /我们做的是让发酵更从容|welcome-cn-mark|id="about-title"/, 'the about section has no descriptive copy');

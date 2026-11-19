@@ -86,7 +86,6 @@ onBeforeUnmount(() => {
         <p class="welcome-kicker">硬件产品</p>
         <div>
           <h2 id="sourmate-title">SourMate</h2>
-          <p>放在酵种旁，自动记录涨幅、温度与湿度，数据同步到 Dr. Ferjoo 酵种医生。</p>
         </div>
       </section>
 
