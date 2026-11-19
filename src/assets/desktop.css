@@ -267,6 +267,44 @@
   .mobile-area .mobile-main .mobile-trend .metric-chart.is-rise { grid-column: 1 / -1; }
 }
 
+/* 矮宽屏：侧栏可滚动，罐子不再用 450–500px 的最小高度把主行撑出视口。 */
+@media (min-width: 768px) and (max-height: 860px) {
+  body.mobile-mode { overflow-x: clip; overflow-y: auto; }
+  .mobile-area .desktop-sidebar { min-height: 0; }
+  .mobile-area .desktop-navigation { flex: 1 1 auto; min-height: 0; }
+  .mobile-area .mobile-main .device-page .jar-preview { min-height: 0; }
+  .mobile-area .mobile-main .device-page .jar-figure { height: min(280px, 42vh); }
+  .mobile-area .mobile-main .device-page .jar-stage { width: 150px; height: 150px; transform: scale(1.2); }
+  .mobile-area .mobile-main .device-page > :is(.feed-summary, .feed-empty) { min-height: 0; }
+  .mobile-area .mobile-main .device-page .metric { min-height: 0; }
+  .mobile-area .mobile-main .mobile-trend .table-wrap { max-height: min(360px, 50vh); }
+  .mobile-area .mobile-main .admin-console,
+  .mobile-area .admin-table-wrap { min-width: 0; max-width: 100%; }
+  .mobile-area .admin-drawer { max-height: 100dvh; }
+}
+
+/* 更矮的窗口（手机横过来已进入桌面壳，或把桌面窗口压扁）：再收一档顶栏和图表。 */
+@media (min-width: 768px) and (max-height: 700px) {
+  :root.mobile-mode { --desktop-topbar: 56px; }
+  .mobile-area .desktop-sidebar { gap: 12px; padding: 12px 12px 16px; }
+  .mobile-area .desktop-brand { min-height: 36px; }
+  .mobile-area .desktop-nav-link { min-height: 40px; }
+  .mobile-area .desktop-topbar { min-height: var(--desktop-topbar); padding-block: 8px; }
+  .mobile-area .desktop-account-avatar { width: 32px; height: 32px; }
+  .mobile-area .mobile-shell > .mobile-main,
+  .mobile-area .mobile-shell.has-tabs > .mobile-main { padding-bottom: 24px; }
+  .mobile-area .mobile-main .m-page { padding: 16px 20px 24px; }
+  .mobile-area .mobile-main .device-page .jar-figure { height: min(200px, 36vh); }
+  .mobile-area .mobile-main .device-page .jar-stage { width: 120px; height: 120px; transform: scale(1.05); }
+  .mobile-area .mobile-main .device-page .metric { padding: 12px 8px; }
+  .mobile-area .mobile-main .device-page > .device-cta { min-height: 44px; }
+  .mobile-area .mobile-main .device-page .m-guest-notice.is-hero .guest-mascot { width: 96px; }
+  .mobile-area .mobile-main .mobile-trend .metric-chart.is-rise,
+  .mobile-area .mobile-main .mobile-record-detail .metric-chart.is-rise { --m-chart-height: 160px; }
+  .mobile-area .mobile-main .mobile-trend .metric-chart:not(.is-rise) { --m-chart-height: 120px; }
+  .mobile-area .mobile-main .mobile-diary > .date-board { top: calc(var(--desktop-topbar) + 12px); }
+}
+
 @media (min-width: 768px) and (max-width: 1050px) {
   :root.mobile-mode { --desktop-sidebar: 200px; --m-page-space: 24px; }
   .mobile-area .mobile-main .device-page { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); column-gap: 18px; }
@@ -282,4 +320,13 @@
   .mobile-area .mobile-main .mobile-record-detail > :is(.round-curves, .detail-more, .m-card) { grid-column: 1; grid-row: auto; }
   .mobile-area .mobile-main .mobile-me { grid-template-columns: 1fr; }
   .mobile-area .mobile-main .mobile-me > * { grid-column: 1; }
+}
+
+/* 窄且矮时，1050px 那条会把曲线和记录叠成一列。矮屏改回并排，避免再拉出一条长页。 */
+@media (min-width: 768px) and (max-width: 1050px) and (max-height: 860px) {
+  .mobile-area .mobile-main .mobile-record-detail { grid-template-columns: minmax(0, 1.2fr) minmax(180px, .8fr); }
+  .mobile-area .mobile-main .mobile-record-detail > .round-curves { grid-column: 1; grid-row: auto; min-width: 0; }
+  .mobile-area .mobile-main .mobile-record-detail > :is(.detail-more, .m-card) { grid-column: 2; grid-row: auto; min-width: 0; margin: 0; }
+  .mobile-area .mobile-main .mobile-diary { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
+  .mobile-area .mobile-main .device-page .jar-preview { min-height: 0; }
 }

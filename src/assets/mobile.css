@@ -315,3 +315,41 @@ body.mobile-mode .crop-modal .form-error { padding: 12px; color: var(--danger-te
 @media (max-width: 347px) {
   .mobile-area :is(.m-inline, .m-filters) { flex-wrap: wrap; grid-template-columns: minmax(0, 1fr); }
 }
+/* 宽度还没到桌面断点的矮横屏：底栏改矮，设备 / 日记 / 曲线改成左右排布。竖屏和 ≥768px 的桌面壳不进这条。 */
+@media (max-width: 767px) and (max-height: 500px) and (orientation: landscape) {
+  :root.mobile-mode { --m-tab-height: 52px; }
+  body.mobile-mode { overflow-x: clip; overflow-y: auto; }
+  .mobile-area .mobile-tabbar button { height: 44px; min-height: 44px; margin-top: 4px; }
+  .mobile-area .mobile-tab-slider { top: 4px; height: 44px; }
+  .mobile-area .mobile-tab-slider::before { width: 44px; height: 44px; }
+  .mobile-area .mobile-shell.has-tabs .mobile-brand { padding: 2px 12px 0; padding-top: calc(2px + env(safe-area-inset-top)); }
+  .mobile-area .mobile-brand img { max-height: 28px; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .m-page.device-page { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); column-gap: 16px; align-items: start; padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 12px); }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > :is(.device-head, .jar-status, .m-error, .m-muted, .m-skeleton, .m-guest-notice, .risk-banner, .picker-backdrop) { grid-column: 1 / -1; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .jar-preview { grid-column: 1; grid-row: 3 / span 6; align-self: center; margin-block: 8px 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .section-label { grid-column: 2; grid-row: 3; margin-block: 8px 4px; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > :is(.feed-summary, .feed-empty) { grid-column: 2; grid-row: 4; margin-block: 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .section-head { grid-column: 2; grid-row: 5; margin-block: 8px 4px; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .metric-row { grid-column: 2; grid-row: 6; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .device-cta { grid-column: 2; grid-row: 7; height: 44px; min-height: 44px; margin-block: 8px 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page > .cta-note { grid-column: 2; grid-row: 8; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .device-page .metric { height: 88px; padding: 8px 10px; }
+  body.mobile-mode .mobile-area .m-guest-notice.is-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 12px 14px; text-align: left; }
+  body.mobile-mode .mobile-area .m-guest-notice.is-hero .guest-eyebrow { grid-column: 2; grid-row: 1; margin: 0; }
+  body.mobile-mode .mobile-area .m-guest-notice.is-hero .guest-mascot { grid-column: 1; grid-row: 1 / span 3; width: 84px; height: auto; margin: 0; }
+  body.mobile-mode .mobile-area .m-guest-notice.is-hero .guest-copy { grid-column: 2; grid-row: 2; }
+  body.mobile-mode .mobile-area .m-guest-notice.is-hero .guest-title { font-size: 18px; line-height: 26px; margin-bottom: 0; }
+  body.mobile-mode .mobile-area .m-guest-notice.is-hero .guest-actions { grid-column: 3; grid-row: 1 / span 3; align-self: center; margin: 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .m-page.mobile-diary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; align-items: start; padding-bottom: calc(var(--m-tab-height) + env(safe-area-inset-bottom) + 12px); }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-diary > .diary-head { grid-column: 1 / -1; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-diary > .date-board { grid-column: 1; min-width: 0; margin-block: 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-diary > .day-board { grid-column: 2; min-width: 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-trend > .metric-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-trend .metric-chart.is-rise { grid-column: 1 / -1; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-trend .metric-chart.is-rise :is(.series-plot, svg) { height: 140px; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-trend .metric-chart:not(.is-rise) :is(.series-plot, svg) { height: 96px; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-record-detail { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); column-gap: 12px; align-items: start; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-record-detail > :is(.round-meta, .m-error, .m-skeleton, .feed-summary) { grid-column: 1 / -1; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-record-detail > .round-curves { grid-column: 1; min-width: 0; }
+  body.mobile-mode .mobile-area .mobile-shell .mobile-main .mobile-record-detail > :is(.detail-more, .m-card) { grid-column: 2; min-width: 0; margin: 0; }
+}

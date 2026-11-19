@@ -156,4 +156,17 @@ html { scroll-behavior: smooth; }
 @media (min-width: 768px) {
   .welcome-section { grid-template-columns: 140px minmax(0, 1fr); gap: 32px; padding-block: 72px; }
 }
+@media (max-height: 520px) and (orientation: landscape) {
+  .welcome { overflow-x: clip; }
+  .welcome-bar { flex-wrap: nowrap; gap: 12px; padding-block: 8px; }
+  .welcome-brand { min-width: 0; }
+  .welcome-brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .welcome-nav { flex: none; }
+  .welcome-hero { box-sizing: border-box; grid-template-columns: auto minmax(0, 1fr); justify-content: center; justify-items: start; align-content: center; align-items: center; column-gap: 28px; row-gap: 6px; min-height: 100svh; padding: 64px 32px 24px; text-align: left; }
+  .welcome-mascot { grid-column: 1; grid-row: 1 / span 2; width: min(112px, 28vh); }
+  .welcome-hero h1, .welcome-hero p { grid-column: 2; }
+  .welcome-hero h1 { margin: 0; font-size: clamp(32px, 5vw, 48px); }
+  .welcome-hero p { max-width: 36rem; }
+  .welcome-section { padding-block: 28px; }
+}
 </style>
