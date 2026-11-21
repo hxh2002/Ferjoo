@@ -409,29 +409,32 @@ async function toggleCalendar() {
   }, { page: 'diary' });
   await nextTick();
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const easing = 'cubic-bezier(.22,.8,.24,1)';
+  const motion = getComputedStyle(document.documentElement);
+  const easing = motion.getPropertyValue('--ease-expand').trim() || 'cubic-bezier(.22, .8, .24, 1)';
+  const fadeDuration = Number.parseFloat(motion.getPropertyValue('--motion-base')) || 220;
+  const moveDuration = Number.parseFloat(motion.getPropertyValue('--motion-move')) || 360;
   if (!reduceMotion) {
     for (const cell of grid.querySelectorAll('.date-cell')) {
       const first = firstRects.get(cell.dataset.date);
       if (!first) {
-        cell.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing });
+        cell.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fadeDuration, easing });
         continue;
       }
       const last = cell.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
-      if (dx || dy) cell.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'translate(0,0)' }], { duration: 360, easing });
+      if (dx || dy) cell.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'translate(0,0)' }], { duration: moveDuration, easing });
     }
     for (const cell of weekdayRow.children) {
       const first = weekdayRects.get(cell.dataset.weekday);
       const last = cell.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
-      if (dx || dy) cell.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'translate(0,0)' }], { duration: 360, easing });
+      if (dx || dy) cell.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'translate(0,0)' }], { duration: moveDuration, easing });
     }
     const toHeight = panel.scrollHeight;
     panelAnimation?.cancel();
-    panelAnimation = panel.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], { duration: 360, easing });
+    panelAnimation = panel.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], { duration: moveDuration, easing });
   }
 }
 // 滚轮每次滚动都会触发，只在最终年月真正变化时埋点一次，避免把同一选择刷成多条事件。
@@ -721,7 +724,7 @@ onUnmounted(() => {
 .date-view.expanded .date-cell.active{background:transparent}
 .date-view.expanded .date-cell.active .cell-day{background:var(--brand-light);font-weight:500}
 .date-cell{position:relative;display:grid;place-items:center;min-width:0;min-height:38px;padding:0;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--text-primary);font:inherit;font-size:var(--text-sm);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),transform var(--motion-fast) var(--ease-standard)}
-.date-cell:active{transform:scale(.96)}
+.date-cell:active{transform:scale(var(--press-scale))}
 .date-cell.active{background:var(--brand-light);color:var(--text-primary);font-weight:500}
 .date-cell.marked:not(.active){background:var(--m-icon-disc)}
 .date-cell.today:not(.active){font-weight:500}

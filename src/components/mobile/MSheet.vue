@@ -92,7 +92,7 @@ onBeforeUnmount(() => {
 .m-sheet-enter-active, .m-sheet-leave-active { transition: opacity var(--motion-base) var(--ease-standard); }
 .m-sheet-enter-active .m-sheet, .m-sheet-leave-active .m-sheet { transition: transform var(--motion-expand) var(--ease-expand); }
 .m-sheet-enter-from, .m-sheet-leave-to { opacity: 0; }
-.m-sheet-enter-from .m-sheet, .m-sheet-leave-to .m-sheet { transform: translateY(24px); }
+.m-sheet-enter-from .m-sheet, .m-sheet-leave-to .m-sheet { transform: translateY(var(--motion-overlay)); }
 @media (prefers-reduced-motion: reduce) {
   .m-sheet-enter-active, .m-sheet-leave-active, .m-sheet-enter-active .m-sheet, .m-sheet-leave-active .m-sheet { transition: none; }
 }

@@ -15,13 +15,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 </script>
 
 <template>
-  <div v-if="open" class="admin-drawer-layer" @click.self="emit('close')">
-    <aside class="admin-drawer" role="dialog" aria-modal="true" :aria-label="title">
-      <header class="admin-drawer-head">
-        <h2>{{ title }}</h2>
-        <button type="button" @click="emit('close')">关闭</button>
-      </header>
-      <slot />
-    </aside>
-  </div>
+  <Transition name="admin-drawer">
+    <div v-if="open" class="admin-drawer-layer" @click.self="emit('close')">
+      <aside class="admin-drawer" role="dialog" aria-modal="true" :aria-label="title">
+        <header class="admin-drawer-head">
+          <h2>{{ title }}</h2>
+          <button type="button" @click="emit('close')">关闭</button>
+        </header>
+        <slot />
+      </aside>
+    </div>
+  </Transition>
 </template>

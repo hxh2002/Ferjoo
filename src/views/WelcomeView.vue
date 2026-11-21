@@ -117,19 +117,23 @@ html { scroll-behavior: smooth; }
 .welcome-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
 .welcome-brand img { border-radius: 50%; }
 .welcome-nav { display: flex; align-items: center; gap: clamp(8px, 2vw, 20px); }
-.welcome-nav > a, .welcome-menu-button { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 22px; background: transparent; color: var(--text-primary); font: inherit; font-size: 15px; cursor: pointer; transition: background 160ms ease, color 160ms ease; }
+.welcome-nav > a, .welcome-menu-button { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 22px; background: transparent; color: var(--text-primary); font: inherit; font-size: 15px; cursor: pointer; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
 .welcome-nav > a:hover, .welcome-menu-button:hover, .welcome-menu-button[aria-expanded="true"] { background: #ffeddc; color: var(--brand-action); }
-.welcome-menu-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 160ms ease; }
+.welcome-menu-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion-base) var(--ease-expand); }
 .welcome-menu-button[aria-expanded="true"] svg { transform: rotate(180deg); }
 .welcome-menu { position: relative; }
 /* 触发器与菜单之间不留空隙，鼠标从按钮移向菜单时不会中途关闭。 */
 .welcome-products { position: absolute; top: 100%; right: 0; min-width: 220px; margin: 0; padding: 8px; list-style: none; border: 1px solid var(--border-warm); border-radius: 16px; background: #fffdf9; box-shadow: 0 18px 48px rgba(76, 46, 24, .14); }
 .welcome-products[hidden] { display: none; }
-.welcome-products.is-open { animation: welcome-pop 160ms var(--ease-standard); }
+.welcome-products.is-open { animation: welcome-pop var(--motion-base) var(--ease-expand); }
 .welcome-products a { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 10px; font-size: 15px; white-space: nowrap; }
 .welcome-products a.welcome-doctor { padding: 6px 8px; }
 .welcome-products a:hover { background: #fff1e3; color: var(--brand-action); }
-@keyframes welcome-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes welcome-pop { from { opacity: 0; transform: translateY(calc(var(--motion-shift-sm) * -1)); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .welcome-nav > a, .welcome-menu-button, .welcome-menu-button svg { transition: none; }
+  .welcome-products.is-open { animation: none; }
+}
 
 .welcome-hero { display: grid; justify-items: center; align-content: center; gap: 12px; min-height: 100vh; min-height: 100svh; padding: 96px 24px 72px; text-align: center; }
 .welcome-mascot { width: clamp(132px, 22vw, 200px); height: auto; }

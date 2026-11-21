@@ -24,34 +24,7 @@ const tabs = [
   { path: '/me', label: '我的', icon: navMe, activeIcon: navMeActive }
 ];
 const activeTab = computed(() => tabs.findIndex((tab) => tab.path === route.path));
-const sliderPosition = ref(Math.max(0, activeTab.value));
-let sliderFrame;
-let motionPreference;
-function moveSlider(index, previous) {
-  cancelAnimationFrame(sliderFrame);
-  if (index < 0) return;
-  if (previous < 0 || motionPreference?.matches) {
-    sliderPosition.value = index;
-    return;
-  }
-  const from = sliderPosition.value;
-  const start = performance.now();
-  const animate = (now) => {
-    const progress = Math.min(1, (now - start) / 360);
-    // 轻微回弹，连续点击从当前帧位置接续，终帧精确落在目标。
-    const eased = 1 + 2.2 * (progress - 1) ** 3 + 1.2 * (progress - 1) ** 2;
-    sliderPosition.value = from + (index - from) * eased;
-    if (progress < 1) sliderFrame = requestAnimationFrame(animate);
-  };
-  sliderFrame = requestAnimationFrame(animate);
-}
-watch(activeTab, moveSlider);
-function settleSlider() {
-  if (motionPreference.matches) {
-    cancelAnimationFrame(sliderFrame);
-    sliderPosition.value = Math.max(0, activeTab.value);
-  }
-}
+const sliderPosition = computed(() => Math.max(0, activeTab.value));
 const cachedTabs = ['MobileDeviceHome', 'MobileDiary', 'MobileMe'];
 const showTabs = computed(() => tabs.some((tab) => tab.path === route.path));
 const isAccount = computed(() => isSharedAccountPage(route));
@@ -150,16 +123,11 @@ onMounted(() => {
   auth.init();
   document.addEventListener('visibilitychange', onDwellVisibility);
   window.addEventListener('pagehide', onDwellHide);
-  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-  motionPreference.addEventListener('change', settleSlider);
-  settleSlider();
 });
 onBeforeUnmount(() => {
   flushDwell('route');
   document.removeEventListener('visibilitychange', onDwellVisibility);
   window.removeEventListener('pagehide', onDwellHide);
-  cancelAnimationFrame(sliderFrame);
-  motionPreference?.removeEventListener('change', settleSlider);
   removeGuard();
   removeAfter();
   cancelAnimationFrame(frame);
@@ -202,22 +170,19 @@ function go(path) {
 <style scoped>
 /* 顶栏外观（磨砂玻璃 / 标题 20·500·29 / 44×44 返回键）统一写在 mobile.css；tone 只作语义标记，不再改变外观。 */
 .mobile-aside { margin-left: auto; color: var(--text-secondary); font-size: 13px; font-weight: 400; line-height: 22px; white-space: nowrap; }
-.mobile-page-enter-active { animation: mobile-arrive 280ms cubic-bezier(.2, .8, .3, 1); }
-.mobile-shell :deep(details[open] > :not(summary)),
-.mobile-shell :deep(.picker-row),
-.mobile-shell :deep(.close-panel) { animation: mobile-unfold 220ms ease-out; }
+/* 只做进入：离开不播，避免和下一页的进入叠成两次位移。展开中的 details 不再另播一遍，否则进页时内容和页面各动一次。 */
+.mobile-page-enter-active { animation: mobile-arrive var(--motion-expand) var(--ease-expand); }
+.mobile-shell :deep(.picker-row) { animation: mobile-pop var(--motion-base) var(--ease-expand); }
 @keyframes mobile-arrive {
-  from { opacity: .35; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .35; transform: translateY(var(--motion-shift)); }
+  to { opacity: 1; transform: none; }
 }
-@keyframes mobile-unfold {
-  from { opacity: .4; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes mobile-pop {
+  from { opacity: 0; transform: translateY(calc(var(--motion-shift-sm) * -1)); }
+  to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mobile-page-enter-active,
-  .mobile-shell :deep(details[open] > :not(summary)),
-  .mobile-shell :deep(.picker-row),
-  .mobile-shell :deep(.close-panel) { animation: none !important; }
+  .mobile-shell :deep(.picker-row) { animation: none !important; }
 }
 </style>

@@ -48,12 +48,8 @@
   --m-shadow-field: 0 4px 9px rgba(48, 37, 31, .07);
   --m-shadow-button: 0 4px 16px rgba(48, 37, 31, .06);
   --m-shadow-tip: 0 2px 8px rgba(77, 51, 36, .1);
-  --motion-fast: 140ms;
-  --motion-base: 240ms;
-  --m-spring: cubic-bezier(.22, 1.35, .42, 1);
-  /* 展开 / 弹层的曲线原本在 MRecordCard、MSheet 各写一份 cubic-bezier(.22,.8,.24,1)，
-     两处一旦分叉，同一个「展开」手势就会快慢不一。抽成令牌后只保留这一处定义。 */
-  --ease-expand: cubic-bezier(.22, .8, .24, 1);
+  /* 按压回弹沿用全局 --ease-press，这里留别名，避免旧的 --m-spring 引用断掉。 */
+  --m-spring: var(--ease-press);
   --m-z-raised: 20;
   --m-z-header: 30;
   --m-z-nav: 40;
@@ -101,8 +97,8 @@ body.mobile-mode *, body.mobile-mode *::before, body.mobile-mode *::after { box-
 .mobile-area :is(button, input, select, textarea) { font: inherit; color: inherit; }
 .mobile-area a { color: var(--brand-action); }
 .mobile-area :is(button, a) { -webkit-tap-highlight-color: transparent; white-space: normal; overflow-wrap: anywhere; }
-.mobile-area button:not(:disabled) { transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
-.mobile-area button:not(:disabled):active { transform: scale(.97); }
+.mobile-area button:not(:disabled) { transition: transform var(--motion-base) var(--ease-press), background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.mobile-area button:not(:disabled):active { transform: scale(var(--press-scale)); }
 .mobile-area :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea, .m-primary, .m-secondary) { min-height: 44px; }
 .mobile-area :is(input, select, textarea) { min-width: 0; max-width: 100%; width: 100%; min-height: 48px; padding: 12px 14px; font-size: 16px; border: 1px solid var(--border-input); background: var(--m-surface); color: var(--text-primary); border-radius: var(--m-radius-input); box-shadow: inset 0 1px 2px rgba(86, 55, 33, .04); transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard); }
 .mobile-area input:is([type="checkbox"], [type="radio"]) { width: 24px; min-height: 24px; height: 24px; flex-shrink: 0; padding: 0; margin: 10px 8px 10px 0; accent-color: var(--brand-action); }
@@ -146,12 +142,12 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 .mobile-area .m-list-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0; border-top: 1px solid var(--border-default); color: inherit; text-decoration: none; }
 .mobile-area .m-list-row:first-of-type { border-top: 0; }
 .mobile-area .m-list-row small, .mobile-area .m-muted { color: var(--text-secondary); }
-.mobile-area :is(.m-primary, .m-secondary, .btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 18px; font: inherit; font-weight: 500; line-height: 1.5; text-decoration: none; cursor: pointer; border: 1px solid var(--border-input); border-radius: var(--m-radius-button); transition: transform var(--motion-base) var(--m-spring), background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.mobile-area :is(.m-primary, .m-secondary, .btn-primary, .btn-secondary, .diagnose-button, .small-primary, .ghost-button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 18px; font: inherit; font-weight: 500; line-height: 1.5; text-decoration: none; cursor: pointer; border: 1px solid var(--border-input); border-radius: var(--m-radius-button); transition: transform var(--motion-base) var(--ease-press), background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
 .mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary) { background: var(--brand-action); border-color: var(--brand-action); color: #fff; }
 .mobile-area :is(.m-secondary, .btn-secondary, .ghost-button) { background: var(--surface-card); color: var(--text-primary); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65); }
 .mobile-area :is(.m-primary, .btn-primary, .diagnose-button, .small-primary):active:not(:disabled) { background: var(--orange-deep); border-color: var(--orange-deep); }
 .mobile-area :is(.m-secondary, .btn-secondary, .ghost-button):active:not(:disabled) { background: var(--surface-selected); }
-.mobile-area :is(.m-primary, .m-secondary):active { transform: scale(.98); }
+.mobile-area :is(.m-primary, .m-secondary):active { transform: scale(var(--press-scale)); }
 .mobile-area .diagnose-button { width: 100%; margin-top: 12px; flex-wrap: wrap; }
 .mobile-area .m-field { display: grid; gap: 8px; margin: var(--m-module-gap) 0; font-size: 14px; font-weight: 500; }
 .mobile-area .m-text-action, .mobile-area .text-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 6px 8px; border: 0; background: transparent; color: var(--brand-action); font: inherit; text-decoration: underline; cursor: pointer; }
@@ -167,7 +163,7 @@ body.mobile-mode :focus-visible { outline: 2px solid var(--brand-action); outlin
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .mobile-area .mobile-tabbar { background: rgba(255, 255, 255, .62); border-top-color: rgba(255, 255, 255, .7); box-shadow: 0 -1px 12px rgba(48, 37, 31, .04), inset 0 1px 0 rgba(255, 255, 255, .6); -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8); }
 }
-.mobile-area .mobile-tab-slider { position: absolute; z-index: 0; top: 10px; left: 0; width: calc(100% / 3); height: 60px; pointer-events: none; transform: translateX(calc(var(--slider-position) * 100%)); }
+.mobile-area .mobile-tab-slider { position: absolute; z-index: 0; top: 10px; left: 0; width: calc(100% / 3); height: 60px; pointer-events: none; transform: translateX(calc(var(--slider-position) * 100%)); transition: transform var(--motion-move) var(--ease-expand); }
 .mobile-area .mobile-tab-slider::before { content: ''; position: absolute; left: 50%; top: 0; width: 60px; height: 60px; border-radius: 50%; background: rgba(255, 176, 90, .18); transform: translateX(-50%); }
 .mobile-area .mobile-tabbar button { position: relative; z-index: 1; height: 60px; min-height: 60px; margin-top: 10px; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .mobile-area .mobile-tabbar .tab-icon { display: block; width: 28px; height: 28px; object-fit: contain; }

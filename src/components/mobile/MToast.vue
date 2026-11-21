@@ -60,7 +60,7 @@ onBeforeUnmount(stop);
 .m-toast-copy strong { font-size: 16px; line-height: 20px; font-weight: 500; color: var(--text-primary); overflow-wrap: anywhere; }
 .m-toast-copy small { font-size: 12px; line-height: 18px; color: var(--text-secondary); overflow-wrap: anywhere; }
 .m-toast-enter-active, .m-toast-leave-active { transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard); }
-.m-toast-enter-from, .m-toast-leave-to { opacity: 0; transform: translate(-50%, -8px); }
+.m-toast-enter-from, .m-toast-leave-to { opacity: 0; transform: translate(-50%, calc(var(--motion-shift) * -1)); }
 .m-toast-enter-to, .m-toast-leave-from { transform: translateX(-50%); }
 @media (prefers-reduced-motion: reduce) {
   .m-toast-enter-active, .m-toast-leave-active { transition: none; }

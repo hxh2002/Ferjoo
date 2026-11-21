@@ -236,7 +236,7 @@ onMounted(() => auth.init().then(load));
 .switch-copy strong{font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
 .switch-copy small{color:var(--text-secondary);font-size:12px;line-height:18px}
 .m-switch{position:relative;flex:none;width:48px;height:28px;min-height:28px;padding:0;border:0;border-radius:14px;background:var(--border-warm);cursor:pointer}
-.m-switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-base) var(--m-spring)}
+.m-switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-base) var(--ease-press)}
 .m-switch[aria-checked="true"]{background:var(--brand-light)}
 .m-switch[aria-checked="true"] span{transform:translateX(20px)}
 .m-switch:disabled{opacity:.55;cursor:not-allowed}

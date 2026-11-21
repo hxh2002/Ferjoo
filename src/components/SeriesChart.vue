@@ -703,7 +703,7 @@ const bandBadges = computed(() => {
    宽度、颜色取同一组变量，虚线用显式 2/2 周期（border dashed 的节奏由浏览器决定，无法和 SVG 对齐）；
    translateX(-50%) 让线段与 SVG 竖线同心地落在采样点 x 上。 */
 .series-tip-stem { position: absolute; top: 28px; bottom: 0; width: var(--series-guide-width, 1px); transform: translateX(-50%); background-image: repeating-linear-gradient(to bottom, var(--series-guide-color, rgba(42,29,23,.38)) 0 2px, transparent 2px 4px); }
-.series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: opacity 240ms linear; }
+.series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: opacity var(--motion-base) linear; }
 /* 横向拖动归图表处理，纵向仍交给页面滚动。 */
 .series-plot.is-fixed-tip { touch-action: pan-y; }
 @media (prefers-reduced-motion: reduce) { .series-tip-row :is(.series-fixed-tip, .series-tip-stem) { transition: none; } }

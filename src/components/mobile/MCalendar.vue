@@ -93,7 +93,7 @@ function choose(cell) {
 }
 .m-calendar-nav { display: flex; align-items: center; height: var(--m-cal-nav); }
 .m-calendar-nav strong { flex: 1; min-width: 0; text-align: center; font-size: var(--m-cal-title-font); font-weight: 400; line-height: var(--m-cal-title-line); color: var(--text-primary); }
-.m-calendar-move { position: relative; flex: none; width: 44px; height: 100%; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 20px; line-height: 1; cursor: pointer; }
+.m-calendar-move { position: relative; flex: none; width: 44px; height: 100%; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 20px; line-height: 1; cursor: pointer; transition: opacity var(--motion-fast) var(--ease-standard); }
 /* 展开到 44×44 的可点区域，视觉几何保持不变。 */
 .m-calendar-move::after { content: ''; position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
 .m-calendar-move:disabled { opacity: .3; cursor: not-allowed; }
@@ -104,7 +104,7 @@ function choose(cell) {
 .m-calendar-day { position: relative; display: grid; place-items: center; width: var(--m-cal-col); height: var(--m-cal-row); min-height: 0; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: var(--m-cal-font); line-height: 1; cursor: pointer; }
 /* 命中区最多扩到整格节距（compact 41×28、large 44×33）；295 宽下 7 列无法凑满 44×44。 */
 .m-calendar-day::after { content: ''; position: absolute; inset: calc(var(--m-cal-row-gap) / -2) calc(var(--m-cal-col-gap) / -2); }
-.m-calendar-fill { display: grid; place-items: center; width: var(--m-cal-fill-w); height: var(--m-cal-fill-h); border-radius: var(--m-cal-fill-radius); }
+.m-calendar-fill { display: grid; place-items: center; width: var(--m-cal-fill-w); height: var(--m-cal-fill-h); border-radius: var(--m-cal-fill-radius); transition: background-color var(--motion-fast) var(--ease-standard); }
 .m-calendar-day.is-marked:not(.is-selected) .m-calendar-fill { background: var(--m-icon-disc); }
 .m-calendar-day.is-today .m-calendar-fill { font-weight: 500; }
 .m-calendar-day.is-selected .m-calendar-fill { background: var(--brand-light); font-weight: 500; }
@@ -112,6 +112,6 @@ function choose(cell) {
 .m-calendar-day:disabled { opacity: .32; cursor: not-allowed; }
 .m-calendar-day:not(:disabled):active .m-calendar-fill { background: var(--surface-selected); }
 @media (prefers-reduced-motion: reduce) {
-  .m-calendar-day, .m-calendar-move { transition: none; }
+  .m-calendar-fill, .m-calendar-move { transition: none; }
 }
 </style>

@@ -448,7 +448,7 @@ onScopeDispose(() => { disposed = true; generation++; });
 .starter-switch{display:inline-flex;align-items:center;gap:6px;flex:none;box-sizing:border-box;width:100px;height:36px;min-height:36px;padding:0 10px;border:0;border-radius:18px;background:var(--surface-card);box-shadow:0 3px 12px rgba(48,37,31,.07);color:var(--text-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
 .switch-jar{flex:none;width:16px;height:16px}
 .switch-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-.switch-caret{flex:none;width:16px;height:16px;transition:transform var(--motion-fast) var(--ease-standard)}
+.switch-caret{flex:none;width:16px;height:16px;transition:transform var(--motion-base) var(--ease-expand)}
 .starter-switch[aria-expanded="true"] .switch-caret{transform:rotate(180deg)}
 .jar-status{display:flex;align-items:center;gap:6px;min-height:24px;margin:8px 0 0;font-size:14px;line-height:21px;font-weight:500;color:var(--brand-action)}.jar-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .jar-status[data-tone="none"]{color:var(--text-secondary)}
@@ -459,6 +459,9 @@ onScopeDispose(() => { disposed = true; generation++; });
 .jar-refresh svg{width:16px;height:16px;min-height:0}
 .jar-refresh.spinning svg{animation:device-spin .9s linear infinite}
 @keyframes device-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce) {
+  .jar-refresh.spinning svg { animation: none; }
+}
 .jar-preview{position:relative}
 .jar-figure{display:block;width:180px;height:180px;margin:0 auto}
 .jar-caption{position:absolute;top:188px;left:0;right:0;margin:0;text-align:center;font-size:11px;line-height:16px;color:var(--text-secondary);pointer-events:none}

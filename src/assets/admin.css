@@ -61,6 +61,14 @@
 .mobile-area .admin-danger { color: var(--danger-text); background: var(--danger-bg); border-color: transparent; }
 .mobile-area .admin-drawer-layer { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: flex-end; background: rgba(48, 37, 31, .28); }
 .mobile-area .admin-drawer { width: min(460px, 100%); max-height: 100dvh; height: 100%; overflow: auto; padding: 28px 24px calc(48px + env(safe-area-inset-bottom)); border-left: 1px solid var(--border-warm); background: var(--surface-page); box-shadow: -12px 0 40px rgba(48, 37, 31, .08); }
+.mobile-area .admin-drawer-enter-active, .mobile-area .admin-drawer-leave-active { transition: opacity var(--motion-base) var(--ease-standard); }
+.mobile-area .admin-drawer-enter-active .admin-drawer, .mobile-area .admin-drawer-leave-active .admin-drawer { transition: transform var(--motion-expand) var(--ease-expand); }
+.mobile-area .admin-drawer-enter-from, .mobile-area .admin-drawer-leave-to { opacity: 0; }
+.mobile-area .admin-drawer-enter-from .admin-drawer, .mobile-area .admin-drawer-leave-to .admin-drawer { transform: translateX(var(--motion-overlay)); }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-area .admin-drawer-enter-active, .mobile-area .admin-drawer-leave-active,
+  .mobile-area .admin-drawer-enter-active .admin-drawer, .mobile-area .admin-drawer-leave-active .admin-drawer { transition: none; }
+}
 .mobile-area .admin-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .mobile-area .admin-drawer-head h2 { margin: 0; font-size: 22px; font-weight: 500; line-height: 30px; }
 .mobile-area .admin-drawer-head button { min-height: 36px; padding: 0 12px; border: 1px solid var(--border-warm); border-radius: 999px; background: #fff; color: var(--text-secondary); font: inherit; font-size: 14px; cursor: pointer; }

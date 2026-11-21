@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
 .table-details>summary{list-style:none;cursor:pointer;min-height:32px;margin-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .table-details>summary::-webkit-details-marker{display:none}
 .table-details[open]>summary{margin-bottom:10px}
-.table-caret{display:inline-block;margin-left:6px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;vertical-align:middle;transition:transform var(--motion-fast) var(--ease-standard)}
+.table-caret{display:inline-block;margin-left:6px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;vertical-align:middle;transition:transform var(--motion-base) var(--ease-expand)}
 .table-details[open] .table-caret{transform:rotate(180deg)}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .table-card table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
