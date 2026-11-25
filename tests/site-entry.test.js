@@ -136,50 +136,34 @@ for (const file of ['src/components/DesktopNav.vue', 'src/lib/desktop-nav.js', '
 }
 assert.deepEqual(desktopNavItems.map((item) => item.label), ['设备', '日记', '酵种医生', '诊断记录', '记录喂养', '设备绑定', '我的']);
 
-// 6. Welcome page: two top-level tabs, an expandable product menu, brief copy.
+// 6. Welcome page is the public start screen: carousel, stay-updated, and contact.
 const welcome = compile('src/views/WelcomeView.vue');
-const nav = welcome.source.match(/<nav class="welcome-nav"[\s\S]*?<\/nav>/)[0];
-assert.match(nav, /aria-label="主导航"/);
-assert.match(nav, /aria-controls="welcome-products"/);
-assert.match(nav, /:aria-expanded="open"/);
-assert.match(nav, /<ul id="welcome-products"[^>]*:hidden="!open"/);
-const menuItems = [...nav.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((match) => match[1]);
-assert.equal(menuItems.length, 2, 'product menu is exactly the two products');
-assert.match(menuItems[0], />SourMate<\/RouterLink>/);
-assert.match(menuItems[1], /aria-label="Dr\. Ferjoo"/);
-assert.match(menuItems[1], /<DrFerjooMark variant="cn" plain\s*\/>/);
-assert.doesNotMatch(menuItems[1], /logo-brand|Ferjoo 通用|>Dr\. Ferjoo/);
-assert.match(nav, /<RouterLink :to="\{ path: '\/', hash: '#sourmate' \}"[^>]*>SourMate<\/RouterLink>/, 'SourMate points to the on-page section, not an invented site');
-assert.match(nav, /<a class="welcome-doctor" :href="PRODUCT_ORIGIN" aria-label="Dr\. Ferjoo"/);
-const tabs = nav.replace(/<ul[\s\S]*?<\/ul>/, '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
-assert.deepEqual(tabs, ['产品', '关于'], 'only 产品 and 关于 sit in the top bar');
-assert.match(nav, /hash: '#about'/);
-assert.match(welcome.source, /<section id="sourmate"/);
-assert.doesNotMatch(welcome.source, /放在酵种旁/, 'the SourMate section has no descriptive copy');
-assert.match(welcome.source, /<section id="about"/);
-assert.match(welcome.source, /class="welcome-about-logo" :src="brandLogo" alt="Ferjoo"/, 'the about section keeps only the Ferjoo logo');
-assert.doesNotMatch(welcome.source, /我们做的是让发酵更从容|welcome-cn-mark|id="about-title"/, 'the about section has no descriptive copy');
+assert.match(welcome.source, /SourMate/);
+assert.match(welcome.source, /Understand your starter\./);
+assert.match(welcome.source, /Stay updated/);
+assert.match(welcome.script, /Know when your starter is rising, peaking and ready\./);
+assert.match(welcome.script, /Look back on every day of your starter’s journey\./);
+assert.match(welcome.script, /Your sourdough starter’s personal doctor\./);
+assert.match(welcome.script, /See when your starter is expected to peak\./);
+for (const label of ['Device', 'Data', 'Journal', 'Doctor', 'Timing']) {
+  assert.match(welcome.script, new RegExp(`label: '${label}'`), `${label} is a carousel state`);
+}
+assert.match(welcome.script, /hash: '#stay'/);
+assert.match(welcome.script, /hash: '#contact'/);
+assert.match(welcome.source, /Stay updated with Ferjoo/);
+assert.match(welcome.source, /Keep me posted/);
+assert.match(welcome.source, /Send message/);
+assert.match(welcome.source, /Back to home/);
+assert.doesNotMatch(welcome.script, /fetch\(|supabase/, 'the public forms do not call an API');
+assert.doesNotMatch(welcome.source, /https?:\/\//, 'no invented URLs in the template');
+assert.doesNotMatch(welcome.source, /产品|关于|Ferment with joy/, 'the old start page is gone');
+assert.match(read('src/views/WelcomeView.vue'), /min-width: 900px/, 'wide and narrow layouts are separate');
 assert.doesNotMatch(read('src/components/DesktopNav.vue'), /variant="cn"|logoBrand|logo-brand/, 'product navigation uses the default English mark');
 assert.match(read('src/components/DesktopNav.vue'), /<DrFerjooMark plain\s*\/>/, 'the sidebar brand is the flat wordmark');
 assert.doesNotMatch(read('src/components/MobileShell.vue'), /DrFerjooMark|mobile-brand|variant="cn"|logoBrand|logo-brand/, 'the phone shell does not show the Dr. Ferjoo mark');
 assert.match(read('src/components/DrFerjooMark.vue'), /variant === 'cn' \? classicAssets\.logoChinese : classicAssets\.logoEnglish/);
 assert.match(read('src/components/DrFerjooMark.vue'), /v-if="!plain"/, 'the moving field is omitted from the flat wordmark');
 assert.match(read('src/components/DrFerjooMark.vue'), /--brand-primary/, 'the flat wordmark takes the brand orange');
-assert.equal((welcome.source.match(/PRODUCT_ORIGIN/g) || []).length, 1, 'no repeated Dr. Ferjoo calls to action');
-assert.doesNotMatch(welcome.source, /https?:\/\/(?!www\.instagram|xhslink)/, 'no invented URLs in the template');
-assert.doesNotMatch(welcome.source, /facebook/i, 'about links are Instagram and 小红书 only');
-assert.doesNotMatch(welcome.source, /\d+\s*[+%万]|立即|马上|免费|购买|了解更多|Learn more|Get started/, 'no statistics or marketing buttons');
-assert.equal((welcome.source.match(/<section/g) || []).length, 3, 'hero, SourMate and about only');
-const menuScript = welcome.script;
-assert.match(menuScript, /event\.key !== 'Escape'/);
-assert.match(menuScript, /menuButton\.value\?\.focus\(\)/, 'Escape returns focus to the trigger');
-assert.match(menuScript, /document\.addEventListener\('pointerdown', onDocumentPointerDown\)/);
-assert.match(menuScript, /document\.removeEventListener\('pointerdown', onDocumentPointerDown\)/);
-assert.match(menuScript, /event\.pointerType === 'mouse'/, 'hover opens only for a real mouse; touch uses click');
-assert.match(welcome.source, /@focusin="show" @focusout="onFocusOut"/);
-assert.match(welcome.source, /@keydown="onKeydown"/);
-const brief = welcome.source.replace(/<[^>]+>/g, '\n').split('\n').map((line) => line.trim()).filter(Boolean).join('');
-assert.ok(brief.length < 420, `welcome copy stays brief (${brief.length})`);
 assert.match(read('src/lib/site-entry.js'), /ferjoo\\\.\(\?:com\|localhost\)/);
 
 console.log('ok - hostname entry, one responsive shell, shared state/cache, desktop-gated CSS, plain copy and welcome navigation');
