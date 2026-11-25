@@ -1,19 +1,17 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import wordmark from '../assets/welcome/wordmark.png';
+import logo from '../assets/welcome/logo-ferjoo.png';
 import blobs from '../assets/welcome/blobs.png';
-import chatIcon from '../assets/welcome/chat.png';
-import navJar from '../assets/welcome/nav-jar.png';
 import jarDevice from '../assets/welcome/jar-device.png';
 import jarData from '../assets/welcome/jar-data.png';
-import chartRise from '../assets/welcome/chart-rise.png';
-import chartTemp from '../assets/welcome/chart-temp.png';
-import journalShot from '../assets/welcome/journal.png';
 import jarDoctor from '../assets/welcome/jar-doctor.png';
+import jarTiming from '../assets/welcome/jar-timing.png';
+import chartRise from '../assets/welcome/chart-starter-rise.png';
+import chartTemp from '../assets/welcome/chart-temperature.png';
+import journalPhone from '../assets/welcome/journal-phone.png';
 import doctorCard from '../assets/welcome/doctor-card.png';
 import timingDial from '../assets/welcome/timing-dial.png';
-import jarTiming from '../assets/welcome/jar-timing.png';
 
 const slides = [
   { id: 'device', label: 'Device', caption: '' },
@@ -26,224 +24,212 @@ const slides = [
 const route = useRoute();
 const router = useRouter();
 const index = ref(0);
-const slide = computed(() => slides[index.value]);
-const panel = computed(() => (route.hash === '#stay' ? 'stay' : route.hash === '#contact' ? 'contact' : 'home'));
-
 const stayEmail = ref('');
-const stayError = ref('');
-const stayDone = ref(false);
 const contactEmail = ref('');
 const contactName = ref('');
 const contactMessage = ref('');
+const stayError = ref('');
 const contactError = ref('');
+const stayDone = ref(false);
 const contactDone = ref(false);
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const current = computed(() => slides[index.value]);
+const panel = computed(() => (route.hash === '#stay' ? 'stay' : route.hash === '#contact' ? 'contact' : 'home'));
 
-function show(id) {
-  const next = slides.findIndex((item) => item.id === id);
-  if (next >= 0) index.value = next;
+const previousTitle = document.title;
+watch(panel, (value) => {
+  document.title = value === 'stay' ? 'Stay updated' : value === 'contact' ? 'Contact' : 'Ferjoo';
+}, { immediate: true });
+onBeforeUnmount(() => { document.title = previousTitle; });
+
+function validEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
+function select(next) { index.value = next; }
 function step(delta) {
-  index.value = (index.value + delta + slides.length) % slides.length;
+  const next = index.value + delta;
+  if (next >= 0 && next < slides.length) index.value = next;
 }
 function openStay() {
+  stayError.value = '';
   router.push({ path: '/', hash: '#stay' });
 }
 function openContact() {
+  contactError.value = '';
   router.push({ path: '/', hash: '#contact' });
 }
-function backHome() {
-  router.push({ path: '/' });
+function goHome() {
+  router.push({ path: '/', hash: '' });
 }
-
 function submitStay() {
   stayError.value = '';
-  const email = stayEmail.value.trim();
-  if (!email) {
-    stayError.value = 'Enter your email address.';
-    return;
-  }
-  if (!emailPattern.test(email)) {
-    stayError.value = 'Enter a valid email address.';
-    return;
-  }
+  if (!stayEmail.value.trim()) { stayError.value = 'Enter your email address.'; return; }
+  if (!validEmail(stayEmail.value)) { stayError.value = 'Enter a valid email address.'; return; }
   stayDone.value = true;
 }
 function submitContact() {
   contactError.value = '';
-  if (!contactEmail.value.trim()) {
-    contactError.value = 'Enter your email address.';
-    return;
-  }
-  if (!emailPattern.test(contactEmail.value.trim())) {
-    contactError.value = 'Enter a valid email address.';
-    return;
-  }
-  if (!contactName.value.trim()) {
-    contactError.value = 'Enter your name.';
-    return;
-  }
-  if (!contactMessage.value.trim()) {
-    contactError.value = 'Enter a message.';
-    return;
-  }
+  if (!validEmail(contactEmail.value)) { contactError.value = contactEmail.value.trim() ? 'Enter a valid email address.' : 'Enter your email address.'; return; }
+  if (!contactName.value.trim()) { contactError.value = 'Enter your name.'; return; }
+  if (!contactMessage.value.trim()) { contactError.value = 'Enter a message.'; return; }
   contactDone.value = true;
 }
 
 let touchX = 0;
 let touchY = 0;
 function onTouchStart(event) {
-  const point = event.changedTouches[0];
-  touchX = point.clientX;
-  touchY = point.clientY;
+  const touch = event.changedTouches[0];
+  touchX = touch.clientX;
+  touchY = touch.clientY;
 }
 function onTouchEnd(event) {
-  const point = event.changedTouches[0];
-  const dx = point.clientX - touchX;
-  const dy = point.clientY - touchY;
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - touchX;
+  const dy = touch.clientY - touchY;
   if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
   step(dx < 0 ? 1 : -1);
 }
-function onKeydown(event) {
-  if (panel.value !== 'home') return;
-  if (event.key === 'ArrowRight') step(1);
-  if (event.key === 'ArrowLeft') step(-1);
+function onSwitcherKeydown(event) {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+  if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
 }
-
-const previousTitle = document.title;
-const titles = { home: 'Ferjoo', stay: 'Stay updated', contact: 'Contact' };
-watch(panel, (name) => {
-  document.title = titles[name];
-  if (name !== 'stay') stayDone.value = false;
-  if (name !== 'contact') contactDone.value = false;
-}, { immediate: true });
-onMounted(() => { document.title = titles[panel.value]; });
-onBeforeUnmount(() => { document.title = previousTitle; });
 </script>
 
 <template>
-  <div class="start" :class="panel" lang="en" @keydown="onKeydown">
-    <img v-if="panel !== 'contact'" class="blobs" :src="blobs" alt="" />
+  <div class="start" :class="`panel-${panel}`" lang="en">
+    <img v-if="panel === 'home'" class="blob blob-wide" :src="blobs" alt="" />
+    <div v-if="panel === 'home'" class="blob-narrow" aria-hidden="true"><img :src="blobs" alt="" /></div>
+    <img v-if="panel === 'stay'" class="blob blob-stay" :src="blobs" alt="" />
 
     <header class="bar">
-      <RouterLink class="logo" to="/" aria-label="Ferjoo">
-        <img :src="wordmark" alt="" width="94" height="36" />
-      </RouterLink>
-      <button v-if="panel === 'home'" class="chat" type="button" aria-label="Contact" @click="openContact">
-        <img :src="chatIcon" alt="" width="32" height="32" />
+      <button type="button" class="logo" aria-label="Ferjoo" @click="goHome">
+        <img :src="logo" alt="" />
+      </button>
+      <button v-if="panel === 'home'" type="button" class="chat" aria-label="Contact" @click="openContact">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16.2 5.5c-6.4 0-11.2 4.2-11.2 9.3 0 3 1.8 5.6 4.6 7.2l-.7 4.2 4.4-2.4c.9.2 1.9.3 2.9.3 6.4 0 11.2-4.2 11.2-9.3S22.6 5.5 16.2 5.5z" />
+          <circle cx="11.2" cy="14.8" r="1.15" />
+          <circle cx="16.2" cy="14.8" r="1.15" />
+          <circle cx="21.2" cy="14.8" r="1.15" />
+        </svg>
       </button>
     </header>
 
-    <main v-if="panel === 'home'" class="canvas">
+    <button v-if="panel !== 'home'" type="button" class="back" @click="goHome">
+      <svg viewBox="0 0 8 14" aria-hidden="true"><path d="M7 1 1 7l6 6" /></svg>
+      Back to home
+    </button>
+
+    <main v-if="panel === 'home'" class="home">
       <div class="copy">
         <p class="name">SourMate</p>
         <h1>Understand your starter.</h1>
-        <button class="pill" type="button" @click="openStay">
+        <button type="button" class="pill" @click="openStay">
           Stay updated
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <svg viewBox="0 0 8 14" aria-hidden="true"><path d="M1 1l6 6-6 6" /></svg>
         </button>
       </div>
 
-      <section class="stage" :aria-label="slide.label" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
-        <div class="visual" :class="slide.id">
-          <img v-if="slide.id === 'device'" class="hero-jar" :src="jarDevice" alt="Ferjoo jar of starter dough" />
-          <template v-else-if="slide.id === 'data'">
-            <img class="rise" :src="chartRise" alt="Starter rise chart" />
-            <img class="temp" :src="chartTemp" alt="Temperature chart" />
-            <img class="side-jar" :src="jarData" alt="" />
+      <div class="stage" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
+        <div class="visual" :class="current.id">
+          <img v-show="current.id === 'device'" class="shot jar-device" :src="jarDevice" alt="SourMate jar with starter" />
+          <template v-if="current.id === 'data'">
+            <img class="shot chart-rise" :src="chartRise" alt="Starter rise chart, peak 2.63×" />
+            <img class="shot chart-temp" :src="chartTemp" alt="Temperature chart, average 27.2°C" />
+            <img class="shot jar-data" :src="jarData" alt="" />
           </template>
-          <img v-else-if="slide.id === 'journal'" class="phone" :src="journalShot" alt="Journal on a phone" />
-          <template v-else-if="slide.id === 'doctor'">
-            <img class="doctor-jar" :src="jarDoctor" alt="Ferjoo jar" />
-            <img class="doctor-card" :src="doctorCard" alt="Recommendations for the starter" />
+          <img v-show="current.id === 'journal'" class="shot journal" :src="journalPhone" alt="Journal on a phone" />
+          <template v-if="current.id === 'doctor'">
+            <img class="shot jar-doctor" :src="jarDoctor" alt="" />
+            <img class="shot doctor-card" :src="doctorCard" alt="Recommendations for the starter" />
           </template>
-          <template v-else>
-            <img class="dial" :src="timingDial" alt="Time to peak, 02:35:00, estimated peak at 18:40" />
-            <img class="timing-jar" :src="jarTiming" alt="" />
+          <template v-if="current.id === 'timing'">
+            <img class="shot dial" :src="timingDial" alt="Time to peak, 02:35:00" />
+            <img class="shot jar-timing" :src="jarTiming" alt="" />
           </template>
         </div>
-        <p v-if="slide.caption" class="caption">
-          <span class="feature-title">{{ slide.label }}</span>
-          <span>{{ slide.caption }}</span>
-        </p>
-      </section>
+        <div v-if="current.caption" class="feature-copy">
+          <p class="feature-title">{{ current.label }}</p>
+          <p class="caption">{{ current.caption }}</p>
+        </div>
+      </div>
 
-      <div class="switcher" role="tablist" aria-label="SourMate features">
-        <button
-          v-for="(item, itemIndex) in slides"
-          :key="item.id"
-          type="button"
-          role="tab"
-          :aria-selected="itemIndex === index"
-          :aria-label="item.label"
-          :class="{ 'is-active': itemIndex === index }"
-          @click="show(item.id)"
-        >
-          <img v-if="item.id === 'device'" class="nav-jar" :src="navJar" alt="" />
+      <div class="switcher" role="tablist" aria-label="SourMate features" @keydown="onSwitcherKeydown">
+        <button v-for="(item, itemIndex) in slides" :key="item.id" type="button" role="tab" :aria-selected="itemIndex === index" :aria-label="item.label" :class="{ 'is-active': itemIndex === index }" @click="select(itemIndex)">
+          <svg v-if="item.id === 'device'" class="jar-glyph" viewBox="0 0 13 17" aria-hidden="true">
+            <rect x="4" y="0.8" width="5" height="2.1" rx="0.6" />
+            <rect x="1.1" y="3.4" width="10.8" height="12.6" rx="2.4" />
+          </svg>
           <span v-else>{{ item.label }}</span>
-          <i :class="itemIndex === index ? 'dash' : 'dot'" aria-hidden="true"></i>
+          <i :class="itemIndex === index ? 'dash' : 'dot'" />
         </button>
       </div>
 
-      <div class="dots" role="tablist" aria-label="SourMate features">
-        <button
-          v-for="(item, itemIndex) in slides"
-          :key="item.id"
-          type="button"
-          role="tab"
-          :aria-selected="itemIndex === index"
-          :aria-label="item.label"
-          :class="{ 'is-active': itemIndex === index, 'is-device': item.id === 'device' }"
-          @click="show(item.id)"
-        >
-          <img v-if="item.id === 'device'" :src="navJar" alt="" />
+      <div class="pager" role="tablist" aria-label="SourMate features">
+        <button type="button" role="tab" :aria-selected="index === 0" aria-label="Device" :class="{ 'is-active': index === 0 }" @click="select(0)">
+          <svg class="jar-glyph" viewBox="0 0 13 17" aria-hidden="true">
+            <rect x="4" y="0.8" width="5" height="2.1" rx="0.6" />
+            <rect x="1.1" y="3.4" width="10.8" height="12.6" rx="2.4" />
+          </svg>
+        </button>
+        <button v-for="(item, itemIndex) in slides.slice(1)" :key="item.id" type="button" role="tab" :aria-selected="index === itemIndex + 1" :aria-label="item.label" :class="{ 'is-active': index === itemIndex + 1 }" @click="select(itemIndex + 1)">
+          <i></i>
         </button>
       </div>
     </main>
 
-    <main v-else-if="panel === 'stay'" class="sheet">
-      <button class="back" type="button" @click="backHome">‹ Back to home</button>
-      <div class="stay-layout">
-        <form class="card" @submit.prevent="submitStay">
-          <p v-if="stayDone" class="done" role="status">We’ll keep you posted.</p>
-          <template v-else>
-            <label>
-              Email address
-              <input v-model="stayEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="Boolean(stayError)" />
-            </label>
-            <p v-if="stayError" class="error" role="alert">{{ stayError }}</p>
-            <button class="send stay-send" type="submit">Keep me posted</button>
-          </template>
-          <p class="note">Only Ferjoo product updates and beta invitations. No spam.</p>
-        </form>
-        <div class="stay-copy">
-          <h1>Stay updated with Ferjoo</h1>
-          <p>Product news and beta invitations, delivered straight to your inbox.</p>
+    <main v-else-if="panel === 'stay'" class="sheet stay-sheet">
+      <form class="card" @submit.prevent="submitStay">
+        <div v-if="stayDone" class="success" role="status">
+          <p class="wide-only">Thanks. We’ll keep you posted.</p>
+          <p class="narrow-only">Thanks. We’ll keep you updated.</p>
         </div>
+        <template v-else>
+          <label>
+            Email address
+            <input v-model="stayEmail" class="wide-field" type="email" autocomplete="email" placeholder="name@example.com" />
+            <input v-model="stayEmail" class="narrow-field" type="email" autocomplete="email" placeholder="you@example.com" />
+          </label>
+          <p v-if="stayError" class="form-error" role="alert">{{ stayError }}</p>
+          <button type="submit" class="submit">
+            <span class="wide-only">Keep me posted</span>
+            <span class="narrow-only">Keep me updated</span>
+          </button>
+        </template>
+        <p class="note wide-only">Only Ferjoo product updates and beta invitations. No spam.</p>
+        <p class="note narrow-only">Only occasional product updates. Unsubscribe anytime.</p>
+      </form>
+      <div class="stay-copy">
+        <h1>Stay updated with Ferjoo</h1>
+        <p>Product news and beta invitations, delivered straight to your inbox.</p>
       </div>
     </main>
 
     <main v-else class="sheet contact-sheet">
-      <button class="back" type="button" @click="backHome">‹ Back to home</button>
-      <form class="card contact-card" @submit.prevent="submitContact">
-        <p v-if="contactDone" class="done" role="status">Thanks. We’ll reply to your email.</p>
+      <form class="card" @submit.prevent="submitContact">
+        <div v-if="contactDone" class="success" role="status">
+          <p class="wide-only">Thanks. The Ferjoo team will reply to your email.</p>
+          <p class="narrow-only">Thanks. We’ll get back to you as soon as we can.</p>
+        </div>
         <template v-else>
           <label>
             Email address
-            <input v-model="contactEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="contactError.startsWith('Enter your email') || contactError.startsWith('Enter a valid')" />
+            <input v-model="contactEmail" class="wide-field" type="email" autocomplete="email" placeholder="name@example.com" />
+            <input v-model="contactEmail" class="narrow-field" type="email" autocomplete="email" placeholder="you@example.com" />
           </label>
           <label>
             Name
-            <input v-model="contactName" type="text" name="name" autocomplete="name" placeholder="Your name" :aria-invalid="contactError === 'Enter your name.'" />
+            <input v-model="contactName" type="text" autocomplete="name" placeholder="Your name" />
           </label>
           <label>
             Message
-            <textarea v-model="contactMessage" name="message" rows="4" placeholder="Tell us about your question or idea…" :aria-invalid="contactError === 'Enter a message.'"></textarea>
+            <textarea v-model="contactMessage" class="wide-field" rows="4" placeholder="Tell us about your question or idea…"></textarea>
+            <textarea v-model="contactMessage" class="narrow-field" rows="4" placeholder="How can we help?"></textarea>
           </label>
-          <p v-if="contactError" class="error" role="alert">{{ contactError }}</p>
-          <button class="send contact-send" type="submit">Send message</button>
+          <p v-if="contactError" class="form-error" role="alert">{{ contactError }}</p>
+          <button type="submit" class="submit">Send message</button>
         </template>
-        <p class="note">The Ferjoo team will reply to your email.</p>
+        <p class="note wide-only">The Ferjoo team will reply to your email.</p>
+        <p class="note narrow-only">We’ll get back to you as soon as we can.</p>
       </form>
     </main>
   </div>
@@ -254,263 +240,152 @@ body { margin: 0; background: #fffaf5; }
 </style>
 
 <style scoped>
+.start, .start *, .start *::before, .start *::after { box-sizing: border-box; }
 .start {
+  --orange: #ff6f28;
+  --mark: #ff6b25;
+  --ink: #30251f;
+  --muted: #75665b;
+  --narrow-ink: #33211a;
+  --narrow-muted: #755e52;
   position: relative;
   min-height: 100vh;
   min-height: 100dvh;
-  overflow-x: clip;
-  color: #30251f;
+  overflow-x: hidden;
+  color: var(--ink);
   background: #fffaf5;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
-.start.stay { background: #fff9f3; }
-.start :focus-visible { outline: 2px solid #ff6b25; outline-offset: 3px; }
-.blobs {
-  position: absolute;
-  z-index: 0;
-  left: 50%;
-  top: 48%;
-  width: min(1280px, 130vw);
-  height: auto;
-  transform: translate(-50%, -46%) scaleX(-1);
-  opacity: .42;
-  pointer-events: none;
-  user-select: none;
-}
-.bar, .canvas, .sheet { position: relative; z-index: 1; }
-.bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 30px 35px 0 30px;
-}
-/* 首屏是一整张画布：顶栏浮在上面，下面只放文案、画面和切换。
-   宽屏三栏，窄屏自上而下。Stay / Contact 仍是普通文档流。 */
-.start.home { height: 100dvh; overflow: hidden; }
-.start.home .bar { position: absolute; inset: 0 0 auto; }
-.logo img { display: block; width: 80px; height: 30px; object-fit: contain; object-position: left center; }
-.chat {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-.chat img { width: 19px; height: 19px; object-fit: contain; }
+.start :focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; }
+.wide-only, .wide-field { display: none; }
 
-.canvas {
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  height: 100%;
-  min-height: 0;
-  padding: 136px 33px 36px;
-}
-.copy { max-width: 20rem; flex: none; }
-.name, .canvas h1, .stay-copy h1, .caption .feature-title, .pill {
-  color: #ff6f28;
-  font-weight: 500;
-}
-.name { margin: 0; font-size: 19px; line-height: 24px; letter-spacing: -.02em; }
-.canvas h1 { margin: 13px 0 0; font-size: 24px; line-height: 28px; letter-spacing: -.03em; }
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 42px;
-  margin-top: 16px;
-  padding: 0 16px 0 21px;
-  border: 0;
-  border-radius: 21px;
-  background: rgba(255, 191, 159, .3);
-  font: inherit;
-  font-size: 15px;
-  cursor: pointer;
-}
-.pill svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.stage { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; min-height: 0; margin-top: 8px; }
-.visual { position: relative; flex: 1; min-height: 0; }
-.visual img { position: absolute; object-fit: contain; }
-.hero-jar { left: 8%; top: 0; width: 86%; height: 100%; }
-.data .rise { right: 0; top: 6%; width: 68%; height: 42%; }
-.data .temp { right: 0; bottom: 8%; width: 68%; height: 34%; }
-.data .side-jar { left: -4%; top: 16%; width: 52%; height: 68%; }
-.phone { left: 50%; top: 0; width: auto; height: 100%; max-width: 78%; transform: translateX(-50%); }
-.doctor-jar { left: 0; top: 4%; width: 52%; height: 88%; }
-.doctor-card { right: 0; top: 28%; width: 58%; height: auto; }
-.dial { left: 0; top: 12%; width: 68%; height: 76%; }
-.timing-jar { right: -2%; top: 8%; width: 46%; height: 78%; }
-.caption {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  margin: 12px 0 8px;
-  color: #30251f;
-  font-size: 15px;
-  line-height: 20px;
-  text-align: center;
-}
-.feature-title { font-size: 22px; line-height: 28px; }
+.blob { position: absolute; pointer-events: none; user-select: none; }
+.blob-wide { display: none; }
+.blob-narrow { position: absolute; left: 6px; top: 151px; width: 376px; height: 600px; overflow: hidden; opacity: .15; pointer-events: none; }
+.blob-narrow img { position: absolute; left: 50%; top: 50%; width: 600px; max-width: none; height: 376px; transform: translate(-50%, -50%) rotate(-90deg); }
+.blob-stay { display: none; }
+
+.bar { position: absolute; z-index: 2; top: 30px; right: 24px; left: 30px; display: flex; align-items: center; justify-content: space-between; }
+.logo, .chat, .back, .pill, .switcher button, .pager button, .submit { border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; }
+.logo { padding: 0; }
+.logo img { display: block; width: 80px; height: 30px; object-fit: contain; }
+.chat { width: 32px; height: 32px; padding: 0; }
+.chat svg { width: 19px; height: 19px; fill: none; stroke: var(--orange); stroke-width: 1.8; }
+.chat circle { fill: var(--orange); stroke: none; }
+.back { position: absolute; z-index: 2; top: 118px; left: 25px; display: inline-flex; align-items: center; gap: 8px; padding: 0; color: var(--orange); font-size: 15px; line-height: 1; }
+.back svg { width: 8px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.home { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; padding: 96px 30px 24px; }
+.copy { position: relative; z-index: 1; }
+.name { margin: 18px 0 0; color: var(--orange); font-size: 22px; font-weight: 500; line-height: 1.15; }
+.home h1 { margin: 8px 0 0; max-width: 16em; color: var(--orange); font-size: 26px; font-weight: 500; line-height: 1.2; letter-spacing: -.02em; }
+.pill { display: inline-flex; align-items: center; gap: 8px; height: 42px; margin-top: 16px; padding: 0 18px 0 20px; border-radius: 21px; background: rgb(255 191 159 / 30%); color: var(--orange); font-size: 15px; }
+.pill svg { width: 6px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.stage { position: relative; z-index: 1; display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.visual { position: relative; flex: 1; min-height: 280px; }
+.shot { position: absolute; object-fit: contain; }
+.jar-device { left: 8%; top: 2%; width: 78%; height: 92%; transform: rotate(5.16deg); }
+.chart-rise { top: 0; right: 2%; width: 62%; }
+.chart-temp { right: 2%; bottom: 18%; width: 62%; }
+.jar-data { top: 12%; left: 0; width: 48%; height: 70%; object-fit: contain; transform: rotate(-5.14deg); opacity: .8; }
+.journal { top: 0; left: 50%; width: min(196px, 62%); height: 92%; transform: translateX(-50%); filter: blur(1.65px); }
+.jar-doctor { top: 0; left: 2%; width: 46%; height: 88%; }
+.doctor-card { top: 28%; right: 0; width: 54%; border-radius: 12px; box-shadow: 4px 4px 5px rgb(0 0 0 / 10%); }
+.dial { top: 6%; left: 0; width: 62%; border-radius: 50%; box-shadow: -4px 4px 7.5px rgb(0 0 0 / 10%); }
+.jar-timing { top: 10%; right: 0; width: 42%; height: 72%; transform: rotate(5.59deg); }
+.feature-copy { position: relative; z-index: 1; text-align: center; }
+.feature-title { margin: 8px 0 0; color: var(--mark); font-size: 22px; font-weight: 500; line-height: 1.2; }
+.caption { max-width: 220px; margin: 4px auto 8px; color: var(--ink); font-size: 14px; line-height: 1.35; }
+
 .switcher { display: none; }
-.dots {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0 4px;
-}
-.dots button {
-  display: grid;
-  place-items: center;
-  width: 8px;
-  height: 8px;
-  padding: 10px;
-  border: 0;
-  border-radius: 99px;
-  background: transparent;
-  cursor: pointer;
-}
-.dots button::after {
-  content: "";
-  width: 5px;
-  height: 5px;
-  border-radius: 99px;
-  background: #ff6b25;
-  opacity: .45;
-}
-.dots button.is-active::after { opacity: 1; transform: scale(1.35); }
-.dots button.is-device { width: 18px; }
-.dots button.is-device::after { display: none; }
-.dots img { width: 14px; height: 18px; object-fit: contain; opacity: .45; }
-.dots .is-active img { opacity: 1; }
+.pager { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 0; margin-top: 8px; }
+.pager button { display: grid; width: 14px; height: 28px; place-items: center; padding: 0; }
+.pager .jar-glyph { width: 6px; height: 8px; fill: none; stroke: var(--orange); stroke-width: 1.2; opacity: .5; }
+.pager button.is-active .jar-glyph { opacity: 1; }
+.pager i { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); opacity: .5; }
+.pager button.is-active i { opacity: 1; }
 
-.sheet { padding: 18px 20px 40px; }
-.back {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  margin: 12px 4px 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #ff6b25;
-  font: inherit;
-  font-size: 16px;
-  cursor: pointer;
-}
-.stay-layout, .contact-card { margin-top: 8px; }
-.stay-copy { margin-bottom: 22px; }
-.stay-copy h1 { margin: 0; font-size: 28px; line-height: 34px; letter-spacing: -.03em; }
-.stay-copy p { margin: 10px 0 0; max-width: 26rem; color: #ff6f28; font-size: 16px; line-height: 24px; }
-.card {
-  display: grid;
-  gap: 14px;
-  padding: 22px 20px 18px;
-  border: 1px solid #eaddd2;
-  border-radius: 24px;
-  background: #fff;
-}
-.card label { display: grid; gap: 8px; color: #30251f; font-size: 15px; }
-.card input, .card textarea {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #eaddd2;
-  border-radius: 18px;
-  background: #fff1e7;
-  color: #30251f;
-  font: inherit;
-  font-size: 16px;
-}
-.card input { height: 50px; padding: 0 16px; }
+.sheet { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 28px; min-height: 100vh; min-height: 100dvh; padding: 168px 20px 40px; }
+.stay-copy { order: -1; }
+.stay-copy h1 { margin: 0; color: var(--mark); font-size: 20px; font-weight: 500; line-height: 1.25; letter-spacing: -.02em; }
+.stay-copy p { max-width: 16em; margin: 12px 0 0; color: var(--orange); font-size: 16px; line-height: 1.4; }
+.card { display: flex; flex-direction: column; gap: 14px; padding: 22px 22px 18px; border: 1px solid #eaddd2; border-radius: 24px; background: #fff; }
+.card label { display: grid; gap: 8px; color: var(--narrow-muted); font-size: 14px; }
+.card input, .card textarea { width: 100%; box-sizing: border-box; border: 1px solid #eaddd2; border-radius: 16px; background: #fff1e7; color: var(--ink); font: inherit; font-size: 16px; }
+.card input { height: 46px; padding: 0 16px; }
 .card textarea { min-height: 112px; padding: 14px 16px; resize: vertical; }
-.card input::placeholder, .card textarea::placeholder { color: #75665b; }
-.send {
-  height: 52px;
-  border: 0;
-  border-radius: 26px;
-  color: #30251f;
-  font: inherit;
-  font-size: 16px;
-  cursor: pointer;
-}
-.stay-send { background: #ffb05a; }
-.contact-send { background: #ffa24f; }
-.note, .done { margin: 0; color: #75665b; font-size: 13px; line-height: 18px; text-align: center; }
-.done { color: #30251f; font-size: 18px; line-height: 26px; }
-.error { margin: -4px 0 0; color: #9a352a; font-size: 14px; }
+.card input::placeholder, .card textarea::placeholder { color: var(--narrow-muted); }
+.submit { height: 52px; border-radius: 26px; background: #ffa24f; color: var(--narrow-ink); font-size: 16px; }
+.note { margin: 0; color: var(--narrow-muted); font-size: 12px; line-height: 1.4; text-align: center; }
+.form-error { margin: 0; color: #9a352a; font-size: 14px; }
+.success { display: grid; min-height: 120px; place-items: center; color: var(--ink); font-size: 18px; text-align: center; }
+.success p { margin: 0; }
 
 @media (min-width: 900px) {
-  .bar { padding: 41px 95px 0 85px; }
+  .wide-only { display: inline; }
+  .narrow-only, .narrow-field { display: none; }
+  .wide-field { display: block; }
+  .card textarea.wide-field { display: block; }
+  .blob-wide { display: block; left: 39px; top: 44px; width: 1362px; height: 851px; opacity: .12; transform: scaleX(-1); }
+  .blob-narrow { display: none; }
+  .blob-stay { display: block; left: 720px; top: 76px; width: 681px; height: 851px; opacity: .18; transform: none; }
+  .panel-stay { background: #fff9f3; }
+  .bar { top: 41px; right: 92px; left: 85px; }
   .logo img { width: 94px; height: 36px; }
-  .chat img { width: 25px; height: 25px; }
-  .canvas {
-    display: grid;
-    grid-template-columns: minmax(280px, 390px) minmax(0, 1fr) auto;
-    grid-template-rows: minmax(0, 1fr);
-    align-items: center;
-    height: 100%;
-    padding: 0 89px 0 85px;
-  }
-  .copy { align-self: center; max-width: none; }
-  .name { font-size: 25px; line-height: 30px; }
-  .canvas h1 { margin-top: 26px; font-size: 32px; line-height: 38px; }
-  .pill { height: 56px; margin-top: 20px; padding: 0 24px 0 31px; border-radius: 28px; font-size: 20px; }
-  .stage { align-self: stretch; justify-content: center; height: 100%; margin: 0; }
-  .visual { flex: none; height: min(640px, 70vh); }
-  .caption { margin-top: 18px; font-size: 16px; line-height: 22px; }
+  .chat svg { width: 25px; height: 25px; }
+  .back { top: 145px; left: 85px; font-size: 16px; }
+  .panel-stay .back { color: var(--mark); }
+
+  .home { display: grid; grid-template-columns: minmax(280px, 434px) minmax(320px, 1fr) 174px; align-items: center; column-gap: 12px; min-height: 100vh; min-height: 100dvh; padding: 120px clamp(40px, 6vw, 92px) 56px clamp(40px, 6vw, 85px); }
+  .name { margin: 0; font-size: 30px; }
+  .home h1 { max-width: 12em; font-size: 34px; line-height: 1.15; }
+  .pill { height: 56px; margin-top: 22px; padding: 0 22px 0 30px; border-radius: 28px; font-size: 18px; }
+  .pill svg { width: 8px; height: 14px; }
+  .stage { height: min(704px, calc(100dvh - 150px)); }
+  .visual { min-height: 0; height: calc(100% - 36px); }
   .feature-title { display: none; }
-  .dots { display: none; }
-  .switcher {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 17px;
-    justify-self: end;
-    align-self: center;
-  }
-  .switcher button {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 22px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #ff6b25;
-    font: inherit;
-    font-size: 16px;
-    line-height: 22px;
-    opacity: .5;
-    cursor: pointer;
-  }
-  .switcher button.is-active { opacity: 1; }
-  .nav-jar { width: 16px; height: 20px; object-fit: contain; }
-  .dash, .dot { display: block; background: #ff6b25; }
-  .dash { width: 11px; height: 4px; border-radius: 2px; }
-  .dot { width: 5px; height: 5px; border-radius: 99px; }
-  .sheet { max-width: 1180px; margin: 0 auto; padding: 8px 72px 64px 85px; }
-  .back { margin-top: 28px; font-size: 18px; }
-  .stay-layout {
-    display: grid;
-    grid-template-columns: minmax(320px, 520px) minmax(280px, 520px);
-    gap: 64px;
-    align-items: center;
-    margin-top: 36px;
-  }
-  .stay-copy { order: 2; margin: 0; }
-  .stay-copy h1 { font-size: 40px; line-height: 48px; }
-  .stay-copy p { font-size: 18px; line-height: 28px; }
-  .card { gap: 16px; padding: 32px 40px 24px; }
-  .contact-card { max-width: 768px; margin: 28px auto 0; }
-  .card input { height: 58px; }
-  .card textarea { min-height: 154px; }
-  .send { height: 58px; border-radius: 29px; }
+  .caption { max-width: 28rem; margin: 10px 0 0; font-size: 16px; line-height: 22px; text-align: center; }
+  .jar-device { left: 16%; width: 68%; height: 100%; }
+  .chart-rise { top: 4%; right: 4%; width: 58%; }
+  .chart-temp { right: 4%; bottom: 12%; width: 58%; }
+  .jar-data { top: 16%; left: 0; width: 46%; height: 68%; }
+  .journal { width: min(364px, 70%); filter: blur(1.65px); }
+  .jar-doctor { left: 4%; width: 44%; height: 92%; }
+  .doctor-card { top: 32%; right: 2%; width: 48%; border-radius: 0; box-shadow: none; }
+  .dial { top: 10%; left: 4%; width: 56%; }
+  .jar-timing { top: 8%; right: 2%; width: 40%; height: 78%; }
+  .pager { display: none; }
+  .switcher { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 0; align-self: center; }
+  .switcher button { display: grid; grid-template-columns: max-content 11px; align-items: center; justify-content: end; column-gap: 12px; height: 39px; min-height: 0; padding: 0; color: var(--mark); font-size: 16px; line-height: 1; }
+  .switcher button:not(.is-active) span,
+  .switcher button:not(.is-active) .jar-glyph { opacity: .5; }
+  .switcher .jar-glyph { width: 11px; height: 14px; justify-self: end; fill: none; stroke: var(--orange); stroke-width: 1.2; }
+  .switcher .dash, .switcher .dot { justify-self: center; }
+  .switcher .dash { width: 11px; height: 4px; border-radius: 2px; background: var(--mark); }
+  .switcher .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--mark); opacity: .5; }
+  .switcher button.is-active .dot { opacity: 1; }
+
+  .sheet { display: grid; align-items: center; min-height: 100vh; min-height: 100dvh; padding: 180px 80px 64px; }
+  .stay-sheet { grid-template-columns: minmax(280px, 520px) minmax(240px, 1fr); gap: 64px; }
+  .stay-copy { order: 0; }
+  .stay-copy h1 { font-size: 40px; line-height: 1.15; }
+  .stay-copy p { max-width: 18em; font-size: 22px; line-height: 1.35; }
+  .contact-sheet { justify-items: center; }
+  .contact-sheet .card { width: min(768px, 100%); }
+  .card { gap: 16px; padding: 32px 40px 24px; border: 0; border-radius: 24px; box-shadow: 0 8px 12px rgb(48 37 31 / 7%); }
+  .card label { color: var(--ink); font-size: 16px; }
+  .card input { height: 58px; border-radius: 18px; }
+  .card textarea { min-height: 154px; border-radius: 18px; }
+  .card input::placeholder, .card textarea::placeholder { color: var(--muted); }
+  .stay-sheet .submit { background: #ffb05a; color: var(--ink); }
+  .submit { height: 58px; border-radius: 29px; font-size: 18px; }
+  .note { color: var(--muted); font-size: 14px; }
+  .success { color: var(--ink); font-size: 22px; }
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .visual img { transition: none; }
+  .shot { transition: none; }
 }
 </style>
