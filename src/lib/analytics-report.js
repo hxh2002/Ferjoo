@@ -6,16 +6,29 @@ const RANGE_MS = { '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000, '3
 
 export const PAGE_LABELS = {
   device: '设备',
-  device_trend: '设备数据',
+  device_trend: '设备 · 数据详情',
   diary: '日记',
-  record_detail: '阶段详情',
+  record_detail: '日记 · 数据详情',
   doctor: '酵种医生',
+  doctor_checkin: '酵种医生',
   doctor_records: '诊断记录',
   report: '诊断报告',
   feeding: '记录喂养',
-  devices: '设备绑定',
+  devices: '我的设备',
+  device_add: '添加设备',
+  device_settings: '设备设置',
+  device_info: '设备信息',
+  claim: '绑定设备',
   me: '我的',
+  profile: '个人资料',
+  profile_edit: '编辑资料',
+  invite: '我的邀请码',
+  account: '修改密码',
   notifications: '通知设置',
+  help: '关于与帮助',
+  faq: '常见问题',
+  feedback: '意见反馈',
+  privacy: '隐私与权限',
   unknown: '未标记页面'
 };
 

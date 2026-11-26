@@ -227,7 +227,7 @@ function generate() {
     if (diagnosisMode.value) trackEvent('doctor_diagnosis_generated', {
       starter_id: report.starterId || null, feeding_id: report.input?.feedingId || null,
       result_status: report.result?.status || null, source: 'doctor_rounds'
-    }, { page: 'doctor_checkin', eventId: report.requestId });
+    }, { page: 'doctor', eventId: report.requestId });
     router.push('/reports/session');
   } catch (cause) { fatal.value = cause.message || '生成建议失败，请稍后重试。'; }
 }

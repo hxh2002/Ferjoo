@@ -56,7 +56,7 @@ onMounted(load);
 
 <template>
   <section>
-    <p class="admin-lead">查看已记录的使用行为。停留只计页面在前台的时间，切到后台或离开后结算；设备数据页沿用原有的停留事件。</p>
+    <p class="admin-lead">查看已记录的使用行为。停留只计页面在前台的时间，切到后台或离开后结算。页面名称与产品里的顶栏一致；设备数据详情沿用自己的停留事件。</p>
     <div class="admin-toolbar">
       <select v-model="range" aria-label="统计范围">
         <option value="24h">最近 24 小时</option>
