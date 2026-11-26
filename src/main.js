@@ -3,6 +3,7 @@ import App from './App.vue';
 import router from './router/index.js';
 import { isMobilePath, usesMobileAccountLayout } from './lib/accountNavigation.js';
 import { isWelcomeRoute, productRedirect } from './lib/site-entry.js';
+import './assets/fonts.css';
 import './assets/tokens.css';
 import './assets/mobile.css';
 

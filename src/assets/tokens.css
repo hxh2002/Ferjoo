@@ -1,5 +1,6 @@
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", Inter, ui-sans-serif, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif;
+  /* 方圆体先于系统字体。源文件没有的符号（如 °‹›）才落到后面的黑体。字号不在字体栈里改。 */
+  --font-sans: "Alimama FangYuanTi VF", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --ink: #2a1d17;
   --ink-soft: #5a4338;
   --orange: #ff7c2d;
@@ -69,4 +70,8 @@
   --text-md: 17px;
   --text-sm: 14px;
   --text-xs: 12px;
+}
+
+html {
+  font-family: var(--font-sans);
 }
