@@ -2,16 +2,16 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import logo from '../assets/welcome/logo-ferjoo.png';
-import blobs from '../assets/welcome/blobs.png';
-import jarDevice from '../assets/welcome/jar-device.png';
-import jarData from '../assets/welcome/jar-data.png';
-import jarDoctor from '../assets/welcome/jar-doctor.png';
-import jarTiming from '../assets/welcome/jar-timing.png';
-import chartRise from '../assets/welcome/chart-starter-rise.png';
-import chartTemp from '../assets/welcome/chart-temperature.png';
-import journalPhone from '../assets/welcome/journal-phone.png';
-import doctorCard from '../assets/welcome/doctor-card.png';
-import timingDial from '../assets/welcome/timing-dial.png';
+import blobs from '../assets/welcome/blobs.jpg';
+import jarDevice from '../assets/welcome/jar-device.webp';
+import jarData from '../assets/welcome/jar-data.webp';
+import jarDoctor from '../assets/welcome/jar-doctor.webp';
+import jarTiming from '../assets/welcome/jar-timing.webp';
+import chartRise from '../assets/welcome/chart-starter-rise.webp';
+import chartTemp from '../assets/welcome/chart-temperature.webp';
+import journalPhone from '../assets/welcome/journal-phone.webp';
+import doctorCard from '../assets/welcome/doctor-card.webp';
+import timingDial from '../assets/welcome/timing-dial.jpg';
 
 const slides = [
   { id: 'device', label: 'Device', caption: '' },
@@ -38,6 +38,8 @@ const panel = computed(() => (route.hash === '#stay' ? 'stay' : route.hash === '
 const previousTitle = document.title;
 watch(panel, (value) => {
   document.title = value === 'stay' ? 'Stay updated' : value === 'contact' ? 'Contact' : 'Ferjoo';
+  if (value !== 'stay') stayDone.value = false;
+  if (value !== 'contact') contactDone.value = false;
 }, { immediate: true });
 onBeforeUnmount(() => { document.title = previousTitle; });
 
@@ -178,25 +180,19 @@ function onSwitcherKeydown(event) {
     </main>
 
     <main v-else-if="panel === 'stay'" class="sheet stay-sheet">
-      <form class="card" @submit.prevent="submitStay">
+      <form class="card" novalidate @submit.prevent="submitStay">
         <div v-if="stayDone" class="success" role="status">
-          <p class="wide-only">Thanks. We’ll keep you posted.</p>
-          <p class="narrow-only">Thanks. We’ll keep you updated.</p>
+          <p>We’ll keep you posted.</p>
         </div>
         <template v-else>
           <label>
             Email address
-            <input v-model="stayEmail" class="wide-field" type="email" autocomplete="email" placeholder="name@example.com" />
-            <input v-model="stayEmail" class="narrow-field" type="email" autocomplete="email" placeholder="you@example.com" />
+            <input v-model="stayEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="Boolean(stayError)" />
           </label>
           <p v-if="stayError" class="form-error" role="alert">{{ stayError }}</p>
-          <button type="submit" class="submit">
-            <span class="wide-only">Keep me posted</span>
-            <span class="narrow-only">Keep me updated</span>
-          </button>
+          <button type="submit" class="submit">Keep me posted</button>
         </template>
-        <p class="note wide-only">Only Ferjoo product updates and beta invitations. No spam.</p>
-        <p class="note narrow-only">Only occasional product updates. Unsubscribe anytime.</p>
+        <p class="note">Only Ferjoo product updates and beta invitations. No spam.</p>
       </form>
       <div class="stay-copy">
         <h1>Stay updated with Ferjoo</h1>
@@ -205,31 +201,27 @@ function onSwitcherKeydown(event) {
     </main>
 
     <main v-else class="sheet contact-sheet">
-      <form class="card" @submit.prevent="submitContact">
+      <form class="card" novalidate @submit.prevent="submitContact">
         <div v-if="contactDone" class="success" role="status">
-          <p class="wide-only">Thanks. The Ferjoo team will reply to your email.</p>
-          <p class="narrow-only">Thanks. We’ll get back to you as soon as we can.</p>
+          <p>Thanks. We’ll reply to your email.</p>
         </div>
         <template v-else>
           <label>
             Email address
-            <input v-model="contactEmail" class="wide-field" type="email" autocomplete="email" placeholder="name@example.com" />
-            <input v-model="contactEmail" class="narrow-field" type="email" autocomplete="email" placeholder="you@example.com" />
+            <input v-model="contactEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="contactError.startsWith('Enter your email') || contactError.startsWith('Enter a valid')" />
           </label>
           <label>
             Name
-            <input v-model="contactName" type="text" autocomplete="name" placeholder="Your name" />
+            <input v-model="contactName" type="text" name="name" autocomplete="name" placeholder="Your name" :aria-invalid="contactError === 'Enter your name.'" />
           </label>
           <label>
             Message
-            <textarea v-model="contactMessage" class="wide-field" rows="4" placeholder="Tell us about your question or idea…"></textarea>
-            <textarea v-model="contactMessage" class="narrow-field" rows="4" placeholder="How can we help?"></textarea>
+            <textarea v-model="contactMessage" name="message" rows="4" placeholder="Tell us about your question or idea…" :aria-invalid="contactError === 'Enter a message.'"></textarea>
           </label>
           <p v-if="contactError" class="form-error" role="alert">{{ contactError }}</p>
           <button type="submit" class="submit">Send message</button>
         </template>
-        <p class="note wide-only">The Ferjoo team will reply to your email.</p>
-        <p class="note narrow-only">We’ll get back to you as soon as we can.</p>
+        <p class="note">The Ferjoo team will reply to your email.</p>
       </form>
     </main>
   </div>
@@ -258,7 +250,6 @@ body { margin: 0; background: #fffaf5; }
   -webkit-font-smoothing: antialiased;
 }
 .start :focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; }
-.wide-only, .wide-field { display: none; }
 
 .blob { position: absolute; pointer-events: none; user-select: none; }
 .blob-wide { display: none; }
@@ -270,8 +261,8 @@ body { margin: 0; background: #fffaf5; }
 .logo, .chat, .back, .pill, .switcher button, .pager button, .submit { border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; }
 .logo { padding: 0; }
 .logo img { display: block; width: 80px; height: 30px; object-fit: contain; }
-.chat { width: 32px; height: 32px; padding: 0; }
-.chat svg { width: 19px; height: 19px; fill: none; stroke: var(--orange); stroke-width: 1.8; }
+.chat { width: 24px; height: 24px; padding: 0; }
+.chat svg { width: 24px; height: 24px; fill: none; stroke: var(--orange); stroke-width: 1.8; }
 .chat circle { fill: var(--orange); stroke: none; }
 .back { position: absolute; z-index: 2; top: 118px; left: 25px; display: inline-flex; align-items: center; gap: 8px; padding: 0; color: var(--orange); font-size: 15px; line-height: 1; }
 .back svg { width: 8px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -290,7 +281,7 @@ body { margin: 0; background: #fffaf5; }
 .chart-rise { top: 0; right: 2%; width: 62%; }
 .chart-temp { right: 2%; bottom: 18%; width: 62%; }
 .jar-data { top: 12%; left: 0; width: 48%; height: 70%; object-fit: contain; transform: rotate(-5.14deg); opacity: .8; }
-.journal { top: 0; left: 50%; width: min(196px, 62%); height: 92%; transform: translateX(-50%); filter: blur(1.65px); }
+.journal { top: 0; left: 50%; width: min(196px, 62%); height: 92%; transform: translateX(-50%); }
 .jar-doctor { top: 0; left: 2%; width: 46%; height: 88%; }
 .doctor-card { top: 28%; right: 0; width: 54%; border-radius: 12px; box-shadow: 4px 4px 5px rgb(0 0 0 / 10%); }
 .dial { top: 6%; left: 0; width: 62%; border-radius: 50%; box-shadow: -4px 4px 7.5px rgb(0 0 0 / 10%); }
@@ -318,23 +309,21 @@ body { margin: 0; background: #fffaf5; }
 .card textarea { min-height: 112px; padding: 14px 16px; resize: vertical; }
 .card input::placeholder, .card textarea::placeholder { color: var(--narrow-muted); }
 .submit { height: 52px; border-radius: 26px; background: #ffa24f; color: var(--narrow-ink); font-size: 16px; }
+.stay-sheet .submit { background: #ffb05a; color: var(--ink); }
 .note { margin: 0; color: var(--narrow-muted); font-size: 12px; line-height: 1.4; text-align: center; }
 .form-error { margin: 0; color: #9a352a; font-size: 14px; }
 .success { display: grid; min-height: 120px; place-items: center; color: var(--ink); font-size: 18px; text-align: center; }
 .success p { margin: 0; }
 
 @media (min-width: 900px) {
-  .wide-only { display: inline; }
-  .narrow-only, .narrow-field { display: none; }
-  .wide-field { display: block; }
-  .card textarea.wide-field { display: block; }
   .blob-wide { display: block; left: 39px; top: 44px; width: 1362px; height: 851px; opacity: .12; transform: scaleX(-1); }
   .blob-narrow { display: none; }
   .blob-stay { display: block; left: 720px; top: 76px; width: 681px; height: 851px; opacity: .18; transform: none; }
   .panel-stay { background: #fff9f3; }
   .bar { top: 41px; right: 92px; left: 85px; }
   .logo img { width: 94px; height: 36px; }
-  .chat svg { width: 25px; height: 25px; }
+  .chat { width: 32px; height: 32px; }
+  .chat svg { width: 32px; height: 32px; }
   .back { top: 145px; left: 85px; font-size: 16px; }
   .panel-stay .back { color: var(--mark); }
 
@@ -351,7 +340,7 @@ body { margin: 0; background: #fffaf5; }
   .chart-rise { top: 4%; right: 4%; width: 58%; }
   .chart-temp { right: 4%; bottom: 12%; width: 58%; }
   .jar-data { top: 16%; left: 0; width: 46%; height: 68%; }
-  .journal { width: min(364px, 70%); filter: blur(1.65px); }
+  .journal { width: min(364px, 70%); }
   .jar-doctor { left: 4%; width: 44%; height: 92%; }
   .doctor-card { top: 32%; right: 2%; width: 48%; border-radius: 0; box-shadow: none; }
   .dial { top: 10%; left: 4%; width: 56%; }
