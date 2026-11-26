@@ -169,4 +169,20 @@ assert.match(read('src/components/DrFerjooMark.vue'), /v-if="!plain"/, 'the movi
 assert.match(read('src/components/DrFerjooMark.vue'), /--brand-primary/, 'the flat wordmark takes the brand orange');
 assert.match(read('src/lib/site-entry.js'), /ferjoo\\\.\(\?:com\|localhost\)/);
 
+// Welcome motion stays on the page: shared tokens, no extra runtime, reduced motion keeps state feedback.
+const welcomeFile = read('src/views/WelcomeView.vue');
+assert.match(welcomeFile, /--motion-expand/);
+assert.match(welcomeFile, /--motion-base/);
+assert.match(welcomeFile, /--motion-fast/);
+assert.match(welcomeFile, /--press-scale/);
+assert.match(welcomeFile, /translate3d\(var\(--motion-overlay\)/);
+assert.match(welcomeFile, /@media \(hover: hover\) and \(pointer: fine\)/);
+assert.match(welcomeFile, /@media \(prefers-reduced-motion: reduce\)/);
+assert.match(welcomeFile, /animation: copy-in-fade var\(--motion-fast\)/);
+assert.match(welcome.script, /ArrowRight/);
+assert.match(welcome.script, /hash: '#stay'/);
+assert.doesNotMatch(welcomeFile, /framer-motion|gsap|animejs|@vueuse\/motion/);
+assert.match(welcome.source, /is-current/);
+assert.match(welcome.source, /role="tablist"/);
+
 console.log('ok - hostname entry, one responsive shell, shared state/cache, desktop-gated CSS, plain copy and welcome navigation');

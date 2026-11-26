@@ -193,6 +193,21 @@ assert.match(notifications, /提醒倍数 <span class="label-sub">以喂养后�
 assert.match(notifications, /起始高度的 \$\{target\} 倍/);
 assert.match(notifications, /出现峰值后提醒`[\s\S]*aria-pressed="row\.peak"[\s\S]*togglePeak\(row\)[\s\S]*>峰值</);
 assert.match(read('src/views/mobile/MobileNotifications.vue'), /await savePeakAlert\(row\.id, enabled\)/);
+assert.match(notifications, /喂养提醒 <span class="label-sub">距上次喂养达到所选天数且没有新记录时提醒一次<\/span>/);
+assert.match(notifications, /v-for="day in FEEDING_GAP_DAYS"/);
+assert.match(notifications, /\{\{ day \}\} 天/);
+assert.match(notifications, /toggleFeedingGap\(row\)/);
+assert.match(notifications, /chooseFeedingGapDay\(row, day\)/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /persistFeedingGap\(row, !row\.feedingGapEnabled, row\.feedingGapDays\)/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /persistFeedingGap\(row, row\.feedingGapEnabled, days\)/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /await saveFeedingGapAlert\(row\.id, enabled, days\)/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /trackEvent\('feeding_gap_alert_saved', \{ starter_id: row\.id, enabled, days \}, \{ page: 'notifications' \}\)/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /row\.feedingGapEnabled = previous\.enabled/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /row\.feedingGapDays = previous\.days/);
+assert.match(read('src/views/mobile/MobileNotifications.vue'), /Promise\.all\(\[[\s\S]*loadHeightTargets\(row\.id\)[\s\S]*loadPeakAlert\(row\.id\)[\s\S]*loadFeedingGapAlert\(row\.id\)/);
+const feedingGapBlock = notifications.slice(notifications.indexOf('group-label">喂养提醒'), notifications.indexOf('触发条件'));
+assert.doesNotMatch(feedingGapBlock, /未关联设备，不会产生提醒/, 'feeding gap stays available without a linked device');
+assert.doesNotMatch(feedingGapBlock, /disabled="[^"]*(?:feedingGapEnabled|row\.linked)/, 'closing the switch does not lock the day chips');
 
 const toasts = {
   'src/views/mobile/MobileProfileEdit.vue': '资料已保存',

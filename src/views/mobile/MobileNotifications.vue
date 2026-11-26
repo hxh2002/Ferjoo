@@ -6,7 +6,7 @@ import { starterDisambiguation } from '../../lib/starter-labels.js';
 import { listStarterDeviceLinks } from '../../services/starter-device.service.js';
 import { HEIGHT_ALERT_TARGETS, enableSystemNotification, notificationPermission } from '../../services/height-alert.service.js';
 import {
-  hasCloudPushSubscription, loadHeightTargets, loadPeakAlert, removeHeightPush, saveHeightTargets, savePeakAlert, subscribeHeightPush, webPushAvailable
+  FEEDING_GAP_DAYS, hasCloudPushSubscription, loadFeedingGapAlert, loadHeightTargets, loadPeakAlert, removeHeightPush, saveFeedingGapAlert, saveHeightTargets, savePeakAlert, subscribeHeightPush, webPushAvailable
 } from '../../services/web-push.service.js';
 import { trackEvent } from '../../services/analytics.service.js';
 
@@ -38,10 +38,20 @@ async function load() {
     const activeLinks = (links || []).filter((row) => row.active_to == null);
     const linked = new Set(activeLinks.map((row) => row.starter_id));
     const deviceOf = new Map(activeLinks.map((row) => [row.starter_id, row.device_id]));
-    const detailed = await Promise.all(rows.map(async (row) => ({
-      ...row, linked: linked.has(row.id), deviceId: deviceOf.get(row.id) || '',
-      targets: await loadHeightTargets(row.id).catch(() => []), peak: await loadPeakAlert(row.id).catch(() => false)
-    })));
+    const detailed = await Promise.all(rows.map(async (row) => {
+      const [targets, peak, feedingGap] = await Promise.all([
+        loadHeightTargets(row.id).catch(() => []),
+        loadPeakAlert(row.id).catch(() => false),
+        loadFeedingGapAlert(row.id).catch(() => ({ enabled: false, days: 3 }))
+      ]);
+      const days = Number(feedingGap?.days);
+      return {
+        ...row, linked: linked.has(row.id), deviceId: deviceOf.get(row.id) || '',
+        targets, peak,
+        feedingGapEnabled: Boolean(feedingGap?.enabled),
+        feedingGapDays: FEEDING_GAP_DAYS.includes(days) ? days : 3
+      };
+    }));
     subscribed.value = subscribedNow;
     starters.value = detailed;
   } catch (cause) {
@@ -145,6 +155,37 @@ async function togglePeak(row) {
   }
 }
 
+// 喂养天数按酵种保存，不看设备是否关联，也不另开一套推送订阅。
+async function persistFeedingGap(row, enabled, days) {
+  if (busy.value || !row.id || !FEEDING_GAP_DAYS.includes(days)) return;
+  if (enabled === row.feedingGapEnabled && days === row.feedingGapDays) return;
+  const previous = { enabled: row.feedingGapEnabled, days: row.feedingGapDays };
+  busy.value = row.id; error.value = ''; notice.value = '';
+  row.feedingGapEnabled = enabled;
+  row.feedingGapDays = days;
+  try {
+    await saveFeedingGapAlert(row.id, enabled, days);
+    trackEvent('feeding_gap_alert_saved', { starter_id: row.id, enabled, days }, { page: 'notifications' });
+    notice.value = enabled
+      ? `「${row.name}」距上次喂养 ${days} 天后还没新记录，会提醒一次。`
+      : (previous.enabled ? `「${row.name}」的喂养提醒已关闭。` : `「${row.name}」的喂养提醒天数已设为 ${days} 天。`);
+  } catch (cause) {
+    row.feedingGapEnabled = previous.enabled;
+    row.feedingGapDays = previous.days;
+    error.value = cause?.message || '保存失败，请重试。';
+  } finally {
+    busy.value = '';
+  }
+}
+
+function toggleFeedingGap(row) {
+  return persistFeedingGap(row, !row.feedingGapEnabled, row.feedingGapDays);
+}
+
+function chooseFeedingGapDay(row, days) {
+  return persistFeedingGap(row, row.feedingGapEnabled, days);
+}
+
 onMounted(() => auth.init().then(load));
 </script>
 
@@ -188,12 +229,30 @@ onMounted(() => auth.init().then(load));
     </div>
   </section>
 
+  <p v-if="loading || starters.length" class="group-label">喂养提醒 <span class="label-sub">距上次喂养达到所选天数且没有新记录时提醒一次</span></p>
+  <section v-if="loading || starters.length" class="m-card">
+    <div v-if="loading && !starters.length" class="m-skeleton" aria-busy="true" aria-label="正在读取喂养提醒"><span></span><span></span></div>
+    <div v-for="row in starters" :key="row.id" class="starter-row">
+      <div class="gap-head">
+        <span class="gap-copy">
+          <strong>{{ row.name }}</strong>
+          <small v-if="starterNotes.get(row.id)">{{ starterNotes.get(row.id) }}</small>
+        </span>
+        <button type="button" class="m-switch" role="switch" :aria-label="`${row.name} 喂养提醒${row.feedingGapEnabled ? '已开启' : '已关闭'}`" :aria-checked="row.feedingGapEnabled" :disabled="busy === row.id" @click="toggleFeedingGap(row)"><span></span></button>
+      </div>
+      <div class="targets" role="group" :aria-label="`${row.name} 喂养提醒天数`">
+        <button v-for="day in FEEDING_GAP_DAYS" :key="day" type="button" class="target" :aria-label="`${row.name} ${day} 天`" :class="{ active: row.feedingGapDays === day }" :aria-pressed="row.feedingGapDays === day" :disabled="busy === row.id" @click="chooseFeedingGapDay(row, day)">{{ day }} 天</button>
+      </div>
+    </div>
+  </section>
+
   <p class="group-label">触发条件</p>
   <section class="m-card">
     <ul class="rules">
       <li>酵种已关联在线设备，且有喂养记录。</li>
       <li>每轮每个倍数只提醒一次，下次喂养后重新计数。</li>
       <li>峰值需涨到 2 倍以上，回落确认后才提醒，约晚 20 分钟；每轮一次。</li>
+      <li>喂养天数提醒不依赖设备：距上次喂养达到所选天数且没有新记录时提醒一次，喂养后重新计数。</li>
     </ul>
   </section>
 
@@ -213,7 +272,7 @@ onMounted(() => auth.init().then(load));
     </details>
     <details class="guide">
       <summary>收不到提醒？</summary>
-      <p>依次确认：本机推送已开启、系统通知未被静音、该酵种已关联设备、所选阈值本轮尚未提醒过。关闭再重新开启推送可重新登记本机订阅。</p>
+      <p>依次确认：本机推送已开启、系统通知未被静音、该酵种已关联设备、所选阈值本轮尚未提醒过。喂养天数提醒不依赖设备，同样需要本机推送。关闭再重新开启推送可重新登记本机订阅。</p>
     </details>
   </section>
 </main>
@@ -249,6 +308,10 @@ onMounted(() => auth.init().then(load));
 .starter-head strong{font-size:16px;line-height:24px;font-weight:400}
 .starter-head small{font-size:12px;line-height:18px;color:var(--text-secondary)}
 .starter-head .starter-note{margin-right:auto}
+.gap-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.gap-copy{display:grid;gap:2px;min-width:0}
+.gap-copy strong{font-size:16px;line-height:24px;font-weight:400;color:var(--text-primary)}
+.gap-copy small{font-size:12px;line-height:18px;color:var(--text-secondary)}
 .targets{display:flex;gap:6px}
 .target{flex:1;min-height:44px;padding:0 4px;border:1px solid var(--border-warm);border-radius:var(--m-radius-button);background:var(--surface-input);font:inherit;font-size:14px;color:inherit;cursor:pointer}
 .target.active{border-color:var(--brand-action);background:var(--brand-light);color:var(--text-primary);font-weight:500}
