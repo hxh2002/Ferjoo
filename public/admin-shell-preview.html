@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN" class="mobile-mode">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>后台预览</title>
+  <link rel="stylesheet" href="/src/assets/tokens.css">
+  <link rel="stylesheet" href="/src/assets/mobile.css">
+  <link rel="stylesheet" href="/src/assets/desktop.css">
+  <link rel="stylesheet" href="/src/assets/admin.css">
+</head>
+<body class="mobile-mode">
+  <div class="mobile-area">
+    <div class="mobile-shell">
+      <aside class="desktop-sidebar">
+        <a class="desktop-brand" href="/device">Dr. Ferjoo</a>
+        <nav class="desktop-navigation" aria-label="主要导航">
+          <a class="desktop-nav-link desktop-nav-back" href="/device"><span>返回</span></a>
+          <a class="desktop-nav-link is-active" href="/admin" aria-current="page"><span>概览</span></a>
+          <a class="desktop-nav-link" href="/admin/users"><span>用户与权限</span></a>
+          <a class="desktop-nav-link" href="/admin/bindings"><span>绑定关系</span></a>
+          <a class="desktop-nav-link" href="/admin/rounds"><span>发酵轮次</span></a>
+          <a class="desktop-nav-link" href="/admin/devices"><span>设备</span></a>
+          <a class="desktop-nav-link" href="/admin/care"><span>养护与反馈</span></a>
+        </nav>
+      </aside>
+      <header class="desktop-topbar"><strong class="desktop-title">概览</strong></header>
+      <header class="mobile-topbar"><h1>概览</h1></header>
+      <main class="mobile-main">
+        <div class="admin-console">
+          <nav class="admin-sections" aria-label="后台分区">
+            <a class="is-active" href="/admin" aria-current="page">概览</a>
+            <a href="/admin/users">用户与权限</a>
+            <a href="/admin/devices">设备</a>
+          </nav>
+          <section>
+            <p class="admin-lead">账号、设备、绑定和发酵轮次的当前数量。日常查阅对所有管理员开放。</p>
+            <div class="admin-stats">
+              <article class="admin-stat"><span>用户</span><strong>128</strong><small>其中管理员 3</small></article>
+              <article class="admin-stat"><span>设备</span><strong>46</strong><small>已连接 12</small></article>
+              <article class="admin-stat"><span>设备绑定</span><strong>51</strong><small>酵种关联中 20</small></article>
+              <article class="admin-stat"><span>进行中的发酵</span><strong>7</strong><small>尚未结束，也没有下一次喂养</small></article>
+              <article class="admin-stat"><span>在用酵种</span><strong>33</strong><small>不含已归档</small></article>
+              <article class="admin-stat"><span>意见反馈</span><strong>9</strong><small>用户提交的全部反馈</small></article>
+            </div>
+            <div class="admin-toolbar">
+              <input type="search" value="" placeholder="搜索邮箱、用户名或系统 ID" aria-label="搜索账号">
+              <select aria-label="按角色筛选"><option>全部角色</option></select>
+              <button type="button" class="m-primary">新建账号</button>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead><tr><th>账号</th><th>系统 ID</th><th>角色</th><th>邀请</th><th>注册时间</th><th></th></tr></thead>
+                <tbody>
+                  <tr class="is-selected"><td><strong>阿禾</strong><br><span class="admin-note">ahe@example.com</span></td><td>A001</td><td><span class="admin-badge">首位管理员</span></td><td>2 / 5</td><td>2026-08-01 09:00</td><td><button type="button" class="admin-row-action">查看</button></td></tr>
+                  <tr><td><strong>小林</strong><br><span class="admin-note">lin@example.com</span></td><td>U014</td><td><span class="admin-badge is-muted">用户</span></td><td>0 / 3</td><td>2026-10-12 14:20</td><td><button type="button" class="admin-row-action">查看</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+      <div class="admin-drawer-layer">
+        <aside class="admin-drawer" role="dialog" aria-label="账号详情">
+          <header class="admin-drawer-head"><h2>阿禾</h2><button type="button">关闭</button></header>
+          <dl class="admin-facts"><div><dt>系统 ID</dt><dd>A001</dd></div><div><dt>邮箱</dt><dd>ahe@example.com</dd></div></dl>
+        </aside>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
