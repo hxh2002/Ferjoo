@@ -180,9 +180,25 @@ assert.match(welcomeFile, /@media \(hover: hover\) and \(pointer: fine\)/);
 assert.match(welcomeFile, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(welcomeFile, /animation: copy-in-fade var\(--motion-fast\)/);
 assert.match(welcome.script, /ArrowRight/);
+assert.match(welcome.script, /ArrowLeft/);
+assert.match(welcome.script, /const AUTO_MS = 8000/);
+assert.match(welcome.script, /addEventListener\('wheel', onWheel, \{ passive: false \}\)/);
+assert.match(welcome.script, /prefers-reduced-motion: reduce/);
+assert.match(welcome.script, /visibilitychange/);
 assert.match(welcome.script, /hash: '#stay'/);
 assert.doesNotMatch(welcomeFile, /framer-motion|gsap|animejs|@vueuse\/motion/);
 assert.match(welcome.source, /is-current/);
 assert.match(welcome.source, /role="tablist"/);
+
+// Desktop feature switcher: labels and the jar glyph share one column edge,
+// and every active row uses the same step instead of a per-page nudge.
+assert.match(welcome.source, /--switcher-index': index/);
+assert.match(welcomeFile, /\.switcher button :is\(span, \.jar-glyph\) \{ grid-column: 1; justify-self: end; text-align: right;/);
+assert.match(welcomeFile, /--switcher-step: 39px;/);
+assert.match(welcomeFile, /--switcher-anchor: calc\(\(var\(--switcher-count\) - 1\) \/ 2\);/);
+assert.match(welcomeFile, /transform: translateY\(calc\(\(var\(--switcher-anchor\) - var\(--switcher-index, var\(--switcher-anchor\)\)\) \* var\(--switcher-step\)\)\);/);
+assert.doesNotMatch(welcomeFile, /--switcher-nudge/);
+assert.match(welcomeFile, /\.switcher \{ display: none; \}/);
+assert.match(welcomeFile, /\.pager \{ display: none; \}/);
 
 console.log('ok - hostname entry, one responsive shell, shared state/cache, desktop-gated CSS, plain copy and welcome navigation');

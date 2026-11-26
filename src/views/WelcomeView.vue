@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import logo from '../assets/welcome/logo-ferjoo.png';
 import blobs from '../assets/welcome/blobs.jpg';
@@ -40,19 +40,145 @@ const panel = computed(() => (route.hash === '#stay' ? 'stay' : route.hash === '
 let returnFocus = '';
 
 const previousTitle = document.title;
+
+// 五屏自己慢慢轮播，首尾相接。滚轮和方向键随时可换页，手动换页后重新计时。
+// 减少动态效果、页面在后台、或指针/焦点停在切换器上时，不自动翻页。
+const AUTO_MS = 8000;
+const WHEEL_THRESHOLD = 40;
+const WHEEL_GAP = 700;
+const KEY_GAP = 400;
+const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+let motionReduced = motionQuery.matches;
+let pointerHolding = false;
+let focusHolding = false;
+let autoTimer = 0;
+let wheelDelta = 0;
+let wheelQuietTimer = 0;
+let wheelReadyAt = 0;
+let keyReadyAt = 0;
+
+function wrapIndex(value) {
+  return (value % slides.length + slides.length) % slides.length;
+}
+function slideClass(itemIndex) {
+  if (itemIndex === index.value) return 'is-current';
+  let diff = itemIndex - index.value;
+  const count = slides.length;
+  if (diff > count / 2) diff -= count;
+  else if (diff < -count / 2) diff += count;
+  return diff < 0 ? 'is-before' : 'is-after';
+}
+function canAutoplay() {
+  return panel.value === 'home' && !motionReduced && !pointerHolding && !focusHolding && document.visibilityState !== 'hidden';
+}
+function queueAuto() {
+  window.clearTimeout(autoTimer);
+  autoTimer = 0;
+  if (!canAutoplay()) return;
+  autoTimer = window.setTimeout(() => step(1), AUTO_MS);
+}
+function onMotionChange() {
+  motionReduced = motionQuery.matches;
+  queueAuto();
+}
+function holdPointer(next) {
+  pointerHolding = next;
+  queueAuto();
+}
+function holdFocus() {
+  focusHolding = true;
+  queueAuto();
+}
+function releaseFocus(event) {
+  const next = event.relatedTarget;
+  if (next instanceof Node && event.currentTarget.contains(next)) return;
+  focusHolding = false;
+  queueAuto();
+}
+function isEditable(node) {
+  const el = node instanceof Element ? node : node?.parentElement;
+  return Boolean(el?.closest?.('input, textarea, select, [contenteditable="true"]'));
+}
+function wheelAmount(event) {
+  const raw = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+  if (event.deltaMode === 1) return raw * 16;
+  if (event.deltaMode === 2) return raw * window.innerHeight;
+  return raw;
+}
+function onWheel(event) {
+  if (panel.value !== 'home' || event.ctrlKey || event.metaKey || isEditable(event.target)) return;
+  const amount = wheelAmount(event);
+  if (!amount) return;
+  event.preventDefault();
+  const now = performance.now();
+  const notch = event.deltaMode !== 0 || Math.abs(amount) >= 50;
+  if (notch) {
+    if (now < wheelReadyAt) return;
+    wheelDelta = 0;
+    wheelReadyAt = now + WHEEL_GAP;
+    step(amount > 0 ? 1 : -1);
+    return;
+  }
+  if (now < wheelReadyAt) return;
+  wheelDelta += amount;
+  window.clearTimeout(wheelQuietTimer);
+  wheelQuietTimer = window.setTimeout(() => { wheelDelta = 0; }, 140);
+  if (Math.abs(wheelDelta) < WHEEL_THRESHOLD) return;
+  const direction = wheelDelta > 0 ? 1 : -1;
+  wheelDelta = 0;
+  wheelReadyAt = now + WHEEL_GAP;
+  step(direction);
+}
+function carouselKey(event) {
+  const key = event.key;
+  const delta = key === 'ArrowRight' || key === 'ArrowDown' ? 1 : key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 0;
+  const jump = key === 'Home' ? 0 : key === 'End' ? slides.length - 1 : null;
+  return { delta, jump };
+}
+function onKeydown(event) {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (panel.value !== 'home' || isEditable(event.target)) return;
+  const { delta, jump } = carouselKey(event);
+  if (!delta && jump == null) return;
+  event.preventDefault();
+  const now = performance.now();
+  if (now < keyReadyAt) return;
+  keyReadyAt = now + KEY_GAP;
+  if (jump == null) step(delta);
+  else select(jump);
+}
+
 watch(panel, (value, previous) => {
   document.title = value === 'stay' ? 'Stay updated' : value === 'contact' ? 'Contact' : 'Ferjoo';
   if (value !== 'stay') stayDone.value = false;
   if (value !== 'contact') contactDone.value = false;
   if (previous) window.scrollTo(0, 0);
+  queueAuto();
 }, { immediate: true });
-onBeforeUnmount(() => { document.title = previousTitle; });
+onMounted(() => {
+  motionReduced = motionQuery.matches;
+  window.addEventListener('keydown', onKeydown);
+  window.addEventListener('wheel', onWheel, { passive: false });
+  document.addEventListener('visibilitychange', queueAuto);
+  motionQuery.addEventListener('change', onMotionChange);
+  queueAuto();
+});
+onBeforeUnmount(() => {
+  document.title = previousTitle;
+  window.clearTimeout(autoTimer);
+  window.clearTimeout(wheelQuietTimer);
+  window.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('wheel', onWheel);
+  document.removeEventListener('visibilitychange', queueAuto);
+  motionQuery.removeEventListener('change', onMotionChange);
+});
 
 function select(next) {
   if (next === index.value || next < 0 || next >= slides.length) return;
   index.value = next;
+  queueAuto();
 }
-function step(delta) { select(index.value + delta); }
+function step(delta) { select(wrapIndex(index.value + delta)); }
 function focusSoon(selector) {
   nextTick(() => {
     const node = document.querySelector(selector);
@@ -143,13 +269,13 @@ function onTouchEnd(event) {
   step(dx < 0 ? 1 : -1);
 }
 function onSwitcherKeydown(event) {
-  const key = event.key;
-  const delta = key === 'ArrowRight' || key === 'ArrowDown' ? 1 : key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 0;
-  const jump = key === 'Home' ? 0 : key === 'End' ? slides.length - 1 : null;
+  const { delta, jump } = carouselKey(event);
   if (!delta && jump == null) return;
   event.preventDefault();
-  const next = jump == null ? index.value + delta : jump;
-  if (next < 0 || next >= slides.length || next === index.value) return;
+  const now = performance.now();
+  if (now < keyReadyAt) return;
+  keyReadyAt = now + KEY_GAP;
+  const next = jump == null ? wrapIndex(index.value + delta) : jump;
   select(next);
   event.currentTarget.querySelectorAll('[role="tab"]')[next]?.focus();
 }
@@ -197,7 +323,7 @@ function onSwitcherKeydown(event) {
 
         <div class="stage" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
           <div id="sourmate-features" class="visual">
-            <div v-for="(item, itemIndex) in slides" :key="item.id" class="slide" :class="itemIndex === index ? 'is-current' : itemIndex < index ? 'is-before' : 'is-after'" :inert="itemIndex !== index" :aria-hidden="itemIndex !== index">
+            <div v-for="(item, itemIndex) in slides" :key="item.id" class="slide" :class="slideClass(itemIndex)" :inert="itemIndex !== index" :aria-hidden="itemIndex !== index">
               <img v-if="item.id === 'device'" class="shot jar-device" :src="jarDevice" alt="SourMate jar with starter" />
               <template v-else-if="item.id === 'data'">
                 <img class="shot chart-rise" :src="chartRise" alt="Starter rise chart, peak 2.63×" />
@@ -223,7 +349,7 @@ function onSwitcherKeydown(event) {
           </div>
         </div>
 
-        <div class="switcher" role="tablist" aria-orientation="vertical" aria-label="SourMate features" @keydown="onSwitcherKeydown">
+        <div class="switcher" :style="{ '--switcher-index': index }" role="tablist" aria-orientation="vertical" aria-label="SourMate features" @pointerenter="holdPointer(true)" @pointerleave="holdPointer(false)" @focusin="holdFocus" @focusout="releaseFocus" @keydown="onSwitcherKeydown">
           <button v-for="(item, itemIndex) in slides" :key="item.id" type="button" role="tab" :aria-selected="itemIndex === index" :aria-controls="'sourmate-features'" :tabindex="itemIndex === index ? 0 : -1" :aria-label="item.label" :class="{ 'is-active': itemIndex === index }" @click="select(itemIndex)">
             <svg v-if="item.id === 'device'" class="jar-glyph" viewBox="0 0 13 17" aria-hidden="true">
               <rect x="4" y="0.8" width="5" height="2.1" rx="0.6" />
@@ -234,7 +360,7 @@ function onSwitcherKeydown(event) {
           </button>
         </div>
 
-        <div class="pager" role="tablist" aria-orientation="horizontal" aria-label="SourMate features" @keydown="onSwitcherKeydown">
+        <div class="pager" role="tablist" aria-orientation="horizontal" aria-label="SourMate features" @pointerenter="holdPointer(true)" @pointerleave="holdPointer(false)" @focusin="holdFocus" @focusout="releaseFocus" @keydown="onSwitcherKeydown">
           <button type="button" role="tab" :aria-selected="index === 0" :aria-controls="'sourmate-features'" :tabindex="index === 0 ? 0 : -1" aria-label="Device" :class="{ 'is-active': index === 0 }" @click="select(0)">
             <svg class="jar-glyph" viewBox="0 0 13 17" aria-hidden="true">
               <rect x="4" y="0.8" width="5" height="2.1" rx="0.6" />
@@ -378,9 +504,6 @@ body { margin: 0; background: #fffaf5; }
 .sheet:not(.is-current) { transform: translate3d(var(--motion-overlay), 0, 0); }
 
 .home { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 131px 0 36px; }
-.home[data-feature="data"] { --switcher-nudge: 39px; }
-.home[data-feature="doctor"] { --switcher-nudge: -39px; }
-.home[data-feature="timing"] { --switcher-nudge: -79px; }
 .copy { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 15px; padding-inline: 33px; }
 .intro { display: flex; flex-direction: column; gap: 8px; }
 .name, .home h1, .feature-title, .stay-copy h1, .pill, .back, .submit, .switcher button { font-weight: 500; }
@@ -497,12 +620,29 @@ body { margin: 0; background: #fffaf5; }
   .dial { left: 89px; top: 277px; width: 345px; height: 345px; }
   .jar-timing { left: 403px; top: 268px; width: 256px; height: 383px; }
   .pager { display: none; }
-  .switcher { display: flex; grid-column: 3; flex-direction: column; align-items: stretch; justify-content: space-between; justify-self: end; width: 174px; height: 176px; align-self: center; transform: translateY(var(--switcher-nudge, 0px)); }
-  .switcher button { display: grid; grid-template-columns: minmax(0, 1fr) 11px; align-items: center; justify-content: end; column-gap: 12px; height: 22px; min-height: 0; padding: 0; color: var(--mark); font-size: 16px; line-height: 22px; letter-spacing: 0; }
-  .switcher button :is(span, .jar-glyph) { transition: opacity var(--motion-fast) var(--ease-standard); }
+  /* 五页共用同一步长。激活行始终落到中间那一档的高度，不再按页面单独平移。 */
+  .switcher {
+    --switcher-count: 5;
+    --switcher-item: 22px;
+    --switcher-step: 39px;
+    --switcher-anchor: calc((var(--switcher-count) - 1) / 2);
+    display: flex;
+    grid-column: 3;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: calc(var(--switcher-step) - var(--switcher-item));
+    justify-self: end;
+    width: 174px;
+    height: calc(var(--switcher-item) + (var(--switcher-count) - 1) * var(--switcher-step));
+    align-self: center;
+    transform: translateY(calc((var(--switcher-anchor) - var(--switcher-index, var(--switcher-anchor))) * var(--switcher-step)));
+  }
+  .switcher button { display: grid; grid-template-columns: minmax(0, 1fr) 11px; align-items: center; column-gap: 12px; height: var(--switcher-item); min-height: 0; padding: 0; color: var(--mark); font-size: 16px; line-height: 22px; letter-spacing: 0; }
+  .switcher button :is(span, .jar-glyph) { grid-column: 1; justify-self: end; text-align: right; transition: opacity var(--motion-fast) var(--ease-standard); }
   .switcher button:not(.is-active) :is(span, .jar-glyph) { opacity: .5; }
-  .switcher .jar-glyph { width: 13px; height: 17px; justify-self: end; fill: none; stroke: var(--orange); stroke-width: 1.2; }
-  .switcher .pip { justify-self: center; width: 5px; height: 5px; border-radius: 99px; background: var(--mark); opacity: .5; transition: width var(--motion-base) var(--ease-expand), height var(--motion-base) var(--ease-expand), opacity var(--motion-fast) var(--ease-standard); }
+  .switcher .jar-glyph { width: 13px; height: 17px; fill: none; stroke: var(--orange); stroke-width: 1.2; }
+  .switcher .pip { grid-column: 2; justify-self: start; width: 5px; height: 5px; border-radius: 99px; background: var(--mark); opacity: .5; transition: width var(--motion-base) var(--ease-expand), height var(--motion-base) var(--ease-expand), opacity var(--motion-fast) var(--ease-standard); }
   .switcher button.is-active .pip { width: 11px; height: 4px; opacity: 1; }
 
   .sheet { display: flex; align-items: center; height: 100%; padding: 0; }
