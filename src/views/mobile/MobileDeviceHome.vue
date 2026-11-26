@@ -139,6 +139,12 @@ const detailTarget = computed(() => feeding.value
   ? { path: `/diary/records/${encodeURIComponent(feeding.value.id)}`, query: { returnTo: '/device' } }
   : null);
 const feedTarget = computed(() => ({ path: '/feeding', query: starterId.value ? { starter: starterId.value } : {} }));
+// 弹出菜单的「酵种管理」直接进入正在看的这台设备的设置页，并用 associate=1 打开「关联酵种」。
+// 没有确定设备时：已绑定的只有一台就用它；多台或一台都没有，仍去现有的设备列表，不另做选择器。
+const starterManageTo = computed(() => {
+  const id = deviceId.value || (devices.value.length === 1 ? devices.value[0].device_id : '');
+  return id ? `/me/devices/${encodeURIComponent(id)}?associate=1` : '/me/devices';
+});
 function relative(value) {
   const at = Date.parse(value);
   if (!Number.isFinite(at)) return '暂无记录';
@@ -356,7 +362,7 @@ onScopeDispose(() => { disposed = true; generation++; });
                 <button type="button" :class="{ active: item.id === starterId }" :aria-pressed="item.id === starterId" @click="selectStarter(item.id)">{{ item.name }}<small>{{ item.link ? `已关联 ${devices.find(device => device.device_id === item.link.device_id)?.name || item.link.device_id}` : '未关联设备 · 仅查看记录' }}</small></button>
               </div>
               <p v-if="!starters.length" class="starter-empty">暂无酵种，请前往酵种管理新增。</p>
-              <RouterLink class="menu-action starter-management" to="/me/devices">酵种管理 <span aria-hidden="true">›</span></RouterLink>
+              <RouterLink class="menu-action starter-management" :to="starterManageTo">酵种管理 <span aria-hidden="true">›</span></RouterLink>
             </div>
           </section>
         </div>

@@ -258,7 +258,7 @@ assert.match(devices, /class="starter-create-save"[^>]*@click="addStarter"/);
 assert.match(devices, /import \{ archiveStarter, createStarter, listStarters \} from '\.\.\/\.\.\/services\/care\.service\.js'/);
 
 // 执行真实的 script setup，确保选择只是草稿，关闭不保存，确认成功后才提交并收起弹层。
-async function starterSheetHarness() {
+async function starterSheetHarness({ query = {}, deviceId = 'd1' } = {}) {
   const descriptor = parse(devices).descriptor;
   const compiled = compileScript(descriptor, { id: 'device-starter-sheet-test' });
   const setupCode = compiled.content.replace(/import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/g, (_, bindings, path) => {
@@ -272,8 +272,9 @@ async function starterSheetHarness() {
     { starter_id: 's1', device_id: 'd1', active_from: '2026-01-01T00:00:00Z', active_to: null },
     { starter_id: 's3', device_id: 'd2', active_from: '2026-01-01T00:00:00Z', active_to: null }
   ] };
-  const route = Vue.reactive({ params: { deviceId: 'd1' }, query: {}, fullPath: '/me/devices/d1' });
+  const route = Vue.reactive({ params: { deviceId }, query: { ...query }, fullPath: deviceId ? `/me/devices/${deviceId}` : '/me/devices' });
   const service = {
+    listDevices: async () => [],
     getDevice: async () => ({ device_id: 'd1', name: '设备一', my_role: 'owner', last_seen_at: new Date().toISOString() }),
     rename: async (deviceId, next) => { state.renames.push([deviceId, next]); return { name: next }; },
     members: async () => []
@@ -325,6 +326,7 @@ async function starterSheetHarness() {
   return { state, vm, route, stop: () => scope.stop() };
 }
 const starterSheet = await starterSheetHarness();
+assert.equal(starterSheet.vm.starterOpen, false, 'opening device settings from the list does not raise 关联酵种');
 assert.deepEqual(starterSheet.vm.savedStarters, ['s1']);
 assert.deepEqual(starterSheet.vm.linkableStarters.map(item => item.id), ['s1', 's2', 's3'], 'all starters remain visible, including one linked to another device');
 starterSheet.vm.openStarterSheet();
@@ -451,12 +453,30 @@ assert.equal(starterSheet.vm.starterManageOpen, false);
 assert.equal(starterSheet.vm.starterOpen, true, 'management returns to association sheet');
 starterSheet.vm.closeStarterSheet();
 starterSheet.stop();
+
+const associateEntry = await starterSheetHarness({ query: { associate: '1' } });
+assert.equal(associateEntry.vm.starterOpen, true, 'associate=1 opens 关联酵种 on the device settings page');
+assert.equal(associateEntry.vm.starterManageOpen, false, 'the entry opens association, not starter management');
+associateEntry.vm.closeStarterSheet();
+assert.equal(associateEntry.vm.starterOpen, false, 'closing the sheet stays closed while the query remains');
+associateEntry.route.query = {};
+await Vue.nextTick();
+associateEntry.route.query = { associate: '1' };
+await Vue.nextTick();
+assert.equal(associateEntry.vm.starterOpen, true, 'entering again with associate=1 reopens 关联酵种');
+associateEntry.stop();
+
+const listEntry = await starterSheetHarness({ query: { associate: '1' }, deviceId: '' });
+assert.equal(listEntry.vm.starterOpen, false, 'the device list does not open 关联酵种');
+listEntry.stop();
 console.log('mobile devices: starter draft, create, archive, cancel, confirm, failure and duplicate-save behavior passed');
 
 const home = compile('src/views/mobile/MobileDeviceHome.vue');
 assert.match(home, /<MConfirmDialog[\s\S]*danger[\s\S]*结束当前发酵？/);
 assert.doesNotMatch(home, /archiveStarter|createStarter|新增酵种|starter-archive/, 'home has no starter management actions');
-assert.match(home, /酵种管理[\s\S]*\/me\/devices|\/me\/devices[\s\S]*酵种管理/, 'home delegates starter management to settings');
+assert.match(home, /starterManageTo/, 'home sends 酵种管理 to the current device settings');
+assert.match(home, /\?associate=1/, 'home asks device settings to open 关联酵种');
+assert.match(devices, /deviceId\.value && route\.query\.associate === '1'/, 'settings opens 关联酵种 only for the associate entry');
 assert.match(devices, /<MConfirmDialog[\s\S]*danger[\s\S]*归档酵种/);
 assert.match(devices, /archiveStarter/);
 assert.doesNotMatch(devices, /from\('starters'\)\.delete\(\)/, 'starters are never physically deleted');

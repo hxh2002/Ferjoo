@@ -332,8 +332,13 @@ watch([userId, deviceId], () => {
   showBinding.value = !deviceId.value && route.query.bind === '1'; starters.value = []; starterLinks.value = {}; linkedStarters.value = []; savedStarters.value = [];
   starterOpen.value = false; starterManageOpen.value = false; starterCreateOpen.value = false; newStarterName.value = ''; creatingStarter.value = false; starterCreateError.value = ''; starterPendingDelete.value = null;
   notice.value = ''; error.value = ''; saving.value = false; loading.value = false;
+  // 仅首页「酵种管理」带 associate=1。设备列表点进设置页没有该参数，不会弹出。
+  if (deviceId.value && route.query.associate === '1') openStarterSheet();
   if (userId.value) load();
 }, { immediate: true, flush: 'sync' });
+watch(() => route.query.associate, (value) => {
+  if (value === '1' && deviceId.value) openStarterSheet();
+});
 watch(() => route.fullPath, () => {
   if (!deviceId.value && route.query.bind === '1') router.replace('/me/devices/add');
 }, { immediate: true, flush: 'sync' });

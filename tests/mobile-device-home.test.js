@@ -34,7 +34,9 @@ assert.match(source, /结束当前发酵/);
 assert.match(source, /确认结束/);
 assert.match(source, /历史记录已保存/);
 assert.match(source, /酵种管理/);
-assert.match(source, /to="\/me\/devices"/);
+assert.match(source, /starterManageTo/);
+assert.match(source, /\/me\/devices\/\$\{encodeURIComponent\(id\)\}\?associate=1/);
+assert.match(source, /devices\.value\.length === 1 \? devices\.value\[0\]\.device_id/);
 assert.doesNotMatch(source, /createStarter|archiveStarter|新增酵种|starter-archive/, 'home only selects starters; all management lives in settings');
 assert.doesNotMatch(source, /诊断本轮|诊断需 3 步/, 'diagnosis stays in diary flows rather than the home CTA');
 assert.match(source, /listStarterDeviceLinks/);
@@ -212,7 +214,8 @@ const pickerHtml = await h.html();
 assert.doesNotMatch(pickerHtml, /酵种罐|仅查看设备数据|新增\/连接酵种罐|新增酵种|>归档</, 'the home sheet contains only starter choices');
 assert.match(pickerHtml, /已关联其他设备|已关联 d2/, 'a starter on another device stays selectable');
 assert.match(pickerHtml, /酵种管理/);
-assert.match(pickerHtml, /href="\/me\/devices"/);
+assert.equal(h.vm.starterManageTo, '/me/devices/d1?associate=1', 'starter management opens the device being viewed and the association sheet');
+assert.match(pickerHtml, /href="\/me\/devices\/d1\?associate=1"/);
 h.vm.contextOpen = false;
 {
   // 同一轮继续采样：上涨 → 停涨在高位 → 回落，罐子依次变成吃饭 / Peak / 饿了，并在回落后留下峰值痕迹。
@@ -282,6 +285,9 @@ h.vm.contextOpen = true;
 const expandedHtml = await h.html();
 assert.match(expandedHtml, /picker-row/, 'opening the starter switch reveals only the starter picker');
 assert.match(expandedHtml, /酵种管理/, 'association and starter management are delegated to settings');
+assert.equal(h.vm.starterManageTo, '/me/devices', 'several devices and no current one stay on the existing device list');
+assert.match(expandedHtml, /href="\/me\/devices"/);
+assert.doesNotMatch(expandedHtml, /associate=1/);
 assert.doesNotMatch(expandedHtml, /关联当前设备|酵种罐|新增酵种|>归档</);
 h.vm.contextOpen = false;
 assert.equal(h.vm.summary.windowStatus, 'in_progress', 'a missing device never ends the round');
@@ -305,6 +311,19 @@ assert.doesNotMatch(closedHtml, /结束当前发酵/, 'closed round no longer of
 assert.match(closedHtml, />喂养</, 'a closed round offers the next feeding instead');
 h.state.links = [link]; await h.vm.refresh(); await drain();
 h.stop();
+
+{
+  const only = harness();
+  only.state.devices = [{ device_id: 'only-1', created_at: iso(1) }];
+  only.state.links = [];
+  only.state.feeding = null;
+  await login(only); await drain();
+  assert.equal(only.vm.deviceId, '', 'an unlinked home does not invent a current device');
+  assert.equal(only.vm.starterManageTo, '/me/devices/only-1?associate=1', 'the only bound device is the settings target');
+  only.vm.contextOpen = true;
+  assert.match(await only.html(), /href="\/me\/devices\/only-1\?associate=1"/);
+  only.stop();
+}
 
 const serial = harness(); await login(serial);
 const gate = deferred(); serial.state.starterGate = gate;

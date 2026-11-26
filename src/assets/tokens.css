@@ -1,6 +1,6 @@
 :root {
-  /* 方圆体先于系统字体。源文件没有的符号（如 °‹›）才落到后面的黑体。字号不在字体栈里改。 */
-  --font-sans: "Alimama FangYuanTi VF", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  /* 产品界面以苹方为主。没有苹方的系统再落到冬青黑体、思源黑体、微软雅黑。欢迎页单独指定方圆体。 */
+  --font-sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --ink: #2a1d17;
   --ink-soft: #5a4338;
   --orange: #ff7c2d;

@@ -21,7 +21,10 @@ assert.equal(css.match(/unicode-range:/g).length, files.length, '每个分包都
 assert.equal(css.match(/font-weight: 200 700/g).length, files.length, '字重轴覆盖设计里的 200 到 700');
 assert.doesNotMatch(css, /\.ttf/);
 assert.doesNotMatch(main, /AlimamaFangYuanTiVF/);
-assert.match(tokens, /--font-sans:\s*"Alimama FangYuanTi VF"/);
+assert.match(tokens, /--font-sans:\s*"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif/);
+assert.doesNotMatch(tokens, /--font-sans:[^;]*Alimama/);
+const welcome = read('src/views/WelcomeView.vue');
+assert.match(welcome, /font-family:\s*"Alimama FangYuanTi VF", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif/);
 assert.match(main, /import '\.\/assets\/fonts\.css'/);
 assert.match(html, /rel="preload" href="\/fonts\/fangyuan-ui\.woff2"/);
 assert.doesNotMatch(html, /fangyuan-ext-/);

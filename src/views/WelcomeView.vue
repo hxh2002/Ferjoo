@@ -157,6 +157,8 @@ function onSwitcherKeydown(event) {
 
 <template>
   <div class="start" :class="`panel-${panel}`" lang="en">
+    <div class="fit">
+    <div class="frame">
     <img class="blob blob-wide" :src="blobs" alt="" />
     <div class="blob-narrow" aria-hidden="true"><img :src="blobs" alt="" /></div>
     <img class="blob blob-stay" :src="blobs" alt="" />
@@ -181,10 +183,12 @@ function onSwitcherKeydown(event) {
     </button>
 
     <main class="panels">
-      <div class="home" :class="{ 'is-current': panel === 'home' }" :inert="panel !== 'home'" :aria-hidden="panel !== 'home'">
+      <div class="home" :class="{ 'is-current': panel === 'home' }" :data-feature="current.id" :inert="panel !== 'home'" :aria-hidden="panel !== 'home'">
         <div class="copy">
-          <p class="name">SourMate</p>
-          <h1>Understand your starter.</h1>
+          <div class="intro">
+            <p class="name">SourMate</p>
+            <h1>Understand your starter.</h1>
+          </div>
           <button type="button" class="pill" @click="openStay">
             Stay updated
             <svg viewBox="0 0 8 14" aria-hidden="true"><path d="M1 1l6 6-6 6" /></svg>
@@ -248,14 +252,16 @@ function onSwitcherKeydown(event) {
           <div v-if="stayDone" class="success" role="status">
             <p>Received. Your email has been saved.</p>
           </div>
-          <div v-else class="fields">
-            <label>
-              Email address
-              <input v-model="stayEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="Boolean(stayError)" :disabled="stayBusy" />
-            </label>
-            <p v-if="stayError" :key="stayError" class="form-error" role="alert">{{ stayError }}</p>
+          <template v-else>
+            <div class="fields">
+              <label class="field">
+                <span>Email address</span>
+                <input v-model="stayEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="Boolean(stayError)" :disabled="stayBusy" />
+              </label>
+              <p v-if="stayError" :key="stayError" class="form-error" role="alert">{{ stayError }}</p>
+            </div>
             <button type="submit" class="submit" :disabled="stayBusy">{{ stayBusy ? 'Saving…' : 'Keep me posted' }}</button>
-          </div>
+          </template>
           <p class="note">This form saves the address in Ferjoo. It does not send email.</p>
         </form>
         <div class="stay-copy">
@@ -269,30 +275,35 @@ function onSwitcherKeydown(event) {
           <div v-if="contactDone" class="success" role="status">
             <p>Received. Your message has been saved.</p>
           </div>
-          <div v-else class="fields">
-            <label>
-              Email address
-              <input v-model="contactEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter your email') || contactError.startsWith('Enter a valid')" />
-            </label>
-            <label>
-              Name
-              <input v-model="contactName" type="text" name="name" autocomplete="name" placeholder="Your name" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter your name') || contactError.startsWith('Enter a shorter name')" />
-            </label>
-            <label>
-              Message
-              <textarea v-model="contactMessage" name="message" rows="4" placeholder="Tell us about your question or idea…" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter a message') || contactError.startsWith('Enter a shorter message')"></textarea>
-            </label>
-            <p v-if="contactError" :key="contactError" class="form-error" role="alert">{{ contactError }}</p>
+          <template v-else>
+            <div class="fields">
+              <label class="field">
+                <span>Email address</span>
+                <input v-model="contactEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter your email') || contactError.startsWith('Enter a valid')" />
+              </label>
+              <label class="field">
+                <span>Name</span>
+                <input v-model="contactName" type="text" name="name" autocomplete="name" placeholder="Your name" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter your name') || contactError.startsWith('Enter a shorter name')" />
+              </label>
+              <label class="field">
+                <span>Message</span>
+                <textarea v-model="contactMessage" name="message" rows="4" placeholder="Tell us about your question or idea…" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter a message') || contactError.startsWith('Enter a shorter message')"></textarea>
+              </label>
+              <p v-if="contactError" :key="contactError" class="form-error" role="alert">{{ contactError }}</p>
+            </div>
             <button type="submit" class="submit" :disabled="contactBusy">{{ contactBusy ? 'Saving…' : 'Send message' }}</button>
-          </div>
+          </template>
           <p class="note">This form saves the message in Ferjoo. It does not send email.</p>
         </form>
       </div>
     </main>
+    </div>
+    </div>
   </div>
 </template>
 
 <style>
+html, body { height: 100%; overflow: hidden; }
 body { margin: 0; background: #fffaf5; }
 </style>
 
@@ -305,16 +316,30 @@ body { margin: 0; background: #fffaf5; }
   --muted: #75665b;
   --narrow-ink: #33211a;
   --narrow-muted: #755e52;
-  position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
-  overflow-x: hidden;
+  --art-x: 0px;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
   color: var(--ink);
   background: #fffaf5;
-  font-family: var(--font-sans);
+  /* 欢迎页继续用方圆体。产品界面走 --font-sans，这里不要改回那条令牌。
+     画板文字框没有带回字距；这里用字体默认字距。字重 500 对应标题，400 对应正文。 */
+  font-family: "Alimama FangYuanTi VF", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
 }
 .start :focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; }
+.fit { display: grid; width: 100%; height: 100%; place-items: center; overflow: hidden; }
+.frame {
+  position: relative;
+  width: 375px;
+  height: 812px;
+  overflow: hidden;
+  background: #fffaf5;
+  transform: scale(min(calc(100vw / 375), calc(100dvh / 812)));
+  transform-origin: center;
+}
 
 .blob { position: absolute; pointer-events: none; user-select: none; }
 .blob-wide, .blob-narrow, .blob-stay { transition: opacity var(--motion-base) var(--ease-standard); }
@@ -322,9 +347,9 @@ body { margin: 0; background: #fffaf5; }
 .blob-narrow { position: absolute; left: 6px; top: 151px; width: 376px; height: 600px; overflow: hidden; opacity: .15; pointer-events: none; }
 .blob-narrow img { position: absolute; left: 50%; top: 50%; width: 600px; max-width: none; height: 376px; transform: translate(-50%, -50%) rotate(-90deg); }
 .blob-stay { display: none; }
-.panel-stay .blob-narrow, .panel-contact .blob-narrow { opacity: 0; }
+.panel-contact .blob-narrow { opacity: 0; }
 
-.bar { position: absolute; z-index: 3; top: 30px; right: 24px; left: 30px; display: flex; align-items: center; justify-content: space-between; }
+.bar { position: absolute; z-index: 3; top: 30px; right: 33px; left: 30px; display: flex; align-items: center; justify-content: space-between; height: 30px; }
 .logo, .chat, .back, .pill, .switcher button, .pager button, .submit {
   border: 0;
   background: transparent;
@@ -340,72 +365,83 @@ body { margin: 0; background: #fffaf5; }
 .chat { width: 24px; height: 24px; padding: 0; transform: translate3d(0, calc(var(--motion-shift-sm) * -1), 0); transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard), visibility 0s linear var(--motion-base); }
 .chat svg { width: 24px; height: 24px; fill: none; stroke: var(--orange); stroke-width: 1.8; }
 .chat circle { fill: var(--orange); stroke: none; }
-.back { position: absolute; z-index: 3; top: 118px; left: 25px; display: inline-flex; align-items: center; gap: 8px; padding: 0; color: var(--orange); font-size: 15px; line-height: 1; transform: translate3d(calc(var(--motion-shift-sm) * -1), 0, 0); transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard), visibility 0s linear var(--motion-base); }
+.back { position: absolute; z-index: 3; top: 136px; left: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 0; color: var(--orange); font-size: 14px; font-weight: 500; line-height: 16px; letter-spacing: 0; transform: translate3d(calc(var(--motion-shift-sm) * -1), 0, 0); transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard), visibility 0s linear var(--motion-base); }
 .back svg, .pill svg { transition: transform var(--motion-fast) var(--ease-standard); }
 .back svg { width: 8px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .chat.is-shown, .back.is-shown { visibility: visible; opacity: 1; pointer-events: auto; transform: none; transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard), visibility 0s; }
 
-.panels { position: relative; min-height: 100vh; min-height: 100dvh; }
+.panels { position: relative; height: 100%; }
 .home, .sheet { transition: opacity var(--motion-expand) var(--ease-expand), transform var(--motion-expand) var(--ease-expand), visibility 0s linear var(--motion-expand); }
 .home.is-current, .sheet.is-current { visibility: visible; opacity: 1; transform: none; transition: opacity var(--motion-expand) var(--ease-expand), transform var(--motion-expand) var(--ease-expand), visibility 0s; }
 .home:not(.is-current), .sheet:not(.is-current) { position: absolute; z-index: 0; inset: 0; overflow: hidden; visibility: hidden; opacity: 0; pointer-events: none; }
 .home:not(.is-current) { transform: translate3d(calc(var(--motion-overlay) * -1), 0, 0); }
 .sheet:not(.is-current) { transform: translate3d(var(--motion-overlay), 0, 0); }
 
-.home { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; padding: 96px 30px 24px; }
-.copy { position: relative; z-index: 1; }
-.name { margin: 18px 0 0; color: var(--orange); font-size: 22px; font-weight: 500; line-height: 1.15; }
-.home h1 { margin: 8px 0 0; max-width: 16em; color: var(--orange); font-size: 26px; font-weight: 500; line-height: 1.2; letter-spacing: -.02em; }
-.pill { display: inline-flex; align-items: center; gap: 8px; height: 42px; margin-top: 16px; padding: 0 18px 0 20px; border-radius: 21px; background: rgb(255 191 159 / 30%); color: var(--orange); font-size: 15px; }
+.home { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 131px 0 36px; }
+.home[data-feature="data"] { --switcher-nudge: 39px; }
+.home[data-feature="doctor"] { --switcher-nudge: -39px; }
+.home[data-feature="timing"] { --switcher-nudge: -79px; }
+.copy { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 15px; padding-inline: 33px; }
+.intro { display: flex; flex-direction: column; gap: 8px; }
+.name, .home h1, .feature-title, .stay-copy h1, .pill, .back, .submit, .switcher button { font-weight: 500; }
+.name { margin: 0; color: var(--orange); font-size: 24px; line-height: 29px; letter-spacing: 0; }
+.home h1 { margin: 0; color: var(--orange); font-size: 24px; line-height: 29px; letter-spacing: 0; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; justify-content: flex-start; gap: 13px; width: 161px; height: 42px; margin: 0; padding: 0 0 0 20px; border-radius: 21px; background: rgb(255 191 159 / 30%); color: var(--orange); font-size: 15px; line-height: 18px; letter-spacing: 0; white-space: nowrap; }
 .pill svg { width: 6px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .pill:active { background: rgb(255 191 159 / 55%); }
 
-.stage { position: relative; z-index: 1; display: flex; flex: 1; flex-direction: column; min-height: 0; touch-action: pan-y; }
-.visual { position: relative; flex: 1; min-height: 280px; }
+.stage { position: absolute; z-index: 0; inset: 0; touch-action: pan-y; }
+.visual { position: absolute; inset: 0; }
 .slide { position: absolute; inset: 0; visibility: hidden; opacity: 0; pointer-events: none; transition: opacity var(--motion-expand) var(--ease-expand), transform var(--motion-expand) var(--ease-expand), visibility 0s linear var(--motion-expand); }
 .slide.is-before { transform: translate3d(calc(var(--motion-overlay) * -1), 0, 0); }
 .slide.is-after { transform: translate3d(var(--motion-overlay), 0, 0); }
 .slide.is-current { z-index: 1; visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity var(--motion-expand) var(--ease-expand), transform var(--motion-expand) var(--ease-expand), visibility 0s; }
 .shot { position: absolute; object-fit: contain; }
-.jar-device { left: 8%; top: 2%; width: 78%; height: 92%; transform: rotate(5.16deg); }
-.chart-rise { top: 0; right: 2%; width: 62%; }
-.chart-temp { right: 2%; bottom: 18%; width: 62%; }
-.jar-data { top: 12%; left: 0; width: 48%; height: 70%; object-fit: contain; transform: rotate(-5.14deg); opacity: .8; }
-.journal { top: 0; left: 50%; width: min(196px, 62%); height: 92%; transform: translateX(-50%); }
-.jar-doctor { top: 0; left: 2%; width: 46%; height: 88%; }
-.doctor-card { top: 28%; right: 0; width: 54%; border-radius: 12px; box-shadow: 4px 4px 5px rgb(0 0 0 / 10%); }
-.dial { top: 6%; left: 0; width: 62%; border-radius: 50%; box-shadow: -4px 4px 7.5px rgb(0 0 0 / 10%); }
-.jar-timing { top: 10%; right: 0; width: 42%; height: 72%; transform: rotate(5.59deg); }
-.feature-copy { position: relative; z-index: 1; min-height: 5.25rem; text-align: center; }
-.copy-block { animation: copy-in var(--motion-base) var(--ease-expand) both; }
-.feature-title { margin: 8px 0 0; color: var(--mark); font-size: 22px; font-weight: 500; line-height: 1.2; }
-.caption { max-width: 220px; margin: 4px auto 8px; color: var(--ink); font-size: 14px; line-height: 1.35; }
+.jar-device { left: calc(83px - var(--art-x)); top: 306px; width: 277px; height: 402px; transform: rotate(5.16deg); }
+.chart-rise { left: calc(148px - var(--art-x)); top: 327px; width: 182px; height: 148px; }
+.chart-temp { left: calc(148px - var(--art-x)); top: 495px; width: 182px; height: 113px; }
+.jar-data { left: calc(26px - var(--art-x)); top: 374px; width: 161px; height: 226px; transform: rotate(-5.14deg); opacity: .8; }
+.journal { left: calc(89px - var(--art-x)); top: 317px; width: 196px; height: 290px; }
+.jar-doctor { left: calc(48px - var(--art-x)); top: 349px; width: 134px; height: 257px; }
+.doctor-card { left: calc(155px - var(--art-x)); top: 416px; width: 171px; height: 155px; border-radius: 12px; box-shadow: 4px 4px 5px rgb(0 0 0 / 10%); }
+.dial { left: calc(44px - var(--art-x)); top: 357px; width: 209px; height: 209px; border-radius: 50%; box-shadow: -4px 4px 7.5px rgb(0 0 0 / 10%); }
+.jar-timing { left: calc(218px - var(--art-x)); top: 389px; width: 145px; height: 217px; transform: rotate(5.59deg); }
+.feature-copy { position: absolute; z-index: 2; top: 643px; left: 99px; width: 191px; display: flex; justify-content: flex-start; text-align: left; pointer-events: none; }
+.copy-block { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; animation: copy-in var(--motion-base) var(--ease-expand) both; }
+.feature-title { margin: 0; color: var(--mark); font-size: 18px; line-height: 22px; letter-spacing: 0; }
+.caption { width: 191px; margin: 0; color: var(--ink); font-size: 13px; font-weight: 400; line-height: 14px; letter-spacing: 0; }
 
 .switcher { display: none; }
-.pager { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 0; margin-top: 8px; }
+.pager { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 5px; height: 28px; }
 .pager button { display: grid; width: 14px; height: 28px; place-items: center; padding: 0; }
 .pager .jar-glyph, .pager i { transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-base) var(--ease-expand); }
-.pager .jar-glyph { width: 6px; height: 8px; fill: none; stroke: var(--orange); stroke-width: 1.2; opacity: .5; }
+.pager .jar-glyph { width: 9px; height: 9px; fill: none; stroke: var(--orange); stroke-width: 1.2; opacity: .5; }
 .pager i { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); opacity: .5; }
 .pager button.is-active .jar-glyph, .pager button.is-active i { opacity: 1; transform: scale(1.2); }
 
-.sheet { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 28px; min-height: 100vh; min-height: 100dvh; padding: 168px 20px 40px; }
-.stay-copy { order: -1; }
-.stay-copy h1 { margin: 0; color: var(--mark); font-size: 20px; font-weight: 500; line-height: 1.25; letter-spacing: -.02em; }
-.stay-copy p { max-width: 16em; margin: 12px 0 0; color: var(--orange); font-size: 16px; line-height: 1.4; }
-.card { display: flex; flex-direction: column; gap: 14px; padding: 22px 22px 18px; border: 1px solid #eaddd2; border-radius: 24px; background: #fff; }
-.fields { display: flex; flex-direction: column; gap: 14px; }
-.card label { display: grid; gap: 8px; color: var(--narrow-muted); font-size: 14px; }
-.card input, .card textarea { width: 100%; box-sizing: border-box; border: 1px solid #eaddd2; border-radius: 16px; background: #fff1e7; color: var(--ink); font: inherit; font-size: 16px; transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard); }
+.sheet { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; }
+.stay-sheet { gap: 58px; padding: 211px 20px 24px; }
+.contact-sheet { padding: 178px 20px 24px; }
+.stay-copy { display: flex; flex-direction: column; gap: 14px; order: -1; padding-inline: 22px; }
+.stay-copy h1 { max-width: 250px; margin: 0; color: var(--mark); font-size: 20px; line-height: 24px; letter-spacing: 0; }
+.stay-copy p { max-width: 237px; margin: 0; color: var(--orange); font-size: 16px; font-weight: 400; line-height: 22px; letter-spacing: 0; }
+.card { display: flex; flex-direction: column; gap: 13px; width: 100%; padding: 18px 22px 16px; border: 1px solid #eaddd2; border-radius: 24px; background: #fff; }
+.stay-sheet .card { padding-block: 16px; }
+.fields { display: flex; flex-direction: column; gap: 13px; }
+.contact-sheet .fields { padding-bottom: 14px; }
+.stay-sheet .fields { padding-bottom: 9px; }
+.field { display: flex; flex-direction: column; gap: 13px; margin: 0; color: var(--narrow-muted); font-size: 14px; font-weight: 400; line-height: 16px; letter-spacing: 0; }
+.stay-sheet .field { gap: 15px; }
+.card input, .card textarea { width: 100%; border: 1px solid #eaddd2; border-radius: 16px; background: #fff1e7; color: var(--ink); font: inherit; font-size: 16px; font-weight: 400; letter-spacing: 0; transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard); }
 .card input { height: 46px; padding: 0 16px; }
+.stay-sheet .card input { height: 50px; }
 .card textarea { min-height: 112px; padding: 14px 16px; resize: vertical; }
 .card input::placeholder, .card textarea::placeholder { color: var(--narrow-muted); }
 .card :is(input, textarea):focus-visible { border-color: var(--mark); background: #fff; }
-.submit { height: 52px; border-radius: 26px; background: #ffa24f; color: var(--narrow-ink); font-size: 16px; }
+.submit { height: 52px; border-radius: 26px; background: #ffa24f; color: var(--narrow-ink); font-size: 16px; line-height: 18px; letter-spacing: 0; }
 .submit:disabled { opacity: .65; cursor: default; }
 .submit:active:not(:disabled) { filter: brightness(.96); }
-.stay-sheet .submit { background: #ffb05a; color: var(--ink); }
-.note { margin: 0; color: var(--narrow-muted); font-size: 12px; line-height: 1.4; text-align: center; }
+.note { margin: 0; color: var(--narrow-muted); font-size: 12px; font-weight: 400; line-height: 16px; letter-spacing: 0; text-align: center; }
 .form-error { margin: 0; color: #9a352a; font-size: 14px; animation: copy-in var(--motion-fast) var(--ease-standard) both; }
 .success { display: grid; min-height: 120px; place-items: center; color: var(--ink); font-size: 18px; text-align: center; animation: copy-in var(--motion-base) var(--ease-expand) both; }
 .success p { margin: 0; }
@@ -424,62 +460,71 @@ body { margin: 0; background: #fffaf5; }
 }
 
 @media (min-width: 900px) {
+  .frame { width: 1440px; height: 900px; transform: scale(min(calc(100vw / 1440), calc(100dvh / 900))); }
   .blob-wide { display: block; left: 39px; top: 44px; width: 1362px; height: 851px; opacity: .12; transform: scaleX(-1); }
   .blob-narrow { display: none; }
   .blob-stay { display: block; left: 720px; top: 76px; width: 681px; height: 851px; opacity: .18; transform: none; }
   .panel-stay .blob-wide, .panel-contact .blob-wide, .panel-home .blob-stay, .panel-contact .blob-stay { opacity: 0; }
-  .panel-stay { background: #fff9f3; }
-  .bar { top: 41px; right: 92px; left: 85px; }
+  .panel-stay.start, .panel-stay .frame { background: #fff9f3; }
+  .bar { top: 41px; right: 92px; left: 85px; height: 36px; }
   .logo img { width: 94px; height: 36px; }
   .chat { width: 32px; height: 32px; }
   .chat svg { width: 32px; height: 32px; }
-  .back { top: 145px; left: 85px; font-size: 16px; }
+  .back { top: 145px; left: 85px; font-size: 16px; line-height: 24px; }
   .panel-stay .back { color: var(--mark); }
 
-  .home { display: grid; grid-template-columns: minmax(280px, 434px) minmax(320px, 1fr) 174px; align-items: center; column-gap: 12px; min-height: 100vh; min-height: 100dvh; padding: 120px clamp(40px, 6vw, 92px) 56px clamp(40px, 6vw, 85px); }
-  .name { margin: 0; font-size: 30px; }
-  .home h1 { max-width: 12em; font-size: 34px; line-height: 1.15; }
-  .pill { height: 56px; margin-top: 22px; padding: 0 22px 0 30px; border-radius: 28px; font-size: 18px; }
+  .home { display: grid; grid-template-columns: 434px minmax(0, 1fr) 174px; align-items: center; height: 100%; padding: 0 86px 0 85px; }
+  .copy { grid-column: 1; gap: 18px; padding-inline: 0; }
+  .intro { gap: 18px; }
+  .name { font-size: 32px; line-height: 38px; }
+  .home h1 { font-size: 36px; line-height: 43px; }
+  .pill { gap: 16px; width: 215px; height: 56px; padding-left: 30px; border-radius: 28px; font-size: 18px; line-height: 24px; }
   .pill svg { width: 8px; height: 14px; }
-  .stage { height: min(704px, calc(100dvh - 150px)); }
-  .visual { min-height: 0; height: calc(100% - 36px); }
-  .feature-copy { min-height: 22px; }
+  .stage { position: relative; grid-column: 2; align-self: stretch; inset: auto; min-width: 0; height: auto; }
+  .feature-copy { top: 725px; left: 138px; width: max-content; max-width: 458px; }
+  .home[data-feature="journal"] .feature-copy { left: 130px; max-width: 430px; }
+  .home[data-feature="doctor"] .feature-copy { left: 164px; max-width: 363px; }
+  .home[data-feature="timing"] .feature-copy { top: 728px; left: 164px; max-width: 380px; }
   .feature-title { display: none; }
-  .caption { max-width: 28rem; margin: 10px 0 0; font-size: 16px; line-height: 22px; text-align: center; }
-  .jar-device { left: 16%; width: 68%; height: 100%; }
-  .chart-rise { top: 4%; right: 4%; width: 58%; }
-  .chart-temp { right: 4%; bottom: 12%; width: 58%; }
-  .jar-data { top: 16%; left: 0; width: 46%; height: 68%; }
-  .journal { width: min(364px, 70%); }
-  .jar-doctor { left: 4%; width: 44%; height: 92%; }
-  .doctor-card { top: 32%; right: 2%; width: 48%; border-radius: 0; box-shadow: none; }
-  .dial { top: 10%; left: 4%; width: 56%; }
-  .jar-timing { top: 8%; right: 2%; width: 40%; height: 78%; }
+  .caption { width: auto; max-width: none; font-size: 16px; line-height: 22px; }
+  .jar-device { left: 163px; top: 98px; width: 486px; height: 705px; }
+  .chart-rise { left: 261px; top: 147px; width: 353px; height: 286px; }
+  .chart-temp { left: 261px; top: 472px; width: 353px; height: 218px; }
+  .jar-data { left: 76px; top: 249px; width: 291px; height: 409px; }
+  .journal { left: 163px; top: 158px; width: 364px; height: 538px; }
+  .jar-doctor { left: 66px; top: 187px; width: 262px; height: 499px; }
+  .doctor-card { left: 346px; top: 348px; width: 278px; height: 253px; border-radius: 0; box-shadow: none; }
+  .dial { left: 89px; top: 277px; width: 345px; height: 345px; }
+  .jar-timing { left: 403px; top: 268px; width: 256px; height: 383px; }
   .pager { display: none; }
-  .switcher { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 0; align-self: center; }
-  .switcher button { display: grid; grid-template-columns: max-content 11px; align-items: center; justify-content: end; column-gap: 12px; height: 39px; min-height: 0; padding: 0; color: var(--mark); font-size: 16px; line-height: 1; }
+  .switcher { display: flex; grid-column: 3; flex-direction: column; align-items: stretch; justify-content: space-between; justify-self: end; width: 174px; height: 176px; align-self: center; transform: translateY(var(--switcher-nudge, 0px)); }
+  .switcher button { display: grid; grid-template-columns: minmax(0, 1fr) 11px; align-items: center; justify-content: end; column-gap: 12px; height: 22px; min-height: 0; padding: 0; color: var(--mark); font-size: 16px; line-height: 22px; letter-spacing: 0; }
   .switcher button :is(span, .jar-glyph) { transition: opacity var(--motion-fast) var(--ease-standard); }
   .switcher button:not(.is-active) :is(span, .jar-glyph) { opacity: .5; }
-  .switcher .jar-glyph { width: 11px; height: 14px; justify-self: end; fill: none; stroke: var(--orange); stroke-width: 1.2; }
+  .switcher .jar-glyph { width: 13px; height: 17px; justify-self: end; fill: none; stroke: var(--orange); stroke-width: 1.2; }
   .switcher .pip { justify-self: center; width: 5px; height: 5px; border-radius: 99px; background: var(--mark); opacity: .5; transition: width var(--motion-base) var(--ease-expand), height var(--motion-base) var(--ease-expand), opacity var(--motion-fast) var(--ease-standard); }
   .switcher button.is-active .pip { width: 11px; height: 4px; opacity: 1; }
 
-  .sheet { display: grid; align-items: center; min-height: 100vh; min-height: 100dvh; padding: 180px 80px 64px; }
-  .stay-sheet { grid-template-columns: minmax(280px, 520px) minmax(240px, 1fr); gap: 64px; }
-  .stay-copy { order: 0; }
-  .stay-copy h1 { font-size: 40px; line-height: 1.15; }
-  .stay-copy p { max-width: 18em; font-size: 22px; line-height: 1.35; }
-  .contact-sheet { justify-items: center; }
-  .contact-sheet .card { width: min(768px, 100%); }
-  .card { gap: 16px; padding: 32px 40px 24px; border: 0; border-radius: 24px; box-shadow: 0 8px 12px rgb(48 37 31 / 7%); }
-  .fields { gap: 16px; }
-  .card label { color: var(--ink); font-size: 16px; }
+  .sheet { display: flex; align-items: center; height: 100%; padding: 0; }
+  .stay-sheet { display: grid; grid-template-columns: 520px 520px; column-gap: 148px; align-items: center; justify-content: start; padding-left: 179px; }
+  .stay-copy { gap: 24px; order: 0; padding-inline: 0; }
+  .stay-copy h1 { max-width: 520px; font-size: 40px; line-height: 48px; }
+  .stay-copy p { max-width: 450px; font-size: 22px; line-height: 30px; }
+  .contact-sheet { justify-content: center; }
+  .card { border: 0; border-radius: 24px; box-shadow: 0 8px 12px rgb(48 37 31 / 7%); }
+  .contact-sheet .card { gap: 20px; width: 768px; padding: 36px 38px 21px; }
+  .contact-sheet .fields { gap: 19px; padding-bottom: 0; }
+  .contact-sheet .field { gap: 19px; color: var(--ink); font-size: 16px; line-height: 19px; }
+  .stay-sheet .card { gap: 20px; width: 520px; padding: 32px 40px 21px; }
+  .stay-sheet .fields { padding-bottom: 0; }
+  .stay-sheet .field { gap: 10px; padding-bottom: 4px; color: var(--ink); font-size: 16px; line-height: 24px; }
   .card input { height: 58px; border-radius: 18px; }
-  .card textarea { min-height: 154px; border-radius: 18px; }
+  .stay-sheet .card input { height: 58px; }
+  .card textarea { min-height: 155px; border-radius: 18px; }
   .card input::placeholder, .card textarea::placeholder { color: var(--muted); }
-  .stay-sheet .submit { background: #ffb05a; color: var(--ink); }
-  .submit { height: 58px; border-radius: 29px; font-size: 18px; }
-  .note { color: var(--muted); font-size: 14px; }
+  .submit { height: 58px; border-radius: 29px; font-size: 16px; line-height: 19px; }
+  .stay-sheet .submit { background: #ffb05a; color: var(--ink); font-size: 18px; line-height: 24px; }
+  .note { color: var(--muted); font-size: 14px; line-height: 17px; }
   .success { color: var(--ink); font-size: 22px; }
 }
 
