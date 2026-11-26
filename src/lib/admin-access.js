@@ -101,6 +101,9 @@ export function adminErrorMessage(error) {
   if (message.includes('INVALID_PASSWORD')) return '初始密码至少 6 位，且不超过 72 位。';
   if (message.includes('INVALID_NAME')) return '用户名不超过 80 个字。';
   if (message.includes('NOT_FOUND')) return '这条记录不存在。';
+  if (/welcome_inquiries|submit_welcome_inquiry/i.test(message)) {
+    return '网站留言还没有就绪。请先应用数据库迁移 034_welcome_inquiries.sql。';
+  }
   if (/permission denied for (table|schema) auth/i.test(message)) {
     return '创建账号失败：当前数据库角色不能写入 Auth。请用数据库管理员应用迁移后再试。';
   }

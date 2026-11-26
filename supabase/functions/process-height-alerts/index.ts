@@ -96,12 +96,17 @@ Deno.serve(async (request) => {
     };
     try {
       const [{ data: event, error: eventError }, { data: subscription, error: subscriptionError }] = await Promise.all([
-        db.from('height_alert_events').select('kind,target,ratio,peak_ratio,peak_at,feeding_id,starter_id,user_id').eq('id', delivery.event_id).maybeSingle(),
+        db.from('height_alert_events').select('kind,target,ratio,peak_ratio,peak_at,gap_days,feeding_id,starter_id,user_id').eq('id', delivery.event_id).maybeSingle(),
         db.from('push_subscriptions').select('id,endpoint,p256dh,auth').eq('id', delivery.subscription_id).maybeSingle(),
       ]);
       if (eventError || subscriptionError) throw eventError || subscriptionError;
       if (!event || !subscription || !safePushEndpoint(subscription.endpoint)) { await finish(404); continue; }
-      const payload = JSON.stringify(alertPayload(event));
+      let starterName = '';
+      if (event.kind === 'feeding_gap') {
+        const named = await db.from('starters').select('name').eq('id', event.starter_id).eq('user_id', event.user_id).maybeSingle();
+        if (!named.error && named.data?.name) starterName = String(named.data.name);
+      }
+      const payload = JSON.stringify(alertPayload({ ...event, starter_name: starterName }));
       try {
         await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 600, timeout: 10000 });
         await finish(201);

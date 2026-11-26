@@ -9,8 +9,9 @@ import { randomUuid, isUuid } from '../../lib/uuid.js';
 import { localDateTimeValue, parseLocalDateTime } from '../../lib/localDateTime.js';
 import { computeWeights, ratioParts, weightFields } from '../../lib/feeding-weights.js';
 import { HEIGHT_ALERT_TARGETS } from '../../services/height-alert.service.js';
-import { loadHeightTargets, saveHeightTargets } from '../../services/web-push.service.js';
+import { FEEDING_GAP_DAYS, loadFeedingGapAlert, loadHeightTargets, saveFeedingGapAlert, saveHeightTargets } from '../../services/web-push.service.js';
 import { trackEvent } from '../../services/analytics.service.js';
+import MIconDisc from '../../components/mobile/MIconDisc.vue';
 import MRecordCard from '../../components/mobile/MRecordCard.vue';
 import MCalendar from '../../components/mobile/MCalendar.vue';
 import MWheelPicker from '../../components/mobile/MWheelPicker.vue';
@@ -64,6 +65,12 @@ const saving = ref(false);
 const openCard = ref('');
 const timePicker = ref('');
 const alertNotice = ref('');
+const feedingGapEnabled = ref(false);
+const feedingGapDays = ref(3);
+const feedingGapNotice = ref('');
+const feedingGapBusy = ref(false);
+let feedingGapLoad = 0;
+const feedingGapSummary = computed(() => (feedingGapEnabled.value ? `${feedingGapDays.value} 天` : '不提醒'));
 // 五个预设 + 一个「自定义」正好 2 行 × 3 个按钮；不再有折叠的第二层比例。
 const ratioPresets = [
   { value: '1:1:1', label: '1 : 1 : 1' },
@@ -186,6 +193,59 @@ function setCustomPart(field, raw) {
   ratioMode.value = 'custom';
   syncRatioFromCustom();
 }
+watch([accountId, () => draft.value.starterId], () => {
+  const starterId = draft.value.starterId;
+  const token = ++feedingGapLoad;
+  if (!user.value || !isUuid(starterId)) {
+    feedingGapEnabled.value = false;
+    feedingGapDays.value = 3;
+    return;
+  }
+  loadFeedingGapAlert(starterId).then((row) => {
+    if (token !== feedingGapLoad) return;
+    feedingGapEnabled.value = Boolean(row?.enabled);
+    feedingGapDays.value = FEEDING_GAP_DAYS.includes(Number(row?.days)) ? Number(row.days) : 3;
+  }).catch((cause) => {
+    if (token === feedingGapLoad) feedingGapNotice.value = cause?.message || '喂养提醒读取失败。';
+  });
+}, { immediate: true });
+
+async function persistFeedingGap(enabled, days) {
+  const token = ++feedingGapLoad;
+  const previous = { enabled: feedingGapEnabled.value, days: feedingGapDays.value };
+  feedingGapEnabled.value = enabled;
+  feedingGapDays.value = days;
+  feedingGapNotice.value = '';
+  if (!user.value || !isUuid(draft.value.starterId)) {
+    feedingGapNotice.value = '登录并选择酵种后，才会按这个天数推送。';
+    return;
+  }
+  feedingGapBusy.value = true;
+  try {
+    await saveFeedingGapAlert(draft.value.starterId, enabled, days);
+    if (token !== feedingGapLoad) return;
+    trackEvent('feeding_gap_alert_saved', { starter_id: draft.value.starterId, enabled, days }, { page: 'feeding' });
+    feedingGapNotice.value = enabled ? `已开启：距上次喂养 ${days} 天后还没新记录，会提醒一次。请在通知设置中开启本机推送。` : '已关闭喂养天数提醒。';
+  } catch (cause) {
+    if (token !== feedingGapLoad) return;
+    feedingGapEnabled.value = previous.enabled;
+    feedingGapDays.value = previous.days;
+    feedingGapNotice.value = cause?.message || '喂养提醒没有保存。';
+  } finally {
+    if (token === feedingGapLoad) feedingGapBusy.value = false;
+  }
+}
+
+function toggleFeedingGap() {
+  if (feedingGapBusy.value) return;
+  return persistFeedingGap(!feedingGapEnabled.value, feedingGapDays.value);
+}
+
+function chooseFeedingGapDay(days) {
+  if (feedingGapBusy.value || !FEEDING_GAP_DAYS.includes(days) || days === feedingGapDays.value) return;
+  return persistFeedingGap(feedingGapEnabled.value, days);
+}
+
 async function chooseHeightAlert(value) {
   const previous = draft.value.heightAlert;
   draft.value.heightAlert = value;
@@ -442,6 +502,32 @@ async function save() {
         <RouterLink class="alert-settings" to="/me/notifications">高度预约的完整阈值在通知设置中管理</RouterLink>
       </MRecordCard>
 
+      <section class="gap-card" :class="{ 'is-open': openCard === 'gap', 'is-disabled': inputsLocked }">
+        <div class="gap-head">
+          <button type="button" class="gap-toggle" :aria-expanded="openCard === 'gap'" aria-controls="feeding-gap" :disabled="inputsLocked" @click="toggleCard('gap')">
+            <MIconDisc :size="36" :icon-size="20">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+            </MIconDisc>
+            <span class="gap-title">喂养提醒</span>
+            <span v-if="openCard !== 'gap'" class="gap-summary">{{ feedingGapSummary }}</span>
+            <svg v-if="openCard !== 'gap'" class="gap-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          <button v-if="openCard === 'gap'" type="button" class="gap-switch" role="switch" :aria-label="`喂养提醒${feedingGapEnabled ? '已开启' : '已关闭'}`" :aria-checked="feedingGapEnabled" :disabled="inputsLocked || feedingGapBusy" @click="toggleFeedingGap"><span></span></button>
+        </div>
+        <div class="gap-panel" :class="{ 'is-open': openCard === 'gap' }">
+          <div id="feeding-gap" class="gap-panel-body">
+            <div class="gap-inner">
+              <p class="gap-desc">距上次喂养超过该天数</p>
+              <div class="gap-days" role="group" aria-label="喂养提醒天数">
+                <button v-for="day in FEEDING_GAP_DAYS" :key="day" type="button" :class="{ 'is-selected': feedingGapDays === day }" :aria-pressed="feedingGapDays === day" :disabled="inputsLocked || feedingGapBusy" @click="chooseFeedingGapDay(day)">{{ day }} 天</button>
+              </div>
+              <p class="gap-note">到时提醒一次，喂养后重计</p>
+              <p v-if="feedingGapNotice" class="gap-note" role="status">{{ feedingGapNotice }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <details class="baseline-details" :open="baselineOpen" @toggle="baselineOpen = $event.target.open">
         <summary>喂养后起始高度（可选）<span v-if="draft.baselineHeightMm !== ''"> · {{ draft.baselineHeightMm }} mm</span></summary>
         <label class="m-field">
@@ -513,6 +599,32 @@ async function save() {
 .feeding-form .custom-field input{min-height:44px;padding:8px 10px;font-variant-numeric:tabular-nums;text-align:center}
 .feeding-form .custom-field input[aria-invalid="true"]{border-color:var(--danger-text)}
 .alert-wheel{max-width:295px}
+.gap-card{overflow:hidden;border-radius:var(--radius-card);background:var(--surface-card);box-shadow:var(--m-shadow-field, 0 4px 9px rgba(48, 37, 31, .07))}
+.gap-head{display:flex;align-items:center;min-height:64px}
+.gap-toggle{display:flex;align-items:center;gap:12px;flex:1;min-width:0;min-height:64px;padding:14px 16px;border:0;background:transparent;text-align:left;cursor:pointer}
+.gap-card.is-open .gap-toggle{padding-right:8px}
+.gap-title{flex:none;color:var(--text-primary);font-size:var(--text-md);font-weight:400;line-height:24px}
+.gap-summary{flex:none;margin-left:16px;color:var(--text-primary);font-size:var(--text-md);line-height:24px}
+.gap-chevron{flex:none;width:18px;height:18px;margin-left:auto;fill:none;stroke:var(--text-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.gap-switch{position:relative;flex:none;width:46px;height:28px;min-height:28px;margin-right:16px;padding:0;border:0;border-radius:14px;background:var(--border-warm);cursor:pointer}
+.gap-switch span{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--surface-card);transition:transform var(--motion-base) var(--ease-press)}
+.gap-switch[aria-checked="true"]{background:var(--brand-light)}
+.gap-switch[aria-checked="true"] span{transform:translateX(18px)}
+.gap-switch:disabled{opacity:.55;cursor:not-allowed}
+.gap-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--motion-expand) var(--ease-expand)}
+.gap-panel.is-open{grid-template-rows:1fr}
+.gap-panel-body{overflow:hidden;min-height:0}
+.gap-inner{padding:0 16px 16px}
+.gap-desc{margin:0 0 12px;color:var(--text-secondary);font-size:var(--text-sm);line-height:20px}
+.gap-days{display:flex;gap:8px;max-width:295px}
+.gap-days button{flex:0 0 52px;width:52px;height:40px;min-height:40px;padding:0;border:1px solid var(--border-warm);border-radius:var(--radius-control);background:var(--surface-card);color:var(--text-primary);font:inherit;font-size:var(--text-sm);line-height:20px;cursor:pointer}
+.gap-days button.is-selected{border-color:var(--brand-action);background:var(--surface-selected);color:var(--brand-action);font-weight:500}
+.gap-days button:disabled{opacity:.45;cursor:not-allowed}
+.gap-note{margin:12px 0 0;color:var(--text-secondary);font-size:var(--text-xs);line-height:18px}
+.gap-card.is-disabled .gap-summary{opacity:.55}
+@media (prefers-reduced-motion: reduce) {
+  .gap-panel,.gap-switch span{transition:none}
+}
 .alert-settings{display:inline-flex;align-items:center;min-height:44px;color:var(--brand-action);font-size:var(--text-sm);font-weight:500;text-decoration:none}
 .field-label{display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
 /* 输入控件统一 16px：iOS Safari 对 <16px 的输入框 focus 时会放大页面且不缩回。 */

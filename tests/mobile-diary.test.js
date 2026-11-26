@@ -10,10 +10,9 @@ assert.deepEqual(errors, []);
 compileScript(descriptor, { id: 'records-test' });
 assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename: 'MobileDiary.vue', id: 'records-test' }).errors, []);
 const tokens = await readFile(new URL('../src/assets/tokens.css', import.meta.url), 'utf8');
-const mainCss = await readFile(new URL('../src/assets/main.css', import.meta.url), 'utf8');
 const mobileCss = await readFile(new URL('../src/assets/mobile.css', import.meta.url), 'utf8');
 assert.match(tokens, /--radius-badge:\s*4px/);
-for (const css of [mainCss, mobileCss, source, await readFile(new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url), 'utf8'), trendSource]) {
+for (const css of [mobileCss, source, await readFile(new URL('../src/views/mobile/MobileDeviceHome.vue', import.meta.url), 'utf8'), trendSource]) {
   assert.doesNotMatch(css, /border-radius:\s*999px/i, 'pill radius must use shape tokens');
 }
 assert.match(source, /\.date-cell\{[^}]*border-radius:var\(--radius-control\)/);

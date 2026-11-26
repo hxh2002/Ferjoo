@@ -681,10 +681,10 @@ const bandBadges = computed(() => {
 .series-color-probe { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .series-sr-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* 折线本身是开放路径，SVG 默认 fill 是黑色：不显式置 none 会把折线自动闭合后填成
-   黑色楔形，陡峭段尤其明显。移动端不加载 main.css，所以关键呈现必须由组件自己兜住。 */
+   黑色楔形，陡峭段尤其明显。呈现由组件自己兜住。 */
 .series-line { fill: none; stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
 .series-area { stroke: none; }
-/* 选点竖线也是开放路径；移动端没有 main.css 兜底时，默认黑色填充会把它变成实色柱。
+/* 选点竖线也是开放路径；不显式去掉填充时，默认黑色填充会把它变成实色柱。
    图内竖线与气泡下接头共用 --series-guide-color / --series-guide-width，
    否则两截各自设宽（stroke 与 border 各写一份）会出现上下粗细、深浅不一致。 */
 .series-guide { fill: none; stroke: var(--series-guide-color, rgba(42,29,23,.38)); stroke-width: var(--series-guide-width, 1px); stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
@@ -778,7 +778,7 @@ const bandBadges = computed(() => {
 .series-marker-label.start { left: 2px; }
 .series-marker-label.end { right: 2px; }
 .series-marker.accent .series-marker-label { color: #a44213; background: rgba(255, 240, 236, .92); }
-/* 散点与选中点按自身中心落在采样坐标上；移动端不加载 main.css，定位必须由组件兜住，
+/* 散点与选中点按自身中心落在采样坐标上。定位由组件兜住，
    否则会退回文档流掉到绘图区下方。 */
 .series-dot, .series-hover-dot { position: absolute; z-index: 1; display: block; transform: translate(-50%, -50%); pointer-events: none; }
 /* 选中点压在角标之上：贴顶的采样（如湿度 100%）不能被 max 标签盖住。 */

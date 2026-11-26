@@ -32,6 +32,7 @@ export const EVENT_LABELS = {
   height_alert_targets_saved: '保存高度提醒',
   height_alert_push_changed: '开关高度推送',
   height_alert_peak_saved: '保存峰值提醒',
+  feeding_gap_alert_saved: '保存喂养天数提醒',
   doctor_diagnosis_generated: '生成诊断'
 };
 

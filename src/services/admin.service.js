@@ -436,6 +436,20 @@ export function listFeedback({ query = '', page = 0 } = {}) {
   });
 }
 
+export function listWelcomeInquiries({ query = '', page = 0 } = {}) {
+  return run(async () => {
+    const client = requireClient();
+    await assertAdmin(client);
+    const window = pageWindow(page);
+    const term = ilikeTerm(query);
+    let request = client.from('welcome_inquiries').select('id, kind, email, name, message, created_at', { count: 'exact' });
+    if (term) request = request.or(`email.ilike.%${term}%,name.ilike.%${term}%,message.ilike.%${term}%`);
+    const { data, error, count } = await request.order('created_at', { ascending: false }).range(window.from, window.to);
+    if (error) throw error;
+    return paged(data, count, window.page);
+  });
+}
+
 const ANALYTICS_FIELDS = 'id, user_id, event_name, session_id, page, properties, occurred_at';
 
 export function listAnalyticsEvents({ since, event = '', pageName = '', page = 0 } = {}) {

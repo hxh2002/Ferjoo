@@ -63,6 +63,7 @@ assert.match(adminErrorMessage({ code: 'PGRST202', message: 'admin_overview' }),
 assert.match(adminErrorMessage({ message: 'FORBIDDEN' }), /没有执行这个操作的权限/);
 assert.match(adminErrorMessage({ message: 'CANNOT_CHANGE_SUPER_ADMIN' }), /首位管理员/);
 assert.match(adminErrorMessage({ message: 'EMAIL_TAKEN' }), /已经注册/);
+assert.match(adminErrorMessage({ code: 'PGRST205', message: "Could not find the table 'public.welcome_inquiries'" }), /034_welcome_inquiries/);
 
 assert.deepEqual(desktopNavItems.map((item) => item.label), ['设备', '日记', '酵种医生', '诊断记录', '记录喂养', '设备绑定', '我的']);
 assert.equal(desktopNavItems.some((item) => item.label === '后台'), false);
@@ -142,6 +143,15 @@ assert.match(service, /is_super_admin/);
 assert.match(service, /listAnalyticsEvents/);
 assert.match(service, /loadAnalyticsSummary/);
 assert.match(service, /from\('analytics_events'\)/);
+assert.match(service, /from\('welcome_inquiries'\)\.select\('id, kind, email, name, message, created_at'/);
+assert.match(service, /email\.ilike\.%\$\{term\}%,name\.ilike\.%\$\{term\}%,message\.ilike\.%\$\{term\}%/);
+const care = read('src/views/admin/AdminCare.vue');
+assert.match(care, /listWelcomeInquiries\(\{ query: query\.value, page: page\.value \}\)/);
+assert.match(care, />网站留言</);
+assert.match(care, /留资/);
+assert.match(care, /留言/);
+assert.match(care, /还没有网站留言/);
+assert.doesNotMatch(read('src/views/WelcomeView.vue'), /listWelcomeInquiries|from\(['"]welcome_inquiries['"]\)/);
 assert.doesNotMatch(read('src/views/admin/AdminAnalytics.vue'), /password|token|invite_code/);
 assert.doesNotMatch(service, /api_key_hash/);
 assert.match(read('src/services/auth.service.js'), /is_super_admin/);

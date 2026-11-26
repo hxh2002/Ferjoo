@@ -12,6 +12,7 @@ import chartTemp from '../assets/welcome/chart-temperature.webp';
 import journalPhone from '../assets/welcome/journal-phone.webp';
 import doctorCard from '../assets/welcome/doctor-card.webp';
 import timingDial from '../assets/welcome/timing-dial.jpg';
+import { submitWelcomeInquiry, welcomeInquiryPayload } from '../services/welcome-inquiry.service.js';
 
 const slides = [
   { id: 'device', label: 'Device', caption: '' },
@@ -30,6 +31,8 @@ const contactName = ref('');
 const contactMessage = ref('');
 const stayError = ref('');
 const contactError = ref('');
+const stayBusy = ref(false);
+const contactBusy = ref(false);
 const stayDone = ref(false);
 const contactDone = ref(false);
 const current = computed(() => slides[index.value]);
@@ -43,9 +46,6 @@ watch(panel, (value) => {
 }, { immediate: true });
 onBeforeUnmount(() => { document.title = previousTitle; });
 
-function validEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
 function select(next) { index.value = next; }
 function step(delta) {
   const next = index.value + delta;
@@ -62,18 +62,58 @@ function openContact() {
 function goHome() {
   router.push({ path: '/', hash: '' });
 }
-function submitStay() {
+async function submitStay() {
   stayError.value = '';
-  if (!stayEmail.value.trim()) { stayError.value = 'Enter your email address.'; return; }
-  if (!validEmail(stayEmail.value)) { stayError.value = 'Enter a valid email address.'; return; }
-  stayDone.value = true;
+  if (stayBusy.value) return;
+  let row;
+  try {
+    row = welcomeInquiryPayload({ kind: 'stay', email: stayEmail.value });
+  } catch (cause) {
+    stayError.value = cause.message;
+    return;
+  }
+  stayBusy.value = true;
+  try {
+    const saved = await submitWelcomeInquiry(row);
+    if (!saved?.id) {
+      stayError.value = 'This page could not save that email.';
+      return;
+    }
+    stayDone.value = true;
+  } catch (cause) {
+    stayError.value = cause?.message || 'This page could not save that email.';
+  } finally {
+    stayBusy.value = false;
+  }
 }
-function submitContact() {
+async function submitContact() {
   contactError.value = '';
-  if (!validEmail(contactEmail.value)) { contactError.value = contactEmail.value.trim() ? 'Enter a valid email address.' : 'Enter your email address.'; return; }
-  if (!contactName.value.trim()) { contactError.value = 'Enter your name.'; return; }
-  if (!contactMessage.value.trim()) { contactError.value = 'Enter a message.'; return; }
-  contactDone.value = true;
+  if (contactBusy.value) return;
+  let row;
+  try {
+    row = welcomeInquiryPayload({
+      kind: 'contact',
+      email: contactEmail.value,
+      name: contactName.value,
+      message: contactMessage.value
+    });
+  } catch (cause) {
+    contactError.value = cause.message;
+    return;
+  }
+  contactBusy.value = true;
+  try {
+    const saved = await submitWelcomeInquiry(row);
+    if (!saved?.id) {
+      contactError.value = 'This page could not save that message.';
+      return;
+    }
+    contactDone.value = true;
+  } catch (cause) {
+    contactError.value = cause?.message || 'This page could not save that message.';
+  } finally {
+    contactBusy.value = false;
+  }
 }
 
 let touchX = 0;
@@ -182,46 +222,46 @@ function onSwitcherKeydown(event) {
     <main v-else-if="panel === 'stay'" class="sheet stay-sheet">
       <form class="card" novalidate @submit.prevent="submitStay">
         <div v-if="stayDone" class="success" role="status">
-          <p>We’ll keep you posted.</p>
+          <p>Received. Your email has been saved.</p>
         </div>
         <template v-else>
           <label>
             Email address
-            <input v-model="stayEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="Boolean(stayError)" />
+            <input v-model="stayEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="Boolean(stayError)" :disabled="stayBusy" />
           </label>
           <p v-if="stayError" class="form-error" role="alert">{{ stayError }}</p>
-          <button type="submit" class="submit">Keep me posted</button>
+          <button type="submit" class="submit" :disabled="stayBusy">{{ stayBusy ? 'Saving…' : 'Keep me posted' }}</button>
         </template>
-        <p class="note">Only Ferjoo product updates and beta invitations. No spam.</p>
+        <p class="note">This form saves the address in Ferjoo. It does not send email.</p>
       </form>
       <div class="stay-copy">
         <h1>Stay updated with Ferjoo</h1>
-        <p>Product news and beta invitations, delivered straight to your inbox.</p>
+        <p>Product news and beta invitations. Emails submitted here are saved for that list.</p>
       </div>
     </main>
 
     <main v-else class="sheet contact-sheet">
       <form class="card" novalidate @submit.prevent="submitContact">
         <div v-if="contactDone" class="success" role="status">
-          <p>Thanks. We’ll reply to your email.</p>
+          <p>Received. Your message has been saved.</p>
         </div>
         <template v-else>
           <label>
             Email address
-            <input v-model="contactEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :aria-invalid="contactError.startsWith('Enter your email') || contactError.startsWith('Enter a valid')" />
+            <input v-model="contactEmail" type="email" name="email" autocomplete="email" placeholder="name@example.com" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter your email') || contactError.startsWith('Enter a valid')" />
           </label>
           <label>
             Name
-            <input v-model="contactName" type="text" name="name" autocomplete="name" placeholder="Your name" :aria-invalid="contactError === 'Enter your name.'" />
+            <input v-model="contactName" type="text" name="name" autocomplete="name" placeholder="Your name" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter your name') || contactError.startsWith('Enter a shorter name')" />
           </label>
           <label>
             Message
-            <textarea v-model="contactMessage" name="message" rows="4" placeholder="Tell us about your question or idea…" :aria-invalid="contactError === 'Enter a message.'"></textarea>
+            <textarea v-model="contactMessage" name="message" rows="4" placeholder="Tell us about your question or idea…" :disabled="contactBusy" :aria-invalid="contactError.startsWith('Enter a message') || contactError.startsWith('Enter a shorter message')"></textarea>
           </label>
           <p v-if="contactError" class="form-error" role="alert">{{ contactError }}</p>
-          <button type="submit" class="submit">Send message</button>
+          <button type="submit" class="submit" :disabled="contactBusy">{{ contactBusy ? 'Saving…' : 'Send message' }}</button>
         </template>
-        <p class="note">The Ferjoo team will reply to your email.</p>
+        <p class="note">This form saves the message in Ferjoo. It does not send email.</p>
       </form>
     </main>
   </div>
@@ -309,6 +349,7 @@ body { margin: 0; background: #fffaf5; }
 .card textarea { min-height: 112px; padding: 14px 16px; resize: vertical; }
 .card input::placeholder, .card textarea::placeholder { color: var(--narrow-muted); }
 .submit { height: 52px; border-radius: 26px; background: #ffa24f; color: var(--narrow-ink); font-size: 16px; }
+.submit:disabled { opacity: .65; }
 .stay-sheet .submit { background: #ffb05a; color: var(--ink); }
 .note { margin: 0; color: var(--narrow-muted); font-size: 12px; line-height: 1.4; text-align: center; }
 .form-error { margin: 0; color: #9a352a; font-size: 14px; }

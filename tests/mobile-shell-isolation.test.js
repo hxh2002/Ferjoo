@@ -7,7 +7,6 @@ import { isMobilePath } from '../src/lib/accountNavigation.js';
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const mobileCss = read('src/assets/mobile.css');
-const desktopCss = read('src/assets/main.css');
 const tokens = read('src/assets/tokens.css');
 const main = read('src/main.js');
 const shell = read('src/components/MobileShell.vue');
@@ -19,8 +18,8 @@ postcss.parse(tokens).walkDecls((decl) => assert.ok(decl.prop.startsWith('--'), 
 assert.doesNotMatch(mobileCss, /bg2|url\(/);
 assert.match(mobileCss, /--m-page-max: 42rem/);
 assert.match(mobileCss, /\.mobile-main \.m-page \{[^}]*max-width: var\(--m-page-max/, 'every mobile page shares one max width');
-assert.doesNotMatch(desktopCss, /\.mobile-area|\.mobile-shell/);
-assert.doesNotMatch(main, /import ['"]\.\/assets\/main\.css['"]/);
+assert.doesNotMatch(main, /main\.css/);
+assert.doesNotMatch(main, /beforeResolve/);
 assert.match(shell, /\['MobileDeviceHome', 'MobileDiary', 'MobileMe'\]/);
 assert.doesNotMatch(shell, /:key="route\.(fullPath|path)"/);
 assert.match(shell, /if \(route\.path !== path\)/);
@@ -32,19 +31,14 @@ for (const filename of ['src/components/MobileShell.vue', 'src/App.vue']) {
   assert.deepEqual(compiled.errors, []);
 }
 
-let imports = 0;
 let mounted = false;
-const elements = [];
 const classes = () => ({ values: new Map(), toggle(name, enabled) { this.values.set(name, enabled); } });
 const document = {
-  head: { append: (element) => elements.push(element) },
   documentElement: { classList: classes() },
-  body: { classList: classes() },
-  createElement: () => ({ dataset: {} })
+  body: { classList: classes() }
 };
 const hooks = {};
 const router = {
-  beforeResolve: (hook) => { hooks.before = hook; },
   afterEach: (hook) => { hooks.after = hook; },
   isReady: () => Promise.resolve()
 };
@@ -53,41 +47,19 @@ const context = vm.createContext({
   createApp: () => ({ use() {}, mount() { mounted = true; } }),
   isMobilePath,
   usesMobileAccountLayout: (route) => route.mobileAccount,
-  isWelcomeRoute: (route) => route?.meta?.welcome === true,
-  productRedirect: () => '',
-  loadDesktopCss: async () => { imports++; return { default: desktopCss }; }
+  productRedirect: () => ''
 });
-const executable = main.replace(/^import .*;\n/gm, '').replace("import('./assets/main.css?inline')", 'loadDesktopCss()');
+const executable = main.replace(/^import .*;\n/gm, '');
 await vm.runInContext(executable, context);
 await Promise.resolve();
 assert.ok(mounted);
-for (const route of [{ path: '/device' }, { path: '/login', mobileAccount: true }]) {
-  await hooks.before(route);
+for (const route of [{ path: '/device' }, { path: '/login', mobileAccount: true }, { path: '/admin/users' }]) {
   hooks.after(route, {});
-  assert.equal(imports, 0, 'mobile and mobile account entry must not request desktop CSS');
-  assert.equal(elements.length, 0);
-  assert.equal(document.body.classList.values.get('mobile-mode'), true);
+  assert.equal(document.body.classList.values.get('mobile-mode'), true, `${route.path} uses the product shell`);
+  assert.equal(document.documentElement.classList.values.get('mobile-mode'), true);
 }
-await hooks.before({ path: '/' });
-hooks.after({ path: '/' }, {});
-assert.equal(imports, 1);
-assert.equal(elements[0].media, 'all');
-hooks.after({ path: '/device' }, {});
-assert.equal(elements[0].media, 'not all');
-assert.equal(document.documentElement.classList.values.get('mobile-mode'), true);
-hooks.after({ path: '/' }, {}, new Error('cancelled'));
-assert.equal(elements[0].media, 'not all', 'failed navigation must retain current layout');
-await hooks.before({ path: '/' });
-hooks.after({ path: '/' }, {});
-assert.equal(imports, 1, 'desktop CSS must be loaded only once');
-assert.equal(elements[0].media, 'all');
-// The welcome page owns its styles: it neither loads nor enables the legacy desktop CSS.
 hooks.after({ path: '/', meta: { welcome: true } }, {});
-assert.equal(elements[0].media, 'not all', 'welcome route disables legacy desktop CSS');
 assert.ok(!document.body.classList.values.get('mobile-mode'), 'welcome route is outside mobile-mode');
-await hooks.before({ path: '/admin/users' });
-hooks.after({ path: '/admin/users' }, {});
-assert.equal(imports, 1, 'admin stays on the product shell and does not load the legacy desktop stylesheet');
-assert.equal(elements[0].media, 'not all', 'admin keeps the legacy desktop stylesheet disabled');
-assert.equal(document.body.classList.values.get('mobile-mode'), true, 'admin uses the same shell mode as the product');
+hooks.after({ path: '/device' }, {}, new Error('cancelled'));
+assert.ok(!document.body.classList.values.get('mobile-mode'), 'failed navigation must retain the current mode');
 console.log('ok - isolated style lifecycle, mobile account entry, scoped tokens/mobile CSS and mobile shell compilation');

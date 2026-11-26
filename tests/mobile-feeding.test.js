@@ -45,6 +45,7 @@ let routeUpdateHook = null;
 let mountedHook = null;
 const navigations = [];
 const tracked = [];
+const gapState = { row: { enabled: false, days: 3 }, saves: [], fail: false };
 const modules = {
   vue: { ...Vue, onMounted: (hook) => { mountedHook = hook; } },
   'vue-router': {
@@ -61,7 +62,17 @@ const modules = {
   '../../lib/localDateTime.js': { localDateTimeValue, parseLocalDateTime },
   '../../lib/feeding-weights.js': { computeWeights, ratioParts, weightFields },
   '../../services/height-alert.service.js': { HEIGHT_ALERT_TARGETS: [2, 2.5, 3] },
-  '../../services/web-push.service.js': { loadHeightTargets: async () => [], saveHeightTargets: async () => {} },
+  '../../services/web-push.service.js': {
+    FEEDING_GAP_DAYS: [1, 2, 3, 5, 7],
+    loadHeightTargets: async () => [],
+    saveHeightTargets: async () => {},
+    loadFeedingGapAlert: async () => gapState.row,
+    saveFeedingGapAlert: async (starterId, enabled, days) => {
+      if (gapState.fail) throw new Error('喂养提醒保存失败，请重试。');
+      gapState.saves.push({ starterId, enabled, days });
+      gapState.row = { enabled, days };
+    }
+  },
   // 埋点只做副作用，测试用桩捕获调用，避免真实服务在 node 环境触碰 Supabase 配置。
   '../../services/analytics.service.js': { trackEvent: (name, properties, options) => { tracked.push({ name, properties, options }); return Promise.resolve({ recorded: true }); } },
   '../../components/mobile/MRecordCard.vue': {},
@@ -240,6 +251,43 @@ for (const [stored, label] of [['2', '2×'], ['2.5', '2.5×'], ['3', '3×']]) {
 alertCard.vm.draft.heightAlert = '';
 assert.equal(alertCard.vm.alertSummary, '不提醒');
 alertCard.stop();
+
+assert.match(source, /距上次喂养超过该天数/);
+assert.match(source, /到时提醒一次，喂养后重计/);
+assert.match(source, /v-for="day in FEEDING_GAP_DAYS"/);
+gapState.row = { enabled: true, days: 5 };
+gapState.saves = [];
+gapState.fail = false;
+const gap = mountAs('account-gap', null);
+await Vue.nextTick();
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(gap.vm.feedingGapSummary, '5 天', 'a saved reminder shows its day count');
+assert.equal(gap.vm.feedingGapDays, 5);
+gap.vm.chooseFeedingGapDay(4);
+assert.equal(gapState.saves.length, 0, 'days outside 1/2/3/5/7 are ignored');
+await gap.vm.chooseFeedingGapDay(7);
+assert.deepEqual(gapState.saves.at(-1), { starterId: STARTER, enabled: true, days: 7 });
+assert.equal(gap.vm.feedingGapSummary, '7 天');
+assert.equal(tracked.at(-1).name, 'feeding_gap_alert_saved');
+gapState.fail = true;
+await gap.vm.toggleFeedingGap();
+assert.equal(gap.vm.feedingGapEnabled, true, 'a failed save restores the previous switch');
+assert.match(gap.vm.feedingGapNotice, /保存失败/);
+gapState.fail = false;
+await gap.vm.toggleFeedingGap();
+assert.equal(gap.vm.feedingGapEnabled, false);
+assert.equal(gap.vm.feedingGapSummary, '不提醒');
+await gap.vm.chooseFeedingGapDay(1);
+assert.equal(gap.vm.feedingGapEnabled, false, 'picking a day does not turn the reminder on');
+assert.equal(gap.vm.feedingGapDays, 1);
+assert.deepEqual(gapState.saves.at(-1), { starterId: STARTER, enabled: false, days: 1 });
+const savesBeforeGuest = gapState.saves.length;
+user.value = null;
+await gap.vm.toggleFeedingGap();
+assert.equal(gapState.saves.length, savesBeforeGuest, 'guests keep the choice locally and do not write the cloud setting');
+assert.match(gap.vm.feedingGapNotice, /登录/);
+gap.stop();
+user.value = { id: 'account-confirmed' };
 
 delete globalThis.localStorage;
 console.log('mobile feeding: six-phase state machine (editing/validating/saving/pending/saved/next) contracts passed');

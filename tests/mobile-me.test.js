@@ -145,10 +145,7 @@ assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.value),
 assert.deepEqual(profileOptions.MOBILE_GENDER_OPTIONS.map((item) => item.label), ['男', '女']);
 assert.equal(profileOptions.optionLabel(profileOptions.GENDER_OPTIONS, 'secret'), '保密', 'legacy values remain readable');
 assert.equal(profileOptions.optionLabel(profileOptions.GENDER_OPTIONS, ''), '未设置', 'shared label lookup still resolves an empty gender');
-assert.deepEqual(profileOptions.GENDER_OPTIONS.map((item) => item.value), ['', 'male', 'female', 'other', 'secret'], 'desktop options remain unchanged');
-// 桌面端（ProfileView）仍使用完整 GENDER_OPTIONS，不受移动端面板影响。
-assert.match(read('src/views/ProfileView.vue'), /:options="GENDER_OPTIONS"/);
-assert.match(read('src/views/ProfileView.vue'), /v-for="option in GENDER_OPTIONS"/);
+assert.deepEqual(profileOptions.GENDER_OPTIONS.map((item) => item.value), ['', 'male', 'female', 'other', 'secret'], 'saved legacy values stay readable');
 // 已保存性别为空时，入口仍显示「请选择性别」占位而不是「未设置」。
 assert.match(profileEdit, /gender \? optionLabel\(GENDER_OPTIONS, gender\) : '请选择性别'/);
 assert.match(profileEdit, /:class="\{ placeholder: !gender \}"/);

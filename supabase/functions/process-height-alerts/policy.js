@@ -36,7 +36,19 @@ export function eligiblePeak(summary) {
 }
 
 export function alertPayload(event, now = Date.now()) {
-  const url = `/device?starter=${encodeURIComponent(event.starter_id)}`;
+  const deviceUrl = `/device?starter=${encodeURIComponent(event.starter_id)}`;
+  if (event.kind === 'feeding_gap') {
+    const days = Number(event.gap_days);
+    const name = String(event.starter_name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    const who = name ? `「${name}」` : '这罐酵种';
+    return {
+      title: '该喂养了',
+      body: `${who}距离上次喂养已过 ${days} 天，还没有新的喂养记录。`,
+      tag: `ferjoo-feeding-gap-${event.feeding_id}`,
+      url: `/feeding?starter=${encodeURIComponent(event.starter_id)}`,
+    };
+  }
+  const url = deviceUrl;
   const current = Number(event.ratio).toFixed(2);
   if (event.kind === 'peak') {
     const minutes = Math.max(0, Math.round((now - Date.parse(event.peak_at)) / 60000));

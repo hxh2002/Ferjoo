@@ -10,24 +10,29 @@ Vue 3 + Vite + Supabase
 .
 ├── src/
 │   ├── algorithms/          # 诊断/解析/时间预测算法 + 2,016 场景枚举
-│   ├── assets/              # 经典 UI 样式 main.css
+│   ├── assets/              # 令牌、字体、手机/桌面/后台样式；welcome/ 为欢迎页图片
 │   ├── constants/           # 经典资产常量
 │   ├── references/          # 运行时证据目录 + 参考文献资料库
-│   ├── components/          # Vue 展示组件；mobile/ 为手机端基础组件（含酵种罐 MStarterJar）
-│   ├── views/               # 电脑端页面、共享账号页及 mobile/ 手机端页面
-│   ├── services/            # UI 与算法/数据库之间的调用边界
-│   ├── composables/         # 登录会话、养护草稿、酵种名称查询
-│   ├── lib/                 # Supabase 客户端、设备识别、UUID、本地时间、账号导航，以及手机端纯逻辑（见下）
+│   ├── components/          # 产品外壳 MobileShell、宽屏侧栏 DesktopNav；mobile/ 为基础组件；admin/ 为后台控件
+│   ├── views/               # 欢迎页 WelcomeView、产品页面（mobile/）与后台（admin/）
+│   ├── services/            # UI 与算法/数据库之间的调用边界，含 admin.service.js
+│   ├── composables/         # 登录会话、养护草稿、768px 断点、酵种名称查询
+│   ├── lib/                 # 站点入口、导航、埋点口径、账号导航，以及可单测的纯逻辑
+│   ├── platform/            # 浏览器对话框等平台适配
 │   └── router/
-├── scripts/                 # fetch-classic-assets.mjs（postinstall 自动执行）
+├── scripts/                 # fetch-classic-assets.mjs、subset-fangyuan.py
 ├── supabase/
-│   ├── migrations/          # SQL 后端逻辑与设备注册迁移
-│   └── functions/           # Edge Function：高度提醒推送投递
+│   ├── migrations/          # SQL 后端逻辑（001–034，005 为空号）
+│   └── functions/           # Edge Function：高度与过峰提醒推送
 ├── tests/
-└── public/assets/           # 经典 PNG 资产
+├── public/assets/           # 经典 PNG 资产
+├── public/fonts/            # 方圆体 WOFF2 子集
+└── AlimamaFangYuanTiVF-Thin-2.ttf   # 字体源文件，网页不直接加载
 ```
 
-手机端视图里可单测的纯逻辑放在 `src/lib/`，不直接访问 Supabase：
+界面字体是阿里妈妈方圆体。`public/fonts/fangyuan-ui.woff2` 进入首屏；其余汉字在 `fangyuan-ext-XX.woff2` 里按 `unicode-range` 分段，浏览器只在画面上出现这些字时下载。字重轴为 200–700。根目录的 TTF 只作为切分源文件，重新生成用 `npm run fonts:subset`（依赖 Python 的 fontTools 与 brotli）。
+
+`src/lib/` 里可单测、且不直接访问 Supabase 的纯逻辑：
 
 | 文件 | 职责 |
 | --- | --- |
@@ -36,6 +41,13 @@ Vue 3 + Vite + Supabase
 | `record-detail.js` | 轮次详情的窗口口径、「已发酵 / 历时」、曲线裁剪（窗口外、非 `fer`、传感器故障点剔除）与空态文案 |
 | `starter-labels.js` | 同名酵种的次要说明（创建日期，同日再补时分） |
 | `profile-options.js` | 资料选项；手机端性别面板只列男 / 女，旧值仍可回显 |
+| `site-entry.js` | 按 hostname 区分欢迎页与产品主体，不看视口宽度 |
+| `desktop-nav.js` | 宽屏侧栏与后台分区的路由和匹配规则 |
+| `page-title.js` | 手机顶栏与桌面顶栏共用的页面标题 |
+| `height-band.js` | 膨胀倍数到文案区间的唯一映射 |
+| `rise-phase.js` | 过峰锁定；过峰提醒晚于实际峰值 |
+| `admin-access.js` | 后台展示口径；真正的拒绝在数据库函数与 RLS |
+| `analytics-pages.js` / `analytics-report.js` | 埋点页面名，以及后台观察用的汇总口径 |
 
 ## 架构总览
 
@@ -61,7 +73,7 @@ Vue 3 + Vite + Supabase
                 │ 用户浏览器（前端真正运行的地方）   │
                 │  ┌─────────────────────────┐  │
                 │  │ Vue 3 SPA               │  │
-                │  │ ├── 路由 /ui / 诊断算法   │  │
+                │  │ ├── 欢迎页 / 产品外壳 / 诊断 │  │
                 │  │ └── supabase-js 客户端   │  │
                 │  └────────────┬────────────┘  │
                 └───────────────┼───────────────┘
@@ -122,66 +134,67 @@ cp .env.example .env
 npm run dev
 ```
 
-没有配置 Supabase 时，电脑端核心诊断页仍可打开，但诊断、账号与设备云端功能不可用。手机端支持游客填写观察、生成本地建议；保存到云端、读取账号记录和设备数据需要配置 Supabase 并登录。
+没有配置 Supabase 时，本地打开的是产品主体：游客可以看设备首页、填写观察并生成本地建议。保存到云端、读取账号记录和设备数据需要配置 Supabase 并登录。
 
-## 电脑端与手机端
+## 站点入口与布局
 
-### 入口与布局边界
+产品只有一套页面。宽窄屏由 CSS 的 `768px` 断点决定：窄屏是底部三个标签（设备 / 日记 / 我的），宽屏是同一批路由的侧栏。路由不看 User-Agent，也没有手动切换布局的入口。日记在窄屏用周条、宽屏用整月，这是唯一一处跟随断点改变结构的地方（`useDesktopLayout`）。
 
-- 电脑端诊断入口为 `/`，设备历史入口为 `/history`。移动设备访问 `/` 时自动进入 `/device`；可通过 `/?view=desktop` 明确访问电脑端诊断页。
-- 手机端任务页面位于 `src/views/mobile/`，统一使用 `MobileShell`；电脑端保留经典布局。入口识别只负责选择默认首页，不禁止显式访问另一端路由。
-- `/login`、`/register`、`/profile`、`/claim` 是共享账号页面：在移动浏览器或手机端回跳场景下使用手机外壳。登录、注册切换保留合法站内 `redirect`，绑定完成返回相应设备页面。
-- 移动端登录 / 注册有独立页面（`MobileLogin.vue`、`MobileRegister.vue`），随 `MobileShell` 渲染，不再把桌面表单塞进手机视口。`/login`、`/register` 通过 `beforeEnter` 分流：移动浏览器、宽度 ≤ 640px 的窄视口、或被重定向到手机页时进入移动表单，其余情况保持桌面行为。窄视口兜底用于只设 device metrics、不改 UA 的模拟场景。
-- 两端共用 Supabase 账号与服务层，但**目前不是全部功能逐项对等，也不是所有页面组件完全分离**。本轮已修复手机端主流程与账号闭环，尚未进行全量手机 UI 美化重构。
+### 两个域名
 
-### 手机端路由与能力
+| 主机 | `/` | 其它路径 |
+| --- | --- | --- |
+| `ferjoo.com`、`www.ferjoo.com` | 欢迎页 `WelcomeView` | 原样跳到 `https://dr.ferjoo.com` 的同一路径 |
+| `ferjoo.localhost`、`www.ferjoo.localhost` | 本地预览欢迎页 | 跳到 `dr.ferjoo.localhost`（保留端口） |
+| `dr.ferjoo.com`、`localhost`、预览域名 | 进入 `/device` | 产品主体 |
+
+欢迎页是英文起始轮播（Device / Data / Journal / Doctor / Timing），以及 `#stay`、`#contact` 两个表单。两个表单都调用 `submit_welcome_inquiry`，把一行写入 `welcome_inquiries`（`kind` 为 `stay` 或 `contact`）。页面只确认已经保存，不发送邮件。Supabase 未配置或写入失败时显示错误，不显示成功。
+
+### 产品路由
+
+全部产品页面挂在 `MobileShell` 下，源码在 `src/views/mobile/`。宽屏外观在 `desktop.css`，由侧栏组件引入，并只在 `768px` 以上生效。
 
 | 路径 | 能力 | 登录要求 |
 | --- | --- | --- |
-| `/device` | 设备首页：连接状态、酵种罐（四态表情可轻点预览）、本次喂养摘要、核心数据与喂养入口 | 游客可进入，账号数据需登录 |
-| `/checkin` | 分步骤填写观察、生成本地建议 | 游客可生成，云端保存需登录 |
-| `/doctor/rounds` | 酵种医生：按日期 / 年月选择发酵轮次后进入诊断 | 需要登录 |
-| `/login`、`/register` | 移动端登录与邀请制注册；移动浏览器或 ≤ 640px 窄视口自动落到手机表单 | 游客可进入 |
-| `/feeding` | 记录喂养事实；保存确认后回设备首页 | 需要登录 |
-| `/diary` | 日记/喂养轮次列表，按日期与酵种查看；有正式采样的日期带圆形背景，「本日全部数据」进入当日设备数据 | 云端记录需登录 |
-| `/diary/records/:id` | 发酵轮次（本轮曲线、窗口时长）或观察记录详情 | 需要登录 |
+| `/device` | 设备首页：连接状态、酵种罐、本次喂养摘要与喂养入口 | 游客可进入，账号数据需登录 |
+| `/checkin` | 分步骤填写观察、生成本地建议；没有 `feeding` 或 `edit=session` 时转到酵种医生 | 游客可生成，云端保存需登录 |
+| `/doctor/rounds` | 按日期 / 年月选择发酵轮次后进入诊断 | 需要登录 |
+| `/doctor/records` | 诊断记录列表 | 需要登录 |
+| `/login`、`/register` | 邀请制登录与注册，保留合法站内 `redirect` | 游客可进入 |
+| `/feeding` | 记录喂养；保存确认后回到设备首页 | 需要登录 |
+| `/diary` | 按日期与酵种查看喂养轮次 | 云端记录需登录 |
+| `/diary/records/:id` | 发酵轮次或观察记录详情 | 需要登录 |
 | `/reports/session` | 当前本地观察建议 | 游客可查看当前会话 |
-| `/reports/:id` | 已保存观察快照或喂养事实详情 | 云端记录需登录 |
-| `/me` | 个人与账号操作入口 | 游客可进入 |
-| `/me/account` | 账号信息与登录状态 | 需要登录 |
+| `/reports/:id` | 已保存的观察快照 | 需要登录 |
+| `/me` | 个人与账号入口 | 游客可进入 |
+| `/me/profile`、`/me/profile/edit` | 查看与编辑资料 | 需要登录 |
+| `/me/account` | 修改密码 | 需要登录 |
 | `/me/invite` | 邀请码查看与分享 | 需要登录 |
-| `/me/help` | 使用帮助 | 游客可进入 |
-| `/me/notifications` | 高度提醒阈值与系统通知授权 | 需要登录 |
-| `/me/devices`、`/me/devices/:deviceId` | 设备列表与设备设置 | 需要登录 |
-| `/devices/:deviceId/trend` | 设备趋势、指标与时间范围选择 | 需要登录 |
+| `/me/help` | 关于与帮助 | 游客可进入 |
+| `/me/help/faq`、`/me/help/privacy` | 常见问题、隐私与权限 | 游客可进入 |
+| `/me/help/feedback` | 意见反馈 | 需要登录 |
+| `/me/notifications` | 高度提醒、过峰提醒与系统通知授权 | 需要登录 |
+| `/me/devices`、`/me/devices/add`、`/me/devices/:deviceId`、`/me/devices/:deviceId/info` | 设备列表、添加、设置与设备信息 | 需要登录 |
+| `/devices/:deviceId/trend` | 设备趋势、指标与时间范围 | 需要登录 |
+| `/claim` | 用绑定码认领设备 | 需要登录 |
+| `/admin` 及其子路径 | 管理员后台，见下表 | 需要登录且 `role = A` |
 
-### 最新主流程修复（`15eb40f`）
+旧地址仍可用，进入后替换为现在的路径：`/login`、`/register` 进入同一套登录注册页；`/history` → `/doctor/records`；`/profile` → `/me/profile`；`/today` → `/device`；`/records` → `/diary`。
 
-- **详情分流**：观察记录读取保存时的建议快照，不重新诊断；喂养记录仅展示时间、酵种与比例等事实，不生成观察建议。
-- **记录筛选与返回**：空酵种筛选表示“全部酵种”；列表每页 40 条，筛选与页码保存在路由 query，详情通过 `returnTo` 恢复列表位置。
-- **喂养幂等生命周期**：首次提交锁定请求编号与负载，结果未确认时使用同一内容重试；保存确认后自动 `replace` 回设备首页（不再停留表单点「开始下一条」），再次进入喂养页才会生成新的请求编号，不复用上一条已确认请求。草稿写入本地存储，存储不可用时阻止无法安全重试的提交。
-- **安全 UUID**：观察与喂养统一使用 `crypto.randomUUID()`；不可用时通过 `crypto.getRandomValues()` 构造 UUID v4。没有安全随机源则明确提示失败，不用时间戳冒充 UUID。
-- **时间语义**：`datetime-local` 使用本地时间字符串，查询/保存前转换为 UTC ISO；拒绝无效日期及夏令时跳过时段。趋势取消编辑会恢复已应用范围；查询结束边界采用排他上界，允许覆盖所选日期，而新增记录仍不得晚于当前时间。
-- **对象名称与账号闭环**：业务界面显示酵种名称及名称加载状态，不直接以裸 UUID 代替名称；名称查询随账号切换隔离，手机登录、注册及设备绑定保留合法站内回跳。
-- **移动端账号页（`a4b1632`）**：补齐 `MobileLogin.vue`、`MobileRegister.vue` 与移动端鉴权分流；同时统一检查、诊断结果、轮次三页的纵向节奏，并让 `MCalendar` 支持 `compact` / `large` 两档尺寸。
+### 后台
 
-### 2026-11-09 手机端测试批注收尾（UI-REFACTOR-GUIDE v1.22 / v1.23）
+宽屏侧栏在管理员登录后多出「后台」。窄屏没有这条侧栏，后台页自己提供分区链接。分区为：概览、用户与权限、绑定关系、发酵轮次、设备、养护与反馈、埋点观察。
 
-- **喂养**：比例卡为 2 行 × 3 个按钮（五个预设 + 「自定义」自由输入）；自定义比例为三个数字框，支持小数（如 0.5、2.25）、不限整数水粉比；带 `starter` 进入时清除已确认草稿、开启新记录，待确认草稿仍锁定；高度提醒摘要写作 `2×` / `2.5×` / `3×`。
-- **设备首页**：`MStarterJar` 四态表情（正常待机 / 吃饭 / Peak / 饿了）与液面动效；轻点只是心情预览，不参与发酵判定（自动判定阈值待产品确认）。
-- **观察 / 诊断**：可疑或「不确定」时由「下一步」进入安全优先核对，另一项未答不再卡住；`validateCheckin` 对「不确定 + 未答」放行，报告仍为「需要进一步检查」。
-- **日记与记录详情**：「已发酵 / 历时」按本轮窗口计算，曲线裁剪到窗口并剔除 sleep / 传感器故障点；无法核实历史归属时只说明原因。年月滚轮白卡在日记与酵种医生两处同款。
-- **我的**：编辑资料、设备改名、关联酵种、出生日期与性别面板均为「草稿 + 确认」式，取消即丢弃；通知页同名酵种补创建日期。`MToast` 居中修正。
+普通管理员可以查阅，也可以修改设备名称。任命其他管理员和手工建号只有首位管理员可以做。「养护与反馈」中的「网站留言」列出欢迎页写入的留资和留言（类型、邮箱、姓名、内容、提交时间）。只有 `role = A` 能读这些行；欢迎页只提交，不展示列表。
 
-### 当前边界与后续验收
+### 仍需分开验收的事
 
-- 手机端尚未补齐电脑设备历史的全部分析交互，例如日期定位、手动刷新、采样详情、Δ高度、自动区间与统计；不要将当前状态理解为双端功能已经完全一致。
-- 真实账号登录、邮箱确认、生产登录态保存及真机视觉仍需专项验收；本地游客流程验证不能替代这些检查。
-- 后续界面调整应保持电脑端经典布局与手机端样式隔离，并通过公共服务层维持相同业务规则，避免分别实现算法或数据库权限逻辑。
+- 真实账号登录、邮箱确认、生产登录态，以及高度 / 过峰推送在真机上的投递，不能用本地游客流程代替。
+- 欢迎页留资和留言写入 `welcome_inquiries`。迁移 `034_welcome_inquiries.sql` 应用到数据库之后，提交才会真正保存，后台「网站留言」也才能读到这些行。
 
 ## 喂养基线与膨胀倍数
 
-规则集中在 `src/services/feeding-analysis.service.js`，今日页、记录列表、记录详情和高度推送共用同一份汇总结果。
+规则集中在 `src/services/feeding-analysis.service.js`。设备首页、日记、记录详情、酵种医生和高度推送共用同一份汇总结果。
 
 - **取样范围**：本轮喂养时间之后、设备关联有效、`mode = fer` 且无 `sensor_error` 的读数；`height_mm > 0` 才算有效点。
 - **起点基线**：取最早的 5 个采样点。首个有效点出现即可用（此时膨胀倍数为 1.00），随后按已有有效点的均值实时更新；收满 5 个点后按 MAD 剔除离群值并冻结——阈值 `max(5mm, 中位数 × 25%, 3 × 1.4826 × MAD)`，最多剔到只剩 3 个有效点。5 个点内不足 3 个有效点时退回其中最低点（`baselineSource = sensor-min`）。手填的 `baseline_source = manual` 始终优先。
@@ -258,7 +271,7 @@ select private.designate_super_admin('email@example.com');
 
 被指定的账号会成为唯一的首位管理员；如果原来不是管理员，会先提升为 `A`。原来的首位管理员仍是普通管理员。
 
-电脑端侧栏的「后台」只对 `role = A` 的登录用户显示。普通管理员可以查阅用户、绑定、发酵轮次、设备和养护反馈，也可以修改设备名称。任命其他管理员、手工创建账号只有首位管理员可以做，数据库函数会拒绝其他人的调用。新账号写入现有的 Auth 用户，并立即可以登录；初始密码由首位管理员设置一次，不落在资料表里。
+宽屏侧栏的「后台」只对 `role = A` 的登录用户显示；窄屏在后台页内用分区链接，它不是底部标签。普通管理员可以查阅用户、绑定、发酵轮次、设备、养护反馈和埋点，也可以修改设备名称。任命其他管理员、手工创建账号只有首位管理员可以做，数据库函数会拒绝其他人的调用。新账号写入现有的 Auth 用户，并立即可以登录；初始密码由首位管理员设置一次，不落在资料表里。
 
 ### 邀请制注册
 
@@ -292,12 +305,12 @@ where system_user_id = 'U26090001';
 
 #### 诊断与账号
 
-- 电脑端未登录时点击「开始诊断」会弹出登录提醒；手机端允许游客生成本地观察建议，但云端保存需要登录。`history`、`profile`、`claim` 及手机设备路由均要求登录。
+- 游客可以在设备首页浏览，并生成本地观察建议；云端保存需要登录。日记中的云端记录、设备数据、`/claim` 和 `/admin` 均要求登录。`/history`、`/profile` 会转到 `/doctor/records`、`/me/profile`。
 - 登录、注册、个人资料 / 头像、邀请码、修改密码等均依赖 Supabase。
 
 ### 浏览器端能力
 
-已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备选择/改名/在线状态、绑定码绑定设备（含 `/claim` 扫码落地页）、设备成员管理、历史数据读取（最新读数卡片 + 温度/高度/湿度/电量趋势图 + 明细表）、手工写入测试数据点、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码、高度提醒阈值与系统通知授权。
+已接入 Supabase JS：邮箱注册（携带邀请码）、邮箱密码登录、自动读取系统 ID/权限、退出、设备选择/改名/在线状态、绑定码绑定设备（含 `/claim`）、设备成员管理、设备趋势、喂养与日记、酵种医生、个人资料编辑（用户名 / 性别 / 出生年月日 / 身份）、头像上传（正方形裁剪）、邀请码查看复制、修改密码、高度提醒与过峰提醒、意见反馈、欢迎页留资与留言，以及管理员后台。
 
 当前部署约定保持 Supabase **Confirm email** 开启，注册后需完成邮箱确认。若另行决定取消邮箱所有权验证，须显式调整 Supabase 配置；前端仍受基本邮箱格式校验约束。
 
@@ -367,7 +380,6 @@ where system_user_id = 'U26090001';
 - `care_records` 保存养护事实：`request_id`、`starter_id`、`kind`（`feeding` / `observation`）、`occurred_at`、输入 `input`、建议快照 `result`、喂养比例 `ratio` 与创建时间。
 - 两张表均启用 RLS，仅允许用户读取和新增自己的数据；养护记录不是设备传感器数据，不与 `device_measurements` 混用。
 - 保存走 `save_care_record` RPC，校验酵种归属。`(user_id, request_id)` 唯一约束保证相同请求重复提交只返回同一记录；同一编号携带不同内容时返回 `REQUEST_ID_CONFLICT`。
-- 本次主流程修复复用现有 `015_mobile_care.sql`，没有新增数据库迁移。
 
 ### fermentation_window_closures（迁移 `023`）
 
@@ -396,7 +408,15 @@ where system_user_id = 'U26090001';
 - `occurred_at timestamptz not null`：事件发生时间，须在 `2026-01-01` 之后且不晚于当前时间 + 5 分钟。
 - `created_at timestamptz not null default now()`：入库时间。
 
-幂等性由 `unique (user_id, client_event_id)` 保证。查询走两个索引：`analytics_events_user_time_idx (user_id, occurred_at desc)` 和 `analytics_events_event_time_idx (event_name, occurred_at desc)`。
+幂等性由 `unique (user_id, client_event_id)` 保证。查询走两个索引：`analytics_events_user_time_idx (user_id, occurred_at desc)` 和 `analytics_events_event_time_idx (event_name, occurred_at desc)`。后台「埋点观察」读取的是这张表的汇总，普通用户仍然只能看到自己的事件。
+
+### 过峰提醒（迁移 `032`）
+
+沿用高度提醒的评估和投递链路。`height_alert_settings.peak_alert` 按酵种开关。`height_alert_events.kind` 为 `ratio`（目标 2 / 2.5 / 3 倍）或 `peak`。过峰由 `src/lib/rise-phase.js` 在峰后连续回落时锁定，所以提醒晚于实际峰值。同一轮喂养里，每个倍数一条、过峰一条。
+
+### 管理后台（迁移 `033`）
+
+为 `profiles` 增加 `is_super_admin`，并提供网页调用的 `admin_overview`、`admin_set_role`、`admin_create_account`、`admin_list_rounds`、`admin_get_round`。权限规则见上文「管理员」。隐藏按钮不是权限边界，函数会先检查调用者。
 
 ### 数据分辨率
 
@@ -405,7 +425,7 @@ where system_user_id = 'U26090001';
 ### 安全
 
 - 所有 public 数据表开启 RLS。
-- `anon` 无表权限。
+- `anon` 无表权限。欢迎页写入只开放函数 `submit_welcome_inquiry`；匿名角色和普通登录用户都不能读取 `welcome_inquiries`。管理员（`profiles.role = 'A'`，策略调用 `private.is_admin()`）在后台「养护与反馈 → 网站留言」查看这些行。
 - `authenticated` 只有业务需要的权限。
 - 历史数据默认 append-only：客户端只有 `SELECT/INSERT`，没有 UPDATE/DELETE。
 - 行为埋点（`analytics_events`）同样按账号隔离：普通用户只能读取和插入自己的事件（`user_id = auth.uid()`），不能更新或删除历史；更新与删除仅限管理角色（`private.is_admin()`）。
@@ -480,13 +500,13 @@ Content-Type: application/json
 
 ## 算法边界
 
-`src/algorithms/` 集中核心诊断、预测模型与场景枚举；服务层和界面仍包含输入适配、分桶与图表派生计算。调用核心算法应使用公共入口，不深度导入内部文件：
+`src/algorithms/` 集中核心诊断、预测模型与场景枚举；服务层和界面仍包含输入适配、分桶与图表派生计算。只有 `services/diagnosis.service.js` 可以导入算法公共入口，`tests/architecture.test.js` 会拒绝其它文件直接调用：
 
 ```js
 import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 ```
 
-当前电脑诊断主调用经 `services/diagnosis.service.js`，手机观察经 `services/mobile-diagnosis.service.js`。`DoctorView.vue` 与 `DiagnosisResult.vue` 仍直接从算法公共入口导入解析、选项或格式化能力，因此尚未实现严格的 Vue → service 单一路径。算法需要文献时通过 `../references/index.js`，不得复制 citation 元数据。
+手机观察经 `services/mobile-diagnosis.service.js`，再调用 `diagnosis.service.js`。算法需要文献时通过 `../references/index.js`，不得复制 citation 元数据。
 
 文件职责：
 
@@ -504,14 +524,15 @@ import { diagnoseStarter, parseStarterInput } from '../algorithms/index.js';
 ## 测试
 
 ```bash
-npm test           # 28 个测试脚本 + 2,016 场景自检（与 CI 同一条命令）
+npm test           # 32 个测试脚本 + 2,016 场景自检（与 CI 同一条命令）
 npm run audit      # 仅运行 2,016 场景枚举自检
 npm run build      # Vite 生产构建
+npm run fonts:subset   # 从根目录 TTF 重新生成 public/fonts
 ```
 
-`npm test` 覆盖：诊断行为、架构边界与迁移契约、本地缓存与草稿、手机端观察流程与决策（`mobile-checkin-flow`）、手机端外壳隔离与基础组件、设备首页、喂养页、日记、酵种医生轮次、记录详情（`mobile-record-detail`）、我的与设备设置、曲线交互与颜色、喂养幂等、基线与膨胀倍数、高度区间、喂养比例换算、高度提醒与 Web Push 策略、意见反馈、行为埋点（`analytics`：迁移契约、载荷校验、会话绑定写入与前台计时），末尾串行执行 2,016 场景自检。脚本是显式命令链而非通配扫描，新增测试文件必须追加到 `package.json` 的 `test`。`.github/workflows/ci.yml` 的 `test-and-build` 使用同一命令。
+`npm test` 覆盖：诊断行为、架构边界与迁移契约、本地缓存与草稿、观察流程与决策（`mobile-checkin-flow`）、外壳隔离与基础组件、设备首页、喂养页、日记、酵种医生轮次、记录详情、我的与设备设置、曲线交互与颜色、喂养幂等、基线与膨胀倍数、高度区间与过峰、喂养比例换算、高度提醒与 Web Push 策略、意见反馈、欢迎页留资与留言（`welcome-inquiry`）、行为埋点、站点入口与宽屏导航（`site-entry`）、管理后台（`admin-console`）、字体子集（`font-subset`），末尾串行执行 2,016 场景自检。脚本是显式命令链而非通配扫描，新增测试文件必须追加到 `package.json` 的 `test`。`.github/workflows/ci.yml` 的 `test-and-build` 使用同一命令。
 
-最新主流程修复已验证构建、诊断测试、手机养护契约和设备服务测试；另验证了 `Asia/Singapore` / `America/New_York` 本地时间往返、夏令时跳过时段拒绝及游客观察到本地报告流程。这些结果不代表已经完成真实账号或生产环境端到端验收。
+这组测试不代替真实账号登录、邮箱确认或生产环境推送验收。
 
 `npm run audit` 必须完整遍历 6 × 6 × 8 × 7 = **2,016** 组合并保持无异常。
 
@@ -555,15 +576,7 @@ GitHub `hxh2002/Ferjoo` 的 `main` 是生产环境唯一发布入口。默认流
 
 其中 GitHub、Vercel Git 集成、Supabase GitHub Integration 是发布链路的必要条件；VAPID、Edge Function 属于高度提醒推送功能的上线前置，与常规代码发布解耦。本地 CLI 登录态（`vercel whoami`、`supabase login`）过期**不会**影响自动部署，仅影响手动运维操作。
 
-### 部署状态核查（2026-10-16）
-
-通过 GitHub API 核查提交 `6c40b9307d9af14dc7ecef1e91d47ccd7adf0236`（包含此前的设备注册迁移）：
-
-- GitHub `test-and-build`：`completed / success`。
-- Vercel：提交状态为 `success`，对应 `Production` deployment 状态为 `success`，描述为 `Deployment has completed`。
-- Supabase：名为 `Supabase Preview` 的 check 为 `completed / success`。该结果证明集成检查通过，但不能单凭名称推断生产库中 `016`、`017` 的迁移记录及设备行已确认；这部分仍需生产 migration 日志或只读数据库查询证据。
-
-以上是该提交的检查快照，不代表后续提交自动成功；CI 和平台部署由各自集成触发，当前工作流没有实现“CI 成功后才允许平台发布”的串行门禁。
+CI 和平台部署由各自集成触发，当前工作流没有实现“CI 成功后才允许平台发布”的串行门禁。一次提交是否上线，以该提交自己的 GitHub Actions、Vercel Deployment 和 Supabase migration 日志为准。
 
 ### GitHub Actions 的职责
 
@@ -573,7 +586,7 @@ GitHub `hxh2002/Ferjoo` 的 `main` 是生产环境唯一发布入口。默认流
 
 项目已启用 Supabase 原生 GitHub Integration：仓库 `hxh2002/Ferjoo`、工作目录 `.`、生产分支 `main`，合并到 `main` 后由 Supabase 自动执行数据库迁移。项目不再使用 GitHub Actions 执行迁移，避免重复应用。
 
-当前仓库包含 `001`～`031` 范围内的 30 个迁移（`005` 是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
+当前仓库包含 `001`～`034` 范围内的 33 个迁移（`005` 仍是历史空号）；实际是否已在远端执行，以 Supabase Dashboard 的 migration 日志为准。若本地需要查看迁移状态，使用：
 
 ```bash
 npx supabase@latest link --project-ref yccvmeepajpdagizplgp
@@ -629,7 +642,7 @@ Vue Views / Components
 
 - `src/algorithms/`：核心诊断、数值预测与场景枚举的归属；服务/UI 的适配和派生计算不等同于核心诊断模型。
 - `src/references/`：参考文献库、证据注册表、引用 schema 与运行时引用元数据的归属。
-- Vue 不应深度导入算法内部文件；主诊断通过电脑/手机各自的 service 调用。当前两处 Vue 直接使用公共入口的例外见「算法边界」。
+- Vue 不导入算法内部文件，也不导入 `algorithms/index.js`。诊断只经过 `diagnosis.service.js`。
 - 算法引用文献只通过 `src/references/index.js`。
 - `tests/architecture.test.js` 随 `npm test` 执行，覆盖依赖方向、catalog 结构与迁移契约；它仍是静态检查，不能替代真实 RLS 或端到端验收。
 - 默认枚举自检检查 2,016 条结果数量及 `status/title` 非空，不代表完整业务正确性、引用完整性或真实 RLS 已验收。

@@ -174,7 +174,7 @@ assert.doesNotMatch(gradient.html, /stop-color="var\(|stop-color:\s*var\(/, 'gra
 assert.match(gradient.html, /class="series-area"/, 'the area keeps its own segment closure');
 
 // 折线是开放路径：没有 fill:none 时 SVG 会用默认黑色填充，陡峭段直接被填成黑楔形。
-// 移动端不加载 main.css，所以这条必须由组件自己的样式保证。
+// 折线和选点竖线的填充由组件自己关掉，不依赖另一份样式表。
 assert.match(source, /\.series-line \{[^}]*fill:\s*none/, 'the polyline must opt out of SVG default black fill');
 assert.match(source, /\.series-guide \{[^}]*fill:\s*none/, 'the vertical selection guide must not become a filled black column on mobile');
 assert.match(source, /\.series-guide \{[^}]*stroke:\s*var\(--series-guide-color, rgba\(42,29,23,\.38\)\)/, 'the guide keeps its own stroke without relying on desktop CSS');
@@ -226,7 +226,7 @@ assert.match(longTip, /11\/11 11:07/, 'spans over twenty hours keep the existing
 assert.doesNotMatch(chart, /elapsedCaption|发酵 \$\{hours\} 小时/, 'mobile tooltips no longer derive elapsed fermentation hours');
 console.log('series chart: tooltip uses the selected ISO timestamp and value');
 
-// 移动端不加载 main.css：散点 / 选中点的绝对定位、底部行与标题行的 flex 布局都必须由组件自己提供。
+// 散点、选中点、底部行和标题行的布局由组件自己提供。
 assert.match(source, /\.series-dot, \.series-hover-dot \{[^}]*position: absolute[^}]*transform: translate\(-50%, -50%\)/, 'dots are centred on their sample without desktop CSS');
 assert.match(source, /\.series-hover-dot \{ z-index: 2; \}/, 'the selected dot sits above the max / baseline tags');
 assert.match(source, /\.series-range \{[^}]*display: flex[^}]*justify-content: space-between/, 'the time range stays right-aligned on every page');

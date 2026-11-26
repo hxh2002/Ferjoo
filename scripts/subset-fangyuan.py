@@ -144,6 +144,7 @@ def main() -> None:
         total += len(payload)
         css.append(face(filename, codepoints))
         print(f"{filename:24} {len(codepoints):5} 字  {len(payload) / 1024:7.1f} KB")
+    css.append("html {\n  font-family: var(--font-sans);\n}\n")
     CSS_PATH.write_text("\n".join(css), encoding="utf-8")
     print(f"界面包 {len(eager)} 字，延后 {len(lazy)} 字，共 {len(files)} 个文件 {total / 1024:.0f} KB")
     if missing:

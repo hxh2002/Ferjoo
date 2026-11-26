@@ -62,6 +62,25 @@ export async function savePeakAlert(starterId, enabled) {
   if (error) throw new Error('过峰提醒保存失败，请重试。');
 }
 
+export const FEEDING_GAP_DAYS = [1, 2, 3, 5, 7];
+
+export async function saveFeedingGapAlert(starterId, enabled, days) {
+  const client = requireClient();
+  const { error } = await client.rpc('set_feeding_gap_alert', {
+    p_starter_id: starterId, p_enabled: Boolean(enabled), p_days: days,
+  });
+  if (error) throw new Error('喂养提醒保存失败，请重试。');
+}
+
+export async function loadFeedingGapAlert(starterId) {
+  if (!starterId) return { enabled: false, days: 3 };
+  const client = requireClient();
+  const { data, error } = await client.from('height_alert_settings').select('feeding_gap_enabled, feeding_gap_days').eq('starter_id', starterId).maybeSingle();
+  if (error) throw new Error('喂养提醒读取失败。');
+  const days = Number(data?.feeding_gap_days);
+  return { enabled: Boolean(data?.feeding_gap_enabled), days: FEEDING_GAP_DAYS.includes(days) ? days : 3 };
+}
+
 export async function loadPeakAlert(starterId) {
   if (!starterId) return false;
   const client = requireClient();

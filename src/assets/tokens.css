@@ -71,7 +71,3 @@
   --text-sm: 14px;
   --text-xs: 12px;
 }
-
-html {
-  font-family: var(--font-sans);
-}

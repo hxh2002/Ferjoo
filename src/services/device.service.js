@@ -137,27 +137,6 @@ function describeFailure(error) {
   return wrapped;
 }
 
-export async function addMeasurement(deviceId, measurement) {
-  const client = requireClient();
-  const payload = {
-    device_id: deviceId,
-    recorded_at: measurement.recordedAt || new Date().toISOString(),
-    temperature_c: finiteOrNull(measurement.temperatureC),
-    height_mm: finiteOrNull(measurement.heightMm),
-    height_delta_mm: finiteOrNull(measurement.heightDeltaMm),
-    humidity_percent: finiteOrNull(measurement.humidityPercent),
-    battery_percent: finiteOrNull(measurement.batteryPercent),
-    payload: measurement.payload || {}
-  };
-  const { data, error } = await client
-    .from('device_measurements')
-    .insert(payload)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
 export async function bindDeviceMember(deviceId, systemUserId) {
   const client = requireClient();
   const { data, error } = await client.rpc('bind_device_member', {
@@ -185,10 +164,4 @@ export async function listDeviceMembers(deviceId) {
   });
   if (error) throw error;
   return data || [];
-}
-
-function finiteOrNull(value) {
-  if (value === '' || value == null) return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
 }
